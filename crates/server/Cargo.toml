@@ -1,0 +1,17 @@
+[package]
+name = "geospax-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GeoSpaX web edition: thin Axum adapter over the engine router"
+
+[[bin]]
+name = "geospax-server"
+path = "src/main.rs"
+
+[dependencies]
+geospax-engine.workspace = true
+tokio.workspace = true
+axum.workspace = true
+tower-http.workspace = true
+serde_json.workspace = true

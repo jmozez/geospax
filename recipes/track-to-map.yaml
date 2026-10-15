@@ -1,0 +1,33 @@
+# GPS unit, sports watch or track logs -> map + KML (Google Earth) + GeoJSON + report.
+recipe: track-to-map
+version: 1
+title: GPS tracks → map, KML and GeoJSON
+description: >-
+  For handheld GPS units, sports watches and track logs (GPX, KML, NMEA). Maps the tracks and
+  waypoints and exports them as KML for Google Earth and GeoJSON for the web.
+triggers:
+  - device: { kinds: [gps], has: [tracks, waypoints] }
+inputs:
+  source: { type: device, default: auto, description: device id, mounted device or folder }
+steps:
+  - id: import
+    use: devices.import
+    with: { source: "${inputs.source}" }
+  - id: style
+    use: automap.style
+    with: { layers: "${import.layers}" }
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { layers: "${import.layers}", title: "GPS tracks · ${import.device}" }
+  - id: kml
+    use: export.data
+    with: { layers: "${import.layers}", format: kml }
+  - id: geojson
+    use: export.data
+    with: { layers: "${import.layers}", format: geojson }
+  - id: report
+    use: export.report
+    needs: [map, kml, geojson]
+    with: { title: "Track report · ${import.device} · ${run.date}" }
+outputs: [map, kml, geojson, report]

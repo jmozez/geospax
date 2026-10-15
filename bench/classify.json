@@ -1,0 +1,139 @@
+[
+ {
+  "request": "synthetic.buildings/classify?field=height&method=jenks&classes=5",
+  "scan_ms": 89.14316099999999,
+  "classify_ms": 12.880427,
+  "breaks": [
+   8.4,
+   13.8,
+   19.2,
+   24.6,
+   30.0
+  ],
+  "counts": [
+   202551,
+   199467,
+   200054,
+   199480,
+   198448
+  ]
+ },
+ {
+  "request": "synthetic.buildings/classify?field=height&method=quantile&classes=5",
+  "scan_ms": 91.50444,
+  "classify_ms": 9.101420000000001,
+  "breaks": [
+   8.4,
+   13.8,
+   19.2,
+   24.6,
+   30.0
+  ],
+  "counts": [
+   202551,
+   199467,
+   200054,
+   199480,
+   198448
+  ]
+ },
+ {
+  "request": "synthetic.buildings/classify?field=height&method=equal&classes=5",
+  "scan_ms": 105.79835999999999,
+  "classify_ms": 12.862446,
+  "breaks": [
+   8.4,
+   13.8,
+   19.2,
+   24.6,
+   30.0
+  ],
+  "counts": [
+   202551,
+   199467,
+   200054,
+   199480,
+   198448
+  ]
+ },
+ {
+  "request": "synthetic.buildings/unique?field=kind",
+  "scan_ms": 150.862602,
+  "classify_ms": null,
+  "values": [
+   {
+    "count": 600347,
+    "value": "residential"
+   },
+   {
+    "count": 199913,
+    "value": "commercial"
+   },
+   {
+    "count": 100348,
+    "value": "industrial"
+   },
+   {
+    "count": 99392,
+    "value": "public"
+   }
+  ]
+ },
+ {
+  "request": "natural_earth.countries/classify?field=POP_EST&method=jenks&classes=5",
+  "scan_ms": 2.555679,
+  "classify_ms": 0.049474000000000004,
+  "breaks": [
+   21803000.0,
+   69625582.0,
+   163046161.0,
+   328239523.0,
+   1397715000.0
+  ],
+  "counts": [
+   201,
+   38,
+   12,
+   5,
+   2
+  ]
+ },
+ {
+  "request": "natural_earth.countries/classify?field=POP_EST&method=quantile&classes=5",
+  "scan_ms": 1.854292,
+  "classify_ms": 0.010131,
+  "breaks": [
+   57216.0,
+   1394973.0,
+   7169455.0,
+   25876380.0,
+   1397715000.0
+  ],
+  "counts": [
+   52,
+   52,
+   51,
+   52,
+   51
+  ]
+ },
+ {
+  "request": "natural_earth.countries/classify?field=POP_EST&method=equal&classes=5",
+  "scan_ms": 1.886487,
+  "classify_ms": 0.009753,
+  "breaks": [
+   279543000.0,
+   559086000.0,
+   838629000.0,
+   1118172000.0,
+   1397715000.0
+  ],
+  "counts": [
+   255,
+   1,
+   0,
+   0,
+   2
+  ]
+ }
+]

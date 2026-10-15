@@ -1,0 +1,25 @@
+[package]
+name = "geospax"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GeoSpaX desktop edition: thin Tauri 2 adapter over the same engine router"
+
+[lib]
+name = "geospax_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# Embeds web/dist into the binary (the Tauri CLI enables this for `tauri build`;
+# pass `--features custom-protocol` when building with plain cargo).
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+geospax-engine.workspace = true
+tauri = { version = "2.12", features = [] }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true }

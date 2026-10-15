@@ -1,0 +1,41 @@
+# SAGA inside a recipe: the SAGA Wetness Index (ta_hydrology 15) shows where water collects —
+# handy for drainage, soil moisture and erosion planning.
+recipe: wetness-saga
+version: 1
+title: Topographic wetness with SAGA
+description: >-
+  Fetches the Copernicus DEM for the area and runs the SAGA Wetness Index (saga_cmd ta_hydrology 15),
+  mapped over relief shading with your points.
+inputs:
+  area: { type: layer, default: auto, description: the area (auto = the most sample-like layer) }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}", prefer: samples }
+  - id: dem
+    use: dem.fetch
+    with: { aoi: "${area.layer}", buffer: 800 }
+  - id: terrain
+    use: terrain.derive
+    with: { products: [hillshade] }
+  - id: wetness
+    use: saga
+    with:
+      tool: ta_hydrology 15
+      inputs: { DEM: "${dem.raster}" }
+      outputs:
+        TWI: { name: wetness, title: SAGA wetness index, kind: twi }
+  - id: sample
+    use: raster.sample
+    with: { layer: "${area.layer}", rasters: [wetness, dem] }
+  - id: style
+    use: automap.style
+    with: { layers: ["${area.layer}"], field: none }
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { name: wetness, layers: [wetness, hillshade, "${area.layer}"] }
+  - id: report
+    use: export.report
+    needs: [map]
+outputs: [map, report]

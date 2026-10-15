@@ -1,0 +1,36 @@
+# Plug in a phone or camera -> a finished, styled map and a one-page report.
+# Run by hand:  geospax run photos-to-map --input source=/media/$USER/PHONE
+recipe: photos-to-map
+version: 1
+title: Photos and tracks → finished map
+description: >-
+  Plug in a phone or camera (or point it at any folder). GeoSpaX maps every geotagged photo,
+  GPS track and waypoint, styles them, lays out a print-ready map and writes a one-page report.
+  With Auto on, it happens the moment the device is connected.
+triggers:
+  - device: { kinds: [phone, camera, folder], has: [photos] }
+inputs:
+  source:
+    type: device
+    default: auto
+    description: device id, mounted device or folder (auto = the device that triggered the run)
+steps:
+  - id: import
+    use: devices.import
+    with: { source: "${inputs.source}" }
+  - id: style
+    use: automap.style
+    with: { layers: "${import.layers}" }
+  - id: map
+    use: export.map
+    needs: [style]
+    with:
+      layers: "${import.layers}"
+      title: "Field photos · ${import.device}"
+      format: [png, svg]
+  - id: report
+    use: export.report
+    needs: [map]
+    with:
+      title: "Field report · ${import.device} · ${run.date}"
+outputs: [import, map, report]

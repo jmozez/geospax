@@ -1,0 +1,78 @@
+# Python step: centrographic statistics + nearest-neighbour index (ArcGIS "Spatial Statistics"
+# classics). Plain Python 3 is enough; geopandas is used for the inputs when installed.
+recipe: python-spatial-stats
+version: 1
+title: Python spatial statistics (centre, spread, clustering)
+description: >-
+  Classic point-pattern statistics in a Python step: mean centre, standard distance, standard
+  deviational ellipse and the Clark-Evans nearest-neighbour index (clustered, random or
+  dispersed?). Works with plain Python; edit the code to add your own analysis.
+inputs:
+  layer: { type: layer, default: auto, description: point layer (auto = the most sample-like layer) }
+steps:
+  - id: points
+    use: io.open
+    with: { layer: "${inputs.layer}", kind: point, prefer: samples }
+  - id: stats
+    use: python
+    with:
+      inputs: { points: "${points.layer}" }
+      code: |
+        import json, math
+        with open(inputs["points"], encoding="utf-8") as f:
+            fc = json.load(f)
+        pts = [ft["geometry"]["coordinates"][:2] for ft in fc["features"]
+               if ft.get("geometry") and ft["geometry"]["type"] == "Point"]
+        n = len(pts)
+        if n < 3:
+            raise SystemExit("need at least 3 points")
+        lon0 = sum(p[0] for p in pts) / n
+        lat0 = sum(p[1] for p in pts) / n
+        kx, ky = 111320 * math.cos(math.radians(lat0)), 110540
+        xy = [((p[0] - lon0) * kx, (p[1] - lat0) * ky) for p in pts]
+        # standard distance and standard deviational ellipse (Yuill 1971)
+        sd = math.sqrt(sum(x * x + y * y for x, y in xy) / n)
+        sxx = sum(x * x for x, _ in xy); syy = sum(y * y for _, y in xy); sxy = sum(x * y for x, y in xy)
+        theta = 0.5 * math.atan2(2 * sxy, sxx - syy)
+        c, s = math.cos(theta), math.sin(theta)
+        sx = math.sqrt(2 * sum((x * c + y * s) ** 2 for x, y in xy) / n)
+        sy = math.sqrt(2 * sum((-x * s + y * c) ** 2 for x, y in xy) / n)
+        ring = []
+        for k in range(73):
+            a = 2 * math.pi * k / 72
+            ex, ey = sx * math.cos(a), sy * math.sin(a)
+            ring.append([lon0 + (ex * c - ey * s) / kx, lat0 + (ex * s + ey * c) / ky])
+        # average nearest neighbour (Clark & Evans 1954)
+        nn = [min(math.hypot(x1 - x2, y1 - y2) for j, (x2, y2) in enumerate(xy) if j != i)
+              for i, (x1, y1) in enumerate(xy)]
+        xs = [x for x, _ in xy]; ys = [y for _, y in xy]
+        area = max((max(xs) - min(xs)) * (max(ys) - min(ys)), 1.0)
+        expected = 0.5 / math.sqrt(n / area)
+        observed = sum(nn) / n
+        z = (observed - expected) / (0.26136 / math.sqrt(n * n / area))
+        pattern = "clustered" if z < -1.96 else "dispersed" if z > 1.96 else "random"
+        save("ellipse", {"type": "FeatureCollection", "features": [{"type": "Feature",
+             "properties": {"name": "1-sigma ellipse", "major_m": round(max(sx, sy), 1),
+                            "minor_m": round(min(sx, sy), 1), "rotation_deg": round(math.degrees(theta), 1)},
+             "geometry": {"type": "Polygon", "coordinates": [ring]}}]})
+        save("center", {"type": "FeatureCollection", "features": [{"type": "Feature",
+             "properties": {"name": "Mean centre", "standard_distance_m": round(sd, 1)},
+             "geometry": {"type": "Point", "coordinates": [lon0, lat0]}}]})
+        result(points=n, pattern=pattern, nearest_neighbour_index=round(observed / expected, 3),
+               z_score=round(z, 2), standard_distance_m=round(sd, 1))
+  - id: style
+    use: automap.style
+    with:
+      layers: ["${stats.layers.ellipse}", "${points.layer}", "${stats.layers.center}"]
+      field: none
+  - id: map
+    use: export.map
+    needs: [style]
+    with:
+      layers: ["${stats.layers.ellipse}", "${points.layer}", "${stats.layers.center}"]
+      title: "Spatial pattern · ${points.layer}"
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Point pattern statistics · ${run.date}" }
+outputs: [stats, map, report]

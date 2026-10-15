@@ -1,0 +1,44 @@
+# Point samples (soil, water, air) -> the best surface the data supports: a fitted variogram and
+# ordinary kriging, or IDW when that cross-validates better, plus a map of the uncertainty.
+# Add a trigger to make it run when new samples arrive, e.g.
+#   triggers: [ { folder: { path: /data/samples, pattern: "*.geojson" } } ]
+recipe: interpolate-samples
+version: 2
+title: Field samples → interpolated surface (kriging or IDW, automatically)
+description: >-
+  Soil, water or air samples in, a smooth surface out. GeoSpaX fits a variogram, krigs with the
+  best of three models and cross-validates kriging against IDW; the lower error wins. Kriging
+  also maps its standard error, so the report shows where the surface is solid and where it is
+  a guess. No R or Python needed (the r-kriging recipe does the same in R with gstat).
+inputs:
+  layer: { type: layer, default: auto, description: point samples (auto = the most sample-like layer) }
+  field: { type: field, default: auto, description: value to interpolate (auto = the best numeric field) }
+steps:
+  - id: samples
+    use: io.open
+    with: { layer: "${inputs.layer}", kind: point, prefer: samples }
+  - id: surface
+    use: interpolate.auto
+    with: { layer: "${samples.layer}", field: "${inputs.field}", name: surface }
+  - id: style_samples
+    use: automap.style
+    with: { layers: ["${samples.layer}"], field: none }
+  - id: map
+    use: export.map
+    needs: [style_samples]
+    with:
+      layers: ["${surface.raster}", "${samples.layer}"]
+      title: "${surface.field} surface (${surface.method_label})"
+  - id: uncertainty
+    use: export.map
+    needs: [map]
+    when: "${surface.has_se}"
+    with:
+      name: uncertainty
+      layers: ["${surface.se}", "${samples.layer}"]
+      title: "How sure is the ${surface.field} map? Kriging standard error"
+  - id: report
+    use: export.report
+    needs: [map, uncertainty]
+    with: { title: "Interpolated ${surface.field} · ${run.date}" }
+outputs: [surface, map, uncertainty, report]

@@ -1,0 +1,513 @@
+{
+  "cli": {
+    "photos-to-map": {
+      "status": "done",
+      "elapsed_ms": 118.5,
+      "wall_s": 0.34,
+      "steps": {
+        "import": 20.9,
+        "style": 0.1,
+        "map": 96.9,
+        "report": 0.2
+      },
+      "why": {
+        "import": [
+          "TEST-PHONE (phone): 12 geotagged photos \u00b7 1 track (3.1 km) \u00b7 2 waypoints, 1 without GPS \u2192 3 layers in 2 ms"
+        ],
+        "style": [
+          "Photos \u00b7 TEST-PHONE: photos from a device: one bold colour with a white ring so every photo stands out",
+          "Tracks \u00b7 TEST-PHONE: GPS tracks: one bright line colour over a white casing, readable on any background",
+          "Waypoints \u00b7 TEST-PHONE: waypoints: a contrasting colour, labelled with their names"
+        ],
+        "map": [
+          "1240\u00d71227 px: 6 layers, 17 features drawn, 2 labels, \u2248 1:13,000 \u2192 map.png, map.svg"
+        ],
+        "report": [
+          "14 KB report: map, 3 decisions, 3 method notes, run log, provenance"
+        ]
+      }
+    },
+    "track-to-map": {
+      "status": "done",
+      "elapsed_ms": 103.3,
+      "wall_s": 0.23,
+      "steps": {
+        "import": 11.9,
+        "style": 0.1,
+        "map": 82.9,
+        "kml": 3.1,
+        "geojson": 4.6,
+        "report": 0.1
+      },
+      "why": {
+        "import": [
+          "GARMIN (gps): 1 track (3.0 km) \u00b7 4 waypoints \u2192 2 layers in 2 ms"
+        ],
+        "style": [
+          "Tracks \u00b7 GARMIN: GPS tracks: one bright line colour over a white casing, readable on any background",
+          "Waypoints \u00b7 GARMIN: waypoints: a contrasting colour, labelled with their names"
+        ],
+        "map": [
+          "1600\u00d71000 px: 5 layers, 6 features drawn, 4 labels, \u2248 1:9,800 \u2192 map.png, map.svg"
+        ],
+        "kml": [
+          "2 layer(s), 5 features \u2192 garmin-2288.tracks.kml, garmin-2288.waypoints.kml"
+        ],
+        "geojson": [
+          "2 layer(s), 5 features \u2192 garmin-2288.tracks.geojson, garmin-2288.waypoints.geojson"
+        ],
+        "report": [
+          "12 KB report: map, 2 decisions, 3 method notes, run log, provenance"
+        ]
+      }
+    },
+    "drone-flight-report": {
+      "status": "done",
+      "elapsed_ms": 120.2,
+      "wall_s": 0.23,
+      "steps": {
+        "import": 11.1,
+        "coverage": 21.3,
+        "style": 2.3,
+        "map": 84.8,
+        "report": 0.1
+      },
+      "why": {
+        "import": [
+          "DJI-SD (drone): 15 geotagged photos \u00b7 1 track (707 m) \u2192 2 layers in 1 ms"
+        ],
+        "coverage": [
+          "15 features buffered by 60 m in UTM 55S (EPSG:32755), dissolved; area 13.11 ha"
+        ],
+        "style": [
+          "Photos \u00b7 DJI-SD: photos from a device: one bold colour with a white ring so every photo stands out",
+          "Tracks \u00b7 DJI-SD: GPS tracks: one bright line colour over a white casing, readable on any background",
+          "Coverage: no attribute worth mapping (only ids, names or constants), so one clear colour; drawn see-through because it is a single area over other data; colour kept distinct from the other layers on this map"
+        ],
+        "map": [
+          "1600\u00d71000 px: 6 layers, 18 features drawn, 0 labels, \u2248 1:3,800 \u2192 map.png, map.svg"
+        ],
+        "report": [
+          "15 KB report: map, 3 decisions, 4 method notes, run log, provenance"
+        ]
+      }
+    },
+    "sensor-log-to-map": {
+      "status": "done",
+      "elapsed_ms": 141.6,
+      "wall_s": 0.26,
+      "steps": {
+        "import": 13.9,
+        "summary": 3.3,
+        "style": 0.4,
+        "map": 115.3,
+        "geojson": 7.6,
+        "report": 0.2
+      },
+      "why": {
+        "import": [
+          "AQ-LOGGER (sensor): 1 track (2.9 km) \u00b7 360 sensor readings (pm1, pm2_5, pm10, temperature, \u2026) \u2192 2 layers in 1 ms"
+        ],
+        "summary": [
+          "360 readings \u00b7 mapping PM2.5 (the air-quality measurement)",
+          "PM1: n 360, mean 10.3 \u00b5g/m\u00b3, 95th percentile 35.9 \u00b5g/m\u00b3, max 41.6 \u00b5g/m\u00b3",
+          "PM2.5: n 360, mean 15.1 \u00b5g/m\u00b3, 95th percentile 52.8 \u00b5g/m\u00b3, max 61.1 \u00b5g/m\u00b3 \u00b7 21 % of readings above the WHO 24-hour guideline (15 \u00b5g/m\u00b3)",
+          "PM10: n 360, mean 26.2 \u00b5g/m\u00b3, 95th percentile 85.9 \u00b5g/m\u00b3, max 99.7 \u00b5g/m\u00b3 \u00b7 15 % of readings above the WHO 24-hour guideline (45 \u00b5g/m\u00b3)",
+          "temperature: n 360, mean 20 \u00b0C, 95th percentile 21.4 \u00b0C, max 21.7 \u00b0C",
+          "humidity: n 360, mean 79.1 %, 95th percentile 86 %, max 89 %"
+        ],
+        "style": [
+          "Tracks \u00b7 AQ-LOGGER: GPS tracks: one bright line colour over a white casing, readable on any background",
+          "Readings \u00b7 AQ-LOGGER: 'pm2_5' is PM2.5, so classes follow the WHO 2021 24-hour guideline (15 \u00b5g/m\u00b3) and interim targets (25, 37.5, 50, 75 \u00b5g/m\u00b3), coloured like an air-quality index (n = 360)"
+        ],
+        "map": [
+          "1240\u00d71800 px: 5 layers, 363 features drawn, 0 labels, \u2248 1:8,700 \u2192 map.png, map.svg"
+        ],
+        "geojson": [
+          "1 layer(s), 360 features \u2192 aq-logger-2bac.readings.geojson"
+        ],
+        "report": [
+          "33 KB report: map, 2 decisions, 4 method notes, run log, provenance"
+        ]
+      }
+    },
+    "points-to-hexbins": {
+      "status": "done",
+      "elapsed_ms": 591.1,
+      "wall_s": 0.73,
+      "steps": {
+        "points": 0.0,
+        "hex": 456.6,
+        "style": 2.7,
+        "map": 130.9,
+        "report": 0.3
+      },
+      "why": {
+        "points": [
+          "picked 'synthetic.points' automatically (1000000 features; rule: largest)"
+        ],
+        "hex": [
+          "1,000,000 points \u2192 736 hexagons 8.7 km across (auto-sized); busiest holds 26350"
+        ],
+        "style": [
+          "Points per hexagon: 'count' is numeric and heavy-tailed (n = 736, skew 4.3), so quantiles (every class equally full) in 5 classes with the colour-blind-safe Yellow-Orange-Red ramp; hexagons keep a thin white outline so cells read individually"
+        ],
+        "map": [
+          "1600\u00d71000 px: 4 layers, 753 features drawn, 0 labels, \u2248 1:1,600,000 \u2192 map.png, map.svg"
+        ],
+        "report": [
+          "78 KB report: map, 1 decisions, 3 method notes, run log, provenance"
+        ]
+      }
+    },
+    "interpolate-samples": {
+      "status": "done",
+      "elapsed_ms": 805.2,
+      "wall_s": 0.93,
+      "steps": {
+        "samples": 0.0,
+        "surface": 176.4,
+        "style_samples": 0.1,
+        "map": 272.6,
+        "uncertainty": 354.0,
+        "report": 1.1
+      },
+      "why": {
+        "samples": [
+          "picked 'field_samples.geojson' automatically (60 features; rule: samples)"
+        ],
+        "surface": [
+          "variogram of 60 samples (15 lags up to 4.0 km): spherical fits best (nugget 0.00414, partial sill 0.526, practical range 38.2 km, far beyond the data: no sill, the values follow a trend; weighted SSE 1.83e-8)",
+          "leave-one-out: kriging RMSE 0.106 (MAE 0.0754, mean error 0.0058, RMSSE 0.818) vs best IDW RMSE 0.147 (power 3) \u2192 kriging",
+          "312 \u00d7 230 grid of 32.9-m cells, 54,390 inside the samples' hull"
+        ],
+        "style_samples": [
+          "Field samples: single colour (requested); white with a dark ring so the points stay visible on every class colour below"
+        ],
+        "map": [
+          "1600\u00d71057 px: 4 layers + 1 raster (surface), 63 features drawn, 60 labels, \u2248 1:57,000 \u2192 map.png, map.svg"
+        ],
+        "uncertainty": [
+          "1600\u00d71057 px: 4 layers + 1 raster (stderr), 63 features drawn, 60 labels, \u2248 1:57,000 \u2192 uncertainty.png, uncertainty.svg"
+        ],
+        "report": [
+          "614 KB report: map, 1 decisions, 3 method notes, run log, provenance"
+        ]
+      }
+    },
+    "points-to-hotspots": {
+      "status": "done",
+      "elapsed_ms": 174.3,
+      "wall_s": 0.32,
+      "steps": {
+        "incidents": 0.0,
+        "hot": 40.1,
+        "style": 3.9,
+        "map": 129.5,
+        "report": 0.2
+      },
+      "why": {
+        "incidents": [
+          "picked 'incidents.geojson' automatically (1120 features; rule: incidents)"
+        ],
+        "hot": [
+          "1,120 incidents at 1,120 unique locations \u2192 604 hexagon cells of 211 m (twice the larger of the average (105 m) and median (82 m) nearest-neighbour distance); empty cells left out; 13 locational outliers ignored for the sizing",
+          "distance band 680 m: the first peak of spatial clustering (Moran's I z = 24.5) among 10 distances from 227 m in steps of 227 m",
+          "Gi* with the false discovery rate: 111 hot (100/8/3 at 99/95/90 %) and 0 cold (0/0/0) of 604 cells; 16.1 neighbours on average"
+        ],
+        "style": [
+          "Hot spots of Incidents: Gi* confidence bins on the conventional diverging scheme: reds are hot spots, blues cold spots, pale = not significant after the false-discovery-rate correction"
+        ],
+        "map": [
+          "1600\u00d71076 px: 4 layers, 606 features drawn, 0 labels, \u2248 1:51,000 \u2192 map.png, map.svg, map.pdf"
+        ],
+        "report": [
+          "66 KB report: map, 1 decisions, 4 method notes, run log, provenance"
+        ]
+      }
+    },
+    "python-spatial-stats": {
+      "status": "done",
+      "elapsed_ms": 188.4,
+      "wall_s": 0.33,
+      "steps": {
+        "points": 0.0,
+        "stats": 78.0,
+        "style": 0.2,
+        "map": 109.4,
+        "report": 0.2
+      },
+      "why": {
+        "points": [
+          "picked 'field_samples.geojson' automatically (60 features; rule: samples)"
+        ],
+        "stats": [
+          "Python (Python 3.13.16) in 0.1 s \u2192 2 layer(s); nearest_neighbour_index = 0.955, pattern = random, points = 60, standard_distance_m = 2925.6, z_score = -0.67"
+        ],
+        "style": [
+          "Ellipse: single colour (requested); drawn see-through because it is a single area over other data",
+          "Field samples: single colour (requested)",
+          "Center: single colour (requested)"
+        ],
+        "map": [
+          "1600\u00d71052 px: 6 layers, 65 features drawn, 60 labels, \u2248 1:53,000 \u2192 map.png, map.svg"
+        ],
+        "report": [
+          "16 KB report: map, 3 decisions, 3 method notes, run log, provenance"
+        ]
+      }
+    },
+    "r-kriging": {
+      "status": "done",
+      "elapsed_ms": 4447.0,
+      "wall_s": 4.62,
+      "steps": {
+        "samples": 0.0,
+        "krige": 4250.4,
+        "style": 4.9,
+        "style_samples": 0.1,
+        "map": 190.0,
+        "report": 0.5
+      },
+      "why": {
+        "samples": [
+          "picked 'field_samples.geojson' automatically (60 features; rule: samples)"
+        ],
+        "krige": [
+          "R (Rscript (R) version 4.5.0 (2025-04-11)) in 4.2 s \u2192 1 layer(s); cv_rmse = 0.1058, epsg = 32755, field = ph, model = Sph, range_m = 45759, samples = 60"
+        ],
+        "style": [
+          "Prediction: 'prediction' is numeric and roughly symmetric (n = 2115, skew -0.1), so equal intervals in 5 classes with the colour-blind-safe Viridis ramp"
+        ],
+        "style_samples": [
+          "Field samples: single colour (requested); white with a dark ring so the points stay visible on every class colour below"
+        ],
+        "map": [
+          "1600\u00d71053 px: 5 layers, 2178 features drawn, 59 labels, \u2248 1:53,000 \u2192 map.png, map.svg"
+        ],
+        "report": [
+          "145 KB report: map, 2 decisions, 4 method notes, run log, provenance"
+        ]
+      }
+    },
+    "terrain-report": {
+      "status": "done",
+      "elapsed_ms": 5319.3,
+      "wall_s": 5.48,
+      "steps": {
+        "area": 0.0,
+        "dem": 2480.2,
+        "terrain": 47.9,
+        "contours": 21.7,
+        "slope_classes": 10.7,
+        "sample": 13.1,
+        "style": 0.1,
+        "relief_map": 1296.7,
+        "slope_map": 792.2,
+        "scene": 650.3,
+        "report": 4.3
+      },
+      "why": {
+        "area": [
+          "picked 'field_samples.geojson' automatically (60 features; rule: samples)"
+        ],
+        "dem": [
+          "area 10.6 \u00d7 8.0 km (Field samples + 500 m)",
+          "1 Copernicus tile(s) read as cloud-optimised GeoTIFF windows",
+          "reprojected to UTM 55S at 30 m so slopes and distances are in metres: 351 \u00d7 270 px, 1,624\u20132,411 m (mean 1,788)"
+        ],
+        "terrain": [
+          "hillshade: multidirectional (lit from several azimuths, so no side goes black), z-factor 1",
+          "slope: mean 8.7\u00b0, max 51\u00b0, 1 % steeper than 30\u00b0",
+          "aspect: most slopes face north (18 %)"
+        ],
+        "contours": [
+          "interval 100 m chosen for a 1,624\u20132,411 m range (\u2248 12 levels); 85 lines, 13 index contours"
+        ],
+        "slope_classes": [
+          "flat (< 5\u00b0): 2860.0 ha (33.5 %)",
+          "gentle (5\u201315\u00b0): 4392.2 ha (51.5 %)",
+          "moderate (15\u201330\u00b0): 1206.2 ha (14.1 %)",
+          "steep (> 30\u00b0): 70.9 ha (0.8 %)"
+        ],
+        "sample": [
+          "elevation \u2190 Elevation: 60 values",
+          "slope \u2190 Slope: 60 values",
+          "strongest relationship: ph vs elevation, Pearson r = 0.45 (moderate, n = 60)"
+        ],
+        "style": [
+          "Contours (100 m): single colour (requested); thin brown contour lines with bolder index contours, the cartographic convention for elevation",
+          "Field samples: single colour (requested); white with a dark ring so the points stay visible on every class colour below"
+        ],
+        "relief_map": [
+          "1600\u00d71083 px: 5 layers + 2 rasters (dem under hillshade), 146 features drawn, 58 labels, \u2248 1:51,000 \u2192 relief.png, relief.svg, relief.pdf"
+        ],
+        "slope_map": [
+          "1600\u00d71083 px: 4 layers + 2 rasters (classes under hillshade), 63 features drawn, 58 labels, \u2248 1:51,000 \u2192 slopes.png, slopes.svg"
+        ],
+        "scene": [
+          "terrain: 320 \u00d7 246 mesh (32.9 m spacing) from Elevation, \u00d71.5 vertical exaggeration (the relief (787 m) is 7.5 % of the width, so it is raised to read clearly)",
+          "drape: 1024 \u00d7 512 image of the terrain colours with relief shading (painted on the terrain: Contours (100 m), Field samples)",
+          "158,566 triangles; scene.glb 2.7 MB, scene.html 3.6 MB, scene.png 1600 \u00d7 1000; done in 0.7 s"
+        ],
+        "report": [
+          "2925 KB report: map, 2 decisions, 8 method notes, run log, provenance"
+        ]
+      }
+    },
+    "latest-ndvi": {
+      "status": "done",
+      "elapsed_ms": 5104.9,
+      "wall_s": 5.31,
+      "steps": {
+        "area": 0.0,
+        "search": 180.8,
+        "ndvi": 1893.9,
+        "classes": 100.7,
+        "photo": 749.1,
+        "sample": 36.4,
+        "style": 0.2,
+        "map": 845.0,
+        "class_map": 367.1,
+        "photo_map": 913.0,
+        "report": 16.1
+      },
+      "why": {
+        "area": [
+          "picked 'field_samples.geojson' automatically (60 features; rule: samples)"
+        ],
+        "search": [
+          "searched sentinel-2-l2a on earth-search.aws.element84.com for a 11.2 \u00d7 8.6 km area (Field samples + 800 m), last 90 days, < 50 % cloud",
+          "14 dates found; newest first: 2026-10-12 S2A (8 % cloud, tile 54MZU); 2026-10-10 S2C (4 % cloud, tile 54MZU); 2026-10-05 S2B (39 % cloud, tile 54MZU)"
+        ],
+        "ndvi": [
+          "used 2026-10-12 S2A (8 % cloud, tile 54MZU): 100 % clear over the area (needed 70 %), 1124 \u00d7 860 px at 10 m",
+          "NDVI: mean 0.55, 2\u201398 % range 0.13\u20260.85"
+        ],
+        "classes": [
+          "bare, water or built (< 0.2): 369.3 ha (3.8 %)",
+          "sparse vegetation (0.2\u20130.4): 1626.3 ha (16.8 %)",
+          "moderate vegetation (0.4\u20130.6): 3667.6 ha (37.9 %)",
+          "dense vegetation (> 0.6): 4003.2 ha (41.4 %)"
+        ],
+        "photo": [
+          "visual of 2026-10-12 S2A (8 % cloud, tile 54MZU): 1124 \u00d7 860 px at 10 m"
+        ],
+        "sample": [
+          "ndvi \u2190 NDVI \u00b7 Sentinel-2 \u00b7 12 Oct 2026: 60 values",
+          "strongest relationship: ph vs ndvi, Pearson r = 0.21 (weak, n = 60)"
+        ],
+        "style": [
+          "Field samples: single colour (requested); white with a dark ring so the points stay visible on every class colour below"
+        ],
+        "map": [
+          "1600\u00d71099 px: 4 layers + 1 raster (ndvi), 63 features drawn, 59 labels, \u2248 1:54,000 \u2192 ndvi.png, ndvi.svg"
+        ],
+        "class_map": [
+          "1600\u00d71099 px: 4 layers + 1 raster (classes), 63 features drawn, 59 labels, \u2248 1:54,000 \u2192 vegetation.png, vegetation.svg"
+        ],
+        "photo_map": [
+          "1600\u00d71099 px: 4 layers + 1 raster (rgb), 63 features drawn, 59 labels, \u2248 1:54,000 \u2192 truecolor.png, truecolor.svg"
+        ],
+        "report": [
+          "7901 KB report: map, 1 decisions, 6 method notes, run log, provenance"
+        ]
+      }
+    },
+    "landforms-grass": {
+      "status": "done",
+      "elapsed_ms": 5315.1,
+      "wall_s": 5.68,
+      "steps": {
+        "area": 0.0,
+        "dem": 2735.1,
+        "terrain": 13.3,
+        "landforms": 1753.5,
+        "style": 0.1,
+        "map": 811.3,
+        "report": 0.9
+      },
+      "why": {
+        "area": [
+          "picked 'field_samples.geojson' automatically (60 features; rule: samples)"
+        ],
+        "dem": [
+          "area 11.2 \u00d7 8.6 km (Field samples + 800 m)",
+          "1 Copernicus tile(s) read as cloud-optimised GeoTIFF windows",
+          "reprojected to UTM 55S at 30 m so slopes and distances are in metres: 371 \u00d7 290 px, 1,624\u20132,456 m (mean 1,798)"
+        ],
+        "terrain": [
+          "hillshade: multidirectional (lit from several azimuths, so no side goes black), z-factor 1"
+        ],
+        "landforms": [
+          "GRASS GIS 8.4.1: 1 input(s) imported, 1 script line(s), 1 output(s), 1.5 s",
+          "landforms: 10 classes with GRASS's own labels and colours (flat \u00b7 1 %, peak \u00b7 3 %, ridge \u00b7 19 %, shoulder \u00b7 1 %)"
+        ],
+        "style": [
+          "Field samples: single colour (requested); white with a dark ring so the points stay visible on every class colour below"
+        ],
+        "map": [
+          "1600\u00d71099 px: 4 layers + 2 rasters (classes under hillshade), 63 features drawn, 59 labels, \u2248 1:54,000 \u2192 landforms.png, landforms.svg"
+        ],
+        "report": [
+          "908 KB report: map, 1 decisions, 5 method notes, run log, provenance"
+        ]
+      }
+    },
+    "wetness-saga": {
+      "status": "done",
+      "elapsed_ms": 6308.0,
+      "wall_s": 6.68,
+      "steps": {
+        "area": 0.0,
+        "dem": 2930.9,
+        "terrain": 22.3,
+        "wetness": 1898.2,
+        "sample": 17.7,
+        "style": 0.2,
+        "map": 1431.9,
+        "report": 5.6
+      },
+      "why": {
+        "area": [
+          "picked 'field_samples.geojson' automatically (60 features; rule: samples)"
+        ],
+        "dem": [
+          "area 11.2 \u00d7 8.6 km (Field samples + 800 m)",
+          "1 Copernicus tile(s) read as cloud-optimised GeoTIFF windows",
+          "reprojected to UTM 55S at 30 m so slopes and distances are in metres: 371 \u00d7 290 px, 1,624\u20132,456 m (mean 1,798)"
+        ],
+        "terrain": [
+          "hillshade: multidirectional (lit from several azimuths, so no side goes black), z-factor 1"
+        ],
+        "wetness": [
+          "SAGA Version: 9.8.0: saga_cmd ta_hydrology 15 (1.3 s)",
+          "wetness: 3.95\u201314.67 (mean 8.00)"
+        ],
+        "sample": [
+          "twi \u2190 SAGA wetness index: 60 values",
+          "elevation \u2190 Elevation: 60 values",
+          "strongest relationship: ph vs elevation, Pearson r = 0.45 (moderate, n = 60)"
+        ],
+        "style": [
+          "Field samples: single colour (requested); white with a dark ring so the points stay visible on every class colour below"
+        ],
+        "map": [
+          "1600\u00d71099 px: 4 layers + 2 rasters (twi under hillshade), 63 features drawn, 59 labels, \u2248 1:54,000 \u2192 wetness.png, wetness.svg"
+        ],
+        "report": [
+          "2268 KB report: map, 1 decisions, 6 method notes, run log, provenance"
+        ]
+      }
+    }
+  },
+  "triggers": {
+    "device_s": 5.3,
+    "folder_s": 5.0,
+    "webhook_s": 0.25,
+    "sensor_s": 0.26,
+    "mqtt_s": 0.2,
+    "stac_s": 6.3,
+    "inbox_s": 4.0
+  }
+}

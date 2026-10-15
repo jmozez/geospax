@@ -1,0 +1,8 @@
+target
+**/node_modules
+web/dist
+releases
+bench/screenshots
+.git
+.github
+*.deb

@@ -1,0 +1,16 @@
+/target/
+node_modules/
+/web/dist/
+/data/
+/apps/desktop/src-tauri/gen/
+*.mvt
+/releases/
+/apps/desktop/dist/
+/bench/examples/*.glb
+/bench/examples/*.html
+*.log
+*.jsonl
+/state/
+*.tmp
+.DS_Store
+*.swp

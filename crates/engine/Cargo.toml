@@ -1,0 +1,48 @@
+[package]
+name = "geospax-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GeoSpaX engine: transport-agnostic GIS data plane (GDAL sources -> MVT tiles, PMTiles overviews, Arrow IPC)"
+
+[features]
+default = ["arrow"]
+arrow = ["dep:arrow-array", "dep:arrow-schema", "dep:arrow-ipc", "dep:arrow-buffer"]
+# Build GDAL from source via gdal-src instead of linking a system GDAL
+# (slow first build, needs CMake + a C/C++ toolchain, but no GDAL install).
+bundled-gdal = ["gdal-sys/bundled"]
+
+[dependencies]
+gdal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rayon.workspace = true
+lru.workspace = true
+gdal-sys = "0.12"
+pmtiles.workspace = true
+flate2.workspace = true
+kamadak-exif = "0.6"
+# automation engine (docs/AUTOMATION.md): recipe YAML, map PNG export, local time for runs/cron
+serde-saphyr = "2"
+resvg = { version = "0.47", default-features = false, features = ["text", "system-fonts", "memmap-fonts"] }
+krilla = { version = "0.8", default-features = false, features = ["raster-images", "comemo", "rayon"] }
+krilla-svg = "0.8"
+fitparser = "0.11"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+arrow-array = { workspace = true, optional = true }
+arrow-schema = { workspace = true, optional = true }
+arrow-ipc = { workspace = true, optional = true }
+arrow-buffer = { workspace = true, optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rcgen = { version = "0.14.10", default-features = false, features = ["ring", "crypto"] }
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
+webpki-roots = "1.0.9"
+las = { version = "0.11.1", features = ["laz-parallel"] }
+earcutr = "0.5"
+jpeg-encoder = "0.7.1"
+# native spatial statistics (geostats.rs): erfc for p-values
+libm = "0.2"
+
+[[bin]]
+name = "geospax-bench"
+path = "src/bin/geospax-bench.rs"

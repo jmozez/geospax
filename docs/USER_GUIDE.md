@@ -1,0 +1,238 @@
+# GeoSpaX user guide (v1.6)
+
+GeoSpaX makes maps for you. You bring the data (plug something in, drop a file, or name an area) and a
+**recipe** does the rest: import, analysis, styling, layout, legend and export to PNG, PDF and an HTML report.
+This guide gets you from zero to a finished map in a few minutes.
+
+- [1. Install](#1-install)
+- [2. Your first map: four lazy ways](#2-your-first-map-four-lazy-ways)
+- [3. Where things go](#3-where-things-go)
+- [4. Recipes in the box](#4-recipes-in-the-box)
+- [5. Automation on and off](#5-automation-on-and-off)
+- [6. Live sensors and phones](#6-live-sensors-and-phones)
+- [7. Optional power tools: R, Python, GRASS, SAGA](#7-optional-power-tools-r-python-grass-saga)
+- [8. Command line](#8-command-line)
+- [9. Privacy](#9-privacy)
+- [10. Troubleshooting](#10-troubleshooting)
+
+## 1. Install
+
+| You have | Do this |
+|---|---|
+| **Windows 10 or 11** (64-bit) | Run `GeoSpaX_1.6.0_x64-setup.exe`. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start **GeoSpaX** from the Start menu. **GeoSpaX Web Server** in the same menu opens the web edition in your browser. The installer isn't code-signed yet, so Windows may say "Windows protected your PC": click *More info → Run anyway*. Prefer no installer? Unzip `GeoSpaX-1.6.0-windows-x64.zip` anywhere and run `geospax.exe`. |
+| **Debian 13** (desktop) | Download `geospax_1.6.0_amd64.deb`, then `sudo apt install ./geospax_1.6.0_amd64.deb`. Start **GeoSpaX** from the applications menu. |
+| Another Debian/Ubuntu release | The `.deb` above is built against GDAL 3.10 (`libgdal36`). Build a matching one: `scripts/setup-linux.sh && scripts/package-linux.sh` (it works out the right dependencies for your system), or use the web edition in a container. |
+| **Docker** (any OS, web edition) | `mkdir -p data inbox && docker compose up -d`, then open <http://localhost:8080>. The compose file also starts an MQTT broker for live sensors. *The image is built by CI on version tags; it has not been built in our own test sandbox yet.* |
+| macOS | Not packaged yet (it needs a Mac to build). Use the Docker web edition for now. |
+| The source code | `scripts/setup-linux.sh`, then `cd web && npm ci && npx vite build`, then `cargo build --release -p geospax-server` and `./target/release/geospax-server --data data`. See the [README](../README.md). |
+
+The `.deb` and the Windows installer both contain both editions (on Windows: `geospax.exe`, `geospax-server.exe`, and `geospax-web.cmd`, which starts the server on your `GeoSpaX` folders and opens the browser):
+
+| Program | What it is |
+|---|---|
+| `geospax` | The desktop app. It also runs recipes from a terminal, e.g. `geospax run track-to-map --input source=~/tracks` (a folder or device). |
+| `geospax-server` | The web edition. Run `geospax-server --data ~/GeoSpaX/Data`, then open <http://localhost:8080>. |
+
+## 2. Your first map: four lazy ways
+
+**a) Drop files into `~/GeoSpaX/Inbox`.** Photos, GPX/KML/NMEA tracks, drone logs and sensor logs dropped here
+are mapped by the matching recipe within about 5 seconds, with no switches to turn on:
+
+| Device content | Recipe that runs | You get |
+|---|---|---|
+| Geotagged photos (phone, camera, folder) | `photos-to-map` | Photo points and tracks on a laid-out map, plus a report |
+| GPS tracks or waypoints | `track-to-map` | Track map, KML and GeoJSON |
+| Drone card (DJI photos and SRT logs) | `drone-flight-report` | Coverage map and flight report |
+| Sensor logger CSV/JSON | `sensor-log-to-map` | Readings map (air quality is classed by the WHO guideline) and a summary |
+
+**b) Plug something in.** Connect a phone (file transfer mode), a GPS unit, a camera or drone SD card, a sports
+watch or an air-quality logger. GeoSpaX lists it in the **Devices** section within about 5 seconds. Press
+**Import & map** once. To have it mapped on every plug-in, turn on the matching recipe's **Auto** switch in
+**Automate**. Devices are never processed without a click or a switch, because photo locations and tracks are
+personal data.
+
+**c) Send from your phone over Wi-Fi.** No cable and no app needed:
+1. In the **Devices** section, press **Send from phone → Turn on** and scan the QR code with the phone's camera.
+2. The phone shows a certificate warning once. That certificate belongs to your own computer: choose *Advanced → Continue*.
+3. Then **Choose files** (photos, tracks, sensor logs) or **Take a photo**.
+
+The map makes itself, on the computer and on the phone. Photos that lost their location on the way are placed on
+the phone's track by their time, if **Share live location** was on while you took them. Photos taken with **Take a
+photo** always get the phone's position. Works on Android and iPhone, with Windows, macOS and Linux.
+
+**d) Pick a recipe and press Run.** Open the **Automate** section, choose a recipe (for example *Terrain report*
+or *Latest cloud-free NDVI*), answer the one or two questions it asks (usually just the area) and press **Run**.
+The autopilot fills in every other setting and explains its choices in the report.
+
+Finished maps appear in the **Automate** section under the recipe's runs. Open one to see the map, the PDF and the
+report.
+
+## 3. Where things go
+
+The installed desktop app keeps everything in one folder:
+
+```
+~/GeoSpaX/
+├── Inbox/       drop photos, tracks, drone and sensor logs here → the matching recipe maps them
+├── Data/        put GIS layers here (GeoPackage, Shapefile, GeoJSON, FlatGeobuf, GeoTIFF …)
+│                → they appear in the layer list next time GeoSpaX starts
+├── .geospax/    state: runs/ (finished maps, PDFs, reports), overviews, project, Auto switches
+└── README.txt
+```
+
+When you start it from a terminal with a folder (`geospax /path/to/data`), or with `GEOSPAX_DATA` set, it uses
+that folder instead. State then goes into `<folder>/.geospax`.
+
+## 4. Recipes in the box
+
+| Recipe | Makes | Runs by itself when |
+|---|---|---|
+| `photos-to-map` | Photos and tracks → finished map | Geotagged photos land in the Inbox, or (on Auto) a phone or camera is plugged in |
+| `track-to-map` | GPS tracks → map, KML and GeoJSON | Tracks land in the Inbox, or (on Auto) a GPS unit is plugged in |
+| `drone-flight-report` | Drone flight → coverage map and report | Drone logs land in the Inbox, or (on Auto) a drone card is plugged in |
+| `sensor-log-to-map` | Sensor log → map and report | A sensor log lands in the Inbox, or (on Auto) a logger is plugged in |
+| `air-quality-alert` | Alert map of live sensors | A live PM2.5 reading goes above 35 µg/m³ (30 min cooldown) |
+| `latest-ndvi` | Latest cloud-free NDVI (Sentinel-2) | A new satellite pass covers your area (when on Auto) |
+| `lidar-to-terrain` | LiDAR point clouds (LAS/LAZ) → terrain map, canopy map with tree tops and buildings, **3D scene**, report | LAS/LAZ files land in the Inbox, or (on Auto) a drive with point clouds is plugged in |
+| `terrain-report` | DEM → relief, slopes, contours, **3D view** | You press Run |
+| `landforms-grass` | Landforms with GRASS r.geomorphon | You press Run (needs GRASS) |
+| `wetness-saga` | Topographic wetness index with SAGA | You press Run (needs SAGA) |
+| `interpolate-samples` | Field samples → the best surface: **kriging or IDW**, whichever predicts better, plus a map of how sure it is | You press Run |
+| `points-to-hotspots` | Incidents → **hot spot map** (where they cluster more than chance explains) | You press Run |
+| `r-kriging` | Kriging prediction and uncertainty (R gstat) | You press Run (needs R) |
+| `python-spatial-stats` | Centre, spread and clustering of points | You press Run (needs Python 3) |
+| `points-to-hexbins` | Hexagon density map for very many points | You press Run |
+
+To make your own recipe, use **Save this map as a recipe** in the app, or copy one of the examples from
+`/usr/share/geospax/recipes/` (source: [`recipes/`](../recipes)) into a folder and point `GEOSPAX_RECIPES` at it.
+The format is described in [AUTOMATION.md](AUTOMATION.md).
+
+## 5. Automation on and off
+
+Every recipe with a trigger has an **Auto** switch in the Automate section. Your choices are saved in
+`.geospax/automation.json`. From a terminal:
+
+| Setting | Desktop (environment variable) | Web edition (flag) |
+|---|---|---|
+| Recipes on Auto | `GEOSPAX_AUTO=photos-to-map,track-to-map` or `all` | `--auto …` |
+| Extra drop folders (mapped without Auto) | — (`~/GeoSpaX/Inbox` is built in) | `--inbox DIR` (repeatable) |
+| Extra watched folders (treated like devices) | `GEOSPAX_WATCH=/path/one:/path/two` | `--watch DIR` (repeatable) |
+| Import new devices without a recipe | `GEOSPAX_AUTO_IMPORT=1` | `--auto-import` |
+| Extra recipe folders | `GEOSPAX_RECIPES=DIR` | `--recipes DIR` |
+| Live sensors over MQTT | `GEOSPAX_MQTT=mqtt://host:1883/sensors/#` | `--mqtt …` |
+| Live GNSS receiver | `GEOSPAX_GPS=gpsd://localhost:2947` or a serial/TCP/file URL | `--gps …` |
+| Data and state folders | `GEOSPAX_DATA`, `GEOSPAX_STATE` | `--data DIR`, `--state-dir DIR` |
+| Everything off | — | `--no-triggers` |
+
+## 5b. LiDAR point clouds
+
+Put the `.las` or `.laz` files from a drone LiDAR survey (exported from DJI Terra, Pix4D and the like), an aircraft
+survey or a national LiDAR portal into `~/GeoSpaX/Inbox`, a folder of tiles included. About ten seconds later you
+have:
+
+- a **terrain map**: the bare ground with buildings and trees taken away, shaded, with contours and building outlines;
+- a **canopy map**: how tall the vegetation is, a dot on every tree top, buildings in grey;
+- `dtm.tif`, `dsm.tif` and `chm.tif` (ground, surface and canopy height), and `trees` and `buildings` layers with
+  heights, in the results folder;
+- a **3D scene** (see 5c);
+- a report with the point density, the canopy cover, and the number and height of trees and buildings.
+
+If the files were classified by the vendor software, GeoSpaX uses that classification. If not, it finds the ground
+itself. A file that doesn't say where on Earth it is (some phone scans and exports) stops with a message; run it
+again with the EPSG code of the survey: `geospax run lidar-to-terrain --input source=FILE --input epsg=32755`.
+Details: [AUTOMATION.md §6c](AUTOMATION.md#6c-lidar-point-clouds-built).
+
+## 5c. 3D scenes
+
+The LiDAR and terrain recipes also build a 3D scene by themselves. The terrain is a block diagram in its map colours
+with the relief shaded, contours painted on, buildings at their measured heights, trees at their heights and crown
+widths, and the point cloud. You get it three ways:
+
+- **In the app:** press **🧊 3D** on the recipe's card. Drag to turn, right-drag (or Shift-drag) to move, scroll or
+  pinch to zoom, click the compass to face north, double-click to start again. The switches at the top show or hide
+  the terrain, buildings, trees and point cloud.
+- **`scene.html`** in the results folder: the same viewer with the model inside. It opens in any browser, offline,
+  so you can e-mail it or put it on a USB stick.
+- **`scene.glb`**: a standard glTF 2.0 model for Blender, Windows 3D Viewer, ArcGIS Pro, CesiumJS or a 3D printer's
+  slicer. The report also shows a 3D picture.
+
+Flat land is raised a little so you can read it: at most 1.5× for detailed surveys, up to 3× for big areas. The note
+on the picture says by how much. Buildings and trees always keep their true heights. To add a 3D scene to your own
+recipe, add a `scene.3d` step after any elevation raster ([AUTOMATION.md §6d](AUTOMATION.md#6d-3d-scenes-built)).
+
+## 5d. Hot spots and kriging (no R or Python needed)
+
+**Hot spots.** Put a file of incidents (crimes, crashes, disease cases, complaints: any points) in your Data folder
+and run `points-to-hotspots`. GeoSpaX counts them in hexagons, works out the distance at which they cluster most, and
+colours each hexagon: **red** where incidents cluster more than chance would explain (90, 95 or 99 % sure), **blue**
+where there are fewer than expected, pale where nothing stands out. It corrects for testing hundreds of hexagons at
+once, so a few red cells are not just luck. The report shows the map, how many hot and cold spots there are, the
+distance used and a chart of how it was chosen. To map hot spots of a value instead (house prices, pH, yields), set
+the `field` input.
+
+**Kriging.** `interpolate-samples` turns field samples into a smooth surface. It tries kriging (which learns from
+the samples how fast values change with distance) and IDW, tests both by leaving out each sample in turn and
+predicting it from the rest, and keeps the one that predicts better. With kriging you also get an **uncertainty map**:
+pale near your samples, dark where the surface is a guess. That is where to sample next. The report shows the error of
+each method and the variogram (the chart of how quickly samples stop resembling each other).
+
+Both are checked against R's spdep and gstat, and give the same numbers. Details: [AUTOMATION.md §6e](AUTOMATION.md#6e-spatial-statistics-built).
+
+## 6. Live sensors and phones
+
+- **MQTT:** point GeoSpaX at a broker (`GEOSPAX_MQTT` / `--mqtt`). Publish JSON such as
+  `{"lat": -9.44, "lon": 147.18, "pm2_5": 41}` to `sensors/<id>`.
+- **HTTP:** POST the same JSON to `/api/devices/live`.
+- **Brokers on the internet:** use `mqtts://host:8883/topic/#`. Certificates are always checked; add `?ca=ca.pem` for a
+  broker with its own CA, and `?cert=client.pem&key=client.key` where the broker wants a client certificate.
+- **LoRaWAN sensors:** subscribe to your The Things Stack application
+  (`mqtts://APP-ID@ttn:API-KEY@eu1.cloud.thethings.network/v3/%2B/devices/%2B/up`) or your ChirpStack server
+  (`mqtt://host/application/%2B/device/%2B/event/up`). Each uplink's decoded values and signal strength go on the map,
+  at the sensor's GPS position or near the gateway that heard it.
+- **Public sensor networks (OGC SensorThings):** `--sta https://host/v1.1` (desktop: `GEOSPAX_STA`) shows every station
+  with its latest values and updates them when they report.
+- **Phones:** the free OwnTracks app works with no GeoSpaX app on the phone.
+
+Live devices appear in the **Devices** section, and `sensor` triggers can fire recipes on thresholds or geofences.
+Details and message formats: [DEVICES.md §4](DEVICES.md#4-sensors-in-detail).
+
+## 7. Optional power tools: R, Python, GRASS, SAGA
+
+Recipes that use these tools work once the tool is installed. On Debian:
+
+```sh
+sudo apt install python3                       # python-spatial-stats
+sudo apt install r-base-core r-cran-sf         # R steps; then in R: install.packages("gstat")
+sudo apt install grass-core saga               # landforms-grass, wetness-saga
+sudo apt install mosquitto                     # a local MQTT broker for live sensors
+```
+
+## 8. Command line
+
+Both programs take the same subcommands, and none of them opens a window:
+
+```sh
+geospax recipes                                   # list recipes
+geospax check my-recipe.yaml                      # validate a recipe
+geospax run track-to-map --input source=~/tracks # run once on a folder or device, print the outputs
+geospax watch                                     # run triggers headless (all recipes on Auto)
+```
+
+## 9. Privacy
+
+Your photos, tracks and sensor readings are processed on your own machine. Nothing is uploaded. Only recipes that
+fetch public data go online: the Copernicus DEM for terrain, and Sentinel-2 scenes from the Earth Search STAC
+catalogue. See [DEVICES.md §5](DEVICES.md#5-privacy-and-safety).
+
+## 10. Troubleshooting
+
+| Problem | Try |
+|---|---|
+| No layers in the list | Put files into `~/GeoSpaX/Data` and restart GeoSpaX |
+| A plugged-in device is not listed | Check that it is mounted (Linux: under `/media/$USER`). Phones must be in *file transfer* mode. Or copy its files into `~/GeoSpaX/Inbox` |
+| The device is listed but no map is made | Press **Import & map**, or turn on the recipe's **Auto** switch. A device that was already handled with the same content is not processed twice: add a file, or press **Run** |
+| An R, GRASS or SAGA recipe fails | Install the tool (section 7). The run's log names the missing piece |
+| Windows: "Windows protected your PC" | The installer isn't code-signed yet. Click *More info → Run anyway* |
+| Windows: the GeoSpaX window stays blank | WebView2 is missing or broken. Reinstall it from Microsoft ("WebView2 Runtime"), or use **GeoSpaX Web Server** in the meantime |
+| Windows: an SD card or camera is not listed | GeoSpaX watches removable drives and drives with `DCIM`/`GARMIN` folders. Phones in MTP mode are not read on Windows yet: copy their photos into `%USERPROFILE%\GeoSpaX\Inbox` |
+| Anything else | Start `geospax` from a terminal (Windows: `geospax-server.exe` in the install folder, `%LOCALAPPDATA%\GeoSpaX`). It logs what it detects and runs. Please include that log in bug reports |

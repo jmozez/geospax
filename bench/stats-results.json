@@ -1,0 +1,241 @@
+{
+ "checks": [
+  "ok points-to-hotspots ran: done in 0.29 s ",
+  "ok map PNG/SVG/PDF and report: ['map.png', 'map.svg', 'map.pdf', 'report.html']",
+  "ok picked the incident log by itself: incidents.geojson (1120 incidents)",
+  "ok 604 hexagons of 211 m",
+  "ok distance band 680 m by rule 'peak' (10 distances searched)",
+  "ok planted cluster 'market' (170 incidents, \u03c3 260 m) is a 99 % hot spot (bin 3)",
+  "ok planted cluster 'eriku' (140 incidents, \u03c3 300 m) is a 99 % hot spot (bin 3)",
+  "ok planted cluster 'butibum' (110 incidents, \u03c3 210 m) is a 99 % hot spot (bin 3)",
+  "ok all 111 hot cells lie within 2\u03c3 + the band (680 m) of a planted cluster",
+  "ok report shows the map and the distance-search chart",
+  "ok Gi* z-scores of 604 features equal spdep localG (include.self, binary): max |\u0394z| = 5.0e-07",
+  "ok global Moran's I 0.362603 (z 24.5071) equals spdep moran.test 0.362603 (z 24.5071)",
+  "ok incremental search: Moran's I at all 10 distances equals spdep (max |\u0394I| 2.1e-14, |\u0394z| 1.6e-12)",
+  "ok Gi* of pH at 60 samples: done ",
+  "ok the pH trend shows as 33 hot and 22 cold samples (band 3426 m, rule peak)",
+  "ok Gi* z-scores of 60 features equal spdep localG (include.self, binary): max |\u0394z| = 5.0e-07",
+  "ok global Moran's I 0.583826 (z 16.9959) equals spdep moran.test 0.583826 (z 16.9959)",
+  "ok incremental search: Moran's I at all 10 distances equals spdep (max |\u0394I| 1.3e-14, |\u0394z| 1.5e-12)",
+  "ok interpolate-samples ran: done in 0.95 s ",
+  "ok surface map, uncertainty map and report: ['map.png', 'map.svg', 'uncertainty.png', 'uncertainty.svg', 'report.html']",
+  "ok method chosen by cross-validation: kriging (kriging RMSE 0.1057 vs IDW 0.1471 at power 3.0)",
+  "ok standard errors are honest: RMSSE 0.818 (1 = perfect)",
+  "ok report shows the variogram chart and the uncertainty map",
+  "ok IDW-only run for comparison: done",
+  "ok empirical variogram equals gstat variogram(): 15 lags, same pair counts, max rel. \u0394\u03b3 2.0e-15",
+  "ok fit at least as good as gstat fit.variogram (Sph): weighted SSE 1.8309e-08 vs gstat 1.9953e-08 (gstat: nugget 0.005696, psill 0.5832, range 4.576e+04; ours 0.004138, 0.5263, 3.817e+04)",
+  "ok model choice: ours Sph, gstat's best of Sph/Exp/Gau Sph (SSE 1.9953e-08)",
+  "ok predictions and standard errors at 300 cells equal gstat krige(): max rel. \u0394 7.7e-08 / 1.1e-07",
+  "ok leave-one-out RMSE 0.105696, MAE, ME, RMSSE equal gstat krige.cv() (max \u0394 2.3e-11)",
+  "ok against the true surface: kriging RMSE 0.0818 < IDW 0.1695 (52 % lower) at 300 cells",
+  "ok 400 samples: kriging with 32 neighbours, gaussian model (practical range 2490 m; truth: gaussian, 2205 m), RMSE 0.1849 vs IDW 0.3128 in 1.04 s ",
+  "ok empirical variogram equals gstat's (15 lags)",
+  "ok fit at least as good as gstat fit.variogram (Gau): weighted SSE 7.7703e-05 vs 8.7335e-05 (gstat: nugget 0.0133, psill 3.486, range 1481; ours 0.005932, 3.405, 1438)",
+  "ok local kriging (32 nearest) at 300 cells equals gstat krige(nmax = 32): max rel. \u0394 2.5e-07 / 3.0e-07",
+  "ok leave-one-out RMSE 0.184868 equals gstat krige.cv(nmax = 32) (max \u0394 1.2e-10)",
+  "ok against the true field (sd 2): kriging RMSE 0.118 at 300 cells",
+  "ok 1,000,000 points \u2192 6218 cells, band 17370 m (peak), 1244 hot / 4437 cold: step 2.28 s, run 2.46 s ",
+  "ok screenshot 53-hotspot-report.png",
+  "ok screenshot 54-kriging-report.png"
+ ],
+ "hotspots": {
+  "features": 604,
+  "cell_m": 210.86450286758043,
+  "distance_m": 679.7659634109845,
+  "distance_rule": "peak",
+  "hot": 111,
+  "cold": 0,
+  "bins": {
+   "-1": 0,
+   "-2": 0,
+   "-3": 0,
+   "0": 493,
+   "1": 3,
+   "2": 8,
+   "3": 100
+  },
+  "moran": {
+   "expected": -0.001658374792703151,
+   "i": 0.36260318829574223,
+   "p": 1.2406739998891042e-132,
+   "variance": 0.00022092383510584302,
+   "z": 24.507107737274126
+  },
+  "neighbours": {
+   "isolated": 0,
+   "max": 36,
+   "mean": 16.06953642384106
+  },
+  "seconds": 0.043551891,
+  "wall_s": 0.29,
+  "truth": {
+   "clusters_found": 3,
+   "false_hot_cells": 0
+  },
+  "r": {
+   "max_dz": 4.996949503066617e-07,
+   "moran_i": 0.36260318829574223,
+   "moran_z": 24.507107737274126,
+   "r_moran_i": 0.362603188295746,
+   "r_moran_z": 24.5071077372741
+  }
+ },
+ "values": {
+  "features": 60,
+  "distance_m": 3425.537098855444,
+  "distance_rule": "peak",
+  "hot": 33,
+  "cold": 22,
+  "moran": {
+   "expected": -0.01694915254237288,
+   "i": 0.583826140044661,
+   "p": 8.812073450528091e-65,
+   "variance": 0.001249503793736001,
+   "z": 16.995865051030222
+  },
+  "r": {
+   "max_dz": 4.98080130029166e-07,
+   "moran_i": 0.583826140044661,
+   "moran_z": 16.995865051030222,
+   "r_moran_i": 0.583826140044668,
+   "r_moran_z": 16.9958650510303
+  }
+ },
+ "kriging": {
+  "model": "spherical",
+  "nugget": 0.004138382656765551,
+  "psill": 0.5263084119121478,
+  "range": 38167.21105184079,
+  "practical_range": 38167.21105184079,
+  "sse": 1.830936817653147e-08,
+  "cv": {
+   "idw": {
+    "all": [
+     {
+      "mae": 0.1770903715580913,
+      "power": 1.0,
+      "rmse": 0.2364900369483093
+     },
+     {
+      "mae": 0.13463853061003347,
+      "power": 1.5,
+      "rmse": 0.19292175925778193
+     },
+     {
+      "mae": 0.11143654846149097,
+      "power": 2.0,
+      "rmse": 0.16815550629857623
+     },
+     {
+      "mae": 0.09609731401427549,
+      "power": 3.0,
+      "rmse": 0.147097115193676
+     }
+    ],
+    "mae": 0.09609731401427549,
+    "power": 3.0,
+    "rmse": 0.147097115193676
+   },
+   "kriging": {
+    "mae": 0.07535763160164792,
+    "me": 0.005778902333401082,
+    "n": 60,
+    "rmse": 0.10569599946244707,
+    "rmsse": 0.8177434252150587
+   }
+  },
+  "cells": 54390,
+  "cell_m": 32.876514900032525,
+  "seconds": 0.1832599,
+  "wall_s": 0.95,
+  "gstat": {
+   "own_fit": {
+    "nugget": 0.00569626254611463,
+    "psill": 0.583230665939673,
+    "range": 45759.3374420676,
+    "sse": 1.99529320399807e-08,
+    "ssErr": 1.99529320399807e-08,
+    "singular": false
+   },
+   "best_model": "Sph",
+   "sse_ours": 1.83093681765314e-08,
+   "max_rel_pred": 7.697755175633778e-08,
+   "max_rel_se": 1.1324365341291998e-07,
+   "cv_rmse": 0.105695999462408
+  },
+  "truth_rmse": {
+   "kriging": 0.08178534100864719,
+   "idw": 0.16953676045780094
+  }
+ },
+ "field": {
+  "model": "gaussian",
+  "nugget": 0.005931938509440735,
+  "psill": 3.404823549890479,
+  "practical_range": 2489.9638398903935,
+  "cv": {
+   "idw": {
+    "all": [
+     {
+      "mae": 1.0355846306913163,
+      "power": 1.0,
+      "rmse": 1.212461171867918
+     },
+     {
+      "mae": 0.7198986992328043,
+      "power": 1.5,
+      "rmse": 0.8637725118397959
+     },
+     {
+      "mae": 0.4506238343877967,
+      "power": 2.0,
+      "rmse": 0.5707121583745675
+     },
+     {
+      "mae": 0.24328178654039387,
+      "power": 3.0,
+      "rmse": 0.31277172274677845
+     }
+    ],
+    "mae": 0.24328178654039387,
+    "power": 3.0,
+    "rmse": 0.31277172274677845
+   },
+   "kriging": {
+    "mae": 0.14232485029653724,
+    "me": 0.0012786276950127085,
+    "n": 400,
+    "rmse": 0.18486773391713038,
+    "rmsse": 1.9975063610859118
+   }
+  },
+  "seconds": 0.901246814,
+  "gstat": {
+   "own_fit": {
+    "nugget": 0.0132986973749265,
+    "psill": 3.48638859513222,
+    "range": 1480.60845334527,
+    "sse": 8.73349062363469e-05,
+    "ssErr": 8.73349062363469e-05,
+    "singular": false
+   },
+   "sse_ours": 7.77033707395273e-05,
+   "max_rel_pred": 2.535911098271031e-07,
+   "max_rel_se": 3.035293280884144e-07
+  },
+  "truth_rmse": 0.11809756936719065
+ },
+ "million": {
+  "features": 6218,
+  "cell_m": 2694.092207829456,
+  "distance_m": 17369.942880558643,
+  "distance_rule": "peak",
+  "hot": 1244,
+  "cold": 4437,
+  "seconds": 2.278395288,
+  "wall_s": 2.46
+ },
+ "seconds": 36.4
+}

@@ -1,0 +1,168 @@
+{
+ "what": "Desktop edition (Tauri 2 / WebKitGTK, Xvfb + llvmpipe software GL), project view at z12 (6 visible tiles x 5 sources). Metric: share of 40x40 px map blocks that are pure background in a screenshot taken after MapLibre's first 'idle' (0% = complete; ~14-25% = one tile missing).",
+ "groups": [
+  {
+   "label": "default \u00b7 invoke \u00b7 heatmap on",
+   "context": "antialias=false preserveDrawingBuffer=false",
+   "note": "",
+   "empty_block_pct": [
+    14.2,
+    0.0,
+    20.1,
+    42.3
+   ],
+   "sessions": 4,
+   "sessions_with_drops": 3
+  },
+  {
+   "label": "default \u00b7 invoke \u00b7 heatmap off (?heatmap=0)",
+   "context": "antialias=false preserveDrawingBuffer=false",
+   "note": "",
+   "empty_block_pct": [
+    0.0,
+    22.9,
+    14.2,
+    10.5
+   ],
+   "sessions": 4,
+   "sessions_with_drops": 3
+  },
+  {
+   "label": "default \u00b7 custom URI scheme",
+   "context": "antialias=false preserveDrawingBuffer=false",
+   "note": "",
+   "empty_block_pct": [
+    12.8,
+    3.7,
+    24.3,
+    6.3
+   ],
+   "sessions": 4,
+   "sessions_with_drops": 4
+  },
+  {
+   "label": "default \u00b7 invoke \u00b7 screenshots at +2/+10/+25/+50 s after idle",
+   "context": "antialias=false preserveDrawingBuffer=false",
+   "note": "same session",
+   "empty_block_pct": [
+    24.7
+   ],
+   "sessions": 1,
+   "sessions_with_drops": 1
+  },
+  {
+   "label": "default \u00b7 invoke \u00b7 screenshots ~30 s after start",
+   "context": "antialias=false preserveDrawingBuffer=false",
+   "note": "",
+   "empty_block_pct": [
+    0.0,
+    22.6,
+    0.0
+   ],
+   "sessions": 3,
+   "sessions_with_drops": 1
+  },
+  {
+   "label": "default \u00b7 invoke \u00b7 tile-state probe",
+   "context": "antialias=false preserveDrawingBuffer=false",
+   "note": "MapLibre: all tiles loaded+renderable with buckets; gl.getError() = none",
+   "empty_block_pct": [
+    14.2,
+    20.1,
+    13.8,
+    14.2
+   ],
+   "sessions": 4,
+   "sessions_with_drops": 4
+  },
+  {
+   "label": "default \u00b7 invoke \u00b7 WEBKIT_DISABLE_COMPOSITING_MODE=1",
+   "context": "antialias=false preserveDrawingBuffer=false",
+   "note": "",
+   "empty_block_pct": [
+    35.1,
+    6.3,
+    12.2,
+    49.7,
+    23.1
+   ],
+   "sessions": 5,
+   "sessions_with_drops": 5
+  },
+  {
+   "label": "control after fix (?glpdb=0)",
+   "context": "antialias=false preserveDrawingBuffer=false",
+   "note": "",
+   "empty_block_pct": [
+    10.5,
+    12.6,
+    6.3,
+    23.1
+   ],
+   "sessions": 4,
+   "sessions_with_drops": 4
+  },
+  {
+   "label": "MSAA (?glaa=1)",
+   "context": "antialias=true preserveDrawingBuffer=false",
+   "note": "",
+   "empty_block_pct": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "sessions": 5,
+   "sessions_with_drops": 0
+  },
+  {
+   "label": "preserveDrawingBuffer (?glpdb=1)",
+   "context": "antialias=false preserveDrawingBuffer=true",
+   "note": "",
+   "empty_block_pct": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "sessions": 5,
+   "sessions_with_drops": 0
+  },
+  {
+   "label": "fix: auto on WebKitGTK \u00b7 invoke",
+   "context": "antialias=false preserveDrawingBuffer=true",
+   "note": "",
+   "empty_block_pct": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "sessions": 3,
+   "sessions_with_drops": 0
+  },
+  {
+   "label": "fix: auto on WebKitGTK \u00b7 custom URI scheme",
+   "context": "antialias=false preserveDrawingBuffer=true",
+   "note": "",
+   "empty_block_pct": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "sessions": 3,
+   "sessions_with_drops": 0
+  },
+  {
+   "label": "fix: scripts/test-desktop.sh (official run)",
+   "context": "antialias=false preserveDrawingBuffer=true",
+   "note": "",
+   "empty_block_pct": [
+    0.0
+   ],
+   "sessions": 1,
+   "sessions_with_drops": 0
+  }
+ ]
+}

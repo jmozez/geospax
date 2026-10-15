@@ -1,0 +1,42 @@
+# GRASS inside a recipe: r.geomorphon classifies every DEM cell into one of ten landforms. GeoSpaX
+# imports the DEM into a temporary GRASS project, runs the module, exports the result and keeps
+# GRASS's own class names and colours for the legend.
+recipe: landforms-grass
+version: 1
+title: Landforms with GRASS r.geomorphon
+description: >-
+  Fetches the Copernicus DEM for the area and lets GRASS classify each cell as flat, peak, ridge,
+  shoulder, spur, slope, hollow, footslope, valley or pit (r.geomorphon), mapped over relief shading
+  with the share of each landform.
+inputs:
+  area: { type: layer, default: auto, description: the area (auto = the most sample-like layer) }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}", prefer: samples }
+  - id: dem
+    use: dem.fetch
+    with: { aoi: "${area.layer}", buffer: 800 }
+  - id: terrain
+    use: terrain.derive
+    with: { products: [hillshade] }
+  - id: landforms
+    use: grass
+    with:
+      inputs: { dem: "${dem.raster}" }
+      script: |
+        # search radius in cells (30 m DEM → 450 m), flatness threshold in degrees
+        r.geomorphon elevation=dem forms=landforms search=15 skip=1 flat=1
+      outputs:
+        landforms: { type: classes, title: Landforms (GRASS r.geomorphon) }
+  - id: style
+    use: automap.style
+    with: { layers: ["${area.layer}"], field: none }
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { name: landforms, layers: [landforms, hillshade, "${area.layer}"] }
+  - id: report
+    use: export.report
+    needs: [map]
+outputs: [map, report]

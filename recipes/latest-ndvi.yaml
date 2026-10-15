@@ -1,0 +1,55 @@
+# The newest Sentinel-2 pass that is actually clear over YOUR area (not just the scene average):
+# clouds, shadows and cirrus masked, NDVI at 10 m, vegetation classes with areas, NDVI sampled at
+# your points. Enable the stac trigger and it re-runs by itself whenever a new pass appears.
+recipe: latest-ndvi
+version: 1
+title: Latest cloud-free NDVI (Sentinel-2)
+description: >-
+  Searches Earth Search (STAC) for recent Sentinel-2 L2A passes, skips dates that are cloudy over
+  the area, computes NDVI from 10 m surface reflectance with clouds masked, classifies vegetation,
+  adds NDVI to your sample points and maps it on a true-colour image.
+inputs:
+  area: { type: layer, default: auto, description: the area (auto = the most sample-like layer) }
+  days: { type: number, default: 90, description: how far back to look }
+  max_cloud: { type: number, default: 50, description: scene cloud cover limit (%) }
+triggers:
+  - stac: { every: 12h, area: auto, max_cloud: 50 }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}", prefer: samples }
+  - id: search
+    use: rs.search
+    with: { aoi: "${area.layer}", buffer: 800, days: "${inputs.days}", max_cloud: "${inputs.max_cloud}" }
+  - id: ndvi
+    use: rs.index
+    with: { index: ndvi, min_clear: 0.7 }
+  - id: classes
+    use: raster.classify
+    with: { raster: "${ndvi.raster}" }
+  - id: photo
+    use: rs.fetch
+    with: { asset: visual }
+  - id: sample
+    use: raster.sample
+    with: { layer: "${area.layer}", rasters: ["${ndvi.raster}"] }
+  - id: style
+    use: automap.style
+    with: { layers: ["${area.layer}"], field: none }
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { name: ndvi, layers: ["${ndvi.raster}", "${area.layer}"] }
+  - id: class_map
+    use: export.map
+    needs: [style]
+    with: { name: vegetation, layers: ["${classes.raster}", "${area.layer}"], title: "Vegetation classes · ${ndvi.date}" }
+  - id: photo_map
+    use: export.map
+    needs: [style]
+    with: { name: truecolor, layers: ["${photo.raster}", "${area.layer}"] }
+  - id: report
+    use: export.report
+    needs: [map, class_map, photo_map]
+    with: { title: "NDVI · ${ndvi.date}" }
+outputs: [map, class_map, photo_map, report]

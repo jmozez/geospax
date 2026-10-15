@@ -1,0 +1,30 @@
+# A live sensor reports high PM2.5 -> map of every sensor's last two hours + short report.
+recipe: air-quality-alert
+version: 1
+title: Air-quality alert map
+description: >-
+  When a live sensor (a phone, a logger posting over HTTP, or an MQTT feed) reports PM2.5 above
+  35 µg/m³, maps the readings of all sensors over the last two hours and writes a short report.
+  Fires at most once every 30 minutes per sensor. Change the field and level to watch anything
+  else a sensor measures (temperature, noise, water level ...).
+triggers:
+  - sensor: { field: pm2_5, above: 35, cooldown: 30m }
+steps:
+  - id: live
+    use: sensor.snapshot
+    with: { minutes: 120 }
+  - id: summary
+    use: sensor.summary
+    with: { layer: "${live.readings_layer}" }
+  - id: style
+    use: automap.style
+    with: { layers: "${live.layers}", field: { live_readings: "${summary.main}", live_latest: none } }
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { layers: "${live.layers}", title: "${summary.label} alert · ${trigger.device ?? all sensors}" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Air-quality alert · ${run.date}", notes: "${trigger.text ?? Run by hand.}" }
+outputs: [map, report]

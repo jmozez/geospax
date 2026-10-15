@@ -1,0 +1,59 @@
+# Area in, terrain maps + report out. The Copernicus 30 m DEM is read over HTTP for just this area
+# (cloud-optimised GeoTIFF windows), then relief shading, slope, aspect, contours and slope classes
+# are derived, mapped and explained. Point it at any layer: inputs.area = field_samples, a parcel...
+recipe: terrain-report
+version: 1
+title: Terrain report (DEM → relief, slopes, contours)
+description: >-
+  Give it an area (any layer or raster) and it fetches the Copernicus 30 m DEM for just that area,
+  derives relief shading, slope and aspect, traces contours with index lines, classifies slopes and
+  lays out a shaded-relief map, a slope-class map, a 3D view of the terrain with the contours
+  draped on it (glTF model plus interactive viewer) and a report with areas per class.
+inputs:
+  area: { type: layer, default: auto, description: the area to map (auto = the most sample-like layer) }
+  buffer: { type: number, default: 500, description: margin around the area in metres }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}", prefer: samples }
+  - id: dem
+    use: dem.fetch
+    with: { aoi: "${area.layer}", buffer: "${inputs.buffer}" }
+  - id: terrain
+    use: terrain.derive
+    with: { products: [hillshade, slope, aspect] }
+  - id: contours
+    use: terrain.contours
+  - id: slope_classes
+    use: raster.classify
+    with: { raster: slope }
+  - id: sample
+    use: raster.sample
+    with: { layer: "${area.layer}", rasters: [dem, slope] }
+  - id: style
+    use: automap.style
+    with: { layers: ["${contours.layer}", "${area.layer}"], field: none }
+  - id: relief_map
+    use: export.map
+    needs: [style]
+    with:
+      name: relief
+      layers: [dem, hillshade, "${contours.layer}", "${area.layer}"]
+      title: Terrain and contours
+      format: [png, svg, pdf]
+  - id: slope_map
+    use: export.map
+    needs: [style]
+    with:
+      name: slopes
+      layers: ["${slope_classes.raster}", hillshade, "${area.layer}"]
+      title: Slope classes
+  - id: scene
+    use: scene.3d
+    needs: [style]
+    with: { dem: dem, overlay: ["${contours.layer}", "${area.layer}"], title: Terrain in 3D }
+  - id: report
+    use: export.report
+    needs: [relief_map, slope_map, scene]
+    with: { title: "Terrain report · ${run.date}" }
+outputs: [relief_map, slope_map, scene, report]

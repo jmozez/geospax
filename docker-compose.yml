@@ -1,0 +1,36 @@
+# GeoSpaX web edition + an MQTT broker for live sensors.
+#
+#   mkdir -p data inbox && docker compose up -d      ->  http://localhost:8080
+#
+#   data/    GIS layers (GeoPackage, Shapefile, GeoTIFF, ...) -> layer list (read-only)
+#   inbox/   drop photos, GPS tracks, drone logs or sensor logs -> the matching recipe maps them
+#   sensors  publish JSON to mqtt://localhost:1883/sensors/<id>, e.g.
+#            {"lat": -9.44, "lon": 147.18, "pm2_5": 41}  -> air-quality-alert map when PM2.5 > 35
+services:
+  geospax:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data:ro
+      - ./inbox:/inbox
+      - geospax-state:/state
+    command:
+      - --inbox
+      - /inbox
+      - --auto
+      - air-quality-alert
+      - --mqtt
+      - mqtt://mqtt:1883/sensors/#
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+  mqtt:
+    image: eclipse-mosquitto:2
+    # local, anonymous broker for testing; add a password file before exposing it
+    command: ["mosquitto", "-c", "/mosquitto-no-auth.conf"]
+    ports:
+      - "1883:1883"
+    restart: unless-stopped
+volumes:
+  geospax-state: {}

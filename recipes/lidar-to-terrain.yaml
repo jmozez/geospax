@@ -1,0 +1,63 @@
+# Point cloud in, terrain and canopy maps + report out. Drop LAS/LAZ files (drone, aircraft or
+# national LiDAR tiles) into the drop folder, plug in the drive that holds them, or run
+#   geospax run lidar-to-terrain --input source=/path/to/tiles
+# Ground comes from the files' own classification when they have one, else the SMRF filter.
+recipe: lidar-to-terrain
+version: 1
+title: LiDAR to terrain (point cloud → DTM, canopy, trees, buildings)
+description: >-
+  Give it LAS or LAZ point clouds and it grids a bare-earth terrain model, a surface model and
+  canopy heights, finds tree tops and outlines buildings, shades the relief, traces contours and
+  lays out a terrain map, a canopy map, a 3D scene (terrain, buildings, trees and the point cloud:
+  a glTF model plus an interactive viewer) and a report with the numbers (points, density, canopy
+  cover, tree and building counts).
+triggers:
+  - device: { has: [point-clouds] }
+inputs:
+  source: { type: device, default: auto, description: "a LAS/LAZ file, a folder of tiles or a device (auto = the one that triggered the run)" }
+  resolution: { type: number, default: auto, description: "cell size in metres (auto = about 2–3 points per cell)" }
+  epsg: { type: number, default: auto, description: "EPSG code for files without a coordinate system, e.g. 32755 (auto = what the files say)" }
+steps:
+  - id: lidar
+    use: lidar.grid
+    with: { source: "${inputs.source}", resolution: "${inputs.resolution}", epsg: "${inputs.epsg}" }
+  - id: terrain
+    use: terrain.derive
+    with: { dem: "${lidar.dtm}", products: [hillshade, slope] }
+  - id: surface
+    use: terrain.derive
+    with: { dem: "${lidar.dsm}", products: [hillshade], prefix: surface, z: 1 }
+  - id: contours
+    use: terrain.contours
+    with: { dem: "${lidar.dtm}" }
+  - id: canopy_classes
+    use: raster.classify
+    with: { raster: "${lidar.chm}" }
+  - id: style
+    use: automap.style
+    with: { layers: ["${contours.layer}", "${lidar.buildings}", "${lidar.trees}"], field: none }
+  - id: terrain_map
+    use: export.map
+    needs: [style]
+    with:
+      name: terrain
+      layers: ["${lidar.dtm}", hillshade, "${contours.layer}", "${lidar.buildings}"]
+      title: Bare-earth terrain (LiDAR)
+      format: [png, svg, pdf]
+  - id: canopy_map
+    use: export.map
+    needs: [style]
+    with:
+      name: canopy
+      layers: ["${lidar.chm}", surface_hillshade, "${lidar.buildings}", "${lidar.trees}"]
+      title: Canopy height, trees and buildings
+      format: [png, svg, pdf]
+  - id: scene
+    use: scene.3d
+    needs: [style]
+    with: { dem: "${lidar.dtm}", buildings: "${lidar.buildings}", trees: "${lidar.trees}", title: LiDAR scene in 3D }
+  - id: report
+    use: export.report
+    needs: [terrain_map, canopy_map, scene]
+    with: { title: "LiDAR terrain report · ${run.date}" }
+outputs: [terrain_map, canopy_map, scene, report]

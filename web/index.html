@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GeoSpaX</title>
+  </head>
+  <body>
+    <aside id="sidebar">
+      <header>
+        <h1>GeoSpa<span class="x">X</span> <small class="tag"></small></h1>
+        <p id="edition">…</p>
+      </header>
+      <section class="automate">
+        <h2>Automate <span class="tag">maps make themselves</span></h2>
+        <div id="automate"></div>
+        <p class="hint">Recipes do the mapping for you. Press Run, or switch on <b>Auto</b> and a recipe runs itself when a device is plugged in, files arrive or a schedule fires.</p>
+      </section>
+      <section>
+        <h2>Transport</h2>
+        <select id="transport" aria-label="Tile transport"></select>
+        <p class="hint">Web: HTTP. Desktop: custom URI scheme or <code>invoke</code> (raw bytes).</p>
+      </section>
+      <section>
+        <h2>Contents</h2>
+        <div id="contents"></div>
+        <p class="hint">Top draws on top. ⚙ or a layer name opens its symbology. Styles persist to the project file.</p>
+      </section>
+      <section>
+        <h2>Rasters</h2>
+        <div id="rasters"></div>
+        <p class="hint">Elevation, terrain, satellite indices and GRASS/SAGA results, styled automatically.</p>
+      </section>
+      <section>
+        <h2>Devices</h2>
+        <div id="phone-link"></div>
+        <div id="devices"></div>
+        <p class="hint">Plug in a phone, GPS unit, drone SD card or camera, or send from a phone over Wi-Fi.</p>
+      </section>
+      <section>
+        <h2>Go to</h2>
+        <div class="row">
+          <button data-goto="30,10,1.6">World</button>
+          <button data-goto="146,-6.5,6">PNG</button>
+          <button data-goto="144.6,-5.95,11">Highlands</button>
+          <button data-goto="144.235,-5.862,15">Mt Hagen</button>
+        </div>
+      </section>
+      <section>
+        <h2>Measure</h2>
+        <div class="row">
+          <button id="bench" class="primary">Run benchmark</button>
+          <button id="arrow">Arrow → deck.gl</button>
+          <button id="clear">Clear engine cache</button>
+        </div>
+        <div id="results"></div>
+      </section>
+    </aside>
+    <main id="map"></main>
+    <aside id="panel" hidden aria-label="Symbology"></aside>
+    <div id="hud" aria-live="polite"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

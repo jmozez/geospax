@@ -1,0 +1,572 @@
+//! Transport-agnostic request router. The Axum server and the Tauri custom
+//! URI scheme both translate their native request into [`ApiRequest`] and
+//! send the [`ApiResponse`] back, so web and desktop share one code path.
+
+use crate::catalog::LayerHandle;
+use crate::classify::{self, Method};
+use crate::jobs::Status;
+use crate::reader::ColumnValues;
+use crate::{overview, Engine};
+use serde_json::json;
+use std::io::Write;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::time::Instant;
+
+#[derive(Debug, Clone, Default)]
+pub struct ApiRequest {
+    pub method: String,
+    pub path: String,
+    pub query: String,
+    pub body: Vec<u8>,
+}
+
+impl ApiRequest {
+    /// Data-plane requests read features through GDAL (tiles, Arrow export, column scans).
+    /// Everything else is control plane (layers, jobs, project, stats, log) and must never
+    /// queue behind them: see `Engine::dispatch`.
+    pub fn is_heavy(&self) -> bool {
+        let p = self.path.trim_matches('/');
+        p.starts_with("tiles/")
+            || (p.starts_with("api/layers/")
+                && (p.ends_with("/arrow") || p.ends_with("/classify") || p.ends_with("/unique") || p.ends_with("/autostyle")))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ApiResponse {
+    pub status: u16,
+    pub content_type: &'static str,
+    pub headers: Vec<(&'static str, String)>,
+    pub body: Vec<u8>,
+}
+
+impl ApiResponse {
+    pub fn json(status: u16, v: &serde_json::Value) -> Self {
+        ApiResponse { status, content_type: "application/json", headers: vec![], body: v.to_string().into_bytes() }
+    }
+    pub fn error(status: u16, msg: impl Into<String>) -> Self {
+        Self::json(status, &json!({ "error": msg.into() }))
+    }
+    /// Headers every response carries (custom-scheme fetches are cross-origin).
+    pub fn common_headers() -> [(&'static str, &'static str); 4] {
+        [
+            ("Access-Control-Allow-Origin", "*"),
+            ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"),
+            (
+                "Access-Control-Expose-Headers",
+                "Server-Timing, X-Tile-Features, X-Tile-Cache, X-Tile-Source, X-Tile-Truncated, X-Arrow-Rows",
+            ),
+            ("Timing-Allow-Origin", "*"),
+        ]
+    }
+}
+
+/// Percent-decode a query component ('+' = space).
+pub fn pct_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'+' => out.push(b' '),
+            b'%' if i + 2 < b.len() && b[i + 1].is_ascii_hexdigit() && b[i + 2].is_ascii_hexdigit() => {
+                let hex = |c: u8| (c as char).to_digit(16).unwrap() as u8;
+                out.push(hex(b[i + 1]) << 4 | hex(b[i + 2]));
+                i += 2;
+            }
+            c => out.push(c),
+        }
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Raw (still percent-encoded) query parameter.
+pub fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
+    query.split('&').filter_map(|kv| kv.split_once('=')).find(|(k, _)| *k == key).map(|(_, v)| v)
+}
+
+fn param(query: &str, key: &str) -> Option<String> {
+    query_param(query, key).map(pct_decode)
+}
+
+impl Engine {
+    pub fn handle(self: &Arc<Self>, req: ApiRequest) -> ApiResponse {
+        let segs: Vec<String> = req.path.trim_matches('/').split('/').filter(|s| !s.is_empty()).map(pct_decode).collect();
+        let segs: Vec<&str> = segs.iter().map(String::as_str).collect();
+        let q = req.query.as_str();
+        match (req.method.as_str(), segs.as_slice()) {
+            ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
+            ("GET", ["api", "layers"]) => {
+                let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();
+                ApiResponse::json(200, &json!({ "layers": layers, "warnings": self.warnings, "reader": self.read_mode.as_str() }))
+            }
+            ("GET", ["api", "stats"]) => ApiResponse::json(200, &self.stats_json()),
+            ("POST", ["api", "cache", "clear"]) => {
+                self.clear_cache();
+                ApiResponse::json(200, &json!({ "cleared": true }))
+            }
+            ("POST", ["api", "bench"]) => self.store_bench(&req.body),
+            ("POST", ["api", "log"]) => self.client_log(&req.body),
+            ("GET", ["api", "bench"]) => {
+                let v = self.bench.lock().unwrap().clone().unwrap_or(serde_json::Value::Null);
+                ApiResponse::json(200, &v)
+            }
+            ("GET", ["tiles", layer, z, x, y]) => self.tile_response(layer, z, x, y, q),
+            #[cfg(feature = "arrow")]
+            ("GET", ["api", "layers", layer, "arrow"]) => self.arrow_response(layer, q),
+            ("GET", ["api", "layers", layer, "classify"]) => self.with_layer(layer, |l| self.classify_response(l, q)),
+            ("GET", ["api", "layers", layer, "unique"]) => self.with_layer(layer, |l| self.unique_response(l, q)),
+            // AutoMap's choice for one layer (what recipes use), so one-click imports look finished too
+            ("GET", ["api", "layers", layer, "autostyle"]) => self.with_layer(layer, |l| {
+                let st = crate::automation::automap::style_layer(self, l, None, None);
+                ApiResponse::json(200, &json!({ "layer": st.layer, "style": st.style, "why": st.why, "field": st.field, "label_field": st.label_field }))
+            }),
+            ("POST", ["api", "layers", layer, "overviews"]) => {
+                let mz = param(q, "maxzoom").and_then(|s| s.parse::<u8>().ok());
+                match self.start_overview_job(layer, mz) {
+                    Ok(job) => ApiResponse::json(202, &job.json()),
+                    Err(e) if e.starts_with("unknown layer") => ApiResponse::error(404, e),
+                    Err(e) => ApiResponse::error(409, e),
+                }
+            }
+            ("DELETE", ["api", "layers", layer, "overviews"]) => self.with_layer(layer, |l| {
+                l.set_overview(None);
+                self.clear_cache();
+                let path = overview::path_for(&self.state_dir, &l.info.id);
+                let removed = std::fs::remove_file(&path).is_ok();
+                let _ = std::fs::remove_file(format!("{}.json", path.display()));
+                ApiResponse::json(200, &json!({ "removed": removed, "layer": self.layer_json(l) }))
+            }),
+            ("GET", ["api", "jobs"]) => ApiResponse::json(200, &json!({ "jobs": self.jobs.json() })),
+            ("GET", ["api", "jobs", id]) => match id.parse().ok().and_then(|id| self.jobs.get(id)) {
+                Some(j) => ApiResponse::json(200, &j.json()),
+                None => ApiResponse::error(404, "unknown job"),
+            },
+            ("POST", ["api", "jobs", id, "cancel"]) => match id.parse().ok().and_then(|id| self.jobs.get(id)) {
+                Some(j) => {
+                    j.cancel.store(true, Ordering::Relaxed);
+                    ApiResponse::json(200, &j.json())
+                }
+                None => ApiResponse::error(404, "unknown job"),
+            },
+            ("GET", ["api", "devices"]) => ApiResponse::json(200, &self.devices.json()),
+            // Phone link (docs/DEVICES.md §3a): the QR card in the Devices panel
+            ("GET", ["api", "phone"]) => ApiResponse::json(200, &self.phone.json(self)),
+            // the phone page asks this to tell the phone link (link: true, answered there) from the web edition
+            ("GET", ["api", "phone", "hello"]) => ApiResponse::json(200, &json!({ "ok": true, "link": false })),
+            ("POST", ["api", "phone", "enable"]) => match self.phone.enable(self) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(500, e),
+            },
+            ("POST", ["api", "phone", "disable"]) => ApiResponse::json(200, &self.phone.disable(self)),
+            ("POST", ["api", "phone", "reset"]) => ApiResponse::json(200, &self.phone.reset(self)),
+            ("POST", ["api", "devices", "rescan"]) => {
+                self.devices.request_rescan();
+                ApiResponse::json(202, &json!({ "ok": true }))
+            }
+            ("GET", ["api", "devices", "live"]) => ApiResponse::json(200, &self.devices.live_geojson()),
+            ("POST", ["api", "devices", "live"]) => match self.devices.push_json(&req.body) {
+                Ok(id) => ApiResponse::json(200, &json!({ "ok": true, "device": id })),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("GET", ["api", "devices", "readings"]) => {
+                let q = req.query.as_str();
+                let minutes = param(q, "minutes").and_then(|m| m.parse::<f64>().ok()).unwrap_or(60.0).clamp(0.1, 10_080.0);
+                ApiResponse::json(200, &self.devices.readings_geojson(param(q, "device").as_deref(), minutes))
+            }
+            ("POST", ["api", "devices", id, "import"]) => match self.devices.import(self, id) {
+                Ok(job) => ApiResponse::json(202, &job.json()),
+                Err(e) if e.starts_with("unknown device") => ApiResponse::error(404, e),
+                Err(e) => ApiResponse::error(409, e),
+            },
+            // ---- automation (docs/AUTOMATION.md §9)
+            ("GET", ["api", "rasters"]) => ApiResponse::json(200, &self.rasters_json()),
+            ("GET", ["api", "rasters", id]) => match self.raster(id) {
+                Some(r) => ApiResponse::json(200, &r.json()),
+                None => ApiResponse::error(404, format!("unknown raster '{id}'")),
+            },
+            ("GET", ["api", "rasters", id, "overlay.png"]) => match self.raster(id) {
+                Some(r) => {
+                    let max = param(q, "max").and_then(|m| m.parse().ok()).unwrap_or(1600);
+                    match r.overlay_png(max) {
+                        Ok(png) => ApiResponse { status: 200, content_type: "image/png", headers: vec![("Cache-Control", "max-age=3600".to_string())], body: png.as_ref().clone() },
+                        Err(e) => ApiResponse::error(500, e),
+                    }
+                }
+                None => ApiResponse::error(404, format!("unknown raster '{id}'")),
+            },
+            ("PUT", ["api", "rasters", id, "style"]) => match (self.raster(id), serde_json::from_slice::<serde_json::Value>(&req.body)) {
+                (Some(r), Ok(v)) if v.is_object() => {
+                    r.set_style(v);
+                    ApiResponse::json(200, &r.json())
+                }
+                (None, _) => ApiResponse::error(404, format!("unknown raster '{id}'")),
+                _ => ApiResponse::error(400, "style must be a JSON object"),
+            },
+            ("GET", ["api", "recipes"]) => ApiResponse::json(200, &self.automation.summary_json()),
+            ("GET", ["api", "steps"]) => ApiResponse::json(200, &json!({ "steps": crate::automation::catalogue_json() })),
+            ("POST", ["api", "recipes", "validate"]) => self.recipe_validate(&req.body),
+            ("POST", ["api", "recipes"]) => self.recipe_save(&req.body, q),
+            ("GET", ["api", "recipes", id]) => match self.automation.recipe(id) {
+                Some(r) => {
+                    let mut v = r.summary_json();
+                    v["yaml"] = r.text.clone().into();
+                    v["plan"] = crate::automation::Automation::plan(&r).into();
+                    v["auto"] = self.automation.is_enabled(id).into();
+                    v["last_run"] = self.automation.last_run(id).unwrap_or_default();
+                    ApiResponse::json(200, &v)
+                }
+                None => ApiResponse::error(404, format!("unknown recipe '{id}'")),
+            },
+            ("DELETE", ["api", "recipes", id]) => match self.automation.delete_user(id) {
+                Ok(()) => ApiResponse::json(200, &json!({ "deleted": id })),
+                Err(e) if e.starts_with("unknown") => ApiResponse::error(404, e),
+                Err(e) => ApiResponse::error(409, e),
+            },
+            ("POST", ["api", "hooks", token]) => match self.automation.by_webhook(token) {
+                None => ApiResponse::error(404, "unknown webhook"),
+                Some((r, false)) => ApiResponse::error(409, format!("recipe '{}' is switched off; turn on its automation first", r.id)),
+                Some((r, true)) => {
+                    let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                    // declared inputs come from the JSON body; the whole body is kept on the trigger
+                    let inputs: serde_json::Map<String, serde_json::Value> = body.as_object().map(|m| m.iter().filter(|(k, _)| r.inputs.iter().any(|i| &i.name == *k)).map(|(k, v)| (k.clone(), v.clone())).collect()).unwrap_or_default();
+                    let trigger = json!({ "kind": "webhook", "text": "webhook call", "payload": body });
+                    match self.automation.start_run(self, &r.id, inputs, trigger) {
+                        Ok(run) => ApiResponse::json(202, &run.json()),
+                        Err(e) if e.contains("already running") => ApiResponse::error(409, e),
+                        Err(e) => ApiResponse::error(400, e),
+                    }
+                }
+            },
+            ("GET", ["api", "providers"]) => ApiResponse::json(200, &crate::automation::providers::providers_json()),
+            ("POST", ["api", "recipes", id, "run"]) => {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let inputs = body.get("inputs").and_then(|v| v.as_object()).cloned().unwrap_or_default();
+                let trigger = json!({ "kind": "manual", "text": "run from the app" });
+                match self.automation.start_run(self, id, inputs, trigger) {
+                    Ok(run) => ApiResponse::json(202, &run.json()),
+                    Err(e) if e.starts_with("unknown recipe") => ApiResponse::error(404, e),
+                    Err(e) if e.contains("already running") => ApiResponse::error(409, e),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
+            ("PUT", ["api", "recipes", id, "auto"]) => {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let on = body.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+                match self.automation.set_enabled(id, on) {
+                    Ok(()) => ApiResponse::json(200, &json!({ "id": id, "auto": on })),
+                    Err(e) if e.starts_with("unknown") => ApiResponse::error(404, e),
+                    Err(e) => ApiResponse::error(500, e),
+                }
+            }
+            ("GET", ["api", "runs"]) => ApiResponse::json(200, &json!({ "runs": self.automation.runs_json(50) })),
+            ("GET", ["api", "runs", id]) => match self.automation.run_json(id) {
+                Some(v) => ApiResponse::json(200, &v),
+                None => ApiResponse::error(404, format!("unknown run '{id}'")),
+            },
+            ("POST", ["api", "runs", id, "cancel"]) => match self.automation.run(id) {
+                Some(r) => {
+                    r.job.cancel.store(true, Ordering::Relaxed);
+                    ApiResponse::json(200, &r.json())
+                }
+                None => ApiResponse::error(404, format!("unknown run '{id}'")),
+            },
+            ("GET", ["api", "runs", id, "files", name]) => match self.automation.artifact(id, name) {
+                Ok((bytes, ct)) => ApiResponse { status: 200, content_type: ct, headers: vec![("Cache-Control", "no-store".to_string())], body: bytes },
+                Err(e) => ApiResponse::error(404, e),
+            },
+            ("GET", ["api", "project"]) => self.project_get(),
+            ("PUT", ["api", "project"]) => self.project_put(&req.body),
+            ("OPTIONS", _) => ApiResponse { status: 204, content_type: "text/plain", headers: vec![], body: vec![] },
+            _ => ApiResponse::error(404, format!("no route for {} {}", req.method, req.path)),
+        }
+    }
+
+    fn with_layer(&self, id: &str, f: impl FnOnce(&Arc<LayerHandle>) -> ApiResponse) -> ApiResponse {
+        match self.layer(id) {
+            Some(l) => f(&l),
+            None => ApiResponse::error(404, format!("unknown layer '{id}'")),
+        }
+    }
+
+    fn tile_response(&self, layer: &str, z: &str, x: &str, y: &str, query: &str) -> ApiResponse {
+        let y = y.split('.').next().unwrap_or(y);
+        let (Ok(z), Ok(x), Ok(y)) = (z.parse::<u8>(), x.parse::<u32>(), y.parse::<u32>()) else {
+            return ApiResponse::error(400, "bad tile coordinates");
+        };
+        let fields = query_param(query, "fields");
+        match self.tile(layer, z, x, y, fields) {
+            Ok((t, hit)) => {
+                let timing = if hit {
+                    "cache;desc=hit, total;dur=0".to_string()
+                } else if t.source == "overview" {
+                    format!("cache;desc=overview, read;dur={:.2}, total;dur={:.2}", t.read_ms, t.total_ms)
+                } else {
+                    format!(
+                        "cache;desc=miss, setup;dur={:.2}, read;dur={:.2}, proc;dur={:.2}, enc;dur={:.2}, teardown;dur={:.2}, total;dur={:.2}",
+                        t.setup_ms, t.read_ms, t.proc_ms, t.enc_ms, t.teardown_ms, t.total_ms
+                    )
+                };
+                ApiResponse {
+                    status: 200,
+                    content_type: "application/vnd.mapbox-vector-tile",
+                    headers: vec![
+                        ("Server-Timing", timing),
+                        ("X-Tile-Features", t.features.to_string()),
+                        ("X-Tile-Cache", if hit { "hit" } else { "miss" }.to_string()),
+                        ("X-Tile-Source", t.source.to_string()),
+                        ("X-Tile-Truncated", t.truncated.to_string()),
+                        ("Cache-Control", "no-store".to_string()),
+                    ],
+                    body: t.bytes.clone(),
+                }
+            }
+            Err(e) if e.starts_with("unknown layer") => ApiResponse::error(404, e),
+            Err(e) if e.starts_with("unknown field") || e.starts_with("invalid tile") || e.contains("cannot be encoded") => {
+                ApiResponse::error(400, e)
+            }
+            Err(e) => ApiResponse::error(500, e),
+        }
+    }
+
+    fn field_for(l: &LayerHandle, query: &str) -> Result<usize, ApiResponse> {
+        let name = param(query, "field").ok_or_else(|| ApiResponse::error(400, "missing ?field="))?;
+        l.field_index(&name).ok_or_else(|| ApiResponse::error(400, format!("unknown field '{name}'")))
+    }
+
+    fn classify_response(&self, l: &LayerHandle, query: &str) -> ApiResponse {
+        let fi = match Self::field_for(l, query) {
+            Ok(i) => i,
+            Err(r) => return r,
+        };
+        let wanted = param(query, "method").unwrap_or_else(|| "jenks".into());
+        let guideline = wanted == "guideline";
+        let method: Method = match if guideline { "jenks" } else { wanted.as_str() }.parse() {
+            Ok(m) => m,
+            Err(e) => return ApiResponse::error(400, e),
+        };
+        let k = param(query, "classes").and_then(|s| s.parse().ok()).unwrap_or(5usize);
+        if !matches!(l.info.fields[fi].kind, "integer" | "real") {
+            return ApiResponse::error(400, format!("field '{}' is not numeric", l.info.fields[fi].name));
+        }
+        let t0 = Instant::now();
+        let mut values = match self.scan_column(l, fi) {
+            Ok(ColumnValues::Num(v)) => v,
+            Ok(ColumnValues::Str(_)) => return ApiResponse::error(400, "field is not numeric"),
+            Err(e) => return ApiResponse::error(500, e),
+        };
+        let scan_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        let t1 = Instant::now();
+        let mut v = classify::numeric_summary(&mut values, k, method);
+        if guideline {
+            values.sort_by(f64::total_cmp);
+            match crate::automation::automap::guideline_classes(&l.info.fields[fi].name, &values) {
+                Some((breaks, colors, labels, counts)) => {
+                    v["breaks"] = breaks.into();
+                    v["counts"] = counts.into();
+                    v["colors"] = colors.into();
+                    v["labels"] = labels.into();
+                    v["method"] = "guideline".into();
+                }
+                None => v["note"] = "no WHO guideline for this field: natural breaks used".into(),
+            }
+        }
+        v["field"] = l.info.fields[fi].name.clone().into();
+        v["scan_ms"] = scan_ms.into();
+        v["classify_ms"] = (t1.elapsed().as_secs_f64() * 1000.0).into();
+        ApiResponse::json(200, &v)
+    }
+
+    fn unique_response(&self, l: &LayerHandle, query: &str) -> ApiResponse {
+        let fi = match Self::field_for(l, query) {
+            Ok(i) => i,
+            Err(r) => return r,
+        };
+        let limit = param(query, "limit").and_then(|s| s.parse().ok()).unwrap_or(50usize).clamp(1, 1000);
+        let t0 = Instant::now();
+        let mut v = match self.scan_column(l, fi) {
+            Ok(ColumnValues::Str(s)) => classify::unique_strings(s, limit),
+            Ok(ColumnValues::Num(n)) => classify::unique_numbers(n, limit),
+            Err(e) => return ApiResponse::error(500, e),
+        };
+        v["field"] = l.info.fields[fi].name.clone().into();
+        v["scan_ms"] = (t0.elapsed().as_secs_f64() * 1000.0).into();
+        ApiResponse::json(200, &v)
+    }
+
+    /// Start (or refuse) an overview build for a layer.
+    pub fn start_overview_job(self: &Arc<Self>, layer_id: &str, max_zoom: Option<u8>) -> Result<Arc<crate::jobs::Job>, String> {
+        let layer = self.layer(layer_id).ok_or_else(|| format!("unknown layer '{layer_id}'"))?.clone();
+        let mz = match max_zoom.or_else(|| overview::suggested_max_zoom(&layer.info)) {
+            Some(z) => z.min(layer.info.maxzoom.saturating_sub(1)),
+            None => return Err("layer renders live at every zoom; pass ?maxzoom=N to build anyway".into()),
+        };
+        if let Some(j) = self.jobs.active("overviews", layer_id) {
+            return Err(format!("overview job {} is already running for this layer", j.id));
+        }
+        let total = overview::pyramid_tiles(layer.info.bounds, mz);
+        if total > overview::MAX_TILES {
+            return Err(format!("z0-{mz} would be {total} tiles (limit {})", overview::MAX_TILES));
+        }
+        let job = self.jobs.create("overviews", layer_id);
+        job.update(|s| s.total = total);
+        let (engine, j) = (self.clone(), job.clone());
+        self.job_pool.spawn(move || {
+            j.update(|s| s.status = Status::Running);
+            let out = overview::path_for(&engine.state_dir, &layer.info.id);
+            let res = overview::build(&engine, &layer, mz, &out, &j.cancel, &|done, total| {
+                j.update(|s| {
+                    s.done = done;
+                    s.total = total;
+                })
+            });
+            let res = res.and_then(|report| {
+                let ov = overview::Overview::open(&out, &overview::Fingerprint::of(&layer))?;
+                layer.set_overview(Some(Arc::new(ov)));
+                engine.clear_cache();
+                Ok(report)
+            });
+            match res {
+                Ok(r) => {
+                    let msg = format!(
+                        "z0-{} -> {} tiles, {:.1} MB in {:.1} s",
+                        r.max_zoom,
+                        r.tiles_written,
+                        r.file_bytes as f64 / 1e6,
+                        r.build_ms / 1000.0
+                    );
+                    j.finish(Status::Done, msg, serde_json::to_value(&r).ok());
+                }
+                Err(e) if j.cancel.load(Ordering::Relaxed) => j.finish(Status::Cancelled, e, None),
+                Err(e) => j.finish(Status::Failed, e, None),
+            }
+        });
+        Ok(job)
+    }
+
+    fn recipe_validate(&self, body: &[u8]) -> ApiResponse {
+        let text = String::from_utf8_lossy(body);
+        match self.automation.validate(&text, crate::automation::recipe::Origin::Api) {
+            Ok((r, warnings)) => ApiResponse::json(200, &json!({
+                "ok": true, "recipe": r.summary_json(), "plan": crate::automation::Automation::plan(&r), "warnings": warnings,
+            })),
+            Err(errors) => ApiResponse::json(200, &json!({ "ok": false, "errors": errors })),
+        }
+    }
+
+    /// Save a user recipe. Recipes with Python/R steps run code on this machine, so saving one
+    /// through the API needs `?approve=code` (AUTOMATION.md §8).
+    fn recipe_save(&self, body: &[u8], query: &str) -> ApiResponse {
+        if body.len() > 1 << 20 {
+            return ApiResponse::error(413, "recipe too large (1 MB max)");
+        }
+        let text = String::from_utf8_lossy(body).into_owned();
+        if let Ok(r) = crate::automation::recipe::Recipe::parse(&text, crate::automation::recipe::Origin::Api) {
+            if r.has_code_steps() && param(query, "approve").as_deref() != Some("code") {
+                return ApiResponse::error(403, "this recipe runs Python/R code on this machine; save it with ?approve=code once you trust it");
+            }
+        }
+        match self.automation.save_user(&text) {
+            Ok((r, warnings)) => ApiResponse::json(201, &json!({ "recipe": r.summary_json(), "warnings": warnings })),
+            Err(errors) => ApiResponse::json(400, &json!({ "error": errors.join("; "), "errors": errors })),
+        }
+    }
+
+    fn project_path(&self) -> std::path::PathBuf {
+        self.state_dir.join("project.json")
+    }
+
+    fn project_get(&self) -> ApiResponse {
+        let _g = self.project_lock.lock().unwrap();
+        match std::fs::read(self.project_path()) {
+            Ok(b) => match serde_json::from_slice::<serde_json::Value>(&b) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(500, format!("corrupt project file: {e}")),
+            },
+            Err(_) => ApiResponse::json(200, &serde_json::Value::Null),
+        }
+    }
+
+    fn project_put(&self, body: &[u8]) -> ApiResponse {
+        if body.len() > 4 << 20 {
+            return ApiResponse::error(413, "project too large (4 MB max)");
+        }
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
+            return ApiResponse::error(400, "invalid JSON");
+        };
+        let _g = self.project_lock.lock().unwrap();
+        let path = self.project_path();
+        let tmp = path.with_extension("json.part");
+        let res = std::fs::create_dir_all(&self.state_dir)
+            .and_then(|_| std::fs::write(&tmp, serde_json::to_vec_pretty(&v).unwrap_or_default()))
+            .and_then(|_| std::fs::rename(&tmp, &path));
+        match res {
+            Ok(()) => ApiResponse::json(200, &json!({ "saved": true, "path": path.display().to_string() })),
+            Err(e) => ApiResponse::error(500, format!("{}: {e}", path.display())),
+        }
+    }
+
+    /// Client-side errors/warnings (release webviews have no devtools): echo
+    /// to stderr and append to the bench log.
+    fn client_log(&self, body: &[u8]) -> ApiResponse {
+        let text = String::from_utf8_lossy(&body[..body.len().min(4096)]).into_owned();
+        eprintln!("[client] {text}");
+        if let Some(path) = &self.bench_log {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = writeln!(f, "{}", json!({ "kind": "client-log", "message": text }));
+            }
+        }
+        ApiResponse::json(200, &json!({ "logged": true }))
+    }
+
+    fn store_bench(&self, body: &[u8]) -> ApiResponse {
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
+            return ApiResponse::error(400, "invalid JSON");
+        };
+        if let Some(path) = &self.bench_log {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = writeln!(f, "{v}");
+            }
+        }
+        *self.bench.lock().unwrap() = Some(v);
+        ApiResponse::json(200, &json!({ "stored": true }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decodes_query_components() {
+        assert_eq!(pct_decode("POP%5FEST"), "POP_EST");
+        assert_eq!(pct_decode("a+b%20c"), "a b c");
+        assert_eq!(pct_decode("%E2%82%AC"), "€");
+        assert_eq!(pct_decode("100%"), "100%");
+        assert_eq!(pct_decode("%zz"), "%zz");
+    }
+}
+
+#[cfg(test)]
+mod lane_tests {
+    use super::ApiRequest;
+
+    fn req(method: &str, path: &str) -> ApiRequest {
+        ApiRequest { method: method.into(), path: path.into(), ..Default::default() }
+    }
+
+    #[test]
+    fn data_plane_vs_control_plane() {
+        for p in ["/tiles/a.b/11/1850/1060", "/api/layers/a.b/arrow", "/api/layers/a.b/classify", "/api/layers/a.b/unique", "/api/layers/a.b/autostyle"] {
+            assert!(req("GET", p).is_heavy(), "{p} should use the tile pool");
+        }
+        for (m, p) in [("GET", "/api/project"), ("PUT", "/api/project"), ("GET", "/api/jobs"), ("GET", "/api/jobs/3"),
+                       ("POST", "/api/jobs/3/cancel"), ("GET", "/api/layers"), ("GET", "/api/stats"), ("POST", "/api/log"),
+                       ("POST", "/api/layers/a.b/overviews"), ("GET", "/api/health"), ("GET", "/api/recipes"),
+                       ("POST", "/api/recipes/photos-to-map/run"), ("GET", "/api/runs/x/files/map.png")] {
+            assert!(!req(m, p).is_heavy(), "{m} {p} should use the control pool");
+        }
+    }
+}

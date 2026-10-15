@@ -1,0 +1,224 @@
+[
+ {
+  "device_pixel_ratio": 1,
+  "edition": "desktop",
+  "kind": "tour",
+  "started_at": "2026-10-14T09:49:02.424Z",
+  "stops": [
+   {
+    "fps_avg": 14.50676982591876,
+    "fps_min": 4,
+    "move_ms": 2065,
+    "name": "world",
+    "render_ms_mean": 21.416261315573777,
+    "settle_ms": 1268,
+    "tiles_rendered": 244,
+    "zoom": 1.6
+   },
+   {
+    "fps_avg": 17.664376840039257,
+    "fps_min": 8,
+    "move_ms": 2019,
+    "name": "PNG",
+    "render_ms_mean": 1.3219679444443702,
+    "settle_ms": 328,
+    "tiles_rendered": 18,
+    "zoom": 6
+   },
+   {
+    "fps_avg": 23.996082272282077,
+    "fps_min": 16,
+    "move_ms": 2022,
+    "name": "highlands",
+    "render_ms_mean": 9.007296950819688,
+    "settle_ms": 954,
+    "tiles_rendered": 61,
+    "zoom": 11
+   },
+   {
+    "fps_avg": 11.399908800729596,
+    "fps_min": 0,
+    "move_ms": 2133,
+    "name": "Mt Hagen",
+    "render_ms_mean": 39.89146984705888,
+    "settle_ms": 1818,
+    "tiles_rendered": 85,
+    "zoom": 13
+   },
+   {
+    "fps_avg": 8.5,
+    "fps_min": 4,
+    "move_ms": 2035,
+    "name": "Mt Hagen close",
+    "render_ms_mean": 8.62479666666671,
+    "settle_ms": 0,
+    "tiles_rendered": 30,
+    "zoom": 15.5
+   },
+   {
+    "fps_avg": 9.877704609595485,
+    "fps_min": 4,
+    "move_ms": 2080,
+    "name": "pan east",
+    "render_ms_mean": 5.6171418666666435,
+    "settle_ms": 426,
+    "tiles_rendered": 75,
+    "zoom": 14
+   },
+   {
+    "fps_avg": 9.394081728511038,
+    "fps_min": 4,
+    "move_ms": 2079,
+    "name": "pan south",
+    "render_ms_mean": 4.9156099333333865,
+    "settle_ms": 430,
+    "tiles_rendered": 60,
+    "zoom": 14
+   },
+   {
+    "fps_avg": 13.809523809523808,
+    "fps_min": 0,
+    "move_ms": 2059,
+    "name": "Goroka",
+    "render_ms_mean": 38.011434837837825,
+    "settle_ms": 3106,
+    "tiles_rendered": 185,
+    "zoom": 13
+   },
+   {
+    "fps_avg": 15.453639082751746,
+    "fps_min": 4,
+    "move_ms": 2029,
+    "name": "zoom out",
+    "render_ms_mean": 0,
+    "settle_ms": 0,
+    "tiles_rendered": 0,
+    "zoom": 9
+   }
+  ],
+  "summary": {
+   "engine_p95_ms": 138.32883600000002,
+   "fps_avg": 13.844676329927974,
+   "settle_mean_ms": 925.5555555555557,
+   "settle_p95_ms": 3106,
+   "tiles_rendered": 758
+  },
+  "transport": "scheme",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+  "viewport": [
+   1400,
+   900
+  ]
+ },
+ {
+  "device_pixel_ratio": 1,
+  "edition": "desktop",
+  "kind": "tour",
+  "started_at": "2026-10-14T09:49:38.044Z",
+  "stops": [
+   {
+    "fps_avg": 12.720156555772991,
+    "fps_min": 4,
+    "move_ms": 2031,
+    "name": "world",
+    "render_ms_mean": 18.4612569004525,
+    "settle_ms": 883,
+    "tiles_rendered": 221,
+    "zoom": 1.6
+   },
+   {
+    "fps_avg": 18.49148418491484,
+    "fps_min": 8,
+    "move_ms": 2037,
+    "name": "PNG",
+    "render_ms_mean": 1.1678375999999844,
+    "settle_ms": 338,
+    "tiles_rendered": 20,
+    "zoom": 6
+   },
+   {
+    "fps_avg": 26.921194322075376,
+    "fps_min": 20,
+    "move_ms": 2020,
+    "name": "highlands",
+    "render_ms_mean": 5.1814728514851724,
+    "settle_ms": 790,
+    "tiles_rendered": 101,
+    "zoom": 11
+   },
+   {
+    "fps_avg": 12.72984441301273,
+    "fps_min": 0,
+    "move_ms": 2069,
+    "name": "Mt Hagen",
+    "render_ms_mean": 31.6242370430108,
+    "settle_ms": 1287,
+    "tiles_rendered": 93,
+    "zoom": 13
+   },
+   {
+    "fps_avg": 12.394645513138324,
+    "fps_min": 4,
+    "move_ms": 2042,
+    "name": "Mt Hagen close",
+    "render_ms_mean": 4.888713066666606,
+    "settle_ms": 0,
+    "tiles_rendered": 45,
+    "zoom": 15.5
+   },
+   {
+    "fps_avg": 9.246417013407305,
+    "fps_min": 4,
+    "move_ms": 2125,
+    "name": "pan east",
+    "render_ms_mean": 8.935943283333199,
+    "settle_ms": 468,
+    "tiles_rendered": 60,
+    "zoom": 14
+   },
+   {
+    "fps_avg": 9.447331128956067,
+    "fps_min": 4,
+    "move_ms": 2062,
+    "name": "pan south",
+    "render_ms_mean": 5.91380620000009,
+    "settle_ms": 467,
+    "tiles_rendered": 60,
+    "zoom": 14
+   },
+   {
+    "fps_avg": 15.009380863039398,
+    "fps_min": 4,
+    "move_ms": 2096,
+    "name": "Goroka",
+    "render_ms_mean": 36.55137055497387,
+    "settle_ms": 2906,
+    "tiles_rendered": 191,
+    "zoom": 13
+   },
+   {
+    "fps_avg": 19.40298507462687,
+    "fps_min": 4,
+    "move_ms": 2021,
+    "name": "zoom out",
+    "render_ms_mean": 0.3634557500008668,
+    "settle_ms": 0,
+    "tiles_rendered": 4,
+    "zoom": 9
+   }
+  ],
+  "summary": {
+   "engine_p95_ms": 123.466787,
+   "fps_avg": 15.151493229882655,
+   "settle_mean_ms": 793.2222222222222,
+   "settle_p95_ms": 2906,
+   "tiles_rendered": 795
+  },
+  "transport": "invoke",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+  "viewport": [
+   1400,
+   900
+  ]
+ }
+]

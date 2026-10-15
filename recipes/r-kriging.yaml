@@ -1,0 +1,67 @@
+# R step: ordinary kriging with gstat, variogram model fitted automatically, cross-validated.
+# Needs R with the sf and gstat packages (Debian/Ubuntu: apt install r-cran-sf r-cran-gstat).
+recipe: r-kriging
+version: 1
+title: R kriging (gstat) → prediction and uncertainty
+description: >-
+  Ordinary kriging in R with an automatically fitted variogram (spherical, exponential or
+  Gaussian, whichever fits best) and leave-one-out cross-validation. Needs R with sf and gstat.
+inputs:
+  layer: { type: layer, default: auto, description: point samples (auto = the most sample-like layer) }
+  field: { type: field, default: auto, description: numeric field to krige (auto = first numeric) }
+steps:
+  - id: samples
+    use: io.open
+    with: { layer: "${inputs.layer}", kind: point, prefer: samples }
+  - id: krige
+    use: r
+    with:
+      inputs: { samples: "${samples.layer}" }
+      params: { field: "${inputs.field}" }
+      packages: [sf, gstat]
+      code: |
+        library(sf)
+        library(gstat)
+        fld <- params$field
+        if (is.null(fld) || identical(fld, "auto")) {
+          num <- names(Filter(is.numeric, st_drop_geometry(samples)))
+          fld <- setdiff(num, c("id", "fid", "ogc_fid"))[1]
+        }
+        xy <- st_coordinates(samples)
+        zone <- floor((mean(xy[, 1]) + 180) / 6) + 1
+        epsg <- if (mean(xy[, 2]) < 0) 32700 + zone else 32600 + zone
+        pts <- st_transform(samples, epsg)
+        pts <- pts[!is.na(pts[[fld]]), ]
+        f <- as.formula(paste(fld, "~ 1"))
+        v <- variogram(f, pts)
+        model <- fit.variogram(v, vgm(c("Sph", "Exp", "Gau")))
+        grid <- st_sf(geometry = st_make_grid(pts, n = c(60, 45)))
+        centres <- suppressWarnings(st_centroid(grid))
+        hull <- st_buffer(st_convex_hull(st_union(pts)), 50)
+        keep <- st_intersects(centres, hull, sparse = FALSE)[, 1]
+        grid <- grid[keep, ]
+        k <- krige(f, pts, centres[keep, ], model = model, debug.level = 0)
+        grid$prediction <- round(k$var1.pred, 4)
+        grid$std_error <- round(sqrt(pmax(k$var1.var, 0)), 4)
+        cv <- krige.cv(f, pts, model = model, verbose = FALSE)
+        last <- nrow(model)
+        result(field = fld, model = as.character(model$model[last]), range_m = round(model$range[last]),
+               cv_rmse = round(sqrt(mean(cv$residual^2)), 4), samples = nrow(pts), epsg = epsg)
+        list(prediction = st_transform(grid, 4326))
+  - id: style
+    use: automap.style
+    with: { layers: ["${krige.layers.prediction}"], field: prediction }
+  - id: style_samples
+    use: automap.style
+    with: { layers: ["${samples.layer}"], field: none }
+  - id: map
+    use: export.map
+    needs: [style, style_samples]
+    with:
+      layers: ["${krige.layers.prediction}", "${samples.layer}"]
+      title: "Kriged ${krige.result.field} (gstat)"
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Kriging report · ${run.date}" }
+outputs: [krige, map, report]

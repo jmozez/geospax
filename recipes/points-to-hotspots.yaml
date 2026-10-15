@@ -1,0 +1,37 @@
+# Incidents in, hot spot map out (Getis-Ord Gi*). Every setting is chosen from the data: cell
+# size, distance band and the false-discovery-rate correction. Native: no R or Python needed.
+# Add a trigger to re-run it when the incident log changes, e.g.
+#   triggers: [ { folder: { path: /data/incidents, pattern: "*.geojson" } } ]
+recipe: points-to-hotspots
+version: 1
+title: Incidents → hot spot map (Getis-Ord Gi*)
+description: >-
+  Where do incidents cluster more than chance would explain? Counts them in auto-sized hexagons,
+  finds the distance at which clustering peaks, runs Getis-Ord Gi* with the false discovery
+  rate correction and maps hot and cold spots at 90, 95 and 99 % confidence. Also works for
+  features with a value (set field). No R or Python needed.
+inputs:
+  layer: { type: layer, default: auto, description: incident points (auto = the most incident-like point layer) }
+  field: { type: field, default: auto, description: value to analyse (auto = count the incidents per cell) }
+steps:
+  - id: incidents
+    use: io.open
+    with: { layer: "${inputs.layer}", prefer: incidents }
+  - id: hot
+    use: stats.hotspots
+    with: { layer: "${incidents.layer}", field: "${inputs.field}", name: hotspots }
+  - id: style
+    use: automap.style
+    with: { layers: ["${hot.layer}"] }
+  - id: map
+    use: export.map
+    needs: [style]
+    with:
+      layers: ["${hot.layer}"]
+      title: "Hot spots · ${incidents.layer}"
+      format: [png, svg, pdf]
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Hot spot analysis · ${run.date}" }
+outputs: [hot, map, report]

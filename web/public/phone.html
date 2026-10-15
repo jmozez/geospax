@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0d2233" />
+<title>GeoSpaX · send from this phone</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0d2233; color: #e6eef5; }
+  main { max-width: 440px; margin: 0 auto; padding: 22px 18px 40px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } h1 .x { color: #ff6b35; }
+  h2 { font-size: 17px; margin: 26px 0 4px; }
+  p { color: #b9c6d2; margin: 6px 0; }
+  section { border-top: 1px solid #1d3448; margin-top: 18px; }
+  .banner { margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; background: #12324a; font-size: 15px; }
+  .banner.err { background: #4a1f1f; color: #ffd0cc; }
+  label { display: block; font-size: 13px; color: #8aa0b4; margin: 14px 0 6px; }
+  input[type=text], input:not([type]) { width: 100%; box-sizing: border-box; font-size: 17px; padding: 10px 12px; border-radius: 8px; border: 1px solid #2d4a62; background: #0f2638; color: #fff; }
+  button { width: 100%; margin-top: 12px; font-size: 19px; padding: 14px; border: 0; border-radius: 10px; background: #ff6b35; color: #fff; font-weight: 600; }
+  button.alt { background: #1f5f8b; } button.stop { background: #22384c; }
+  button:disabled { opacity: .55; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .stat { background: #0f2638; border: 1px solid #22384c; border-radius: 8px; padding: 10px; }
+  .stat b { display: block; font-size: 20px; } .stat span { font-size: 12px; color: #8aa0b4; }
+  .bar { height: 10px; background: #0f2638; border-radius: 6px; overflow: hidden; margin-top: 14px; }
+  .bar i { display: block; height: 100%; width: 0; background: #ff6b35; transition: width .2s; }
+  #ptext { font-size: 14px; color: #b9c6d2; }
+  #result { margin-top: 14px; }
+  #result img { width: 100%; border-radius: 8px; margin-top: 8px; background: #fff; }
+  #result a { color: #8ccaff; }
+  #msg { margin-top: 16px; min-height: 1.4em; font-size: 14px; } .err { color: #ff8a80; } .ok { color: #7fd99a; }
+  small { color: #6f879b; }
+</style>
+</head>
+<body>
+<main>
+  <h1>GeoSpa<span class="x">X</span> <span id="title">phone</span></h1>
+  <p id="intro">Share this phone's live location with your GeoSpaX map.</p>
+  <div id="paired" class="banner" hidden>📶 Connected to <b id="computer">GeoSpaX</b>. Files go straight to it over your Wi-Fi.</div>
+  <div id="unpaired" class="banner err" hidden>This page isn't paired with GeoSpaX (or the code changed). In GeoSpaX, open <b>Devices → Send from phone</b> and scan the QR code again.</div>
+
+  <section id="send" hidden>
+    <h2>📤 Send photos, tracks and logs</h2>
+    <p>Geotagged photos, GPX/KML tracks or sensor CSVs. GeoSpaX makes the map by itself.</p>
+    <input type="file" id="files" multiple hidden />
+    <button id="pick">Choose files</button>
+    <h2>📷 Take a geotagged photo</h2>
+    <p>The photo gets this phone's position, even if the camera doesn't add one.</p>
+    <input type="file" id="camera" accept="image/*" capture="environment" hidden />
+    <button id="snap" class="alt">Take a photo</button>
+    <div id="progress" hidden><div class="bar"><i id="bar"></i></div><span id="ptext"></span></div>
+    <div id="result" hidden></div>
+  </section>
+
+  <section id="live">
+    <h2>📍 Share live location</h2>
+    <p>Your position shows on the map while this is on. Photos without a location that you send meanwhile are placed along this track by their time.</p>
+    <label for="name">Name shown on the map</label>
+    <input id="name" maxlength="40" autocomplete="off" />
+    <button id="toggle" class="alt">Start sharing location</button>
+    <div class="stats">
+      <div class="stat"><b id="acc">–</b><span>accuracy (m)</span></div>
+      <div class="stat"><b id="count">0</b><span>positions sent</span></div>
+      <div class="stat"><b id="lat">–</b><span>latitude</span></div>
+      <div class="stat"><b id="lon">–</b><span>longitude</span></div>
+    </div>
+  </section>
+  <div id="msg"></div>
+  <p><small>Everything goes only to the GeoSpaX computer that showed you the QR code, over your own network. Nothing is shared until you choose files or press Start.</small></p>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  // pairing code from the QR code (#t=…), remembered so a bookmark keeps working
+  const hashT = new URLSearchParams(location.hash.slice(1)).get('t');
+  if (hashT) { localStorage.setItem('geospax-token', hashT); history.replaceState(null, '', location.pathname); }
+  const token = hashT || localStorage.getItem('geospax-token') || '';
+  const q = (params) => { const u = new URLSearchParams(params || {}); if (token) u.set('t', token); const s = u.toString(); return s ? '?' + s : ''; };
+  const key = 'geospax-device';
+  let device = localStorage.getItem(key);
+  if (!device) { device = Math.random().toString(16).slice(2, 8); localStorage.setItem(key, device); }
+  $('name').value = localStorage.getItem(key + '-name') || 'Phone ' + device.slice(0, 4).toUpperCase();
+  $('name').addEventListener('change', () => localStorage.setItem(key + '-name', $('name').value));
+  const msg = (t, cls) => { $('msg').textContent = t; $('msg').className = cls || ''; };
+  let maxBytes = 64 * 1048576, lastPos = null, watch = null, sent = 0;
+
+  // phone link (QR code) or the web edition's /phone.html (live location only)?
+  (async () => {
+    try {
+      const r = await fetch('api/phone/hello' + q());
+      if (r.status === 401) { $('unpaired').hidden = false; document.body.dataset.link = 'unpaired'; return; }
+      const h = r.ok ? await r.json() : {};
+      if (!h.link) { document.body.dataset.link = 'web'; return; }  // web edition's /phone.html: live location only
+      maxBytes = (h.max_upload_mb || 64) * 1048576;
+      $('computer').textContent = h.computer;
+      $('title').textContent = '→ ' + h.computer;
+      $('intro').textContent = 'Send photos, tracks and sensor logs to GeoSpaX, or share your live location.';
+      $('paired').hidden = false; $('send').hidden = false;
+      document.body.dataset.link = 'paired';
+    } catch (e) { document.body.dataset.link = 'error'; }
+  })();
+
+  // ---------------------------------------------------------------- live location
+  async function send(p) {
+    lastPos = p;
+    const c = p.coords;
+    const body = { device, name: $('name').value || 'Phone', lat: c.latitude, lon: c.longitude, accuracy: c.accuracy,
+                   altitude: c.altitude, heading: c.heading, speed: c.speed, t: p.timestamp };
+    try {
+      const r = await fetch('api/devices/live' + q(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error(await r.text());
+      sent++;
+      $('count').textContent = sent;
+      $('acc').textContent = Math.round(c.accuracy);
+      $('lat').textContent = c.latitude.toFixed(5);
+      $('lon').textContent = c.longitude.toFixed(5);
+      document.body.dataset.sent = String(sent);
+      msg('Live on the map ✓', 'ok');
+    } catch (e) { msg('Could not reach GeoSpaX: ' + e.message, 'err'); }
+  }
+  $('toggle').addEventListener('click', () => {
+    if (watch !== null) {
+      navigator.geolocation.clearWatch(watch); watch = null;
+      $('toggle').textContent = 'Start sharing location'; $('toggle').className = 'alt'; msg('Stopped.');
+      return;
+    }
+    if (!('geolocation' in navigator)) return msg('This browser has no location support.', 'err');
+    if (!window.isSecureContext) return msg('Location needs https:// (scan the QR code in GeoSpaX).', 'err');
+    msg('Waiting for a GPS fix…');
+    watch = navigator.geolocation.watchPosition(send, (e) => msg('Location error: ' + e.message, 'err'),
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
+    $('toggle').textContent = 'Stop sharing'; $('toggle').className = 'stop';
+  });
+
+  // ---------------------------------------------------------------- sending files
+  function position() {
+    if (lastPos && Date.now() - lastPos.timestamp < 30000) return Promise.resolve(lastPos);
+    if (!('geolocation' in navigator) || !window.isSecureContext) return Promise.resolve(null);
+    return new Promise((res) => navigator.geolocation.getCurrentPosition((p) => { lastPos = p; res(p); }, () => res(null),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }));
+  }
+  function upload(file, params, onProgress) {
+    return new Promise((res, rej) => {
+      const x = new XMLHttpRequest();
+      x.open('POST', 'api/phone/upload' + q(params));
+      x.upload.onprogress = (e) => onProgress(e.loaded);
+      x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {} x.status === 200 ? res(j) : rej(new Error(j.error || 'HTTP ' + x.status)); };
+      x.onerror = () => rej(new Error('connection lost'));
+      x.send(file);
+    });
+  }
+  const busy = (on) => { $('pick').disabled = on; $('snap').disabled = on; };
+  async function sendFiles(files, camera) {
+    if (!files.length) return;
+    const batch = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const total = files.reduce((n, f) => n + f.size, 0);
+    let done = 0, ok = 0; const gps = { photo: 0, phone: 0 }, skipped = [];
+    busy(true); $('progress').hidden = false; $('result').hidden = true; msg('');
+    const show = (extra) => { $('bar').style.width = (total ? Math.round(100 * extra / total) : 100) + '%'; };
+    for (const f of files) {
+      if (f.size > maxBytes) { skipped.push(f.name); done += f.size; continue; }
+      $('ptext').textContent = `Sending ${ok + 1} of ${files.length}: ${f.name}`;
+      const params = { batch, name: f.name || 'photo.jpg' };
+      if (camera) {
+        const p = await position();
+        if (p) Object.assign(params, { lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy), ts: Date.now() });
+      }
+      try {
+        const r = await upload(f, params, (n) => show(done + n));
+        ok++; if (r.gps) gps[r.gps] = (gps[r.gps] || 0) + 1;
+      } catch (e) { skipped.push(f.name + ' (' + e.message + ')'); }
+      done += f.size; show(done);
+    }
+    let commit = {};
+    try {
+      const r = await fetch('api/phone/commit' + q({ batch, live: watch !== null ? 'phone-' + device : '' }), { method: 'POST' });
+      commit = await r.json();
+      if (!r.ok) throw new Error(commit.error || 'HTTP ' + r.status);
+    } catch (e) { busy(false); return msg('Sent, but GeoSpaX did not confirm: ' + e.message, 'err'); }
+    $('ptext').textContent = `Sent ${ok} file${ok === 1 ? '' : 's'} ✓ — GeoSpaX is making your map…`;
+    document.body.dataset.uploaded = String(ok);
+    const notes = [];
+    if (gps.phone) notes.push(`${gps.phone} placed with this phone's position`);
+    const photos = files.filter((f) => /^image\//.test(f.type) || /\.(jpe?g|heic|png|tiff?)$/i.test(f.name)).length;
+    if (!camera && photos && gps.photo < photos) notes.push(`${photos - gps.photo} of ${photos} photos had no location (phones often remove it when sharing). ${watch !== null ? 'They are placed along your live track by time.' : 'Turn on "Share live location" while you take photos and GeoSpaX places them by time.'}`);
+    if (skipped.length) notes.push('Skipped: ' + skipped.join(', '));
+    busy(false);
+    await waitForMap(commit, notes);
+  }
+  async function waitForMap(commit, notes) {
+    const since = Date.parse(commit.at) - 2000;
+    const box = $('result'); box.hidden = false;
+    box.innerHTML = notes.map((n) => `<p>${n.replace(/[<>&]/g, '')}</p>`).join('');
+    for (let i = 0; i < 45; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      let runs = [];
+      try { runs = (await (await fetch('api/runs' + q())).json()).runs || []; } catch (e) { continue; }
+      const mine = runs.filter((r) => Date.parse(r.started_at) >= since && (!commit.inbox || (r.trigger && r.trigger.root === commit.inbox)));
+      const doneRun = mine.find((r) => r.status === 'done' && (r.artifacts || []).includes('map.png'));
+      if (doneRun) {
+        $('ptext').textContent = 'Your map is ready ✓';
+        document.body.dataset.map = doneRun.id;
+        const file = (n) => `api/runs/${encodeURIComponent(doneRun.id)}/files/${n}` + q();
+        box.innerHTML += `<p><b>${(doneRun.title || doneRun.recipe).replace(/[<>&]/g, '')}</b> · ${(doneRun.message || '').replace(/[<>&]/g, '')}</p>`
+          + `<a href="${file('map.png')}" target="_blank"><img alt="map" src="${file('map.png')}" /></a>`
+          + ((doneRun.artifacts || []).includes('report.html') ? `<p><a href="${file('report.html')}" target="_blank">Open the report</a></p>` : '');
+        return;
+      }
+      const failed = mine.find((r) => r.status === 'failed');
+      if (failed) { $('ptext').textContent = 'GeoSpaX could not make a map: ' + (failed.error || 'see the run on the computer'); return; }
+    }
+    $('ptext').textContent = 'Sent ✓ — no map yet. GeoSpaX maps files that have locations (photos, tracks, logs).';
+  }
+  $('pick').addEventListener('click', () => $('files').click());
+  $('snap').addEventListener('click', () => { position(); $('camera').click(); });
+  $('files').addEventListener('change', (e) => { sendFiles([...e.target.files], false); e.target.value = ''; });
+  $('camera').addEventListener('change', (e) => { sendFiles([...e.target.files], true); e.target.value = ''; });
+</script>
+</body>
+</html>

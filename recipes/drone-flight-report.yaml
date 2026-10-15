@@ -1,0 +1,36 @@
+# Drone SD card -> flight path, photo positions, estimated ground coverage, report.
+recipe: drone-flight-report
+version: 1
+title: Drone flight → coverage map and report
+description: >-
+  Insert a drone SD card. GeoSpaX reads photo positions (EXIF and DJI XMP) and the flight log
+  (.SRT), estimates the ground the photos cover, maps the flight and writes a report.
+triggers:
+  - device: { kinds: [drone], has: [photos, tracks] }
+inputs:
+  source: { type: device, default: auto, description: drone card or folder }
+  footprint_m: { type: number, default: 60, description: approximate ground radius of one photo in metres }
+steps:
+  - id: import
+    use: devices.import
+    with: { source: "${inputs.source}" }
+  - id: coverage
+    use: vector.buffer
+    when: "${import.photos}"
+    with:
+      layer: "${import.photos_layer}"
+      distance: "${inputs.footprint_m}"
+      dissolve: true
+      name: coverage
+  - id: style
+    use: automap.style
+    needs: [coverage]
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { title: "Drone flight · ${import.device}" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Flight report · ${import.device} · ${run.date}" }
+outputs: [import, coverage, map, report]

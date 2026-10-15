@@ -1,0 +1,222 @@
+# GeoSpaX CI: build + test on every push/PR; on a version tag (v1.1.0, ...) also publish the
+# Linux and Windows installers to a GitHub release and the web-edition image to GHCR.
+# The Windows edition is cross-built on Linux (scripts/package-windows.sh), smoke-tested under Wine,
+# then installed and started on a real Windows runner (the desktop window needs WebView2).
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: build, test, package (Debian 13)
+    runs-on: ubuntu-latest
+    # Debian 13 = GDAL 3.10, the same stack the release was tested on
+    container: debian:trixie
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Tools for checkout
+        run: apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
+      - uses: actions/checkout@v4
+      - name: System packages, Rust, Node (scripts/setup-linux.sh)
+        run: bash scripts/setup-linux.sh
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /opt/cargo/registry
+            /opt/cargo/git
+            target
+          key: cargo-trixie-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-trixie-
+      - name: Docs links and anchors
+        run: python3 scripts/test-docs-links.py README.md CHANGELOG.md bench/RESULTS.md docs/*.md
+      - name: Web UI (type check + build)
+        working-directory: web
+        run: npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
+      - name: Engine unit tests
+        run: . /opt/rust-env.sh && cargo test --release -p geospax-engine
+      - name: Release build (server + desktop)
+        run: . /opt/rust-env.sh && cargo build --release -p geospax-server -p geospax --features geospax/custom-protocol
+      - name: Recipe gallery check
+        run: |
+          for r in recipes/*.yaml; do ./target/release/geospax-server check "$r"; done
+      - name: Sensor networks (MQTT over TLS, LoRaWAN, SensorThings) against Mosquitto
+        run: |
+          apt-get install -y -q --no-install-recommends mosquitto openssl
+          python3 scripts/data-sample-field.py /tmp/gx-data
+          mkdir -p /tmp/gx-out
+          python3 scripts/test-sensor-networks.py --bin target/release/geospax-server --data /tmp/gx-data --out /tmp/gx-out
+      - name: LiDAR + 3D scenes (known truth, real LAS/LAZ samples, drop-folder trigger, glTF validator)
+        run: |
+          python3 -c "import numpy, PIL" 2>/dev/null || apt-get install -y -q --no-install-recommends python3-numpy python3-pil
+          npm i --prefix /tmp/gv --no-audit --no-fund gltf-validator@2.0.0-dev.3.10
+          python3 scripts/test-lidar.py --bin target/release/geospax-server --out /tmp/gx-out --quick --results /tmp/gx-out/lidar-results.json \
+            --validator /tmp/gv/node_modules/gltf-validator
+      - name: Spatial statistics (hot spots + kriging vs known truth, cross-checked with R spdep and gstat)
+        run: |
+          apt-get install -y -q --no-install-recommends r-base-core r-cran-sf r-cran-spdep r-cran-gstat r-cran-jsonlite
+          python3 scripts/test-stats.py --bin target/release/geospax-server --data /tmp/gx-data --quick --results /tmp/gx-out/stats-results.json
+      - name: Package (.deb)
+        run: scripts/package-linux.sh --no-build releases
+      - name: Install test
+        run: |
+          apt-get install -y -q ./releases/geospax_*.deb
+          geospax-server recipes | grep -c ' gallery '
+          (cd /tmp && mkdir -p d && geospax-server --data d --state-dir s --port 8097 --no-device-mounts &) && sleep 3
+          curl -sf http://127.0.0.1:8097/api/health | grep -q '"version"' && curl -sf http://127.0.0.1:8097/ | grep -q '<title>GeoSpaX'
+          (cd /tmp && geospax-server --data d --state-dir s2 --port 8098 --no-device-mounts --phone --phone-port 8766 &) && sleep 3
+          curl -skf https://127.0.0.1:8766/ | grep -q 'send from this phone' 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geospax-linux-deb
+          path: releases/*.deb
+
+  windows:
+    name: Windows installer (cross-built on Debian 13, tested under Wine)
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    env:
+      CARGO_TERM_COLOR: always
+      # optional: a base64-encoded .pfx code-signing certificate; without it the installer is unsigned
+      WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
+      WINDOWS_SIGN_PASSWORD: ${{ secrets.WINDOWS_SIGN_PASSWORD }}
+    steps:
+      - name: Tools for checkout
+        run: apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
+      - uses: actions/checkout@v4
+      - name: Rust, Node, MinGW-w64, NSIS, Wine, GDAL for Windows (scripts/setup-linux.sh --windows)
+        run: bash scripts/setup-linux.sh --windows && apt-get install -y -q --no-install-recommends xvfb mosquitto openssl python3-numpy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /opt/cargo/registry
+            /opt/cargo/git
+            target/x86_64-pc-windows-gnu
+          key: cargo-windows-gnu-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-windows-gnu-
+      - name: Web UI
+        run: (cd web && npm ci --no-audit --no-fund && npx vite build) && (cd apps/desktop && npm ci --no-audit --no-fund)
+      - name: Code-signing certificate
+        if: env.WINDOWS_SIGN_PFX_BASE64 != ''
+        run: |
+          echo "$WINDOWS_SIGN_PFX_BASE64" | base64 -d > "$RUNNER_TEMP/sign.pfx"
+          echo "WINDOWS_SIGN_PFX=$RUNNER_TEMP/sign.pfx" >> "$GITHUB_ENV"
+      - name: Build + package (installer + portable ZIP)
+        run: scripts/package-windows.sh
+      - name: Install + smoke test under Wine
+        run: |
+          python3 scripts/data-sample-field.py /tmp/gx-data
+          python3 scripts/data-sample-devices.py /tmp/geospax-devices
+          GEOSPAX_DATA=/tmp/gx-data scripts/test-package-windows.sh releases/GeoSpaX_*_x64-setup.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geospax-windows
+          path: |
+            releases/GeoSpaX_*_x64-setup.exe
+            target/windows/GeoSpaX-*-windows-x64.zip
+
+  windows-native:
+    name: Windows installer on Windows (desktop window + web server)
+    needs: windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: geospax-windows
+          path: dist
+      - name: Silent per-user install
+        run: |
+          $setup = Get-ChildItem dist -Recurse -Filter 'GeoSpaX_*_x64-setup.exe' | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $inst = "$env:LOCALAPPDATA\GeoSpaX"
+          if (-not (Test-Path "$inst\geospax.exe")) { throw "GeoSpaX was not installed to $inst" }
+          "INST=$inst" | Out-File -FilePath $env:GITHUB_ENV -Append
+          & "$inst\geospax-server.exe" recipes
+      - name: Desktop app starts and creates ~/GeoSpaX
+        run: |
+          $p = Start-Process "$env:INST\geospax.exe" -PassThru
+          Start-Sleep -Seconds 25
+          if ($p.HasExited) { throw "the desktop app exited with code $($p.ExitCode)" }
+          if (-not (Test-Path "$env:USERPROFILE\GeoSpaX\Inbox")) { throw "no GeoSpaX folder layout in the user profile" }
+          Stop-Process -Id $p.Id
+      - name: Web server answers and renders a recipe map
+        run: |
+          $data = "$env:USERPROFILE\GeoSpaX\Data"
+          $s = Start-Process "$env:INST\geospax-server.exe" -ArgumentList '--data', $data, '--port', '18320', '--no-device-mounts' -PassThru
+          $h = $null
+          for ($i = 0; $i -lt 60 -and -not $h; $i++) { try { $h = Invoke-RestMethod http://127.0.0.1:18320/api/health } catch { Start-Sleep 1 } }
+          if (-not $h.ok) { throw "the web server did not answer" }
+          if ((Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18320/).Content -notmatch 'GeoSpaX') { throw "no web UI" }
+          Stop-Process -Id $s.Id
+      - name: Silent uninstall
+        run: |
+          Start-Process "$env:INST\uninstall.exe" -ArgumentList '/S' -Wait
+          Start-Sleep -Seconds 15
+          if (Test-Path "$env:INST\geospax.exe") { throw "GeoSpaX is still installed" }
+
+  release:
+    name: GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows-native]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: geospax-linux-deb
+          path: releases
+      - uses: actions/download-artifact@v4
+        with:
+          name: geospax-windows
+          path: releases
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            releases/*.deb
+            releases/**/GeoSpaX_*_x64-setup.exe
+            releases/**/GeoSpaX-*-windows-x64.zip
+          generate_release_notes: true
+
+  docker:
+    name: web-edition image
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: linux
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,16 @@
+{
+ "results": [
+  "Turn on → QR code for https://169.254.0.21:8121/ (computer \"e2b.local\")",
+  "phone paired over HTTPS (secure context, so location works), page title \"GeoSpaX · send from this phone\"",
+  "gallery send (2 photos, 3 live fixes) → map ready on the phone in 2.8 s (run 20261015-180618-photos-to-map)",
+  "camera photo (no GPS of its own) sent → new map",
+  "device \"From phone\": 3 of 3 photos geotagged, 2 placed by GeoSpaX (live track by time + camera position)",
+  "2 runs, all done, with no Auto switch on: photos-to-map",
+  "wrong pairing code: page says \"not paired\"",
+  "http:// → 301 https://127.0.0.1:8121/",
+  "Turn off → the phone port is closed",
+  "restart with --phone: same pairing code, so bookmarked phones still work"
+ ],
+ "map_seconds": 2.8,
+ "live_fixes": 3
+}

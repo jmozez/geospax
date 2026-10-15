@@ -1,0 +1,136 @@
+[
+  {
+    "overview": {
+      "build_ms": 17882.338761,
+      "build_threads": 2,
+      "bytes_raw": 42103270,
+      "file_bytes": 16661395,
+      "layer": "synthetic.buildings",
+      "max_zoom": 12,
+      "path": "/tmp/ov/overviews/synthetic.buildings.pmtiles",
+      "per_zoom": [
+        {
+          "bytes_raw": 125,
+          "density_max": 807462,
+          "density_p90": 807462,
+          "max_tile_bytes": 125,
+          "ms": 428.524036,
+          "tiles": 1,
+          "z": 0
+        },
+        {
+          "bytes_raw": 168,
+          "density_max": 442787,
+          "density_p90": 442787,
+          "max_tile_bytes": 168,
+          "ms": 386.266955,
+          "tiles": 1,
+          "z": 1
+        },
+        {
+          "bytes_raw": 354,
+          "density_max": 314738,
+          "density_p90": 314738,
+          "max_tile_bytes": 354,
+          "ms": 354.82299,
+          "tiles": 1,
+          "z": 2
+        },
+        {
+          "bytes_raw": 1009,
+          "density_max": 166742,
+          "density_p90": 166742,
+          "max_tile_bytes": 1009,
+          "ms": 345.200893,
+          "tiles": 1,
+          "z": 3
+        },
+        {
+          "bytes_raw": 3012,
+          "density_max": 82279,
+          "density_p90": 82279,
+          "max_tile_bytes": 3012,
+          "ms": 344.14741599999996,
+          "tiles": 1,
+          "z": 4
+        },
+        {
+          "bytes_raw": 9387,
+          "density_max": 33644,
+          "density_p90": 33644,
+          "max_tile_bytes": 9387,
+          "ms": 377.677125,
+          "tiles": 1,
+          "z": 5
+        },
+        {
+          "bytes_raw": 32376,
+          "density_max": 11206,
+          "density_p90": 11206,
+          "max_tile_bytes": 23312,
+          "ms": 2582.668465,
+          "tiles": 2,
+          "z": 6
+        },
+        {
+          "bytes_raw": 120445,
+          "density_max": 3201,
+          "density_p90": 3201,
+          "max_tile_bytes": 85344,
+          "ms": 2481.671897,
+          "tiles": 4,
+          "z": 7
+        },
+        {
+          "bytes_raw": 462191,
+          "density_max": 837,
+          "density_p90": 837,
+          "max_tile_bytes": 194588,
+          "ms": 1687.53946,
+          "tiles": 6,
+          "z": 8
+        },
+        {
+          "bytes_raw": 1692279,
+          "density_max": 227,
+          "density_p90": 166,
+          "max_tile_bytes": 237870,
+          "ms": 1779.644327,
+          "tiles": 15,
+          "z": 9
+        },
+        {
+          "bytes_raw": 4043382,
+          "density_max": 68,
+          "density_p90": 30,
+          "max_tile_bytes": 230423,
+          "ms": 2173.287482,
+          "tiles": 48,
+          "z": 10
+        },
+        {
+          "bytes_raw": 7115944,
+          "density_max": 26,
+          "density_p90": 12,
+          "max_tile_bytes": 242920,
+          "ms": 1887.5309730000001,
+          "tiles": 150,
+          "z": 11
+        },
+        {
+          "bytes_raw": 28622598,
+          "density_max": 7,
+          "density_p90": 4,
+          "max_tile_bytes": 860334,
+          "ms": 3051.1449169999996,
+          "tiles": 504,
+          "z": 12
+        }
+      ],
+      "serve_p50_ms": 0.209703,
+      "serve_p95_ms": 1.568824,
+      "tiles_visited": 735,
+      "tiles_written": 735
+    }
+  }
+]

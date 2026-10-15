@@ -1,0 +1,35 @@
+# Air-quality monitor, weather or soil probe, IoT logger or phone sensor-app export -> map + report.
+recipe: sensor-log-to-map
+version: 1
+title: Sensor log → map and report
+description: >-
+  For portable air-quality monitors, weather and soil probes, IoT loggers and phone sensor apps
+  that log readings with coordinates (CSV, TSV, JSON lines), and for FIT activities. Maps every
+  reading coloured by the main measurement, checks air quality against the WHO guidelines and
+  writes a report with the numbers.
+triggers:
+  - device: { kinds: [sensor], has: [readings] }
+inputs:
+  source: { type: device, default: auto, description: device id, mounted device or folder }
+steps:
+  - id: import
+    use: devices.import
+    with: { source: "${inputs.source}" }
+  - id: summary
+    use: sensor.summary
+    with: { layer: "${import.readings_layer}", units: "${import.units}" }
+  - id: style
+    use: automap.style
+    with: { layers: "${import.layers}", field: { readings: "${summary.main}" } }
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { layers: "${import.layers}", title: "${summary.label} · ${import.device}" }
+  - id: geojson
+    use: export.data
+    with: { layers: "${import.readings_layer}", format: geojson }
+  - id: report
+    use: export.report
+    needs: [map, geojson]
+    with: { title: "Sensor report · ${import.device} · ${run.date}" }
+outputs: [map, geojson, report]
