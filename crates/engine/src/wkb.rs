@@ -29,6 +29,30 @@ impl std::fmt::Display for WkbError {
     }
 }
 
+/// Bounding box of one WKB blob: `[minx, miny, maxx, maxy]`.
+///
+/// The attribute table stores a bbox per row so "zoom to row" never has to re-read
+/// the source (and works for polygons, not just points).
+pub fn bbox(buf: &[u8]) -> Option<[f64; 4]> {
+    let g = parse(buf).ok()?;
+    let mut b = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
+    {
+        let add = |p: &[f64; 2]| {
+            b[0] = b[0].min(p[0]);
+            b[1] = b[1].min(p[1]);
+            b[2] = b[2].max(p[0]);
+            b[3] = b[3].max(p[1]);
+        };
+        match &g {
+            Geom::Empty => return None,
+            Geom::Points(pts) => pts.iter().for_each(add),
+            Geom::Lines(ls) => ls.iter().flatten().for_each(add),
+            Geom::Polygons(ps) => ps.iter().flatten().flatten().for_each(add),
+        }
+    }
+    if b[0].is_finite() && b[2].is_finite() { Some(b) } else { None }
+}
+
 struct Reader<'a> {
     b: &'a [u8],
     p: usize,

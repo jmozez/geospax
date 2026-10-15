@@ -3,6 +3,52 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] — 2026-10-16
+
+**A desktop-GIS workbench, not a sidebar.** GeoSpaX now opens the way a professional GIS looks: a **ribbon** across the
+top, **dockable panes** (Contents/Catalog on the left, Symbology/**Attributes**/Rasters/Devices on the right,
+Automate/History/Log along the bottom), a **map that owns the middle** and a **status bar** with coordinates, scale and
+the active layer. The shell is new, the engine is not — every ribbon button calls the same APIs the old sidebar did.
+
+The desktop-GIS structure was modelled on two permissively-licensed open-source projects, as
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) records in full: **RustGIS** (Apache-2.0) for the "everything is a
+command" registry and the ribbon/pane vocabulary, and **GeoLibre** (MIT) for the pane set and for treating the attribute
+table as a peer of the map. No source files were copied; both patterns are re-implemented in TypeScript.
+
+### Added
+- **Ribbon** with seven tabs — Home, Data, Style, Analyze, View, Automate, Help — and 40 commands, each with an icon,
+  a tooltip, a keyboard shortcut and a place in the palette (`web/src/commands.ts`).
+- **Command registry**: one `Command` record per action (`id`, `tab`, `group`, `title`, `icon`, `keys`, `run(host)`), so
+  the ribbon, the keyboard, the palette and the catalog all call the same function.
+- **Command palette** (`Ctrl+K`): 40 commands + every recipe + every layer, fuzzy-filtered, arrow keys and Enter.
+- **Attribute table** (`Attributes` tab, `web/src/attributes.ts`): paged rows (250 at a time) with a bbox per row, so
+  clicking a row zooms to that feature and `Ctrl+click` builds a selection — it opens a 1,000,000-feature layer in the
+  same time as a map tile. Sub-views: **Fields** (names and types) and **Chart** (histogram / top values).
+- **New engine endpoint `GET /api/layers/{id}/rows`** (`?offset=`, `?limit=` ≤ 2000): a window of features with their
+  attributes and a bounding box each, read through the pooled GDAL handles (`crates/engine/src/lib.rs`,
+  `wkb::bbox`). 250 rows from row 500,000 of the 1 M-point layer: 0.43 s.
+- **Catalog pane**: layers grouped by source with a search box, plus one-click jumps to Devices, Rasters, Recipes and
+  Run history. Clicking a layer makes it active, opens its symbology and zooms to it.
+- **Run history pane**: every recipe run with status, trigger, duration and a **Report** button.
+- **Log pane**: what the engine and the UI are doing, newest first.
+- **Status bar**: cursor coordinates, scale ratio and zoom, active layer with feature count, edition and transport,
+  and a message area that reports what the last command did.
+- **Docks are resizable** (drag a splitter, double-click to reset), **collapsible** (double-click a tab — a collapsed
+  pane keeps a 30 px strip of vertical tabs) and **remembered** across reloads in `localStorage`.
+- **Identify**: click a feature on the map and its attributes appear in a popup.
+- `THIRD_PARTY_NOTICES.md`: dependencies, plus exactly what was borrowed from RustGIS and GeoLibre and what was not.
+
+### Changed
+- The old single left sidebar (`#sidebar`) is gone; every pane it held now lives in a dock (Contents, Project with
+  transport/go-to/measure, Devices, Rasters, Automate).
+- Symbology is no longer a floating card over the map — it is the right dock's `Symbology` tab, so it can stay open
+  while you work.
+- AutoMap styling moved into one `autostyleLayer()` helper used by the ribbon, the catalog and device imports.
+
+### Fixed
+- Pooled GDAL layer handles could keep the spatial filter set by the last tile read, so a scanned layer saw only one
+  tile's worth of features. `rows()` now clears the filter before reading (no effect on tiles, which set it per read).
+
 ## [1.6.0] — 2026-10-16
 
 **Spatial statistics on autopilot.** Two analyses that used to mean opening R, Python or ArcGIS's Spatial Statistics

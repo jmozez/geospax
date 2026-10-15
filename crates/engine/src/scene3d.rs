@@ -1234,7 +1234,8 @@ mod tests {
         let px = |x: usize, y: usize| &img.rgba[(y * 320 + x) * 4..(y * 320 + x) * 4 + 3];
         let greenish = (0..200).flat_map(|y| (0..320).map(move |x| (x, y))).filter(|(x, y)| {
             let p = px(*x, *y);
-            p[1] > p[0] + 20 && p[1] > p[2] + 20
+            // as i32: a bright red channel would overflow a u8 add in debug builds
+            p[1] as i32 > p[0] as i32 + 20 && p[1] as i32 > p[2] as i32 + 20
         });
         let share = greenish.count() as f64 / (320.0 * 200.0);
         assert!(share > 0.25, "terrain covers {share:.2} of the picture");

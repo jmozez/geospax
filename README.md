@@ -226,7 +226,7 @@ python3 scripts/data-sample-incidents.py data                    # 1,120 inciden
 ./target/release/geospax-server --data data --watch /tmp/geospax-devices/DJI-SD --watch /tmp/geospax-devices/GARMIN \
   --auto photos-to-map,track-to-map,drone-flight-report
 ```
-- **UI:** the **Automate** panel at the top of the sidebar.
+- **UI:** the **Automate** pane (bottom dock).
   - **Run** a recipe and watch its steps.
   - Open the finished **Map** and **Report**.
   - Switch on **Auto** to let triggers run it.
@@ -349,6 +349,7 @@ Names follow `setup-*`, `data-*`, `demo-*`, `test-*`, `bench-*` (`test-web-*` fo
 | `test-all.sh DATA [OUT]` | new | The whole suite (12 parts), with sample devices (incl. the sensor logger and watch) and isolated state dirs |
 | `test-sensor-networks.py [--bin B] [--data DIR] [--port N]` | new | MQTT over TLS against Mosquitto (private CA, client certificates, wrong CA, missing client certificate), LoRaWAN uplinks (TTN, ChirpStack v4/v3, TTN webhook), a mock OGC SensorThings service (paging, no duplicates), `air-quality-alert` from both (24 checks) |
 | `test-lidar.py [--bin B] [--cache DIR] [--offline \| --quick] [--pw PLAYWRIGHT]` | new | LiDAR against known truth (terrain RMSE, trees found and their heights, buildings, noise, contours, maps, report) for classified and unclassified scenes; real files (LAZ without a CRS, Oregon feet → UTM, 10.7 M points); the drop-folder trigger; the 3D scene of every run (GLB, validator, picture, viewer, report) |
+| `test-web-workbench.mjs [BASE] [OUT]` | new | The 1.7 workbench: ribbon tabs and buttons, dock tabs, attribute table (rows/fields/chart), command palette, splitter drag and reset, pane collapse, layout persistence across a reload; 29 checks, screenshots |
 | `test-web-scene.mjs OUT NAME=scene.html…` | new | The 3D viewer in Playwright Chromium with the network blocked: ready, framing, turn, zoom, pan, compass, reset, layer switches; screenshots |
 | `validate-gltf.mjs FILE.glb…` | new | The Khronos glTF-Validator (npm `gltf-validator`, installed by `setup-linux.sh --test-tools`); exits 1 on any error |
 | `test-automation.py [--data DIR]` | new | Every gallery recipe from the CLI (files checked; DEM/Sentinel-2/GRASS/SAGA ones skipped offline or when not installed), FIT watch, live device/folder/schedule/after/webhook/stac triggers, live sensors over HTTP and MQTT (Mosquitto), sensor threshold + cooldown, geofence, raster API, API, safety, the 3D scene files (218 checks) |

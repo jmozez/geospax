@@ -7,8 +7,8 @@ push needs you to authorise it once — about 20 seconds, no keys or tokens to c
 ## 1. Authorise (two clicks)
 
 1. Open **https://github.com/login/device**
-2. Enter the code the agent printed for you, e.g. `4897-2045`
-   (codes expire after ~15 minutes; if it is refused, ask and a fresh one is issued)
+2. Enter the code the agent printed for you, e.g. `2057-BAC8`
+   (codes expire after ~15 minutes — if GitHub says *Expired user code*, ask and a fresh one is issued)
 3. **Continue**, then **Authorise GitHub CLI**
 
 The push then runs by itself — a background job is already waiting and pushes as soon as the code is accepted.
@@ -22,8 +22,9 @@ The job pushes `main` and verifies it with `git ls-remote`. You get the commit U
 - **Deploy key** (never expires, good if you are away for a while): https://github.com/jmozez/geospax/settings/keys
   → **Add deploy key** → title `geospax-sandbox`, tick **Allow write access**, key:
   ```
-  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBNhQdpyBPX4tZk2ChKdR+W+C4xv+tgJTWJTIDG3Rv/T geospax-deploy@sandbox
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAhrK8deHpdUsThU98wPoVMYwoi0EWjdeR4XEGXaorbd geospax-deploy@sandbox
   ```
+  (Ask for the current key: it lives outside the workspace and is regenerated if the sandbox restarts.)
   Then say "done" and the agent pushes over SSH.
 - **Personal access token**: fine-grained, Contents: read+write, this repository only. Paste it and it is used once.
 - **From your own machine**: ask for a `.tar.gz` of the source tree; it excludes `target/`, `node_modules/` and

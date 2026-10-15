@@ -11,6 +11,8 @@ import { tableFromIPC } from 'apache-arrow';
 import { createBackend, clientTileTimings, type EngineStats, type Job, type LayerInfo, type Transport } from './backend';
 import { runBenchmark, type BenchReport } from './bench';
 import { SymbologyPanel } from './panel';
+import { AttributesPane } from './attributes';
+import { Workbench } from './workbench';
 import {
   colorExpression,
   fmtNum,
@@ -82,6 +84,9 @@ const jobs = new Map<string, Job>(); // layer id -> latest job
 let map: maplibregl.Map;
 let rasterPane: RasterPane | null = null;
 let panel: SymbologyPanel;
+let automatePane: AutomatePane | null = null;
+let attributesPane: AttributesPane | null = null;
+let workbench: Workbench | null = null;
 
 const layerById = (id: string) => layers.find((l) => l.id === id);
 
@@ -281,6 +286,37 @@ function applyStyle() {
   map.setStyle(buildStyle()); // MapLibre diffs the style: only changed layers/sources update
 }
 
+// ---------------------------------------------------------------- workbench actions
+/** Fit the map to one layer (Contents double-click, catalog, ribbon "Zoom to layer"). */
+function fitLayer(id: string) {
+  const l = layerById(id);
+  if (!l || !l.bounds.every(Number.isFinite)) return;
+  map.fitBounds([[l.bounds[0], l.bounds[1]], [l.bounds[2], l.bounds[3]]], { padding: 60, maxZoom: 17, duration: 450 });
+}
+
+/** Fit every visible layer — Pro's "Full extent". */
+function fitAll() {
+  let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+  for (const id of project.order) {
+    const l = layerById(id);
+    if (!l || !project.layers[id]?.visible) continue;
+    minx = Math.min(minx, l.bounds[0]); miny = Math.min(miny, l.bounds[1]);
+    maxx = Math.max(maxx, l.bounds[2]); maxy = Math.max(maxy, l.bounds[3]);
+  }
+  if (!Number.isFinite(minx)) return;
+  map.fitBounds([[minx, miny], [maxx, maxy]], { padding: 60, maxZoom: 17, duration: 450 });
+}
+
+/** Let the engine choose a style for one layer (AutoMap). */
+async function autostyleLayer(id: string) {
+  const r = await backend.json<{ style: Partial<LayerStyle> }>(`api/layers/${encodeURIComponent(id)}/autostyle`).catch(() => null);
+  if (!r?.style || !layerById(id)) return;
+  project.layers[id] = { ...project.layers[id], ...(r.style as LayerStyle), visible: true };
+  applyStyle();
+  renderContents();
+  saveProject();
+}
+
 // ---------------------------------------------------------------- Contents
 function renderContents() {
   const el = $('#contents');
@@ -373,6 +409,7 @@ async function reloadLayers() {
   applyStyle();
   renderContents();
   panel.refresh();
+  document.dispatchEvent(new CustomEvent('geospax:reload-views'));
 }
 
 function pollJob(layerId: string, jobId: number) {
@@ -634,13 +671,7 @@ async function main() {
       await reloadLayers();
       // one click = a finished look: AutoMap styles the imported layers like a recipe would
       // (photo wedges, track casing, readings coloured by the main measurement / WHO classes)
-      const styled = await Promise.all(
-        ids.map((id) => backend.json<{ style: Partial<LayerStyle> }>(`api/layers/${encodeURIComponent(id)}/autostyle`).catch(() => null)),
-      );
-      ids.forEach((id, i) => {
-        const st = styled[i]?.style;
-        if (st && layerById(id)) project.layers[id] = { ...project.layers[id], ...(st as LayerStyle), visible: true };
-      });
+      for (const id of ids) await autostyleLayer(id);
       applyStyle();
       renderContents();
       saveProject();
@@ -662,7 +693,7 @@ async function main() {
 
   // Automation (docs/AUTOMATION.md): when a recipe run finishes, its layers and the styles AutoMap
   // chose appear on the map, and the view moves to them.
-  new AutomatePane($('#automate'), backend, {
+  const automate = new AutomatePane($('#automate'), backend, {
     onRunFinished: async (run: RunInfo) => {
       await reloadLayers();
       if (rasterPane && run.rasters?.length) {
@@ -691,7 +722,9 @@ async function main() {
         title: `My map · ${new Date().toLocaleDateString()}`,
       };
     },
-  }).start();
+  });
+  automatePane = automate;
+  automate.start();
 
   const tsel = $('#transport') as HTMLSelectElement;
   tsel.innerHTML = backend.transports.map((t) => `<option ${t === backend.transport ? 'selected' : ''}>${t}</option>`).join('');
@@ -729,6 +762,59 @@ async function main() {
       document.body.dataset.arrow = 'done';
     };
   } else ab.disabled = true;
+
+  // ---------------------------------------------------------------- workbench shell
+  // Ribbon + dockable panes (see web/src/workbench.ts). Everything below only *renders*
+  // what already exists: the same panes, the same engine calls.
+  attributesPane = new AttributesPane($('#attributes'), backend, {
+    map,
+    layers: () => layers,
+    log: (line) => workbench?.log(line),
+    setStatus: (t) => workbench?.setStatus(t),
+  });
+  workbench = new Workbench({
+    backend,
+    map,
+    edition: `${backend.edition} · ${backend.transport}`,
+    layers: () => layers,
+    layerById,
+    activeId: () => panel.current,
+    setActive: (id) => {
+      if (id) panel.open(id);
+      renderContents();
+    },
+    fitLayer,
+    fitAll,
+    autostyle: autostyleLayer,
+    reload: reloadLayers,
+    save: saveProject,
+    runRecipe: (id) => automatePane!.run(id),
+    openRun: async (runId) => {
+      try {
+        const run = await backend.json<{ artifacts?: string[] }>(`api/runs/${runId}`);
+        const arts = run.artifacts ?? [];
+        const report = arts.find((f) => f.endsWith('report.html')) ?? arts.find((f) => f.endsWith('.html'));
+        if (report && automatePane) await automatePane.openArtifact(runId, report);
+        else window.open(backend.url(`api/runs/${runId}/files/${report ?? 'report.html'}`), '_blank', 'noopener');
+      } catch (e) {
+        workbench?.log(`open run failed: ${e}`, 'error');
+      }
+    },
+    bench: () => void runBench(),
+    deck: () => ab.click(),
+    refreshContents: renderContents,
+    openAttributes: (id) => {
+      void attributesPane?.open(id);
+      workbench?.showTab('right', 'attributes');
+    },
+  });
+  workbench.mount();
+  // open on something useful: the top layer's symbology, ready to edit
+  if (project.order.length) {
+    panel.open(project.order[project.order.length - 1]);
+    renderContents();
+  }
+  (window as unknown as { workbench: Workbench | null }).workbench = workbench;
 
   if (params.has('bench')) map.once('idle', () => void runBench());
 }

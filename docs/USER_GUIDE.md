@@ -1,4 +1,4 @@
-# GeoSpaX user guide (v1.6)
+# GeoSpaX user guide (v1.7)
 
 GeoSpaX makes maps for you. You bring the data (plug something in, drop a file, or name an area) and a
 **recipe** does the rest: import, analysis, styling, layout, legend and export to PNG, PDF and an HTML report.
@@ -66,6 +66,56 @@ The autopilot fills in every other setting and explains its choices in the repor
 
 Finished maps appear in the **Automate** section under the recipe's runs. Open one to see the map, the PDF and the
 report.
+
+## 2b. The workbench: ribbon, panes, map
+
+GeoSpaX opens like a desktop GIS: a **ribbon** on top, **panes** docked around the map, and a **status bar**
+underneath. Nothing is hidden behind a menu you have to hunt for — and every button still runs the same engine
+calls the recipes use.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ GeoSpaX   ⤓ ⟳ ⤢ ⌘                          Ctrl+K for any command    │  title bar
+│ Home  Data  Style  Analyze  View  Automate  Help                      │  ribbon tabs
+│ ┌ Refresh ┐ ┌ Contents ┐ ┌ Attribute ┐ ┌ Export ┐                     │  ribbon body
+│ └──Project┘ └── Layers ┘ └──Selection┘ └──  Map ┘                     │
+├────────────┬──────────────────────────────────┬───────────────────────┤
+│ Contents   │                                  │ Symbology             │
+│  ☐ layer   │            M A P                │ Attributes            │  ← drag the
+│ Catalog    │                                  │ Rasters               │    splitters
+│ Project    ├──────────────────────────────────┤ Devices               │
+│            │ Automate │ History │ Log         │                       │
+├────────────┴──────────────────────────────────┴───────────────────────┤
+│ Ready   -5.86234, 144.23451   1:18,000 · z14.0    countries · 258      │  status bar
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+| Where | What it does |
+| --- | --- |
+| **Ribbon** | Seven tabs of commands with icons, tooltips and shortcuts. **Analyze** also lists the recipes: one click runs one. |
+| **Contents** (left) | The layer list — visibility, draw order, legend, symbology. |
+| **Catalog** (left) | Every source grouped by file, with a search box; clicking a layer makes it active and zooms to it. |
+| **Project** (left) | Tile transport, Go-to bookmarks, the benchmark and the Arrow → deck.gl path. |
+| **Symbology** (right) | Renderer, field, ramp, opacity, labels, overviews — for the active layer. |
+| **Attributes** (right) | The table: 250 rows at a time, click a row to zoom to that feature, `Ctrl+click` to select several, plus **Fields** and **Chart** views. |
+| **Rasters / Devices** (right) | DEMs, hillshades, indices; phones, GPS units, SD cards, live sensors. |
+| **Automate / History / Log** (bottom) | Recipe gallery with Auto switches; every run with its artifacts; a running log. |
+| **Status bar** | Cursor coordinates, scale ratio and zoom, the active layer, and what the last command did. |
+
+**Getting around**
+
+| Key / gesture | Result |
+| --- | --- |
+| `Ctrl+K` | Command palette: search every command, recipe and layer; `↑↓` to move, `Enter` to run |
+| `F5` · `Ctrl+S` | Refresh layers · save the project |
+| `Ctrl+1` · `Ctrl+2` | AutoMap the active layer · open Symbology |
+| `Ctrl+T` · `Ctrl+0` | Attribute table · zoom to everything |
+| `Z` · `+` · `-` | Zoom to layer · in · out |
+| drag a splitter | Resize a pane (double-click to reset) |
+| double-click a pane tab | Collapse the pane to a 30 px strip of vertical tabs (double-click again to reopen) |
+| click a feature | Identify: its attributes in a popup |
+
+Pane sizes, which tab is open and which panes are collapsed are remembered per browser/app.
 
 ## 3. Where things go
 
