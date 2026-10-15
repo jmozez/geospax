@@ -1,0 +1,127 @@
+// Headless check of the workbench shell (ribbon + docks + attribute table + palette).
+//   PW=/path/to/node_modules/playwright node scripts/test-web-workbench.mjs [base] [out-dir]
+// Verifies the desktop-GIS structure is really on screen and that no console error
+// fires while using it: ribbon tabs, dock tabs, splitters, attribute table rows,
+// command palette, catalog tree, history rows and the status bar.
+import { createRequire } from 'node:module';
+import { mkdirSync } from 'node:fs';
+
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.PW ?? 'playwright');
+const base = process.argv[2] ?? 'http://127.0.0.1:8080';
+const out = process.argv[3] ?? 'bench/screenshots';
+mkdirSync(out, { recursive: true });
+
+let pass = 0;
+const fails = [];
+const ok = (name, cond, extra = '') => {
+  if (cond) { pass++; console.log(`  ok   ${name}${extra ? ` (${extra})` : ''}`); }
+  else { fails.push(name); console.log(`  FAIL ${name}${extra ? ` (${extra})` : ''}`); }
+};
+
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 1600, height: 950 } });
+const problems = [];
+page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && problems.push(`[${m.type()}] ${m.text()}`));
+page.on('pageerror', (e) => problems.push(`[pageerror] ${e.message}`));
+
+await page.goto(`${base}/?fresh`);
+await page.waitForFunction(() => window.map && window.map.loaded() && window.map.areTilesLoaded(), null, { timeout: 120_000, polling: 500 });
+await page.waitForTimeout(1200);
+
+console.log('\n1 · shell');
+ok('ribbon tabs', (await page.$$('#ribbon-tabs .rb-tab')).length === 7, `${(await page.$$('#ribbon-tabs .rb-tab')).length} tabs`);
+ok('ribbon buttons', (await page.$$('#ribbon-body .rb-btn')).length >= 8, `${(await page.$$('#ribbon-body .rb-btn')).length} buttons`);
+ok('three docks', (await page.$$('.dock')).length === 3);
+ok('three splitters', (await page.$$('.splitter')).length === 3);
+ok('status bar', (await page.textContent('#sb-scale')).includes('1:'), await page.textContent('#sb-scale'));
+ok('map is the largest pane', await page.evaluate(() => {
+  const m = document.querySelector('#map').getBoundingClientRect();
+  return m.width > 700 && m.height > 400;
+}));
+await page.screenshot({ path: `${out}/workbench-01-home.png` });
+
+console.log('\n2 · ribbon tabs');
+for (const [tab, min] of [['data', 4], ['style', 3], ['analyze', 6], ['view', 5], ['automate', 4], ['help', 4]]) {
+  await page.click(`#ribbon-tabs [data-tab="${tab}"]`);
+  await page.waitForTimeout(250);
+  const n = (await page.$$('#ribbon-body .rb-btn')).length;
+  ok(`tab ${tab} renders`, n >= min, `${n} buttons`);
+}
+await page.click('#ribbon-tabs [data-tab="analyze"]');
+await page.waitForTimeout(400);
+ok('analyze shows recipes', (await page.$$('#ribbon-body [data-recipe]')).length > 5, `${(await page.$$('#ribbon-body [data-recipe]')).length} recipes`);
+await page.screenshot({ path: `${out}/workbench-02-analyze.png` });
+
+console.log('\n3 · dock tabs');
+for (const [dock, tab] of [['left', 'catalog'], ['right', 'attributes'], ['bottom', 'history'], ['bottom', 'log']]) {
+  await page.click(`#dock-${dock} .dock-tabs [data-tab="${tab}"]`);
+  await page.waitForTimeout(300);
+  const visible = await page.$eval(`#dock-${dock} .dock-body section[data-tab="${tab}"]`, (el) => el.classList.contains('on'));
+  ok(`${dock} › ${tab} activates`, visible);
+}
+ok('catalog lists layers', (await page.$$('#catalog .node.layer')).length > 5, `${(await page.$$('#catalog .node.layer')).length} nodes`);
+await page.screenshot({ path: `${out}/workbench-03-catalog.png` });
+
+console.log('\n4 · attribute table');
+await page.click('#dock-left .dock-tabs [data-tab="catalog"]');
+await page.click('#catalog .node.layer');
+await page.waitForSelector('#attributes table.attr tbody tr', { timeout: 30_000 });
+const rows = (await page.$$('#attributes table.attr tbody tr')).length;
+const head = await page.$eval('#attributes .pane-head', (el) => el.textContent.trim().replace(/\s+/g, ' '));
+ok('rows rendered', rows > 5, `${rows} rows · ${head}`);
+await page.click('#attributes [data-view="fields"]');
+await page.waitForTimeout(200);
+ok('fields view', (await page.$$('#attributes table.fields tbody tr')).length > 0);
+await page.click('#attributes [data-view="chart"]');
+await page.waitForTimeout(300);
+ok('chart view', (await page.$$('#attributes .bar-row')).length > 0);
+await page.click('#attributes [data-view="table"]');
+await page.waitForTimeout(200);
+await page.screenshot({ path: `${out}/workbench-04-attributes.png` });
+
+console.log('\n5 · command palette');
+await page.keyboard.press('Control+k');
+await page.waitForSelector('#palette:not([hidden])');
+await page.fill('#palette-input', 'hot spot');
+await page.waitForTimeout(300);
+const pal = await page.$$eval('.pal-row .pl', (els) => els.slice(0, 3).map((e) => e.textContent));
+ok('palette filters', pal.length > 0 && /hot spot/i.test(pal[0]), pal.join(' | '));
+await page.screenshot({ path: `${out}/workbench-05-palette.png` });
+await page.keyboard.press('Escape');
+
+console.log('\n6 · splitters and collapse');
+const before = await page.$eval('#dock-left', (el) => el.getBoundingClientRect().width);
+await page.hover('#splitter-left');
+await page.mouse.down();
+await page.mouse.move(before + 120, 500, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(200);
+const after = await page.$eval('#dock-left', (el) => el.getBoundingClientRect().width);
+ok('left pane resizes', Math.abs(after - before) > 60, `${Math.round(before)} → ${Math.round(after)} px`);
+await page.dblclick('#splitter-left');
+await page.waitForTimeout(200);
+ok('double-click resets', Math.abs((await page.$eval('#dock-left', (el) => el.getBoundingClientRect().width)) - 300) < 3);
+await page.dblclick('#dock-right .dock-tabs');
+await page.waitForTimeout(200);
+ok('pane collapses', await page.$eval('#dock-right', (el) => el.classList.contains('collapsed')));
+ok('collapsed pane keeps its tabs', await page.$eval('#dock-right .dock-tabs', (el) => el.getBoundingClientRect().height > 40));
+await page.dblclick('#dock-right .dock-tabs');
+await page.waitForTimeout(200);
+ok('pane reopens', !(await page.$eval('#dock-right', (el) => el.classList.contains('collapsed'))));
+
+console.log('\n7 · layout survives a reload');
+await page.click('#dock-right .dock-tabs [data-tab="attributes"]');
+await page.reload();
+await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000, polling: 500 });
+await page.waitForTimeout(1200);
+ok('attributes tab restored', await page.$eval('#attributes', (el) => el.closest('section').classList.contains('on')));
+await page.screenshot({ path: `${out}/workbench-06-final.png` });
+
+console.log(`\nconsole problems: ${problems.length}`);
+for (const p of problems.slice(0, 10)) console.log(`  ${p}`);
+ok('no console errors', problems.length === 0, problems.slice(0, 2).join(' / '));
+
+await browser.close();
+console.log(`\n${pass}/${pass + fails.length} checks passed`);
+if (fails.length) { console.log(`failed: ${fails.join(', ')}`); process.exit(1); }

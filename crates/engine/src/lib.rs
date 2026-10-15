@@ -266,6 +266,24 @@ struct ReadTimes {
     teardown_start: Option<Instant>,
 }
 
+/// One row of the attribute table: the feature id, a bbox to zoom to, and its values.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Row {
+    pub fid: u64,
+    pub bbox: Option<[f64; 4]>,
+    pub values: Vec<serde_json::Value>,
+}
+
+/// A page of attribute rows.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RowsPage {
+    pub total: usize,
+    pub offset: usize,
+    /// Field names, in the same order as `Row::values`.
+    pub fields: Vec<String>,
+    pub rows: Vec<Row>,
+}
+
 impl Engine {
     pub fn open(cfg: EngineConfig) -> Result<Engine, String> {
         raster::configure_gdal();
@@ -710,6 +728,47 @@ impl Engine {
         rt.scanned = scanned;
         rt.teardown_start = Some(Instant::now());
         Ok(())
+    }
+
+    /// A window of attribute rows for the attribute table (Pro-style): every field of
+    /// the layer plus a bbox per row, so the table can page and zoom without holding the
+    /// whole layer in memory.
+    pub fn rows(&self, layer: &LayerHandle, offset: usize, limit: usize) -> Result<RowsPage, String> {
+        let h = layer.checkout()?;
+        let res = (|| {
+            let mut lyr = h.ds.layer_by_name(&layer.layer_name).map_err(|e| e.to_string())?;
+            // Handles are pooled: a tile read may have left a spatial filter on this layer,
+            // which would silently shrink the table to one tile's worth of features.
+            lyr.clear_spatial_filter();
+            let idx: Vec<(u32, usize)> = layer.field_idx.iter().enumerate().map(|(k, &i)| (k as u32, i)).collect();
+            let names: Vec<String> = layer
+                .field_idx
+                .iter()
+                .map(|&i| layer.info.fields.get(i).map(|f| f.name.clone()).unwrap_or_default())
+                .collect();
+            let mut page = RowsPage { total: layer.info.feature_count as usize, offset, fields: names, rows: Vec::new() };
+            let mut n = 0usize;
+            let r = reader::for_each_feature(&mut lyr, &idx, &mut |fid: Option<u64>, wkb: &[u8], attrs: Vec<(u32, mvt::Val)>| {
+                if n >= offset && page.rows.len() < limit {
+                    let values = attrs
+                        .into_iter()
+                        .map(|(_, v)| match v {
+                            mvt::Val::Str(s) => serde_json::Value::String(s),
+                            mvt::Val::Int(i) => serde_json::Value::from(i),
+                            mvt::Val::Dbl(d) => serde_json::Value::from(d),
+                        })
+                        .collect();
+                    page.rows.push(Row { fid: fid.unwrap_or(n as u64), bbox: wkb::bbox(wkb), values });
+                }
+                n += 1;
+                page.rows.len() < limit // stop reading once the window is full
+            });
+            let _ = reader::set_ignored_fields(&lyr, &layer.field_idx, false);
+            r?;
+            Ok(page)
+        })();
+        layer.checkin(h);
+        res
     }
 
     /// All values of one attribute (Arrow scan, geometry ignored).

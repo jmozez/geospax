@@ -1,0 +1,110 @@
+# Third-party notices
+
+GeoSpaX is dual-licensed under **MIT** or **Apache-2.0** (your choice): see
+[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
+
+This file records the open-source projects GeoSpaX depends on, learns from, or
+acknowledges — including the two the workbench UI was modelled on.
+
+---
+
+## 1. Runtime dependencies (vendored by the build)
+
+* **Rust crates** — every direct dependency is listed in
+  [`Cargo.toml`](Cargo.toml); `cargo tree` prints the full graph with licences.
+  Notable ones: `axum`, `tokio`, `serde`/`serde_json`, `gdal`, `arrow`, `geo`,
+  `rusqlite`, `image`, `dhat`/`mimalloc` (feature-gated), `tauri`.
+* **JavaScript** — [`web/package.json`](web/package.json): MapLibre GL JS
+  (BSD-3-Clause), deck.gl (MIT), Apache Arrow JS (Apache-2.0), Vite (MIT),
+  TypeScript (Apache-2.0), Playwright (Apache-2.0, dev only).
+* **Data at runtime** — Natural Earth (public domain) for the sample layers.
+
+Licence texts for the big ones are reproduced below where their terms require it.
+
+---
+
+## 2. RustGIS — design and architecture reference
+
+> RustGIS · <https://github.com/opengeos/RustGIS> · **Apache License 2.0** ·
+> Copyright the RustGIS contributors.
+
+The 1.7 workbench borrows, with attribution and re-implemented in TypeScript:
+
+| Borrowed from RustGIS | Where it appears in GeoSpaX |
+| --- | --- |
+| "Everything is a command": one registry that the ribbon, keyboard and scripts all call | `web/src/commands.ts` — `Command` records with `id`, `tab`, `group`, `keys`, `run(host)` |
+| Ribbon vocabulary: Home · Data · Style · Analyze · View · Publish/Share | `web/src/commands.ts` → `TABS` (`home`, `data`, `style`, `analyze`, `view`, `automate`, `help`) |
+| Panes as first-class docks around a map that owns the middle | `web/src/workbench.ts`, `web/index.html` (`#dock-left`, `#center`, `#dock-right`, `#dock-bottom`) |
+| Commands never open a modal themselves; the shell decides | every `run()` in `commands.ts` calls `showTab()`/`setStatus()`/`log()` instead of rendering UI |
+
+**No RustGIS source file was copied.** GeoSpaX's shell is TypeScript rendered in
+a browser/Tauri webview; RustGIS's is Rust/egui. The items above are
+architectural patterns, re-implemented against GeoSpaX's own engine API.
+
+Apache-2.0 requires that derivative works state the changes: the table above is
+that statement. The full Apache-2.0 text ships as [`LICENSE-APACHE`](LICENSE-APACHE)
+and at <http://www.apache.org/licenses/LICENSE-2.0>.
+
+---
+
+## 3. GeoLibre — feature and UI reference
+
+> GeoLibre · <https://github.com/opengeos/GeoLibre> · **MIT License** ·
+> Copyright (c) 2025–2026 Qiusheng Wu and the GeoLibre contributors.
+
+GeoLibre (Tauri v2 + React + MapLibre GL JS + DuckDB-WASM, ~1,000 Whitebox
+geoprocessing tools in WASM) was studied as the reference for what a modern,
+permissively-licensed desktop GIS puts on screen. It shaped GeoSpaX 1.7's
+
+* pane set — catalog/contents on the left, symbology + attribute table on the
+  right, automation/history/log along the bottom, map in the middle;
+* the decision to make the **attribute table** a peer of the map rather than a
+  dialog (including paging, field list and a chart view);
+* the expectation that styling, labelling and layer order are dockable, not modal.
+
+**No GeoLibre source file was copied** — GeoSpaX renders with its own
+server-side tile pipeline (MapLibre + GeoArrow/Arrow IPC) and its own automation
+engine in Rust, not DuckDB-WASM or Whitebox.
+
+MIT notice, reproduced as its terms require:
+
+```
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## 4. Other acknowledgements
+
+* **ArcGIS Pro** (Esri, proprietary) — the *look* users expect from a desktop
+  GIS. Only its conventions (ribbon, docked panes, status bar, scale readout,
+  Ctrl+K-style command search) are mirrored; no Esri code, asset or icon is
+  included, and none of its file formats are implemented.
+* **QGIS**, **GRASS GIS**, **SAGA GIS**, **MapInfo**, **ERDAS Imagine** — the
+  analysis vocabulary GeoSpaX's recipes and terrain/remote-sensing steps follow.
+* **MapLibre GL JS** (BSD-3-Clause) and **deck.gl** (MIT) render the map; the
+  attribution control in the app lists the data sources.
+
+---
+
+## 5. If you reuse GeoSpaX
+
+You may copy, modify and redistribute it under MIT or Apache-2.0. If you carry
+the workbench forward, keep this file (or an equivalent NOTICE) with the
+attributions in sections 2–4 intact.

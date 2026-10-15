@@ -3,62 +3,131 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GeoSpaX</title>
+    <title>GeoSpaX — spatial automation</title>
   </head>
   <body>
-    <aside id="sidebar">
-      <header>
-        <h1>GeoSpa<span class="x">X</span> <small class="tag"></small></h1>
-        <p id="edition">…</p>
+    <div id="app">
+      <header id="titlebar">
+        <div class="brand">GeoSpa<span class="x">X</span><span class="tag" id="edition">…</span></div>
+        <div id="quickbar" aria-label="Quick access toolbar"></div>
+        <div class="tb-right">
+          <span class="tb-hint">Ctrl+K for any command</span>
+        </div>
       </header>
-      <section class="automate">
-        <h2>Automate <span class="tag">maps make themselves</span></h2>
-        <div id="automate"></div>
-        <p class="hint">Recipes do the mapping for you. Press Run, or switch on <b>Auto</b> and a recipe runs itself when a device is plugged in, files arrive or a schedule fires.</p>
-      </section>
-      <section>
-        <h2>Transport</h2>
-        <select id="transport" aria-label="Tile transport"></select>
-        <p class="hint">Web: HTTP. Desktop: custom URI scheme or <code>invoke</code> (raw bytes).</p>
-      </section>
-      <section>
-        <h2>Contents</h2>
-        <div id="contents"></div>
-        <p class="hint">Top draws on top. ⚙ or a layer name opens its symbology. Styles persist to the project file.</p>
-      </section>
-      <section>
-        <h2>Rasters</h2>
-        <div id="rasters"></div>
-        <p class="hint">Elevation, terrain, satellite indices and GRASS/SAGA results, styled automatically.</p>
-      </section>
-      <section>
-        <h2>Devices</h2>
-        <div id="phone-link"></div>
-        <div id="devices"></div>
-        <p class="hint">Plug in a phone, GPS unit, drone SD card or camera, or send from a phone over Wi-Fi.</p>
-      </section>
-      <section>
-        <h2>Go to</h2>
-        <div class="row">
-          <button data-goto="30,10,1.6">World</button>
-          <button data-goto="146,-6.5,6">PNG</button>
-          <button data-goto="144.6,-5.95,11">Highlands</button>
-          <button data-goto="144.235,-5.862,15">Mt Hagen</button>
+
+      <nav id="ribbon" aria-label="Ribbon">
+        <div id="ribbon-tabs" role="tablist"></div>
+        <div id="ribbon-body"></div>
+      </nav>
+
+      <div id="shell">
+        <aside id="dock-left" class="dock" data-dock="left" aria-label="Contents and catalog">
+          <div class="dock-tabs" data-dock="left">
+            <button data-tab="contents">Contents</button>
+            <button data-tab="catalog">Catalog</button>
+            <button data-tab="project">Project</button>
+          </div>
+          <div class="dock-body">
+            <section data-tab="contents">
+              <div id="contents"></div>
+              <p class="hint">Top draws on top. A layer name or ⚙ opens its symbology; styles persist to the project file.</p>
+            </section>
+            <section data-tab="catalog">
+              <div id="catalog"></div>
+            </section>
+            <section data-tab="project">
+              <h2>Transport</h2>
+              <select id="transport" aria-label="Tile transport"></select>
+              <p class="hint">Web: HTTP. Desktop: custom URI scheme or <code>invoke</code> (raw bytes).</p>
+              <h2>Go to</h2>
+              <div class="row">
+                <button data-goto="30,10,1.6">World</button>
+                <button data-goto="146,-6.5,6">PNG</button>
+                <button data-goto="144.6,-5.95,11">Highlands</button>
+                <button data-goto="144.235,-5.862,15">Mt Hagen</button>
+              </div>
+              <h2>Measure</h2>
+              <div class="row">
+                <button id="bench" class="primary">Run benchmark</button>
+                <button id="arrow">Arrow → deck.gl</button>
+                <button id="clear">Clear engine cache</button>
+              </div>
+              <div id="results"></div>
+            </section>
+          </div>
+        </aside>
+        <div id="splitter-left" class="splitter" data-dock="left" title="Drag to resize · double-click to reset"></div>
+
+        <div id="center">
+          <main id="map" aria-label="Map"></main>
+          <div id="splitter-bottom" class="splitter horizontal" data-dock="bottom" title="Drag to resize · double-click to reset"></div>
+          <section id="dock-bottom" class="dock" data-dock="bottom" aria-label="Automation, history and log">
+            <div class="dock-tabs" data-dock="bottom">
+              <button data-tab="automate">Automate</button>
+              <button data-tab="history">History</button>
+              <button data-tab="log">Log</button>
+            </div>
+            <div class="dock-body">
+              <section data-tab="automate">
+                <div id="automate"></div>
+              </section>
+              <section data-tab="history">
+                <div id="history"></div>
+              </section>
+              <section data-tab="log">
+                <div id="log"></div>
+              </section>
+            </div>
+          </section>
+          <div id="hud" aria-live="polite"></div>
         </div>
-      </section>
-      <section>
-        <h2>Measure</h2>
-        <div class="row">
-          <button id="bench" class="primary">Run benchmark</button>
-          <button id="arrow">Arrow → deck.gl</button>
-          <button id="clear">Clear engine cache</button>
-        </div>
-        <div id="results"></div>
-      </section>
-    </aside>
-    <main id="map"></main>
-    <aside id="panel" hidden aria-label="Symbology"></aside>
-    <div id="hud" aria-live="polite"></div>
+
+        <div id="splitter-right" class="splitter" data-dock="right" title="Drag to resize · double-click to reset"></div>
+        <aside id="dock-right" class="dock" data-dock="right" aria-label="Layer details">
+          <div class="dock-tabs" data-dock="right">
+            <button data-tab="symbology">Symbology</button>
+            <button data-tab="attributes">Attributes</button>
+            <button data-tab="rasters">Rasters</button>
+            <button data-tab="devices">Devices</button>
+          </div>
+          <div class="dock-body">
+            <section data-tab="symbology">
+              <div id="panel" aria-label="Symbology"></div>
+            </section>
+            <section data-tab="attributes">
+              <div id="attributes" aria-label="Attribute table"></div>
+            </section>
+            <section data-tab="rasters">
+              <div id="rasters"></div>
+              <p class="hint">Elevation, terrain, satellite indices and GRASS/SAGA results, styled automatically.</p>
+            </section>
+            <section data-tab="devices">
+              <div id="phone-link"></div>
+              <div id="devices"></div>
+              <p class="hint">Plug in a phone, GPS unit, drone SD card or camera, or send from a phone over Wi-Fi.</p>
+            </section>
+          </div>
+        </aside>
+      </div>
+
+      <footer id="statusbar">
+        <span id="sb-msg">Ready</span>
+        <span class="sb-sep"></span>
+        <span id="sb-coords" class="mono">—</span>
+        <span id="sb-scale" class="mono">—</span>
+        <span class="sb-grow"></span>
+        <span id="sb-layer">no layer selected</span>
+        <span class="sb-sep"></span>
+        <span id="sb-edition">…</span>
+      </footer>
+    </div>
+
+    <div id="palette" hidden>
+      <div class="pal-box">
+        <input id="palette-input" type="text" placeholder="Commands, recipes, layers…  ↑↓ move · Enter run · Esc close" />
+        <div id="palette-list"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

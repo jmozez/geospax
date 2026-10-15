@@ -118,6 +118,16 @@ impl Engine {
             ("GET", ["api", "layers", layer, "arrow"]) => self.arrow_response(layer, q),
             ("GET", ["api", "layers", layer, "classify"]) => self.with_layer(layer, |l| self.classify_response(l, q)),
             ("GET", ["api", "layers", layer, "unique"]) => self.with_layer(layer, |l| self.unique_response(l, q)),
+            // Attribute table (web/src/attributes.ts): a page of rows with a bbox each.
+            ("GET", ["api", "layers", layer, "rows"]) => self.with_layer(layer, |l| {
+                let offset = param(q, "offset").and_then(|s| s.parse().ok()).unwrap_or(0usize);
+                let limit = param(q, "limit").and_then(|s| s.parse().ok()).unwrap_or(250usize).clamp(1, 2000);
+                match self.rows(l, offset, limit) {
+                    Ok(page) => ApiResponse::json(200, &serde_json::to_value(page).unwrap_or(serde_json::Value::Null)),
+                    Err(e) => ApiResponse::error(500, e),
+                }
+            }),
+
             // AutoMap's choice for one layer (what recipes use), so one-click imports look finished too
             ("GET", ["api", "layers", layer, "autostyle"]) => self.with_layer(layer, |l| {
                 let st = crate::automation::automap::style_layer(self, l, None, None);

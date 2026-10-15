@@ -10,6 +10,13 @@ GeoSpaX borrows proven features from commercial and open-source GIS, remote-sens
 **How each feature is built:** `N` native Rust engine · `G` GDAL/PDAL/PROJ in-process · `P` provider process · `R` R step · `Py` Python step · `W` WASM in the web edition · `AI` optional LLM.
 **Phase** (see [TECH_STACK §8](../../gis-platform-research/TECH_STACK.md#8-phased-roadmap)): P1 Viewer · P2 Autopilot · P3 Field & sensors · P4 Remote-sensing & geostats autopilot · P5 Cartographer & publisher · P6 Platform. ✅ built · 🚧 started.
 
+**Desktop workbench (1.7):** ribbon with 40 commands, dockable panes (Contents/Catalog/Project · Symbology/**
+Attributes**/Rasters/Devices · Automate/History/Log), command palette (`Ctrl+K`), paged attribute table with
+zoom-to-row and charts, run history, status bar, resizable and collapsible docks, Identify popups. Structure modelled
+on **RustGIS** (Apache-2.0: "everything is a command", ribbon/pane vocabulary) and **GeoLibre** (MIT: pane set,
+attribute table as a peer of the map) — patterns re-implemented in TypeScript, no source copied
+([THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)).
+
 **Built so far (automation engine v0 + Phase 2 slice 2 + sensor hub v1, October 2026):**
 - AutoMap rules that explain themselves, automatic page layouts with collision-free point labels, finished PNG/SVG/**PDF** maps and an HTML report;
 - **raster maps** with relief shading, ramp and class legends;
