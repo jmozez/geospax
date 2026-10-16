@@ -473,3 +473,25 @@ table.attr td.empty { color: var(--muted); text-align: center; padding: 14px; }
 .rb-menu-row .rm-name { font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rb-menu-row .rm-desc { font-size: 10px; color: var(--muted); line-height: 1.25; }
 .rb-menu-empty { padding: 6px; font-size: 11px; color: var(--muted); }
+
+/* auto-hide the ribbon: the tab strip stays, the body opens on a tab click and
+   puts itself away after a command, a map click or Escape (Pro behaves the same) */
+#ribbon-tabs .rb-pin {
+  display: flex; align-items: center; gap: 4px; margin-left: auto; padding: 2px 7px;
+  background: none; border: 1px solid transparent; border-radius: 4px; color: var(--muted); font-size: 10.5px;
+}
+#ribbon-tabs .rb-pin:hover { color: var(--fg); background: #24384a; border-color: var(--line); }
+#ribbon-tabs .rb-pin.on { color: var(--accent); }
+#ribbon-tabs .rb-pin .rb-pin-ico { display: flex; transform: rotate(-45deg); }
+#ribbon-tabs .rb-pin.on .rb-pin-ico { transform: none; }
+#ribbon.auto #ribbon-tabs { padding-bottom: 3px; }
+#ribbon.auto #ribbon-tabs .rb-tab { border-bottom: 1px solid transparent; }
+#ribbon-body[hidden] { display: none; }
+.plugin .p-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.plugin .p-foot .p-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin .p-del, .plugin .p-keep { font-size: 10.5px; }
+.plugin .p-del {
+  flex: 0 0 auto; padding: 2px 8px; background: none; border: 1px solid var(--line);
+  border-radius: 4px; color: var(--muted);
+}
+.plugin .p-del:hover { color: #ffb4a2; border-color: #7a3b2e; background: #2a1f1c; }

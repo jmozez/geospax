@@ -33,6 +33,8 @@ export interface CommandHost {
   openUrl: (path: string) => void;
   /** true = big galleries collapse into a single dropdown button (default). */
   setRibbonCompact: (compact: boolean) => void;
+  /** Switch between a ribbon that is always open and one that opens on a tab click. */
+  toggleRibbon: () => void;
 }
 
 export interface Command {
@@ -76,6 +78,7 @@ export const ICONS: Record<string, string> = {
   terminal: 'M3 4h18v16H3zm3 4l3 3-3 3M11 14h6',
   clock: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5v5.6l4 2.3-1 1.7-5-2.9V7z',
   search: 'M10 3a7 7 0 1 0 4.2 12.6L20 21l1.4-1.4-5.6-5.6A7 7 0 0 0 10 3zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10z',
+  pin: 'M10 2h4a1 1 0 0 1 1 1v.6l-1.4 1.4V15a1 1 0 0 1-1 1H8.4a1 1 0 0 1-1-1V5L6 3.6V3a1 1 0 0 1 1-1h3zm-1 17h6v2H9z',
   caret: 'M6 9.5l6 5.5 6-5.5z',
   gallery: 'M3 4h8v7H3zm10 0h8v7h-8zM3 13h8v7H3zm10 0h8v7h-8z',
   grid: 'M3 3h18v18H3zm2 2v4h4V5zm6 0v4h4V5zm6 0v4h2V5zM5 11v4h4v-4zm6 0v4h4v-4zm6 0v4h2v-4zM5 17v2h4v-2zm6 0v2h4v-2zm6 0v2h2v-2z',
@@ -301,6 +304,10 @@ export const COMMANDS: Command[] = [
   {
     id: 'view.resetLayout', tab: 'view', group: 'Windows', title: 'Reset layout', icon: 'refresh',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:reset-layout')); },
+  },
+  {
+    id: 'view.ribbonAutoHide', tab: 'view', group: 'Windows', title: 'Auto-hide the ribbon (Ctrl+F1)', icon: 'pin', keys: 'F1',
+    run: (h) => { h.toggleRibbon(); },
   },
   {
     id: 'view.ribbonGallery', tab: 'view', group: 'Windows', title: 'Ribbon galleries: expand recipes instead of a list', icon: 'gallery',

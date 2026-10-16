@@ -4,6 +4,9 @@
 // fires while using it: ribbon tabs, dock tabs, splitters, attribute table rows,
 // command palette, catalog tree, history rows and the status bar.
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
@@ -203,31 +206,110 @@ await page.click('#ribbon-body [data-gallery="collapse"]');
 await page.waitForSelector('#ribbon-body .rb-combo', { timeout: 5000 });
 ok('collapsing again is one click', true);
 
-console.log('\n10 · a plugin with more than three tools collapses too');
-const pluginCombo = '#ribbon-body [data-menu^="plugin:"]';
-if ((await page.$$(pluginCombo)).length) {
-  await page.click(pluginCombo);
-  await page.waitForSelector('.rb-menu', { timeout: 5000 });
-  const toolRows = await page.$$eval('.rb-menu .rb-menu-row', (els) => els.map((e) => e.querySelector('.rm-name')?.textContent?.trim()));
-  ok('the plugin list shows its tools', toolRows.length >= 4, `${toolRows.length}: ${toolRows.slice(0, 3).join(', ')}…`);
-  await page.locator('.rb-menu .rb-menu-row').first().click();
-  await page.waitForSelector('#plugin-modal:not([hidden])', { timeout: 8000 });
-  ok('picking a tool opens its dialog', /Run/.test(await page.textContent('#plugin-modal')));
-  // a tool with no declared parameters used to crash openTool()
-  ok('a tool with no parameters renders an empty form',
-    /no parameters/.test(await page.textContent('#plugin-modal')));
-  await page.click('#plugin-modal [data-run-tool]');
-  await page.waitForFunction(() => {
-    const el = document.querySelector('#plugin-modal #plugin-msg');
-    return el && el.textContent.trim() && el.textContent.trim() !== 'Running…';
-  }, null, { timeout: 60_000 }).catch(() => {});
-  const msg = (await page.textContent('#plugin-modal #plugin-msg')) ?? '';
-  ok('and it still runs', msg.trim().length > 0 && msg.trim() !== 'Running…', msg.slice(0, 60));
-  await page.screenshot({ path: `${out}/workbench-11-plugin-dropdown.png` });
-  await page.keyboard.press('Escape');
-} else {
-  console.log('  (no plugin with more than three tools loaded — skipped)');
-}
+console.log('\n10 · a plugin with more than three tools collapses too (and can be uninstalled)');
+// The fixture lives outside the repo: build it, install it through the API, then take it away again.
+const fixture = path.join(os.tmpdir(), 'geospax-webtest-many-tools');
+fs.rmSync(fixture, { recursive: true, force: true });
+fs.mkdirSync(fixture, { recursive: true });
+fs.writeFileSync(
+  path.join(fixture, 'plugin.yaml'),
+  ['plugin: many-tools', 'title: Many tools', 'version: 0.1.0', 'description: Five tools, none of which take parameters',
+   'kind: python', 'run: python3 ${plugin}/tools.py ${tool}', 'tools:',
+   '  - { id: one, name: Tool one, summary: First of five, icon: grid }',
+   '  - { id: two, name: Tool two, summary: Second of five, icon: grid }',
+   '  - { id: three, name: Tool three, summary: Third of five, icon: chart }',
+   '  - { id: four, name: Tool four, summary: Fourth of five, icon: chart }',
+   '  - { id: five, name: Tool five, summary: Fifth of five, icon: terminal }'].join('\n'),
+);
+fs.writeFileSync(path.join(fixture, 'tools.py'), 'import json, sys\nreq = json.load(sys.stdin)\nprint(json.dumps({"ok": True, "message": req.get("tool", "?") + " ran"}))\n');
+
+const api = async (method, url, body) => {
+  const r = await fetch(`${base}/${url}`, {
+    method,
+    headers: body ? { 'content-type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return { status: r.status, json: await r.json().catch(() => ({})) };
+};
+const installed = await api('POST', 'api/plugins/import', { path: fixture });
+ok('the engine installs a plugin from a folder', installed.status === 200, installed.json?.plugin?.name ?? installed.status);
+await page.reload({ waitUntil: 'load' });
+await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000, polling: 500 });
+await page.click('#ribbon-tabs [data-tab="analyze"]');
+await page.waitForTimeout(800);
+
+const pluginCombo = '#ribbon-body [data-menu^="plugin:many-tools"]';
+await page.click(pluginCombo);
+await page.waitForSelector('.rb-menu', { timeout: 5000 });
+const toolRows = await page.$$eval('.rb-menu .rb-menu-row', (els) => els.map((e) => e.querySelector('.rm-name')?.textContent?.trim()));
+ok('the plugin list shows its tools', toolRows.length === 5, `${toolRows.length}: ${toolRows.slice(0, 3).join(', ')}…`);
+await page.locator('.rb-menu .rb-menu-row').first().click();
+await page.waitForSelector('#plugin-modal:not([hidden])', { timeout: 8000 });
+ok('picking a tool opens its dialog', /Run/.test(await page.textContent('#plugin-modal')));
+// a tool with no declared parameters used to crash openTool()
+ok('a tool with no parameters renders an empty form', /no parameters/.test(await page.textContent('#plugin-modal')));
+await page.click('#plugin-modal [data-run-tool]');
+await page.waitForFunction(() => {
+  const el = document.querySelector('#plugin-modal #plugin-msg');
+  return el && el.textContent.trim() && el.textContent.trim() !== 'Running…';
+}, null, { timeout: 60_000 }).catch(() => {});
+const msg = (await page.textContent('#plugin-modal #plugin-msg')) ?? '';
+ok('and it still runs', msg.trim().length > 0 && msg.trim() !== 'Running…', msg.slice(0, 60));
+await page.keyboard.press('Escape');
+await page.screenshot({ path: `${out}/workbench-11-plugin-dropdown.png` });
+
+// uninstall, from the pane (two-step) and from the API
+await page.click('.dock-tabs[data-dock="bottom"] [data-tab="plugins"]');
+await page.waitForSelector('.plugin .p-del');
+const del = page.locator('.plugin', { hasText: 'Many tools' }).locator('.p-del');
+await del.click();
+ok('uninstall asks twice before deleting', /again/.test(await del.textContent()));
+await del.click();
+await page.waitForFunction(
+  () => ![...document.querySelectorAll('.plugin .p-name')].some((e) => (e.textContent ?? '').includes('Many tools')),
+  null,
+  { timeout: 10_000 },
+);
+ok('the pane removes it after the second click', true);
+const gone = await api('GET', 'api/plugins');
+const leftIds = (gone.json.plugins ?? []).map((p) => p.id);
+ok('and it is really gone from the engine', !leftIds.includes('many-tools'), `left: ${leftIds.join(', ')}`);
+const refused = await api('DELETE', 'api/plugins/example-python');
+ok('a plugin in a --plugins folder cannot be deleted from here', refused.status >= 400, `${refused.status} ${refused.json?.error ?? ''}`.slice(0, 70));
+fs.rmSync(fixture, { recursive: true, force: true });
+
+console.log('\n11 · the ribbon gets out of the way when you do not need it');
+const mapH = () => page.$eval('#map', (e) => Math.round(e.getBoundingClientRect().height));
+const bodyHidden = () => page.$eval('#ribbon-body', (e) => e.hidden);
+const mapBefore = await mapH();
+await page.click('#ribbon-tabs [data-ribbon-pin]');
+await page.waitForFunction(() => document.querySelector('#ribbon-body')?.hidden === true, null, { timeout: 5000 });
+const mapAfter = await mapH();
+ok('auto-hide hands the ribbon height to the map', mapAfter - mapBefore >= 60, `${mapBefore}px → ${mapAfter}px of map`);
+ok('the tabs stay put', (await page.$$('#ribbon-tabs [data-tab]')).length >= 7);
+await page.screenshot({ path: `${out}/workbench-12-ribbon-autohide.png` });
+
+await page.click('#ribbon-tabs [data-tab="analyze"]');
+await page.waitForFunction(() => document.querySelector('#ribbon-body')?.hidden === false, null, { timeout: 5000 });
+ok('clicking a tab opens it again', await page.isVisible('#ribbon-body'));
+await page.click('#ribbon-tabs [data-tab="analyze"]');
+await page.waitForFunction(() => document.querySelector('#ribbon-body')?.hidden === true, null, { timeout: 5000 });
+ok('clicking the same tab puts it back', !(await page.isVisible('#ribbon-body')));
+
+await page.click('#ribbon-tabs [data-tab="analyze"]');
+await page.waitForSelector('#ribbon-body .rb-combo');
+await page.click('#ribbon-body .rb-combo');
+await page.waitForSelector('.rb-menu');
+await page.locator('.rb-menu .rb-menu-row').first().click();
+await page.waitForFunction(() => document.querySelector('#ribbon-body')?.hidden === true, null, { timeout: 10_000 });
+ok('it closes itself once you have run something', true);
+
+await page.reload({ waitUntil: 'load' });
+await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000, polling: 500 });
+ok('the choice survives a reload', await bodyHidden());
+await page.click('#ribbon-tabs [data-ribbon-pin]');
+await page.waitForFunction(() => document.querySelector('#ribbon-body')?.hidden === false, null, { timeout: 5000 });
+ok('pinning brings it back for good', !(await bodyHidden()));
 
 console.log(`\nconsole problems: ${problems.length}`);
 for (const p of problems.slice(0, 10)) console.log(`  ${p}`);

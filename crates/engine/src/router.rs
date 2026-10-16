@@ -238,6 +238,10 @@ impl Engine {
                     }
                 }
             },
+            ("DELETE", ["api", "plugins", id]) => match self.plugins.uninstall(id) {
+                Ok(msg) => ApiResponse::json(200, &json!({ "ok": true, "message": msg, "plugins": self.plugins.list() })),
+                Err(e) => ApiResponse::error(400, e),
+            },
             ("GET", ["api", "plugins", id]) => match self.plugins.get(id) {
                 Some(info) => ApiResponse::json(200, &serde_json::to_value(info).unwrap_or(serde_json::Value::Null)),
                 None => ApiResponse::error(404, format!("unknown plugin '{id}'")),

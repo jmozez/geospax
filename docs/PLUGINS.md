@@ -126,6 +126,11 @@ automation engine — so they get triggers, run history, artifacts and Auto swit
 - **UI:** bottom dock › **Plugins** › paste a folder or package path › **Install**.
 - **CLI:** `geospax-server plugins import ./my-plugin [--dir PLUGINDIR]`,
   `plugins list`, `plugins check ./my-plugin`.
+- **Removing one:** **Uninstall** on the plugin's card (it asks twice), `DELETE /api/plugins/{id}`, or
+  `geospax-server plugins uninstall ID [--dir PLUGINDIR]`. Only plugins that were installed into the
+  plugin directory can be removed; one that lives in a folder you pointed at with `--plugins` is
+  refused, with a message saying where it actually lives — GeoSpaX will not delete your working copy
+  just because an id matched. Installing is what makes a plugin removable, so dev folders stay safe.
 - Packages (`.rgplugin`, `.esriAddInX`, `.zip`) are unpacked into the plugin folder. Members are
   size-limited (64 MB), `../` and absolute paths are rejected, and the executable bit is preserved.
 - Package files that are *not* installed are still listed (read-only, from inside the zip) so you can

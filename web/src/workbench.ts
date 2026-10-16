@@ -25,6 +25,8 @@ interface Layout {
   ribbon: TabId;
   /** true = big galleries (recipes, plugin tools) collapse into one dropdown button. */
   compact: boolean;
+  /** false = auto-hide: the ribbon body opens on a tab click and closes again after use. */
+  ribbonPinned: boolean;
 }
 
 const DEFAULT_LAYOUT: Layout = {
@@ -35,6 +37,7 @@ const DEFAULT_LAYOUT: Layout = {
   tabs: { left: 'contents', right: 'symbology', bottom: 'automate' },
   ribbon: 'home',
   compact: true,
+  ribbonPinned: true,
 };
 
 export interface WorkbenchHost {
@@ -81,6 +84,8 @@ export class Workbench {
   private catalogFilter = '';
   private recipes: RecipeInfo[] = [];
   private menu: HTMLElement | null = null;
+  /** Auto-hide mode: the body is showing because a tab was clicked. */
+  private ribbonPeek = false;
   private statusTimer: number | undefined;
   private statusExpire = 0;
 
@@ -100,6 +105,7 @@ export class Workbench {
     this.wirePalette();
     this.wireMapStatus();
     this.wireIdentify();
+    this.host.map.on('click', () => this.hideRibbon());
     this.renderCatalog();
     void this.loadRuns();
     void this.renderHistory();
@@ -142,6 +148,7 @@ export class Workbench {
       log: (line, level) => this.log(line, level),
       openUrl: (p) => window.open(p, '_blank', 'noopener'),
       setRibbonCompact: (compact) => this.setRibbonCompact(compact),
+      toggleRibbon: () => this.setRibbonPinned(!this.layout.ribbonPinned),
     };
   }
 
@@ -168,13 +175,26 @@ export class Workbench {
     const tabsEl = document.querySelector<HTMLElement>('#ribbon-tabs');
     const bodyEl = document.querySelector<HTMLElement>('#ribbon-body');
     if (!tabsEl || !bodyEl) return;
-    tabsEl.innerHTML = TABS.map(
-      (t) => `<button class="rb-tab${t.id === this.layout.ribbon ? ' on' : ''}" data-tab="${t.id}">${esc(t.label)}</button>`,
-    ).join('');
+    const pinned = this.layout.ribbonPinned;
+    tabsEl.innerHTML =
+      TABS.map(
+        (t) => `<button class="rb-tab${t.id === this.layout.ribbon ? ' on' : ''}" data-tab="${t.id}">${esc(t.label)}</button>`,
+      ).join('') +
+      `<button class="rb-pin${pinned ? ' on' : ''}" data-ribbon-pin title="${
+        pinned ? 'Ribbon is pinned open — click to auto-hide it (Ctrl+F1)' : 'Ribbon is hidden — it opens when you click a tab (Ctrl+F1)'
+      }"><span class="rb-pin-ico">${icon('pin', 13)}</span><span class="rb-pin-txt">${pinned ? 'Pin' : 'Auto-hide'}</span></button>`;
     // Assignment (not addEventListener): buildRibbon runs again on every tab switch.
     tabsEl.onclick = (e) => {
+      const pin = (e.target as HTMLElement).closest<HTMLElement>('[data-ribbon-pin]');
+      if (pin) { this.setRibbonPinned(!this.layout.ribbonPinned); return; }
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
-      if (b) { this.layout.ribbon = b.dataset.tab as TabId; this.saveLayout(); this.buildRibbon(); }
+      if (b) {
+        const same = this.layout.ribbon === (b.dataset.tab as TabId) && this.ribbonVisible();
+        this.layout.ribbon = b.dataset.tab as TabId;
+        this.ribbonPeek = !same;
+        this.saveLayout();
+        this.buildRibbon();
+      }
     };
     bodyEl.onclick = (e) => {
       const t = e.target as HTMLElement;
@@ -194,6 +214,7 @@ export class Workbench {
       }
       const rec = t.closest<HTMLElement>('[data-recipe]');
       if (rec?.dataset.recipe) {
+        this.hideRibbon();
         this.setStatus(`Running ${rec.dataset.recipe}…`);
         this.showTab('bottom', 'automate');
         void this.host.runRecipe(rec.dataset.recipe);
@@ -204,6 +225,7 @@ export class Workbench {
         const [pid, tid] = tool.split('/');
         const p = this.host.plugins()?.plugins.find((x) => x.id === pid);
         const tl = p?.tools.find((x) => x.id === tid);
+        if (p && tl) this.hideRibbon();
         if (p && tl) this.host.plugins()?.openTool(p, tl);
         return;
       }
@@ -213,7 +235,32 @@ export class Workbench {
     void this.renderRibbonBody(bodyEl);
   }
 
+  private ribbonVisible(): boolean {
+    return this.layout.ribbonPinned || this.ribbonPeek;
+  }
+
+  /** Auto-hide mode: put the body away after a command, a map click or Escape. */
+  private hideRibbon() {
+    if (this.layout.ribbonPinned || !this.ribbonPeek) return;
+    this.ribbonPeek = false;
+    this.buildRibbon();
+  }
+
+  setRibbonPinned(pinned: boolean) {
+    this.layout.ribbonPinned = pinned;
+    // Unpinning collapses it at once (Pro does the same): click a tab to bring it back.
+    this.ribbonPeek = false;
+    this.saveLayout();
+    this.buildRibbon();
+    this.setStatus(pinned ? 'Ribbon pinned open' : 'Ribbon auto-hides — click a tab to use it, Ctrl+F1 to pin it back');
+  }
+
   private async renderRibbonBody(bodyEl: HTMLElement) {
+    const visible = this.ribbonVisible();
+    bodyEl.hidden = !visible;
+    document.querySelector<HTMLElement>('#ribbon')?.classList.toggle('auto', !visible);
+    requestAnimationFrame(() => this.host.map.resize());
+    if (!visible) { bodyEl.innerHTML = ''; return; }
     const groups = groupsFor(this.layout.ribbon);
     const parts: string[] = [];
     for (const g of groups) {
@@ -339,6 +386,7 @@ export class Workbench {
       const rec = t.closest<HTMLElement>('[data-recipe]');
       if (rec?.dataset.recipe) {
         this.closeMenu();
+        this.hideRibbon();
         this.setStatus(`Running ${rec.dataset.recipe}…`);
         this.showTab('bottom', 'automate');
         void this.host.runRecipe(rec.dataset.recipe);
@@ -347,6 +395,7 @@ export class Workbench {
       const tool = t.closest<HTMLElement>('[data-plugin-tool]')?.dataset.pluginTool;
       if (tool) {
         this.closeMenu();
+        this.hideRibbon();
         const [pid, tid] = tool.split('/');
         const p = this.host.plugins()?.plugins.find((x) => x.id === pid);
         const tl = p?.tools.find((x) => x.id === tid);
@@ -402,6 +451,7 @@ export class Workbench {
     const c = COMMANDS.find((x) => x.id === id);
     if (!c) return;
     this.setStatus(`${c.title}…`);
+    this.hideRibbon();
     try {
       await c.run(this.cmdHost());
     } catch (e) {
@@ -847,6 +897,7 @@ export class Workbench {
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); document.dispatchEvent(new CustomEvent('geospax:palette')); return; }
+      if (mod && (e.key === 'F1' || e.key === 'f1')) { e.preventDefault(); this.setRibbonPinned(!this.layout.ribbonPinned); return; }
       if (e.key === 'F5') { e.preventDefault(); void this.run('home.refresh'); return; }
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); this.host.save(); this.setStatus('Project saved'); return; }
       if (!typing && !mod) {
@@ -856,6 +907,7 @@ export class Workbench {
         if (hit) { e.preventDefault(); void this.run(hit.id); return; }
       }
       if (e.key === 'Escape' && this.menu) { e.preventDefault(); this.closeMenu(); return; }
+      if (e.key === 'Escape' && !this.layout.ribbonPinned && this.ribbonPeek) { this.hideRibbon(); return; }
       if (e.key === 'Escape' && this.paletteOpen) {
         const box = document.querySelector<HTMLElement>('#palette');
         if (box) box.hidden = true;
