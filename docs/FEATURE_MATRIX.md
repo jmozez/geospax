@@ -14,7 +14,8 @@ GeoSpaX borrows proven features from commercial and open-source GIS, remote-sens
 RustGIS `.rgplugin` (Apache-2.0), GeoLibre `plugin.json` + WASI tool bundles (MIT), QGIS `metadata.txt`
 (algorithms through `qgis_process`) and ArcGIS Pro `Config.daml` + `.pyt` (ribbon imported, Python
 toolbox tools run through arcpy; the .NET assembly cannot). Runtimes: recipe, process, python, r, wasm.
-Each plugin reports honestly what it needs when a runtime is missing ([PLUGINS.md](PLUGINS.md)).
+Each plugin reports honestly what it needs when a runtime is missing, and installing one makes it
+removable again (uninstall never touches a `--plugins` dev folder) ([PLUGINS.md](PLUGINS.md)).
 
 **Desktop workbench (1.7):** ribbon with 40 commands, dockable panes (Contents/Catalog/Project · Symbology/**
 Attributes**/Rasters/Devices · Automate/History/Log), command palette (`Ctrl+K`), paged attribute table with

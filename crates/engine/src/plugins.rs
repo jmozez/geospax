@@ -966,6 +966,33 @@ impl Plugins {
             .or_else(|| read_plugin(&dest))
             .ok_or_else(|| "the installed folder has no manifest GeoSpaX recognises".to_string())
     }
+
+    /// Remove an installed plugin. Only plugins that live in the state directory can be
+    /// removed: the other folders are development locations you point at with --plugins,
+    /// and deleting someone's working copy because an id matched would be rude.
+    pub fn uninstall(&self, id: &str) -> Result<String, String> {
+        let dest_dir = self.dirs.last().cloned().ok_or("no plugin directory is configured")?;
+        let info = self.get(id).ok_or_else(|| format!("unknown plugin '{id}'"))?;
+        let path = std::path::PathBuf::from(&info.path);
+        // canonicalise both so a symlinked state dir still compares equal
+        let inside = path
+            .canonicalize()
+            .ok()
+            .zip(dest_dir.canonicalize().ok())
+            .map(|(p, d)| p.starts_with(&d))
+            .unwrap_or(false);
+        if !inside {
+            return Err(format!(
+                "'{}' lives in {} — only plugins installed into {} can be uninstalled (remove that folder yourself if you meant it)",
+                info.name,
+                path.display(),
+                dest_dir.display()
+            ));
+        }
+        fs::remove_dir_all(&path).map_err(|e| format!("could not remove {}: {e}", path.display()))?;
+        self.reload();
+        Ok(format!("uninstalled {} from {}", info.name, path.display()))
+    }
 }
 
 fn workdir() -> PathBuf {

@@ -1646,7 +1646,7 @@ dependencies = [
 
 [[package]]
 name = "geospax"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "geospax-engine",
  "serde",
@@ -1658,7 +1658,7 @@ dependencies = [
 
 [[package]]
 name = "geospax-engine"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -1692,7 +1692,7 @@ dependencies = [
 
 [[package]]
 name = "geospax-server"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "axum",
  "geospax-engine",

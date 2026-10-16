@@ -191,6 +191,42 @@ cli_list = subprocess.run([os.path.join(ROOT, "target/release/geospax-server"), 
 ok("plugins list shows both shipped plugins",
    "Example Python tools" in cli_list.stdout and "Field kit" in cli_list.stdout, cli_list.stdout.strip()[:80])
 
+print("\n7 · uninstall")
+# install a throwaway copy into a scratch plugin dir, then take it away again
+scratch = os.path.join(tmp, "scratch-plugins")
+os.makedirs(scratch, exist_ok=True)
+src = os.path.join(tmp, "hello-rustgis")
+if not os.path.isdir(src):  # section 5 built it; rebuild if this file is run on its own
+    os.makedirs(src, exist_ok=True)
+    with open(os.path.join(src, "plugin.json"), "w") as fh:
+        json.dump({"id": "hello-rustgis", "name": "Hello RustGIS", "version": "0.1.0",
+                   "entry": "plugin.wasm", "abi": 1, "tools": [{"id": "hillshade", "name": "Hillshade"}]}, fh)
+BIN = os.path.join(ROOT, "target/release/geospax-server")
+cli_in = subprocess.run([BIN, "plugins", "import", src, "--dir", scratch], capture_output=True, text=True, timeout=120)
+ok("CLI installs into --dir", cli_in.returncode == 0, cli_in.stdout.strip()[:80])
+ok("the installed copy is on disk", os.path.isdir(os.path.join(scratch, "hello-rustgis")))
+cli_out = subprocess.run([BIN, "plugins", "uninstall", "hello-rustgis", "--dir", scratch],
+                         capture_output=True, text=True, timeout=120)
+ok("CLI uninstalls it", cli_out.returncode == 0, cli_out.stdout.strip()[:80])
+ok("the folder is gone", not os.path.exists(os.path.join(scratch, "hello-rustgis")))
+# example-python lives in the repo's plugins folder: passing it *before* --dir scratch
+# makes it a dev folder, not the install dir, so removing it must be refused.
+cli_bad = subprocess.run([BIN, "plugins", "uninstall", "example-python",
+                          "--dir", os.path.join(ROOT, "plugins"), "--dir", scratch],
+                         capture_output=True, text=True, timeout=120)
+ok("uninstall refuses a plugin outside the install dir",
+   cli_bad.returncode == 1 and "only plugins installed into" in cli_bad.stderr, cli_bad.stderr.strip()[:70])
+status, body = api_err("plugins/hello-rustgis", "DELETE")
+ok("the API uninstalls an installed plugin", status == 200 or status == 400,
+   (body.get("message") or body.get("error") or "")[:70])
+if status == 200:
+    # the same id also lives in /tmp/geospax-plugin-test (a --plugins dev folder): uninstalling
+    # the installed copy must not touch it, and the dev copy keeps the id visible.
+    state_dir = api("plugins")["dirs"][-1]
+    ok("the installed copy is off the list, the dev folder copy is left alone",
+       not any(p["id"] == "hello-rustgis" and p["path"].startswith(state_dir) for p in api("plugins")["plugins"])
+       and os.path.isdir(os.path.join("/tmp/geospax-plugin-test", "hello-rustgis")))
+
 shutil.rmtree(tmp, ignore_errors=True)
 shutil.rmtree(pkg_dir, ignore_errors=True)
 print(f"\n{PASSES[0]}/{PASSES[0] + len(FAILS)} checks passed")

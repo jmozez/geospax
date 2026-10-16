@@ -82,6 +82,8 @@ export class PluginsPane {
   private modal: HTMLDivElement;
   private busy = new Set<string>();
   private error = '';
+  /** id of a plugin whose Uninstall button has been pressed once (two-step delete). */
+  private confirmUninstall: string | null = null;
 
   constructor(
     private root: HTMLElement,
@@ -182,8 +184,21 @@ export class PluginsPane {
       ${p.warning ? `<div class="p-warn">⚠ ${esc(p.warning)}</div>` : ''}
       <div class="p-tools">${tools}</div>
       ${cmds}
-      <div class="p-path">${esc(p.path)}</div>
+      <div class="p-foot">
+        <span class="p-path">${esc(p.path)}</span>
+        ${this.canUninstall(p)
+          ? `<button class="p-del" data-act="uninstall" data-id="${esc(p.id)}" title="Remove this plugin from ${esc(
+              this.state.dirs[this.state.dirs.length - 1] ?? 'the plugin folder',
+            )}">${this.confirmUninstall === p.id ? 'Click again to delete' : 'Uninstall'}</button>`
+          : `<span class="p-keep dim" title="This one lives in a folder you pointed at with --plugins; remove it yourself">external folder</span>`}
+      </div>
     </div>`;
+  }
+
+  /** Only plugins installed into the state directory can be removed from here. */
+  private canUninstall(p: PluginInfo): boolean {
+    const dir = this.state.dirs[this.state.dirs.length - 1];
+    return !!dir && p.path.startsWith(dir);
   }
 
   // ---------------------------------------------------------------- events
@@ -212,6 +227,29 @@ export class PluginsPane {
       } catch (err) {
         this.host.setStatus(`Install failed: ${(err as Error).message}`, 6000);
         this.host.log(`plugin install failed: ${err}`);
+      }
+      return;
+    }
+    const del = t.closest<HTMLElement>('[data-act="uninstall"]');
+    if (del) {
+      const id = del.dataset.id!;
+      if (this.confirmUninstall !== id) {
+        this.confirmUninstall = id;
+        this.render();
+        this.host.setStatus('Press Uninstall again to delete this plugin');
+        return;
+      }
+      this.confirmUninstall = null;
+      this.host.setStatus(`Uninstalling ${id}…`);
+      try {
+        const r = await this.backend.json<{ message: string }>(`api/plugins/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        await this.reload();
+        this.host.onChanged(this.state);
+        this.host.setStatus(r.message ?? `Uninstalled ${id}`);
+        this.host.log(`plugins: ${r.message ?? id}`);
+      } catch (err) {
+        this.host.setStatus(`Uninstall failed: ${(err as Error).message}`, 6000);
+        this.host.log(`plugin uninstall failed: ${err}`);
       }
       return;
     }

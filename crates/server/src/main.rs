@@ -267,8 +267,28 @@ fn plugins_cli(args: &[String]) -> i32 {
                 }
             }
         }
+        "uninstall" => {
+            let id = match rest.get(1) {
+                Some(p) => p.as_str(),
+                None => {
+                    eprintln!("usage: geospax-server plugins uninstall ID [--dir PLUGINDIR]");
+                    return 2;
+                }
+            };
+            let p = plugins::Plugins::new(dirs);
+            match p.uninstall(id) {
+                Ok(msg) => {
+                    println!("{msg}");
+                    0
+                }
+                Err(e) => {
+                    eprintln!("uninstall failed: {e}");
+                    1
+                }
+            }
+        }
         other => {
-            eprintln!("unknown plugins command '{other}' (try: list, check PATH, import PATH)");
+            eprintln!("unknown plugins command '{other}' (try: list, check PATH, import PATH, uninstall ID)");
             2
         }
     }

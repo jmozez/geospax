@@ -3,6 +3,22 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.2] — 2026-10-16
+
+### Added
+- **Auto-hide the ribbon** (pin button in the tab strip, or **Ctrl+F1**, or *Auto-hide the ribbon* in
+  the palette). The whole ribbon body collapses to its tab strip and the space goes to the map —
+  **542px → 623px** in a 1600×950 window. Click a tab to use it; it puts itself away after you run
+  something, click the map, press `Escape` or click the same tab again. The choice is remembered.
+- **Uninstall a plugin**: a two-step **Uninstall** button on each plugin card, `DELETE
+  /api/plugins/{id}` and `geospax-server plugins uninstall ID`. Only plugins installed into the
+  state directory can be removed — one that lives in a folder you pointed at with `--plugins` is
+  refused with a message telling you why, so a plugin can never delete your working copy.
+
+### Fixed
+- A plugin tool that declares no parameters crashed instead of opening its dialog (the engine
+  skipped empty `params` arrays when serialising a tool).
+
 ## [1.8.1] — 2026-10-16
 
 ### Fixed

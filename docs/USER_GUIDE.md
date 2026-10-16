@@ -92,7 +92,7 @@ calls the recipes use.
 
 | Where | What it does |
 | --- | --- |
-| **Ribbon** | Seven tabs of commands with icons, tooltips and shortcuts. **Analyze** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. |
+| **Ribbon** | Seven tabs of commands with icons, tooltips and shortcuts. **Analyze** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The **pin** at the right of the tab strip (or `Ctrl+F1`) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map). |
 | **Contents** (left) | The layer list — visibility, draw order, legend, symbology. |
 | **Catalog** (left) | Every source grouped by file, with a search box; clicking a layer makes it active and zooms to it. |
 | **Project** (left) | Tile transport, Go-to bookmarks, the benchmark and the Arrow → deck.gl path. |
@@ -129,6 +129,10 @@ five formats, so a tool written for another GIS shows up here:
 | GeoLibre | `plugin.json`, WASM tool bundles | its tools (WASI); its React UI cannot run here |
 | QGIS | `metadata.txt` | its **processing algorithms** through `qgis_process`; its PyQt UI cannot run here |
 | ArcGIS Pro (`.esriAddInX`) | `Config.daml` (+ `Toolboxes/*.pyt`) | its **Python toolbox** tools through arcpy; the .NET assembly cannot run here |
+
+**Removing one:** **Uninstall** on the card (press it twice). Plugins that live in a folder you
+started the server with (`--plugins DIR`) are not deletable from here — the card says "external
+folder" so you can remove them yourself.
 
 **In the ribbon:** recipes and plugin tools are collapsed into a single button with a count
 (`Recipes 10 ▾`) so the ribbon stays one row tall. Click it for the full list — icon, title and one
