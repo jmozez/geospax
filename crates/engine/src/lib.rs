@@ -20,6 +20,7 @@ pub mod lidar;
 pub mod mvt;
 pub mod overview;
 pub mod phone;
+pub mod plugins;
 pub mod pmtiles_io;
 pub mod raster;
 pub mod reader;
@@ -88,6 +89,8 @@ pub struct EngineConfig {
     pub automation: automation::AutomationConfig,
     /// Phone link: phones send photos and tracks over Wi-Fi (docs/DEVICES.md §3a).
     pub phone: phone::PhoneConfig,
+    /// Plugin folders (docs/PLUGINS.md).
+    pub plugins: plugins::PluginsConfig,
 }
 
 impl Default for EngineConfig {
@@ -102,6 +105,7 @@ impl Default for EngineConfig {
             devices: devices::DevicesConfig::default(),
             automation: automation::AutomationConfig::default(),
             phone: phone::PhoneConfig::default(),
+            plugins: plugins::PluginsConfig::default(),
         }
     }
 }
@@ -200,6 +204,9 @@ pub struct Engine {
     pub automation: automation::Automation,
     /// Phone link (docs/DEVICES.md §3a).
     pub(crate) phone: phone::PhoneLink,
+    /// Plugins: tools and ribbon commands from GeoSpaX, RustGIS, GeoLibre, QGIS and
+    /// ArcGIS Pro packages (docs/PLUGINS.md).
+    pub plugins: plugins::Plugins,
     /// Rasters (data folders + recipe outputs); see raster.rs.
     pub(crate) rasters: RwLock<Vec<Arc<raster::RasterHandle>>>,
     /// Data folders/files the engine was opened with (relative paths in recipes resolve here).
@@ -352,12 +359,27 @@ impl Engine {
             }
         }
         let devices = devices::Hub::new(cfg.devices.clone());
-        let automation = automation::Automation::new(cfg.automation.clone(), &state_dir);
+        let mut plugin_dirs = cfg.plugins.dirs.clone();
+        plugin_dirs.push(state_dir.join("plugins"));
+        let plugins = plugins::Plugins::new(plugin_dirs);
+        // A `kind: recipe` plugin ships GeoSpaX recipes in its `recipes/` folder: hand them
+        // to the automation engine so its tools are ordinary, triggerable recipes.
+        let mut automation_cfg = cfg.automation.clone();
+        for p in plugins.list() {
+            if p.kind == "recipe" {
+                let dir = std::path::Path::new(&p.path).join("recipes");
+                if dir.is_dir() {
+                    automation_cfg.recipe_dirs.push(dir);
+                }
+            }
+        }
+        let automation = automation::Automation::new(automation_cfg, &state_dir);
         let phone = phone::PhoneLink::new(&state_dir, cfg.phone.clone());
         Ok(Engine {
             reg: RwLock::new(Registry { layers, by_id }),
             devices,
             automation,
+            plugins,
             phone,
             rasters: RwLock::new(rasters),
             data_dirs: cfg.data.clone(),
@@ -381,6 +403,12 @@ impl Engine {
     /// Snapshot of all layers (the registry can grow at runtime, e.g. device imports).
     pub fn layers(&self) -> Vec<Arc<LayerHandle>> {
         self.reg.read().unwrap().layers.clone()
+    }
+
+    /// Every layer id, for plugin tools that need to know what is on the map.
+    pub fn layer_ids(&self) -> Vec<String> {
+        let r = self.reg.read().unwrap();
+        r.layers.iter().map(|l| l.info.id.clone()).collect()
     }
 
     pub fn layer(&self, id: &str) -> Option<Arc<LayerHandle>> {

@@ -79,6 +79,7 @@ fn main() {
     let args = parse_args();
     let t_open = Instant::now();
     let engine = Engine::open(EngineConfig {
+        plugins: Default::default(),
         data: args.data.clone(),
         cache_tiles: 0,
         threads: 1,

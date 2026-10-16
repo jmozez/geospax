@@ -1,0 +1,27 @@
+# A recipe plugin: the tools ARE GeoSpaX recipes (plugins/field-recipes/recipes/*.yaml),
+# so they get everything a recipe has — triggers, history, artifacts, Auto switches.
+plugin: field-recipes
+version: 0.1.0
+title: Field kit
+description: "Two field recipes packaged as a plugin - a hexbin count and a quick hot spot map."
+author: GeoSpaX
+license: MIT
+kind: recipe
+tools:
+  - id: points-to-hexbins
+    name: Points → hexbins
+    summary: Count points in hexagons and map the counts.
+    group: Field kit
+    icon: grid
+    recipe: points-to-hexbins
+    params:
+      - { name: layer, label: Point layer, kind: layer, required: true }
+  - id: points-to-hotspots
+    name: Points → hot spots
+    summary: Optimized hot spot analysis (Gi*) with every setting chosen from the data.
+    group: Field kit
+    icon: hotspot
+    recipe: points-to-hotspots
+    params:
+      - { name: layer, label: Incident layer, kind: layer, required: true }
+      - { name: field, label: Value field (optional), kind: field }

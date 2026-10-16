@@ -13,6 +13,7 @@ import { runBenchmark, type BenchReport } from './bench';
 import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
 import { Workbench } from './workbench';
+import { PluginsPane } from './plugins';
 import {
   colorExpression,
   fmtNum,
@@ -87,6 +88,7 @@ let panel: SymbologyPanel;
 let automatePane: AutomatePane | null = null;
 let attributesPane: AttributesPane | null = null;
 let workbench: Workbench | null = null;
+let pluginsPane: PluginsPane | null = null;
 
 const layerById = (id: string) => layers.find((l) => l.id === id);
 
@@ -772,6 +774,15 @@ async function main() {
     log: (line) => workbench?.log(line),
     setStatus: (t) => workbench?.setStatus(t),
   });
+  // Plugins (docs/PLUGINS.md): tools from GeoSpaX, RustGIS, GeoLibre, QGIS and ArcGIS Pro.
+  pluginsPane = new PluginsPane($('#plugins'), backend, {
+    log: (line) => workbench?.log(line),
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+    layers: () => layers.map((l) => ({ id: l.id, name: l.name, fields: l.fields })),
+    onChanged: () => document.dispatchEvent(new CustomEvent('geospax:plugins-changed')),
+  });
+  void pluginsPane.reload();
+
   workbench = new Workbench({
     backend,
     map,
@@ -803,6 +814,8 @@ async function main() {
     bench: () => void runBench(),
     deck: () => ab.click(),
     refreshContents: renderContents,
+    plugins: () => pluginsPane,
+    layersWithFields: () => layers.map((l) => ({ id: l.id, name: l.name, fields: l.fields })),
     openAttributes: (id) => {
       void attributesPane?.open(id);
       workbench?.showTab('right', 'attributes');

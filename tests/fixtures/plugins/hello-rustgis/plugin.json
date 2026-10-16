@@ -1,0 +1,28 @@
+{
+  "id": "hello-rustgis",
+  "name": "Hello RustGIS",
+  "version": "0.1.0",
+  "description": "The starter plugin from opengeos/rustgis-plugins: a command and a bounding-box tool.",
+  "author": "RustGIS contributors",
+  "homepage": "https://github.com/opengeos/rustgis-plugins",
+  "license": "MIT",
+  "entry": "plugin.wasm",
+  "abi": 1,
+  "minRustgisVersion": "0.1.0",
+  "permissions": ["edit"],
+  "commands": [
+    { "id": "layer-report", "label": "Layer\nReport", "help": "Summarise the active layer.", "icon": "stats" }
+  ],
+  "tools": [
+    {
+      "id": "bounding-boxes",
+      "name": "Bounding Boxes",
+      "summary": "One box per feature, or one around the whole layer.",
+      "toolbox": "Hello",
+      "params": [
+        { "name": "input", "label": "Input features", "kind": "vectorLayer", "required": true },
+        { "name": "whole", "label": "One box for the whole layer", "kind": "bool", "default": false }
+      ]
+    }
+  ]
+}

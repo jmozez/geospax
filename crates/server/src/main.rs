@@ -72,6 +72,7 @@ fn parse_args() -> Args {
             "--no-device-mounts" => a.cfg.devices.scan_mounts = false,
             // Automation (docs/AUTOMATION.md)
             "--recipes" => a.cfg.automation.recipe_dirs.push(v().into()),
+            "--plugins" => a.cfg.plugins.dirs.push(v().into()),
             "--auto" => a.cfg.automation.auto.extend(v().split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from)),
             "--no-triggers" => a.cfg.automation.triggers = false,
             "--phone" => a.cfg.phone.enable = true,
@@ -159,6 +160,7 @@ options:
   --phone                start the phone link (https://<this computer>:8765, QR code in the Devices panel)
   --phone-port N         phone link port (default 8765)
   --recipes DIR          extra recipe folder (repeatable)
+  --plugins DIR          extra plugin folder (repeatable; <state>/plugins is always read)
   --auto ID,ID           recipes whose triggers are on at start
   --no-triggers          no device/folder/schedule/sensor triggers
   --threads N · --no-cache · --no-gzip · --reader arrow|features · --bench-log FILE
@@ -170,6 +172,106 @@ Docs: README.md, docs/USER_GUIDE.md, docs/DEVICES.md, docs/AUTOMATION.md
 fn usage_exit(msg: &str) -> ! {
     eprintln!("error: {msg}\n\n{SERVER_USAGE}");
     std::process::exit(2)
+}
+
+
+/// `geospax-server plugins …` — list, check and install plugins without opening a map.
+fn plugins_cli(args: &[String]) -> i32 {
+    use geospax_engine::plugins;
+    let mut dirs: Vec<std::path::PathBuf> = Vec::new();
+    let mut rest: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--dir" => {
+                i += 1;
+                if let Some(v) = args.get(i) {
+                    dirs.push(v.into());
+                }
+            }
+            other => rest.push(other.to_string()),
+        }
+        i += 1;
+    }
+    if dirs.is_empty() {
+        dirs.push(std::path::PathBuf::from("data/.geospax/plugins"));
+    }
+    match rest.first().map(String::as_str).unwrap_or("list") {
+        "list" => {
+            let p = plugins::Plugins::new(dirs);
+            let list = p.list();
+            if list.is_empty() {
+                println!("no plugins installed (plugin folders: {})", p.dirs().iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join(", "));
+                return 0;
+            }
+            for info in &list {
+                let state = if info.runnable {
+                    "runnable".to_string()
+                } else {
+                    format!("needs {}", info.needs.clone().unwrap_or_default())
+                };
+                println!(
+                    "{:<22} {:<9} {:<8} {:>2} tool(s)  {}{}",
+                    info.name,
+                    info.source,
+                    info.kind,
+                    info.tools.len(),
+                    state,
+                    info.warning.as_ref().map(|w| format!("  ⚠ {w}")).unwrap_or_default(),
+                );
+            }
+            0
+        }
+        "check" => {
+            let path = match rest.get(1) {
+                Some(p) => std::path::Path::new(p),
+                None => {
+                    eprintln!("usage: geospax-server plugins check PATH");
+                    return 2;
+                }
+            };
+            match plugins::check(path) {
+                Ok(s) => {
+                    println!("ok  {s}");
+                    0
+                }
+                Err(e) => {
+                    eprintln!("bad {e}");
+                    1
+                }
+            }
+        }
+        "import" => {
+            let path = match rest.get(1) {
+                Some(p) => std::path::Path::new(p),
+                None => {
+                    eprintln!("usage: geospax-server plugins import PATH [--dir PLUGINDIR]");
+                    return 2;
+                }
+            };
+            let p = plugins::Plugins::new(dirs);
+            match p.install(path) {
+                Ok(info) => {
+                    println!(
+                        "installed {} {} ({} tool(s)) into {}",
+                        info.name,
+                        info.version.as_deref().unwrap_or("?"),
+                        info.tools.len(),
+                        info.path
+                    );
+                    0
+                }
+                Err(e) => {
+                    eprintln!("import failed: {e}");
+                    1
+                }
+            }
+        }
+        other => {
+            eprintln!("unknown plugins command '{other}' (try: list, check PATH, import PATH)");
+            2
+        }
+    }
 }
 
 fn main() {
@@ -185,6 +287,9 @@ fn main() {
             return;
         }
         _ => {}
+    }
+    if argv.first().map(String::as_str) == Some("plugins") {
+        std::process::exit(plugins_cli(&argv[1..]));
     }
     if let Some(code) = geospax_engine::automation::cli::main_if_subcommand(&argv) {
         std::process::exit(code);

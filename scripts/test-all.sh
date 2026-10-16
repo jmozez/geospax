@@ -48,6 +48,7 @@ if [ -d "$PW" ]; then
   run "web UI: symbology + overviews (Phase 1)" env PW="$PW" node scripts/test-web-symbology.mjs "$URL" "$OUT"
   run "web UI: devices + sensors (import, phone GPS, live sensor)" env PW="$PW" node scripts/test-web-devices.mjs "$URL" "$OUT"
   run "web UI: automation (run, map, report, auto, save recipe)" env PW="$PW" node scripts/test-web-automation.mjs "$URL" "$OUT"
+  run "web UI: workbench (ribbon, docks, attributes, palette)" env PW="$PW" node scripts/test-web-workbench.mjs "$URL" "$OUT"
   run "phone link (QR, HTTPS, send, camera, live track, map on the phone)" env PW="$PW" PORT="$((PORT + 21))" \
     node scripts/test-phone-link.mjs target/release/geospax-server "$SAMPLES" "$OUT"
 else
@@ -67,6 +68,7 @@ run "LiDAR (point clouds -> terrain, canopy, trees, buildings)" python3 scripts/
   --out "$OUT" --port "$((PORT + 40))" --results "$OUT/../lidar-results.json"
 # Spatial statistics: hot spots (planted clusters) and kriging (known surfaces), cross-checked
 # against R spdep and gstat (those checks are skipped without R), plus a million-point timing.
+run "plugins (five manifest formats, four runtimes)" python3 scripts/test-plugins.py "$URL"
 run "spatial statistics (hot spots, kriging; checked against R spdep + gstat)" python3 scripts/test-stats.py \
   --bin target/release/geospax-server --data "$DATA" --out "$OUT" --pw "$PW" --results "$OUT/../stats-results.json"
 if command -v Xvfb >/dev/null && [ -x target/release/geospax ]; then

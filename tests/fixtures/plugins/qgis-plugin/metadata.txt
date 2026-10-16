@@ -1,0 +1,14 @@
+[general]
+name=save_attributes
+version=1.0
+qgisMinimumVersion=3.22
+description=Saves the attributes of a vector layer as a CSV file
+about=A QGIS processing plugin: one algorithm that writes the attribute table out as CSV.
+author=Ujaval Gandhi
+email=ujaval@spatialthoughts.com
+repository=https://github.com/spatialthoughts/qgis-processing
+category=Vector
+hasProcessingProvider=yes
+experimental=False
+deprecated=False
+tags=vector,csv,attributes

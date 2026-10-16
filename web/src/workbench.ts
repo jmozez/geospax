@@ -5,7 +5,9 @@
 import * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
-import { COMMANDS, TABS, commandHtml, groupsFor, icon, type CommandHost, type TabId } from './commands';
+import type { PluginsPane } from './plugins';
+import { COMMANDS, TABS, commandHtml, groupsFor, icon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
+import type { PluginInfo, PluginsState } from './plugins';
 
 const LS_KEY = 'geospax.workbench.v1';
 const esc = (s: string) =>
@@ -51,6 +53,8 @@ export interface WorkbenchHost {
   deck: () => void;
   refreshContents: () => void;
   openAttributes: (id: string) => void;
+  plugins: () => PluginsPane | null;
+  layersWithFields: () => { id: string; name: string; fields?: { name: string; kind: string }[] }[];
 }
 
 interface RunRow {
@@ -102,6 +106,7 @@ export class Workbench {
       this.renderCatalog();
       void this.loadRunsSilently();
     });
+    document.addEventListener('geospax:plugins-changed', () => this.buildRibbon());
   }
 
   /** The command host every ribbon button sees. */
@@ -173,6 +178,14 @@ export class Workbench {
         void this.host.runRecipe(rec.dataset.recipe);
         return;
       }
+      const tool = t.closest<HTMLElement>('[data-plugin-tool]')?.dataset.pluginTool;
+      if (tool) {
+        const [pid, tid] = tool.split('/');
+        const p = this.host.plugins()?.plugins.find((x) => x.id === pid);
+        const tl = p?.tools.find((x) => x.id === tid);
+        if (p && tl) this.host.plugins()?.openTool(p, tl);
+        return;
+      }
       const b = t.closest<HTMLElement>('[data-cmd]');
       if (b) void this.run(b.dataset.cmd!);
     };
@@ -189,18 +202,35 @@ export class Workbench {
     if (this.layout.ribbon === 'analyze') {
       try {
         const r = await this.host.backend.json<{ recipes: RecipeInfo[] }>('api/recipes');
-        const items = r.recipes
-          .slice(0, 12)
-          .map(
-            (x) =>
-              `<button class="rb-btn big" data-recipe="${esc(x.id)}" title="${esc(x.description ?? x.title ?? '')}"><span class="rb-ico">${icon(
-                'play',
-                26,
-              )}</span><span class="rb-label">${esc(x.title ?? x.id)}</span></button>`,
-          )
+        const cards = r.recipes
+          .slice(0, 10)
+          .map((x) => {
+            const desc = (x.description ?? '').replace(/\s+/g, ' ').trim();
+            return `<button class="rb-recipe" data-recipe="${esc(x.id)}" title="${esc(desc)}">
+              <span class="rr-ico">${icon(recipeIcon(x), 22)}</span>
+              <span class="rr-txt"><span class="rr-name">${esc(x.title ?? x.id)}</span><span class="rr-desc">${esc(
+                desc.length > 96 ? `${desc.slice(0, 96)}…` : desc,
+              )}</span></span>
+              <span class="rr-run">${icon('play', 12)} Run</span>
+            </button>`;
+          })
           .join('');
-        parts.unshift(`<div class="rb-group wide"><div class="rb-items">${items}</div><div class="rb-title">Recipes — click to run</div></div>`);
+        parts.unshift(`<div class="rb-group wide"><div class="rb-items recipes">${cards}</div><div class="rb-title">Recipes — click to run</div></div>`);
       } catch { /* engine offline: the static commands still work */ }
+    }
+    // Plugin tools, one group per plugin (docs/PLUGINS.md).
+    for (const p of this.pluginTools()) {
+      const items = p.tools
+        .slice(0, 6)
+        .map(
+          (t) =>
+            `<button class="rb-btn" data-plugin-tool="${esc(p.id)}/${esc(t.id)}" title="${esc(t.summary || t.name)}">
+              <span class="rb-ico">${icon(t.icon ?? 'grid', 18)}</span>
+              <span class="rb-label">${esc(t.name)}</span>
+            </button>`,
+        )
+        .join('');
+      parts.push(`<div class="rb-group"><div class="rb-items">${items}</div><div class="rb-title">${esc(p.name)} <span class="dim">plugin</span></div></div>`);
     }
     bodyEl.innerHTML = parts.join('') + `<div class="rb-spacer"></div>`;
   }
@@ -562,6 +592,11 @@ export class Workbench {
 
   private renderPalette: () => void = () => {};
 
+  /** Installed plugins with at least one tool (used by the ribbon and the palette). */
+  private pluginTools(): PluginInfo[] {
+    return (this.host.plugins()?.plugins ?? []).filter((p) => p.tools.length > 0);
+  }
+
   private async buildPaletteItems(q: string) {
     const items: typeof this.paletteItems = [];
     const host = this.cmdHost();
@@ -573,6 +608,17 @@ export class Workbench {
         kind: 'cmd',
         run: () => void c.run(host),
       });
+    }
+    for (const p of this.pluginTools()) {
+      for (const t of p.tools) {
+        items.push({
+          id: `plugin:${p.id}/${t.id}`,
+          label: t.name,
+          sub: `plugin tool · ${p.name}`,
+          kind: 'plugin',
+          run: () => this.host.plugins()?.openTool(p, t),
+        });
+      }
     }
     for (const l of this.host.layers()) {
       items.push({
