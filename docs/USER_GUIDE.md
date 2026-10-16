@@ -92,7 +92,7 @@ calls the recipes use.
 
 | Where | What it does |
 | --- | --- |
-| **Ribbon** | Seven tabs of commands with icons, tooltips and shortcuts. **Analyze** also lists the recipes: one click runs one. |
+| **Ribbon** | Seven tabs of commands with icons, tooltips and shortcuts. **Analyze** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. |
 | **Contents** (left) | The layer list — visibility, draw order, legend, symbology. |
 | **Catalog** (left) | Every source grouped by file, with a search box; clicking a layer makes it active and zooms to it. |
 | **Project** (left) | Tile transport, Go-to bookmarks, the benchmark and the Arrow → deck.gl path. |
@@ -129,6 +129,11 @@ five formats, so a tool written for another GIS shows up here:
 | GeoLibre | `plugin.json`, WASM tool bundles | its tools (WASI); its React UI cannot run here |
 | QGIS | `metadata.txt` | its **processing algorithms** through `qgis_process`; its PyQt UI cannot run here |
 | ArcGIS Pro (`.esriAddInX`) | `Config.daml` (+ `Toolboxes/*.pyt`) | its **Python toolbox** tools through arcpy; the .NET assembly cannot run here |
+
+**In the ribbon:** recipes and plugin tools are collapsed into a single button with a count
+(`Recipes 10 ▾`) so the ribbon stays one row tall. Click it for the full list — icon, title and one
+line of description, one click to run. The tiny button in the group's title switches that group back
+to a card gallery, and the choice is remembered.
 
 **Using one:** click a tool's **Run…**, fill in the form, press Run. The result (or the recipe run it
 started) is reported in the pane and in the log; recipe-backed tools also appear in **History**.

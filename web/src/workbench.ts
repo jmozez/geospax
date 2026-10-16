@@ -23,6 +23,8 @@ interface Layout {
   collapsed: Dock[];
   tabs: DockTab;
   ribbon: TabId;
+  /** true = big galleries (recipes, plugin tools) collapse into one dropdown button. */
+  compact: boolean;
 }
 
 const DEFAULT_LAYOUT: Layout = {
@@ -32,6 +34,7 @@ const DEFAULT_LAYOUT: Layout = {
   collapsed: [],
   tabs: { left: 'contents', right: 'symbology', bottom: 'automate' },
   ribbon: 'home',
+  compact: true,
 };
 
 export interface WorkbenchHost {
@@ -76,6 +79,8 @@ export class Workbench {
   private logs: { t: string; level: string; text: string }[] = [];
   private runs: RunRow[] = [];
   private catalogFilter = '';
+  private recipes: RecipeInfo[] = [];
+  private menu: HTMLElement | null = null;
   private statusTimer: number | undefined;
   private statusExpire = 0;
 
@@ -136,6 +141,7 @@ export class Workbench {
       setStatus: (t, ms) => this.setStatus(t, ms),
       log: (line, level) => this.log(line, level),
       openUrl: (p) => window.open(p, '_blank', 'noopener'),
+      setRibbonCompact: (compact) => this.setRibbonCompact(compact),
     };
   }
 
@@ -158,6 +164,7 @@ export class Workbench {
   }
 
   private buildRibbon() {
+    this.closeMenu();
     const tabsEl = document.querySelector<HTMLElement>('#ribbon-tabs');
     const bodyEl = document.querySelector<HTMLElement>('#ribbon-body');
     if (!tabsEl || !bodyEl) return;
@@ -171,6 +178,20 @@ export class Workbench {
     };
     bodyEl.onclick = (e) => {
       const t = e.target as HTMLElement;
+      const combo = t.closest<HTMLElement>('[data-menu]');
+      if (combo) {
+        const kind = combo.dataset.menu!;
+        const wasOpen = this.menu?.dataset.kind === kind;
+        this.closeMenu();
+        if (!wasOpen) this.openMenu(combo, kind);
+        return;
+      }
+      const gal = t.closest<HTMLElement>('[data-gallery]');
+      if (gal) {
+        this.closeMenu();
+        this.setRibbonCompact(gal.dataset.gallery === 'collapse');
+        return;
+      }
       const rec = t.closest<HTMLElement>('[data-recipe]');
       if (rec?.dataset.recipe) {
         this.setStatus(`Running ${rec.dataset.recipe}…`);
@@ -198,30 +219,47 @@ export class Workbench {
     for (const g of groups) {
       parts.push(`<div class="rb-group"><div class="rb-items">${g.items.map((c) => commandHtml(c)).join('')}</div><div class="rb-title">${esc(g.group)}</div></div>`);
     }
-    // Analyze: a live recipe gallery (one click = run), straight from the engine.
+    // Analyze: recipes straight from the engine — collapsed to one dropdown button by
+    // default (Pro collapses a gallery the same way) so the ribbon stays one row tall.
     if (this.layout.ribbon === 'analyze') {
       try {
         const r = await this.host.backend.json<{ recipes: RecipeInfo[] }>('api/recipes');
-        const cards = r.recipes
-          .slice(0, 10)
-          .map((x) => {
-            const desc = (x.description ?? '').replace(/\s+/g, ' ').trim();
-            return `<button class="rb-recipe" data-recipe="${esc(x.id)}" title="${esc(desc)}">
+        this.recipes = r.recipes;
+        if (this.layout.compact) {
+          parts.unshift(
+            `<div class="rb-group" data-group="recipes"><div class="rb-items">${this.comboHtml({
+              menu: 'recipes',
+              icon: 'wand',
+              label: 'Recipes',
+              count: r.recipes.length,
+              title: `${r.recipes.length} recipes — click to open the list`,
+            })}</div><div class="rb-title">Recipes ${this.galleryToggle()}</div></div>`,
+          );
+        } else {
+          const cards = r.recipes
+            .slice(0, 10)
+            .map((x) => {
+              const desc = (x.description ?? '').replace(/\s+/g, ' ').trim();
+              return `<button class="rb-recipe" data-recipe="${esc(x.id)}" title="${esc(desc)}">
               <span class="rr-ico">${icon(recipeIcon(x), 22)}</span>
               <span class="rr-txt"><span class="rr-name">${esc(x.title ?? x.id)}</span><span class="rr-desc">${esc(
                 desc.length > 96 ? `${desc.slice(0, 96)}…` : desc,
               )}</span></span>
               <span class="rr-run">${icon('play', 12)} Run</span>
             </button>`;
-          })
-          .join('');
-        parts.unshift(`<div class="rb-group wide"><div class="rb-items recipes">${cards}</div><div class="rb-title">Recipes — click to run</div></div>`);
+            })
+            .join('');
+          parts.unshift(
+            `<div class="rb-group wide" data-group="recipes"><div class="rb-items recipes">${cards}</div>` +
+              `<div class="rb-title">Recipes — click to run ${this.galleryToggle()}</div></div>`,
+          );
+        }
       } catch { /* engine offline: the static commands still work */ }
     }
     // Plugin tools, one group per plugin (docs/PLUGINS.md).
     for (const p of this.pluginTools()) {
-      const items = p.tools
-        .slice(0, 6)
+      const tools = p.tools.slice(0, 12);
+      const inline = tools
         .map(
           (t) =>
             `<button class="rb-btn" data-plugin-tool="${esc(p.id)}/${esc(t.id)}" title="${esc(t.summary || t.name)}">
@@ -230,9 +268,134 @@ export class Workbench {
             </button>`,
         )
         .join('');
-      parts.push(`<div class="rb-group"><div class="rb-items">${items}</div><div class="rb-title">${esc(p.name)} <span class="dim">plugin</span></div></div>`);
+      // More than three tools and the row would eat the ribbon: collapse to a list.
+      if (this.layout.compact && tools.length > 3) {
+        parts.push(
+          `<div class="rb-group" data-group="plugin:${esc(p.id)}"><div class="rb-items">${this.comboHtml({
+            menu: `plugin:${p.id}`,
+            icon: 'grid',
+            label: p.name,
+            count: tools.length,
+            title: `${tools.length} tools from ${p.name}`,
+          })}</div><div class="rb-title">${esc(p.name)} <span class="dim">plugin</span>${this.galleryToggle()}</div></div>`,
+        );
+      } else {
+        parts.push(
+          `<div class="rb-group" data-group="plugin:${esc(p.id)}"><div class="rb-items">${inline}</div><div class="rb-title">${esc(
+            p.name,
+          )} <span class="dim">plugin</span>${
+            tools.length > 3 ? this.galleryToggle() : ''
+          }</div></div>`,
+        );
+      }
     }
     bodyEl.innerHTML = parts.join('') + `<div class="rb-spacer"></div>`;
+  }
+
+  // ------------------------------------------------- compact galleries (dropdowns)
+
+  /** true keeps the ribbon one row tall; false expands recipes/tools into cards. */
+  setRibbonCompact(compact: boolean) {
+    if (this.layout.compact === compact) return;
+    this.layout.compact = compact;
+    this.saveLayout();
+    this.buildRibbon();
+    this.setStatus(compact ? 'Ribbon: galleries collapsed into lists' : 'Ribbon: galleries expanded');
+  }
+
+  /** One button that opens a list — ArcGIS Pro collapses a gallery the same way. */
+  private comboHtml(o: { menu: string; icon: string; label: string; count: number; title: string }): string {
+    return `<button class="rb-combo" data-menu="${esc(o.menu)}" title="${esc(o.title)}" aria-haspopup="true">
+        <span class="rb-ico">${icon(o.icon, 20)}</span>
+        <span class="rb-combo-label">${esc(o.label)}</span>
+        <span class="rb-combo-count">${o.count}</span>
+        <span class="rb-caret">${icon('caret', 12)}</span>
+      </button>`;
+  }
+
+  /** The little expand/collapse affordance in a group's title. */
+  private galleryToggle(): string {
+    return this.layout.compact
+      ? `<button class="rb-title-btn" data-gallery="expand" title="Show these as a gallery">${icon('gallery', 10)}</button>`
+      : `<button class="rb-title-btn" data-gallery="collapse" title="Collapse these into a list">${icon('grid', 10)}</button>`;
+  }
+
+  private openMenu(anchor: HTMLElement, kind: string) {
+    const rows = kind === 'recipes' ? this.recipeRows() : kind.startsWith('plugin:') ? this.pluginRows(kind.slice(7)) : '';
+    if (!rows) return;
+    const el = document.createElement('div');
+    el.className = 'rb-menu';
+    el.dataset.kind = kind;
+    el.innerHTML = rows;
+    document.body.appendChild(el);
+    const r = anchor.getBoundingClientRect();
+    const w = Math.max(el.offsetWidth, 240);
+    el.style.width = `${w}px`;
+    el.style.left = `${Math.max(4, Math.min(r.left, window.innerWidth - w - 8))}px`;
+    el.style.top = `${r.bottom + 3}px`;
+    el.style.maxHeight = `${Math.max(180, Math.min(window.innerHeight - r.bottom - 24, window.innerHeight * 0.62))}px`;
+    el.onclick = (e) => {
+      const t = e.target as HTMLElement;
+      const rec = t.closest<HTMLElement>('[data-recipe]');
+      if (rec?.dataset.recipe) {
+        this.closeMenu();
+        this.setStatus(`Running ${rec.dataset.recipe}…`);
+        this.showTab('bottom', 'automate');
+        void this.host.runRecipe(rec.dataset.recipe);
+        return;
+      }
+      const tool = t.closest<HTMLElement>('[data-plugin-tool]')?.dataset.pluginTool;
+      if (tool) {
+        this.closeMenu();
+        const [pid, tid] = tool.split('/');
+        const p = this.host.plugins()?.plugins.find((x) => x.id === pid);
+        const tl = p?.tools.find((x) => x.id === tid);
+        if (p && tl) this.host.plugins()?.openTool(p, tl);
+      }
+    };
+    anchor.classList.add('on');
+    this.menu = el;
+  }
+
+  private closeMenu() {
+    if (!this.menu) return;
+    const kind = this.menu.dataset.kind;
+    this.menu.remove();
+    this.menu = null;
+    document.querySelectorAll<HTMLElement>('.rb-combo.on').forEach((b) => {
+      if (!kind || b.dataset.menu === kind) b.classList.remove('on');
+    });
+  }
+
+  private recipeRows(): string {
+    const head = `<div class="rb-menu-head"><span>Recipes</span><span class="dim">${this.recipes.length} — click to run</span></div>`;
+    const rows = this.recipes
+      .map((x) => {
+        const desc = (x.description ?? '').replace(/\s+/g, ' ').trim();
+        return `<button class="rb-menu-row" data-recipe="${esc(x.id)}" title="${esc(desc)}">
+          <span class="rm-ico">${icon(recipeIcon(x), 16)}</span>
+          <span class="rm-txt"><span class="rm-name">${esc(x.title ?? x.id)}</span>${
+            desc ? `<span class="rm-desc">${esc(desc.length > 90 ? `${desc.slice(0, 90)}…` : desc)}</span>` : ''
+          }</span></button>`;
+      })
+      .join('');
+    return head + rows;
+  }
+
+  private pluginRows(pluginId: string): string {
+    const p = this.host.plugins()?.plugins.find((x) => x.id === pluginId);
+    if (!p) return '';
+    const head = `<div class="rb-menu-head"><span>${esc(p.name)}</span><span class="dim">${esc(p.source)} plugin</span></div>`;
+    const rows = p.tools
+      .map(
+        (t) => `<button class="rb-menu-row" data-plugin-tool="${esc(p.id)}/${esc(t.id)}" title="${esc(t.summary || t.name)}">
+          <span class="rm-ico">${icon(t.icon ?? 'grid', 16)}</span>
+          <span class="rm-txt"><span class="rm-name">${esc(t.name)}</span>${
+            t.summary ? `<span class="rm-desc">${esc(t.summary.length > 90 ? `${t.summary.slice(0, 90)}…` : t.summary)}</span>` : ''
+          }</span></button>`,
+      )
+      .join('');
+    return head + rows || head + '<div class="rb-menu-empty">no tools</div>';
   }
 
   private async run(id: string) {
@@ -673,6 +836,12 @@ export class Workbench {
   // ---------------------------------------------------------------- keyboard
 
   private wireKeyboard() {
+    document.addEventListener('mousedown', (e) => {
+      if (!this.menu) return;
+      const t = e.target as HTMLElement;
+      if (t.closest('.rb-menu') || t.closest('[data-menu]')) return;
+      this.closeMenu();
+    });
     window.addEventListener('keydown', (e) => {
       const tag = (e.target as HTMLElement)?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable;
@@ -686,6 +855,7 @@ export class Workbench {
         const hit = COMMANDS.find((c) => c.keys && c.keys.length === 1 && c.keys.toLowerCase() === e.key.toLowerCase());
         if (hit) { e.preventDefault(); void this.run(hit.id); return; }
       }
+      if (e.key === 'Escape' && this.menu) { e.preventDefault(); this.closeMenu(); return; }
       if (e.key === 'Escape' && this.paletteOpen) {
         const box = document.querySelector<HTMLElement>('#palette');
         if (box) box.hidden = true;
