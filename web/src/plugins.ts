@@ -20,7 +20,7 @@ export interface ToolSpec {
   name: string;
   summary: string;
   group: string;
-  params: ParamSpec[];
+  params?: ParamSpec[];
   recipe?: string;
   icon?: string;
 }
@@ -228,7 +228,8 @@ export class PluginsPane {
   openTool(p: PluginInfo, tool: ToolSpec) {
     const layers = this.host.layers();
     const field = (l: { fields?: { name: string; kind: string }[] }) => l.fields ?? [];
-    const inputs = tool.params
+    const params = tool.params ?? [];
+    const inputs = params
       .map((prm) => {
         const v = prm.default ?? '';
         if (prm.kind === 'layer') {
@@ -256,7 +257,7 @@ export class PluginsPane {
           <input type="${type}" data-p="${esc(prm.name)}" value="${esc(String(v))}" placeholder="${esc(prm.description ?? '')}" /></label>`;
       })
       .join('');
-    const body = tool.params.length ? inputs : `<p class="dim">This tool takes no parameters.</p>`;
+    const body = params.length ? inputs : `<p class="dim">This tool takes no parameters.</p>`;
     this.modal.innerHTML = `<div class="sheet">
       <header>
         <div>

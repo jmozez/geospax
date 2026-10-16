@@ -3,6 +3,28 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.1] — 2026-10-16
+
+### Fixed
+- **The recipe gallery ate the whole ribbon.** Ten recipe cards side by side made the Analyze tab
+  scroll sideways and pushed the real buttons off screen. Recipes are now **one dropdown button** —
+  the same way ArcGIS Pro collapses a gallery — that opens a list of every recipe with its icon,
+  title and one-line description; picking a row runs it. `Escape`, a click outside, or a second click
+  on the button closes the list.
+- Plugin groups with more than three tools collapse the same way, so a plugin never costs a row.
+
+### Fixed
+- Clicking a plugin tool that declares **no parameters** crashed (`Cannot read properties of
+  undefined (reading 'map')`) instead of opening its dialog: the engine skipped empty `params` arrays
+  when serialising a tool, so the front end read `undefined`. The engine now always emits the arrays
+  the front end reads, and the pane tolerates a manifest that omits them. Found by the new dropdown
+  test, which clicks a five-tool plugin whose tools take no arguments.
+
+### Added
+- A small **expand/collapse** affordance in the group title switches back to the old card gallery
+  (and the choice is remembered per browser), plus two palette commands: *Ribbon galleries: expand
+  recipes instead of a list* / *…collapse to a list*.
+
 ## [1.8.0] — 2026-10-16
 
 **Plugins — one tool model, five ecosystems.** GeoSpaX had no plugin story at all. It now reads the

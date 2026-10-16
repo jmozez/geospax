@@ -50,7 +50,8 @@ for (const [tab, min] of [['data', 4], ['style', 3], ['analyze', 6], ['view', 5]
 }
 await page.click('#ribbon-tabs [data-tab="analyze"]');
 await page.waitForTimeout(400);
-ok('analyze shows recipes', (await page.$$('#ribbon-body [data-recipe]')).length > 5, `${(await page.$$('#ribbon-body [data-recipe]')).length} recipes`);
+const behindButton = Number((await page.textContent('#ribbon-body .rb-combo-count')) ?? 0);
+ok('analyze carries the recipes behind one dropdown', behindButton > 5, `${behindButton} recipes, one button`);
 await page.screenshot({ path: `${out}/workbench-02-analyze.png` });
 
 console.log('\n3 · dock tabs');
@@ -150,17 +151,83 @@ if (firstRun) {
 }
 await page.screenshot({ path: `${out}/workbench-08-plugins.png` });
 
-console.log('\n9 · Analyze gallery is not a row of identical play buttons');
+console.log('\n9 · Analyze: recipes collapse into a dropdown instead of eating the ribbon');
 await page.click('#ribbon-tabs [data-tab="analyze"]');
-await page.waitForSelector('#ribbon-body .rb-recipe', { timeout: 15_000 });
+await page.waitForSelector('#ribbon-body .rb-combo', { timeout: 15_000 });
+const cardEls = await page.$$('#ribbon-body .rb-recipe');
+ok('no big recipe cards in the ribbon', cardEls.length === 0, `${cardEls.length} cards`);
+const groupW = await page.$eval('#ribbon-body [data-group="recipes"]', (e) => Math.round(e.getBoundingClientRect().width));
+ok('the recipe group is one button wide', groupW <= 220, `${groupW}px`);
+const combo = await page.textContent('#ribbon-body .rb-combo');
+ok('the button says what it is and how many', /Recipes/.test(combo) && /\d/.test(combo), combo.replace(/\s+/g, ' ').trim());
+
+await page.click('#ribbon-body .rb-combo');
+await page.waitForSelector('.rb-menu', { timeout: 5000 });
+const menuRows = await page.$$eval('.rb-menu .rb-menu-row', (els) => els.map((e) => ({
+  name: e.querySelector('.rm-name')?.textContent?.trim(),
+  desc: e.querySelector('.rm-desc')?.textContent?.trim() ?? '',
+  icon: e.querySelector('.rm-ico path')?.getAttribute('d') ?? '',
+})));
+ok('the dropdown lists every recipe', menuRows.length >= 10, `${menuRows.length} rows`);
+ok('rows carry an icon and a description',
+  menuRows.filter((r) => r.desc.length > 20).length >= 6 && new Set(menuRows.map((r) => r.icon)).size >= 4,
+  `${new Set(menuRows.map((r) => r.icon)).size} distinct icons, ${menuRows.filter((r) => r.desc.length > 20).length} described`);
+const menuBox = await page.$eval('.rb-menu', (e) => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), left: Math.round(r.left) }; });
+ok('the list opens under the button, inside the window', menuBox.left >= 4 && menuBox.w >= 240 && menuBox.h > 100, JSON.stringify(menuBox));
+await page.screenshot({ path: `${out}/workbench-09-recipes-dropdown.png` });
+
+// clicking a row runs that recipe
+await page.locator('.rb-menu .rb-menu-row').first().click();
+await page.waitForFunction(() => !document.querySelector('.rb-menu'), null, { timeout: 5000 });
+ok('picking a row closes the list and starts the recipe',
+  /Running/.test(await page.textContent('#statusbar')) , (await page.textContent('#statusbar')).slice(0, 60));
+await page.waitForTimeout(1500);
+
+// Escape closes it too
+await page.click('#ribbon-body .rb-combo');
+await page.waitForSelector('.rb-menu');
+await page.keyboard.press('Escape');
+await page.waitForFunction(() => !document.querySelector('.rb-menu'), null, { timeout: 3000 });
+ok('Escape closes the list', true);
+
+// the gallery is still there for people who want it
+await page.click('#ribbon-body [data-gallery="expand"]');
+await page.waitForSelector('#ribbon-body .rb-recipe', { timeout: 10_000 });
 const paths = await page.$$eval('#ribbon-body .rb-recipe .rr-ico path', (els) => els.map((e) => e.getAttribute('d')));
-ok('recipe cards render', paths.length >= 8, `${paths.length} cards`);
+ok('expanding brings the gallery back', paths.length >= 8, `${paths.length} cards`);
 ok('icons differ per recipe', new Set(paths).size >= 4, `${new Set(paths).size} distinct icons of ${paths.length}`);
-ok('each card explains itself',
-  (await page.$$eval('#ribbon-body .rr-desc', (els) => els.filter((e) => e.textContent.trim().length > 20).length)) >= 6);
 const play = paths.filter((d) => d.startsWith('M7 4l13 8-13 8z')).length;
 ok('the fallback play icon is the exception, not the rule', play <= paths.length / 3, `${play} of ${paths.length} cards`);
-await page.screenshot({ path: `${out}/workbench-09-analyze-gallery.png` });
+await page.screenshot({ path: `${out}/workbench-10-analyze-gallery.png` });
+await page.click('#ribbon-body [data-gallery="collapse"]');
+await page.waitForSelector('#ribbon-body .rb-combo', { timeout: 5000 });
+ok('collapsing again is one click', true);
+
+console.log('\n10 · a plugin with more than three tools collapses too');
+const pluginCombo = '#ribbon-body [data-menu^="plugin:"]';
+if ((await page.$$(pluginCombo)).length) {
+  await page.click(pluginCombo);
+  await page.waitForSelector('.rb-menu', { timeout: 5000 });
+  const toolRows = await page.$$eval('.rb-menu .rb-menu-row', (els) => els.map((e) => e.querySelector('.rm-name')?.textContent?.trim()));
+  ok('the plugin list shows its tools', toolRows.length >= 4, `${toolRows.length}: ${toolRows.slice(0, 3).join(', ')}…`);
+  await page.locator('.rb-menu .rb-menu-row').first().click();
+  await page.waitForSelector('#plugin-modal:not([hidden])', { timeout: 8000 });
+  ok('picking a tool opens its dialog', /Run/.test(await page.textContent('#plugin-modal')));
+  // a tool with no declared parameters used to crash openTool()
+  ok('a tool with no parameters renders an empty form',
+    /no parameters/.test(await page.textContent('#plugin-modal')));
+  await page.click('#plugin-modal [data-run-tool]');
+  await page.waitForFunction(() => {
+    const el = document.querySelector('#plugin-modal #plugin-msg');
+    return el && el.textContent.trim() && el.textContent.trim() !== 'Running…';
+  }, null, { timeout: 60_000 }).catch(() => {});
+  const msg = (await page.textContent('#plugin-modal #plugin-msg')) ?? '';
+  ok('and it still runs', msg.trim().length > 0 && msg.trim() !== 'Running…', msg.slice(0, 60));
+  await page.screenshot({ path: `${out}/workbench-11-plugin-dropdown.png` });
+  await page.keyboard.press('Escape');
+} else {
+  console.log('  (no plugin with more than three tools loaded — skipped)');
+}
 
 console.log(`\nconsole problems: ${problems.length}`);
 for (const p of problems.slice(0, 10)) console.log(`  ${p}`);

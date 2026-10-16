@@ -44,7 +44,7 @@ pub struct ParamSpec {
     pub default: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub choices: Vec<String>,
 }
 
@@ -62,7 +62,8 @@ pub struct ToolSpec {
     /// Ribbon group (and the toolbox name in the Geoprocessing list).
     #[serde(default)]
     pub group: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// Always serialised (even when empty): the front end reads `tool.params` directly.
+    #[serde(default)]
     pub params: Vec<ParamSpec>,
     /// `recipe` plugins only: which recipe this tool runs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
