@@ -215,6 +215,41 @@ impl Engine {
                 (None, _) => ApiResponse::error(404, format!("unknown raster '{id}'")),
                 _ => ApiResponse::error(400, "style must be a JSON object"),
             },
+            // Plugins (docs/PLUGINS.md): tools and ribbon commands from GeoSpaX, RustGIS,
+            // GeoLibre, QGIS and ArcGIS Pro packages.
+            ("GET", ["api", "plugins"]) => ApiResponse::json(200, &json!({
+                "plugins": self.plugins.list(),
+                "runtimes": self.plugins.runtimes(),
+                "dirs": self.plugins.dirs(),
+            })),
+            ("POST", ["api", "plugins", "reload"]) => {
+                self.plugins.reload();
+                ApiResponse::json(200, &json!({ "plugins": self.plugins.list() }))
+            },
+            ("POST", ["api", "plugins", "import"]) => {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let path = body.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                if path.is_empty() {
+                    ApiResponse::error(400, "import needs {\"path\": \"…\"}")
+                } else {
+                    match self.plugins.install(std::path::Path::new(path)) {
+                        Ok(info) => ApiResponse::json(200, &json!({ "plugin": info, "plugins": self.plugins.list() })),
+                        Err(e) => ApiResponse::error(400, e),
+                    }
+                }
+            },
+            ("GET", ["api", "plugins", id]) => match self.plugins.get(id) {
+                Some(info) => ApiResponse::json(200, &serde_json::to_value(info).unwrap_or(serde_json::Value::Null)),
+                None => ApiResponse::error(404, format!("unknown plugin '{id}'")),
+            },
+            ("POST", ["api", "plugins", id, "tools", tool, "run"]) => {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let params = body.get("params").and_then(|v| v.as_object()).cloned().unwrap_or_default();
+                match self.plugins.run_tool(self, id, tool, params) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            },
             ("GET", ["api", "recipes"]) => ApiResponse::json(200, &self.automation.summary_json()),
             ("GET", ["api", "steps"]) => ApiResponse::json(200, &json!({ "steps": crate::automation::catalogue_json() })),
             ("POST", ["api", "recipes", "validate"]) => self.recipe_validate(&req.body),

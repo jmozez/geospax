@@ -118,6 +118,50 @@ await page.waitForTimeout(1200);
 ok('attributes tab restored', await page.$eval('#attributes', (el) => el.closest('section').classList.contains('on')));
 await page.screenshot({ path: `${out}/workbench-06-final.png` });
 
+console.log('\n8 · plugins pane (docs/PLUGINS.md)');
+await page.click('#dock-bottom .dock-tabs [data-tab="plugins"]');
+await page.waitForSelector('#plugins .plugin', { timeout: 15_000 });
+const cards = await page.$$eval('#plugins .plugin .p-name', (els) => els.map((e) => e.textContent.trim()));
+ok('plugins listed', cards.length >= 2, cards.join(' · '));
+ok('tools listed', (await page.$$('#plugins .tool-row button')).length >= 2, `${(await page.$$('#plugins .tool-row button')).length} tools`);
+ok('source badges shown', (await page.$$('#plugins .badge')).length >= 2);
+const firstRun = await page.$('#plugins .tool-row button:not([disabled])');
+if (firstRun) {
+  await firstRun.click();
+  await page.waitForSelector('#plugin-modal:not([hidden])', { timeout: 10_000 });
+  ok('tool dialog opens', true, await page.$eval('#plugin-modal header b', (e) => e.textContent.trim()));
+  await page.click('#plugin-modal [data-run-tool]');
+  await page
+    .waitForFunction(
+      () => {
+        const t = (document.querySelector('#plugin-msg')?.textContent ?? '').trim();
+        return t.length > 0 && t !== 'Running…';
+      },
+      null,
+      { timeout: 60_000, polling: 300 },
+    )
+    .catch(() => {});
+  const msg = await page.$eval('#plugin-msg', (e) => e.textContent.trim());
+  ok('tool ran from the UI', /report for|Recipe started|ok/.test(msg), msg.slice(0, 70));
+  await page.screenshot({ path: `${out}/workbench-07-plugin-tool.png` });
+  await page.keyboard.press('Escape');
+} else {
+  ok('a runnable tool is enabled', false, 'none enabled');
+}
+await page.screenshot({ path: `${out}/workbench-08-plugins.png` });
+
+console.log('\n9 · Analyze gallery is not a row of identical play buttons');
+await page.click('#ribbon-tabs [data-tab="analyze"]');
+await page.waitForSelector('#ribbon-body .rb-recipe', { timeout: 15_000 });
+const paths = await page.$$eval('#ribbon-body .rb-recipe .rr-ico path', (els) => els.map((e) => e.getAttribute('d')));
+ok('recipe cards render', paths.length >= 8, `${paths.length} cards`);
+ok('icons differ per recipe', new Set(paths).size >= 4, `${new Set(paths).size} distinct icons of ${paths.length}`);
+ok('each card explains itself',
+  (await page.$$eval('#ribbon-body .rr-desc', (els) => els.filter((e) => e.textContent.trim().length > 20).length)) >= 6);
+const play = paths.filter((d) => d.startsWith('M7 4l13 8-13 8z')).length;
+ok('the fallback play icon is the exception, not the rule', play <= paths.length / 3, `${play} of ${paths.length} cards`);
+await page.screenshot({ path: `${out}/workbench-09-analyze-gallery.png` });
+
 console.log(`\nconsole problems: ${problems.length}`);
 for (const p of problems.slice(0, 10)) console.log(`  ${p}`);
 ok('no console errors', problems.length === 0, problems.slice(0, 2).join(' / '));

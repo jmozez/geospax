@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArcGIS defaultAssembly="ProAppModule.dll" defaultNamespace="ProAppModule"
+        xmlns="http://schemas.esri.com/DADF/Registry" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <AddInInfo id="{63e68afa-6999-4a28-9a19-4ac5e5f3aedf}" version="1.0" desktopVersion="3.0.0">
+    <Name>Field Tools</Name>
+    <Description>Two field tools for ArcGIS Pro: a photo point extractor and a track summary.</Description>
+    <Image>Images\AddinDesktop32.png</Image>
+    <Author>Acme</Author>
+    <Company>Acme</Company>
+    <Date>25/01/2022 22:30:50</Date>
+    <Subject>Geoprocessing</Subject>
+  </AddInInfo>
+  <modules>
+    <insertModule id="ProAppModule_Module" className="Module1" autoLoad="false" caption="Field Tools">
+      <tabs>
+        <tab id="ProAppModule_Tab1" caption="Field Tools" keytip="FT">
+          <group refID="ProAppModule_Group1"/>
+        </tab>
+      </tabs>
+      <groups>
+        <group id="ProAppModule_Group1" caption="Photos" appearsOnAddInTab="false" keytip="PH">
+          <button refID="ProAppModule_Button1" size="large"/>
+          <tool refID="ProAppModule_Tool1" size="large"/>
+        </group>
+      </groups>
+      <controls>
+        <button id="ProAppModule_Button1" caption="Photo points" className="PhotoPoints" loadOnClick="true"
+                smallImage="Images\GenericButtonBlue16.png" largeImage="Images\GenericButtonBlue32.png"
+                condition="esri_mapping_mapPane" keytip="PP">
+          <tooltip heading="Photo points">Extract geotagged photo locations<Tooltip/>
+        </button>
+        <tool id="ProAppModule_Tool1" caption="Measure track" className="MeasureTrack" loadOnClick="true"
+              smallImage="Images\GenericButtonBlue16.png" largeImage="Images\GenericButtonBlue32.png" keytip="MT">
+          <tooltip heading="Measure track">Click two points to measure a track<Tooltip/>
+        </tool>
+      </controls>
+    </insertModule>
+  </modules>
+</ArcGIS>

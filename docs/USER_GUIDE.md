@@ -117,6 +117,30 @@ calls the recipes use.
 
 Pane sizes, which tab is open and which panes are collapsed are remembered per browser/app.
 
+## 2c. Plugins: tools from five ecosystems
+
+Open the **Plugins** tab (bottom dock). Every plugin is a folder with a manifest, and GeoSpaX reads
+five formats, so a tool written for another GIS shows up here:
+
+| Written for | File it looks for | What runs |
+| --- | --- | --- |
+| GeoSpaX | `plugin.yaml` | `process`, `python`, `r`, `wasm`, `recipe` tools |
+| RustGIS (`.rgplugin`) | `plugin.json` + `plugin.wasm` | the WASM module, through `wasmtime`/`wasm3`/`deno` |
+| GeoLibre | `plugin.json`, WASM tool bundles | its tools (WASI); its React UI cannot run here |
+| QGIS | `metadata.txt` | its **processing algorithms** through `qgis_process`; its PyQt UI cannot run here |
+| ArcGIS Pro (`.esriAddInX`) | `Config.daml` (+ `Toolboxes/*.pyt`) | its **Python toolbox** tools through arcpy; the .NET assembly cannot run here |
+
+**Using one:** click a tool's **Run…**, fill in the form, press Run. The result (or the recipe run it
+started) is reported in the pane and in the log; recipe-backed tools also appear in **History**.
+
+**Installing:** paste a folder or package path (`.rgplugin`, `.esriAddInX`, `.zip`) into the box at
+the top of the pane, or `geospax-server plugins import PATH` on the command line. Plugins are stored
+in `<state>/.geospax/plugins`; `--plugins DIR` adds a folder you are developing in.
+
+**Writing one:** copy `plugins/example-python` — a `plugin.yaml` with tools and parameters, plus a
+script that reads a JSON request on stdin and prints JSON back. Full contract, runtimes and the
+honest compatibility table: [PLUGINS.md](PLUGINS.md).
+
 ## 3. Where things go
 
 The installed desktop app keeps everything in one folder:

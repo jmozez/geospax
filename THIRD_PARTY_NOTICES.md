@@ -36,6 +36,8 @@ The 1.7 workbench borrows, with attribution and re-implemented in TypeScript:
 | Ribbon vocabulary: Home · Data · Style · Analyze · View · Publish/Share | `web/src/commands.ts` → `TABS` (`home`, `data`, `style`, `analyze`, `view`, `automate`, `help`) |
 | Panes as first-class docks around a map that owns the middle | `web/src/workbench.ts`, `web/index.html` (`#dock-left`, `#center`, `#dock-right`, `#dock-bottom`) |
 | Commands never open a modal themselves; the shell decides | every `run()` in `commands.ts` calls `showTab()`/`setStatus()`/`log()` instead of rendering UI |
+| Plugin model: manifest + sandboxed WASM module, hashed packages, permissions, commands callable from ribbon/palette/CLI | GeoSpaX 1.8 `crates/engine/src/plugins.rs` — `plugin.yaml`, `--plugins DIR`, `plugins list/check/import` |
+| Honest degradation: a plugin whose runtime is missing is listed with `needs: …` rather than dropped | `PluginInfo.runnable` / `PluginInfo.needs`, shown in the Plugins pane |
 
 **No RustGIS source file was copied.** GeoSpaX's shell is TypeScript rendered in
 a browser/Tauri webview; RustGIS's is Rust/egui. The items above are
@@ -61,6 +63,11 @@ permissively-licensed desktop GIS puts on screen. It shaped GeoSpaX 1.7's
 * the decision to make the **attribute table** a peer of the map rather than a
   dialog (including paging, field list and a chart view);
 * the expectation that styling, labelling and layer order are dockable, not modal.
+
+The GeoSpaX plugin runtime also follows **GeoLibre's** WASI tool contract
+([geolibre-rust](https://github.com/opengeos/geolibre-rust)): tools take arguments and
+read/write files under a sandbox directory (`/work`), which is why the same WASM
+tool can be driven by either app.
 
 **No GeoLibre source file was copied** — GeoSpaX renders with its own
 server-side tile pipeline (MapLibre + GeoArrow/Arrow IPC) and its own automation
@@ -96,7 +103,13 @@ SOFTWARE.
   GIS. Only its conventions (ribbon, docked panes, status bar, scale readout,
   Ctrl+K-style command search) are mirrored; no Esri code, asset or icon is
   included, and none of its file formats are implemented.
-* **QGIS**, **GRASS GIS**, **SAGA GIS**, **MapInfo**, **ERDAS Imagine** — the
+* **QGIS** — GeoSpaX runs a QGIS plugin's **processing algorithms** through the documented
+  `qgis_process` CLI (`list`/`help`/`run --json`). Its PyQt interface cannot be hosted, and the
+  Plugins pane says so.
+* **ArcGIS Pro** — GeoSpaX imports an add-in's ribbon from `Config.daml` and runs its **Python
+  toolbox** (`.pyt`) tools through arcpy. The compiled .NET assembly cannot run (no CLR) and this
+  is reported on the plugin's card.
+* **GRASS GIS**, **SAGA GIS**, **MapInfo**, **ERDAS Imagine** — the
   analysis vocabulary GeoSpaX's recipes and terrain/remote-sensing steps follow.
 * **MapLibre GL JS** (BSD-3-Clause) and **deck.gl** (MIT) render the map; the
   attribution control in the app lists the data sources.

@@ -10,6 +10,12 @@ GeoSpaX borrows proven features from commercial and open-source GIS, remote-sens
 **How each feature is built:** `N` native Rust engine · `G` GDAL/PDAL/PROJ in-process · `P` provider process · `R` R step · `Py` Python step · `W` WASM in the web edition · `AI` optional LLM.
 **Phase** (see [TECH_STACK §8](../../gis-platform-research/TECH_STACK.md#8-phased-roadmap)): P1 Viewer · P2 Autopilot · P3 Field & sensors · P4 Remote-sensing & geostats autopilot · P5 Cartographer & publisher · P6 Platform. ✅ built · 🚧 started.
 
+**Plugins (1.8):** one tool model that reads the manifests of five ecosystems — GeoSpaX `plugin.yaml`,
+RustGIS `.rgplugin` (Apache-2.0), GeoLibre `plugin.json` + WASI tool bundles (MIT), QGIS `metadata.txt`
+(algorithms through `qgis_process`) and ArcGIS Pro `Config.daml` + `.pyt` (ribbon imported, Python
+toolbox tools run through arcpy; the .NET assembly cannot). Runtimes: recipe, process, python, r, wasm.
+Each plugin reports honestly what it needs when a runtime is missing ([PLUGINS.md](PLUGINS.md)).
+
 **Desktop workbench (1.7):** ribbon with 40 commands, dockable panes (Contents/Catalog/Project · Symbology/**
 Attributes**/Rasters/Devices · Automate/History/Log), command palette (`Ctrl+K`), paged attribute table with
 zoom-to-row and charts, run history, status bar, resizable and collapsible docks, Identify popups. Structure modelled

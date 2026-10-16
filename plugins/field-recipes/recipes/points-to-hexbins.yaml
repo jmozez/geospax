@@ -1,0 +1,28 @@
+# Too many points to read? Auto-sized hexagons coloured by count.
+recipe: points-to-hexbins
+version: 1
+title: Too many points? Hexagon density map
+description: >-
+  Turns a big point layer (sensor readings, incidents, photos, a million GPS fixes) into an
+  auto-sized hexagon grid coloured by how many points fall in each cell.
+inputs:
+  layer: { type: layer, default: auto, description: point layer (auto = the largest one loaded) }
+steps:
+  - id: points
+    use: io.open
+    with: { layer: "${inputs.layer}", kind: point, prefer: largest }
+  - id: hex
+    use: aggregate.hexbin
+    with: { layer: "${points.layer}", name: hexbins }
+  - id: style
+    use: automap.style
+    with: { layers: ["${hex.layer}"], field: count }
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { layers: ["${hex.layer}"], title: "Point density · ${points.layer}" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Point density · ${run.date}" }
+outputs: [hex, map, report]

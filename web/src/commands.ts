@@ -368,6 +368,29 @@ export function commandHtml(c: Command, big = false): string {
   </button>`;
 }
 
+/** Pick an icon for a recipe from its id and title, so the gallery is not 15 play buttons. */
+export function recipeIcon(recipe: { id: string; title?: string }): string {
+  const t = `${recipe.id} ${recipe.title ?? ''}`.toLowerCase();
+  if (/hotspot|cluster|moran/.test(t)) return 'hotspot';
+  if (/krig|interpolat|idw|surface|sample/.test(t)) return 'chart';
+  if (/hexbin|grid|fishnet|bin/.test(t)) return 'grid';
+  if (/terrain|hillshade|slope|aspect|contour|dem|relief/.test(t)) return 'image';
+  if (/ndvi|index|satellite|landsat|sentinel|true.?colour/.test(t)) return 'satellite';
+  if (/python|r-kriging|script/.test(t)) return 'terminal';
+  if (/photo|image|camera/.test(t)) return 'camera';
+  if (/track|gps|nmea|route|waypoint/.test(t)) return 'satellite';
+  if (/sensor|air|quality|weather|water/.test(t)) return 'satellite';
+  if (/landform|wetness|grass|saga/.test(t)) return 'layers';
+  if (/my-map|saved/.test(t)) return 'save';
+  if (/lidar|point.?cloud|canopy|building|tree/.test(t)) return 'grid';
+  if (/scene|3d|gltf/.test(t)) return 'grid';
+  if (/drone|flight|uav/.test(t)) return 'satellite';
+  if (/report|pdf|print|layout/.test(t)) return 'print';
+  if (/buffer|clip|dissolve|union|intersect|select/.test(t)) return 'layers';
+  if (/schedule|webhook|stac|trigger/.test(t)) return 'clock';
+  return 'play';
+}
+
 /** Group the commands of one tab, in ribbon order. */
 export function groupsFor(tab: TabId): { group: string; items: Command[] }[] {
   const out: { group: string; items: Command[] }[] = [];

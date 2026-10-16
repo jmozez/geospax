@@ -1,0 +1,39 @@
+# An example GeoSpaX plugin: two tools, written in Python, no compiling.
+# Copy this folder into <state>/plugins/ (or pass --plugins DIR) to try it.
+# The engine hands the tool a JSON request on stdin and reads JSON back from stdout.
+plugin: example-python
+version: 0.1.0
+title: Example Python tools
+description: >-
+  Two small tools that show the plugin contract: a layer report and a grid of points.
+  Runs on python3 alone, so it works everywhere the engine does.
+author: GeoSpaX
+license: MIT
+homepage: https://github.com/jmozez/geospax
+kind: python
+run: python3 ${plugin}/tools.py ${tool}
+tools:
+  - id: layer-report
+    name: Layer report
+    summary: Row count, field list and a value count for one layer.
+    group: Example
+    icon: chart
+    params:
+      - name: layer
+        label: Layer
+        kind: layer
+        required: true
+      - name: field
+        label: Count values of
+        kind: field
+  - id: point-grid
+    name: Point grid
+    summary: Hexagon or square grid over a layer's extent, as GeoJSON.
+    group: Example
+    icon: grid
+    params:
+      - { name: layer, label: Over, kind: layer, required: true }
+      - { name: size, label: Cell size (m), kind: number, default: 500, required: true }
+      - { name: shape, label: Shape, kind: choice, default: hex, choices: [hex, square] }
+commands:
+  - { id: about, title: About this plugin, icon: check, group: Example }

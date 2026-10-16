@@ -3,6 +3,48 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] — 2026-10-16
+
+**Plugins — one tool model, five ecosystems.** GeoSpaX had no plugin story at all. It now reads the
+manifest formats people already write for, so a tool shows up in the ribbon whether it was authored
+for GeoSpaX, **RustGIS**, **GeoLibre**, **QGIS** or **ArcGIS Pro** — and where something cannot run
+here, the Plugins pane says what is missing instead of hiding it ([docs/PLUGINS.md](docs/PLUGINS.md)).
+
+| Ecosystem | Read | Runs |
+| --- | --- | --- |
+| GeoSpaX `plugin.yaml` | manifest, tools, commands | ✅ `process` · `python` · `r` · `wasm` · `recipe` |
+| RustGIS `.rgplugin` | `plugin.json` (commands, tools, params, permissions) | ✅ the WASM module through `wasmtime`/`wasm3`/`deno` |
+| GeoLibre | `plugin.json`, WASM tool bundles | ✅ its tools (WASI "tools over `/work`"); ❌ its React UI |
+| QGIS | `metadata.txt` (`hasProcessingProvider=yes`) | ✅ its processing algorithms through `qgis_process`; ❌ its PyQt UI |
+| ArcGIS Pro `.esriAddInX` | `Config.daml` + `Toolboxes/*.pyt` | ✅ Python toolbox tools through arcpy; ❌ the .NET assembly (no CLR) |
+
+### Added
+- **Plugin registry** (`crates/engine/src/plugins.rs`): discovery across `--plugins DIR` folders and
+  `<state>/plugins`, five manifest readers, runtimes detection, install with path-traversal and
+  size checks, duplicate-id resolution (installed wins over a folder copy).
+- **Four runtimes**: `recipe` (runs through the automation engine, so tools get triggers, history and
+  artifacts), `process`/`python`/`r` (JSON on stdin → JSON on stdout), `wasm` (WASI runner), and
+  `qgis_process`/`arcpy` bridges for the two foreign ecosystems.
+- **API**: `GET /api/plugins`, `POST /api/plugins/reload|import`,
+  `POST /api/plugins/{plugin}/tools/{tool}/run`.
+- **CLI**: `geospax-server plugins list|check PATH|import PATH`.
+- **Plugins pane** (bottom dock, `web/src/plugins.ts`): one card per plugin with its source badge,
+  runnable state, honest `needs …` note, every tool with a generated parameter form, and an
+  install box for folders and packages.
+- **Ribbon**: plugin tools get a group of their own on **Analyze**, and every plugin tool is in the
+  command palette (`Ctrl+K`).
+- Two shipped examples: `plugins/example-python` (2 Python tools) and `plugins/field-recipes`
+  (2 recipes packaged as tools), plus fixtures for all four foreign formats under
+  `tests/fixtures/plugins/`.
+
+### Fixed
+- The **Analyze** tab showed every recipe as the same big play button. Recipes now render as cards
+  with an icon chosen from the recipe's subject (hot spots, kriging, terrain, NDVI, photos, tracks,
+  LiDAR, sensors, GRASS/SAGA …), the title and one line of description: 10 cards, 6 distinct icons,
+  none of them the fallback.
+- Plugin tools could deadlock: the engine wrote the request but never closed the tool's stdin, so a
+  tool waiting for EOF never returned. The pipe is now closed after the write.
+
 ## [1.7.0] — 2026-10-16
 
 **A desktop-GIS workbench, not a sidebar.** GeoSpaX now opens the way a professional GIS looks: a **ribbon** across the
