@@ -7,7 +7,8 @@ import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
 
-export type TabId = 'home' | 'data' | 'style' | 'analyze' | 'view' | 'automate' | 'help';
+/** 'layer' is the contextual tab (Pro mode), shown while a layer is selected. */
+export type TabId = 'home' | 'data' | 'style' | 'analyze' | 'view' | 'automate' | 'help' | 'layer';
 
 /** What a command can reach: the map, layers, the backend and a few host actions. */
 export interface CommandHost {
@@ -107,6 +108,24 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 export interface LayerStyleLite { symbology?: { kind?: string } }
 
 export const COMMANDS: Command[] = [
+  // ---- Layer (contextual tab: acts on the selected layer)
+  {
+    id: 'layer.zoom', tab: 'layer', group: 'Layer', title: 'Zoom to', icon: 'zoomTo', big: true,
+    run: (h) => { const id = h.activeId(); if (id) h.fitLayer(id); },
+  },
+  {
+    id: 'layer.table', tab: 'layer', group: 'Layer', title: 'Attribute table', icon: 'table', big: true,
+    run: (h) => { if (h.activeId()) h.showTab('right', 'attributes'); },
+  },
+  {
+    id: 'layer.symbology', tab: 'layer', group: 'Style', title: 'Symbology', icon: 'palette', big: true,
+    run: (h) => { h.showTab('right', 'symbology'); },
+  },
+  {
+    id: 'layer.auto', tab: 'layer', group: 'Style', title: 'AutoMap', icon: 'wand', big: true,
+    hint: 'AutoMap chooses the field, classes and colours, and says why',
+    run: async (h) => { const id = h.activeId(); if (id) await h.autostyle(id); },
+  },
   // ---- Home
   {
     id: 'home.refresh', tab: 'home', group: 'Project', title: 'Refresh', icon: 'refresh', big: true,
