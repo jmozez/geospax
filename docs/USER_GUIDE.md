@@ -161,6 +161,31 @@ Both show the same project: switching never changes the map.
 
 Pane sizes, which tab is open and which panes are collapsed are remembered per browser/app.
 
+### The Toolbox: every tool in one place
+
+The **Toolbox** tab (right pane, both modes; **All tools** in the Lazy task bar, **Analyze → Toolbox** in
+Pro) lists every tool GeoSpaX can run, with one search box:
+
+- **Ready-made analyses**: the recipes. A form, then **▶ Run**: the result joins the map, with a laid-out
+  map and a report under Activity / History. They come first in search results.
+- **Building blocks**: the engine's 36 recipe steps. Each shows the tools it stands in for in ArcGIS Pro,
+  QGIS, GRASS, SAGA and others (*≈ ArcGIS Buffer, QGIS Buffer, GRASS v.buffer…*), so typing the name you
+  know finds the GeoSpaX way, and which ready-made analyses use it.
+- **GeoLibre tools**: 1,062 raster, vector, LiDAR, hydrology, terrain and conversion tools (below).
+- **Plugin tools** from GeoSpaX, RustGIS, QGIS and ArcGIS Pro plugins, each with a badge saying where it
+  comes from.
+
+Recently used tools stay at the top. A tool's page shows what it does and its parameters; **Open the
+tool…** opens its form. Whatever a tool writes is added to the map.
+
+### The layer tree (Pro)
+
+Pro mode's Contents is a tree, as in ArcGIS Pro: **Map** ▸ group layers ▸ layers ▸ legend classes, then the
+basemap. **＋ Group** puts the selected layer in a new group; drag a layer onto a group to add it, onto
+**Map** to take it out, onto another layer to take its place. A group's switch hides all its layers
+without changing their own switches; the twisty (▾/▸) folds a layer's legend; ✎ renames a group
+(or double-click its name) and ⊟ ungroups it, keeping the layers. Groups are saved in the project.
+
 ## 2c. Plugins: tools from five ecosystems
 
 Open the **Plugins** tab (bottom dock). Every plugin is a folder with a manifest, and GeoSpaX reads
@@ -173,6 +198,13 @@ five formats, so a tool written for another GIS shows up here:
 | GeoLibre | `plugin.json`, WASM tool bundles | its tools (WASI); its React UI cannot run here |
 | QGIS | `metadata.txt` | its **processing algorithms** through `qgis_process`; its PyQt UI cannot run here |
 | ArcGIS Pro (`.esriAddInX`) | `Config.daml` (+ `Toolboxes/*.pyt`) | its **Python toolbox** tools through arcpy; the .NET assembly cannot run here |
+
+**GeoLibre tools come with GeoSpaX.** The `geolibre-tools` plugin brings GeoLibre's whole tool runner
+(geolibre-wasm, built on whitebox_next_gen): 1,062 tools, run locally on WebAssembly. They need
+[Node.js](https://nodejs.org) 18 or newer; the runner (about 9 MB) is downloaded once on first use and
+checked against its published checksum. A vector parameter is a layer on the map; raster, LiDAR and
+table parameters take a file path; results are added to the map. Offline machines: see
+`plugins/geolibre-tools/README.md`.
 
 **Removing one:** **Uninstall** on the card (press it twice). Plugins that live in a folder you
 started the server with (`--plugins DIR`) are not deletable from here — the card says "external
