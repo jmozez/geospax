@@ -186,6 +186,8 @@ if [ -n "$MOSQ" ] && command -v openssl >/dev/null; then
     -extfile "$T/server.ext" 2>/dev/null
   printf 'allow_anonymous true\nlistener %s 127.0.0.1\nlistener %s 127.0.0.1\ncafile %s\ncertfile %s\nkeyfile %s\n' \
     "$((PORT + 3))" "$((PORT + 2))" "$T/ca.pem" "$T/server.pem" "$T/server.key" >"$T/mosquitto.conf"
+  # started as root (CI containers), mosquitto drops to its own user, which must reach the certificates
+  chmod a+rx "$W" "$T" && chmod a+r "$T"/*
   "$MOSQ" -c "$T/mosquitto.conf" >"$W/run/mosquitto.txt" 2>&1 &
   BROKER_PID=$!
   MQTT_ARGS=(--mqtt "mqtts://127.0.0.1:$((PORT + 2))/v3/%2B/devices/%2B/up?ca=$(winpath "$T/ca.pem")")
