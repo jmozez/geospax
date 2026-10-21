@@ -285,6 +285,7 @@ export const RASTER_TOOLS: Tool[] = [
       { name: 'method', label: 'Method', kind: 'choice', default: 'logistic', choices: ['logistic', 'bioclim', 'mahalanobis'], description: 'logistic: presence vs background (a linear MaxEnt-like model); bioclim: percentile envelope; mahalanobis: distance to the presence mean.' },
       { name: 'background', label: 'Background points', kind: 'number', default: 5000, description: 'Random cells for presence-background fitting and evaluation.' },
       { name: 'folds', label: 'Cross-validation folds', kind: 'number', default: 5 },
+      { name: 'future', label: 'Future rasters (optional)', kind: 'rasters', description: 'The same variables for a future climate (e.g. Data › Future climate, CMIP6), in the same order: adds future suitability and range gain / loss.' },
       { name: 'block_deg', label: 'Block size (°, blank = automatic)', kind: 'number', description: 'Spatial blocks for cross-validation, in degrees; automatic: about a sixth of the study area’s width, so every fold gets blocks.' },
     ],
     run(ctx) {
@@ -365,6 +366,44 @@ export const RASTER_TOOLS: Tool[] = [
       const label = method === 'bioclim' ? 'BIOCLIM' : method === 'mahalanobis' ? 'Mahalanobis' : 'Presence-background logistic';
       const rasters: OutGrid[] = [{ name: `Suitability ${label}`, like: g, data: suit, kind: 'suitability', description: `${label} on ${names.length} variables` }];
       if (tss) rasters.push({ name: `Predicted range ${label}`, like: g, data: binary, kind: 'classes', classes: [{ value: 0, label: 'unsuitable', color: '#e0e0e0' }, { value: 1, label: `suitable (≥ ${tss.threshold.toFixed(2)})`, color: '#238b45' }] });
+      // projection: the same model on future rasters (same variables, same order)
+      const fut = ctx.params.future ? ctx.rasters('future') : [];
+      const futRows: string[][] = [];
+      const futNotes: string[] = [];
+      if (fut.length) {
+        const fstack = fut.flatMap((c) => c.bands);
+        if (fstack.length !== stack.length) throw new Error(`Future rasters have ${fstack.length} variables, the model ${stack.length}: give the same variables in the same order`);
+        const fsuit = new Float32Array(n).fill(Number.NaN);
+        const change = new Float32Array(n).fill(Number.NaN);
+        const cnt = [0, 0, 0, 0];
+        for (let i = 0; i < n; i++) {
+          if (!fstack.every((b) => Number.isFinite(b[i]))) continue;
+          fsuit[i] = model.predict(fstack.map((b) => b[i])) ?? Number.NaN;
+          if (tss && Number.isFinite(suit[i]) && Number.isFinite(fsuit[i])) {
+            const now = suit[i] >= tss.threshold;
+            const then = fsuit[i] >= tss.threshold;
+            const c = now ? (then ? 2 : 1) : then ? 3 : 0;
+            change[i] = c;
+            cnt[c]++;
+          }
+        }
+        rasters.push({ name: `Future suitability ${label}`, like: g, data: fsuit, kind: 'suitability', description: `${label} projected onto ${fut.map((f) => f.title).join(', ')}` });
+        if (tss) {
+          rasters.push({
+            name: `Range change ${label}`, like: g, data: change, kind: 'classes',
+            classes: [
+              { value: 0, label: 'unsuitable now and later', color: '#e0e0e0' }, { value: 1, label: 'lost', color: '#d7191c' },
+              { value: 2, label: 'stable', color: '#1a9641' }, { value: 3, label: 'gained', color: '#2c7bb6' },
+            ],
+          });
+          const area = cellSize(g).area;
+          const km2 = (c: number) => `${Math.round((c * area) / 1e6).toLocaleString('en-US')} km²`;
+          const now = cnt[1] + cnt[2];
+          futRows.push(['Range now', km2(now)], ['Range in the future', km2(cnt[2] + cnt[3])], ['Lost', km2(cnt[1])], ['Gained', km2(cnt[3])], ['Stable', km2(cnt[2])],
+            ['Net change', now ? `${(((cnt[3] - cnt[1]) / now) * 100).toFixed(1)} %` : '—']);
+        }
+        futNotes.push('Future projection: the same model on the future rasters, thresholded at the same max-TSS value. It assumes the species keeps its present climate niche and ignores dispersal limits; cells with climates outside the training range (extrapolation) are less certain.');
+      }
       const prov = A.provenanceForSdm(method === 'bioclim' ? 'bioclim' : method === 'mahalanobis' ? 'mahalanobis' : 'presence-background-logistic', { variables: names, background: bg.length });
       return {
         message: `${label}: ${pres.length} presences, ${bg.length} background; cross-validated AUC ${ms(cv.auc)}`,
@@ -376,10 +415,12 @@ export const RASTER_TOOLS: Tool[] = [
           ['AUC, spatial CV', ms(cv.auc)], ['Max TSS, spatial CV', ms(cv.tss)], ['Boyce index, spatial CV', ms(cv.boyce)],
           ['Threshold (max TSS, training)', tss ? `${tss.threshold.toFixed(3)} (sensitivity ${tss.sensitivity.toFixed(2)}, specificity ${tss.specificity.toFixed(2)})` : '—'],
           ['Spatial blocks', `${cv.blockCount} blocks of ${blockDeg}° (${cv.presenceBlocks} with presences) in ${cv.k} folds`],
+          ...(futRows as [string, string][]),
         ],
         notes: [
           prov.method,
           'Suitability is relative (presence-background data have no true absences); report the cross-validated scores, not the training AUC.',
+          ...futNotes,
           'Cross-validation: spatial blocks, the ones holding presences dealt evenly to the folds, so each held-out fold is a different part of the range.',
           ...(cv.k < k ? [`Only ${cv.presenceBlocks} blocks hold presences, so ${cv.k} folds were used instead of ${k}; a smaller block size gives more.`] : []),
           ...cv.folds.filter((f) => 'skipped' in f).map((f) => `Fold ${f.fold + 1}: ${'skipped' in f ? f.skipped : ''}.`),

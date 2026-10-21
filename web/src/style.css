@@ -938,3 +938,6 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 :root[data-theme='dark'] .maplibregl-ctrl-attrib a { color: var(--fg); }
 :root[data-theme='dark'] .maplibregl-ctrl-attrib-button { filter: invert(1); background-color: transparent; }
 :root[data-theme='dark'] .maplibregl-ctrl-scale { background: rgba(18, 18, 18, 0.85); color: var(--fg); border-color: var(--fg); }
+
+/* Recipes menu: domain kit headings */
+.rb-menu-sub { padding: 8px 12px 3px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); }

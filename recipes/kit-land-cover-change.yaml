@@ -1,0 +1,29 @@
+# Land use and land cover kit: loss, gain and persistence between two mapped dates.
+recipe: kit-land-cover-change
+version: 1
+kit: Land use and land cover
+title: Land cover change (two dates)
+description: >-
+  The extent of a cover type (forest, mangrove, wetland, cropland …) at two dates as polygons:
+  loss, gain and persistence in hectares and the annual rate of change, mapped and reported.
+inputs:
+  before: { type: layer, default: auto, description: extent at the first date }
+  after: { type: layer, default: auto, description: extent at the second date }
+  year1: { type: number, default: 2015, description: first year }
+  year2: { type: number, default: 2025, description: second year }
+steps:
+  - id: change
+    use: tool
+    with: { tool: gsx/change, params: { t1: "${inputs.before}", t2: "${inputs.after}", year1: "${inputs.year1}", year2: "${inputs.year2}" } }
+  - id: style
+    use: automap.style
+    with: { layers: "${change.layers}", field: none }
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { name: land-cover-change, layers: "${change.layers}", title: "Change ${inputs.year1}–${inputs.year2}: loss, gain, persistence" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Land cover change ${inputs.year1}–${inputs.year2} · ${run.date}" }
+outputs: [map, report]

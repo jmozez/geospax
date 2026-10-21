@@ -1,0 +1,26 @@
+# Agriculture and environment kit: where vegetation (or any index) went up or down.
+recipe: kit-vegetation-change
+version: 1
+kit: Agriculture and environment
+title: Vegetation change (two rasters)
+description: >-
+  Two rasters of the same index (NDVI from Imagery › Latest NDVI or Spectral index, two seasons or
+  years): the difference, Otsu thresholds for loss and gain, and their areas, mapped and reported.
+inputs:
+  before: { type: raster, default: "", description: the earlier raster }
+  after: { type: raster, default: "", description: the later raster }
+steps:
+  - id: change
+    use: tool
+    with: { tool: gsx/raster-change, params: { before: "${inputs.before}", after: "${inputs.after}" } }
+  - id: classes_map
+    use: export.map
+    with: { name: vegetation-change, layers: ["${change.rasters.1}"], title: Vegetation loss and gain }
+  - id: difference_map
+    use: export.map
+    with: { name: difference, layers: ["${change.rasters.0}"], title: Change in the index (after − before) }
+  - id: report
+    use: export.report
+    needs: [classes_map, difference_map]
+    with: { title: "Vegetation change · ${run.date}" }
+outputs: [classes_map, difference_map, report]

@@ -1,0 +1,35 @@
+# Forestry and landscape kit: how fragmented the forest is and how well patches connect.
+recipe: kit-forest-fragmentation
+version: 1
+kit: Forestry
+title: Forest fragmentation and connectivity
+description: >-
+  Forest (or any habitat) patches in: landscape metrics (number of patches, largest patch index,
+  edge density, core area, mean nearest-neighbour distance), core areas inside the edge, and the
+  network of patches within a dispersal distance, mapped and reported.
+inputs:
+  patches: { type: layer, default: auto, description: forest or habitat polygons }
+  edge_m: { type: number, default: 100, description: edge depth in metres }
+  dispersal_m: { type: number, default: 500, description: gap a species can cross, in metres }
+steps:
+  - id: metrics
+    use: tool
+    with: { tool: gsx/fragmentation, params: { patches: "${inputs.patches}", edge_m: "${inputs.edge_m}" } }
+  - id: links
+    use: tool
+    with: { tool: gsx/connectivity, params: { patches: "${inputs.patches}", threshold_m: "${inputs.dispersal_m}" } }
+  - id: style
+    use: automap.style
+    with: { layers: "${links.layers}", field: none }
+  - id: core_map
+    use: export.map
+    with: { name: core-areas, layers: ["${metrics.layers}"], title: "Core forest (more than ${inputs.edge_m} m from an edge)" }
+  - id: link_map
+    use: export.map
+    needs: [style]
+    with: { name: connectivity, layers: "${links.layers}", title: "Patches linked within ${inputs.dispersal_m} m" }
+  - id: report
+    use: export.report
+    needs: [core_map, link_map]
+    with: { title: "Forest fragmentation · ${run.date}" }
+outputs: [core_map, link_map, report]
