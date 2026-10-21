@@ -6,7 +6,7 @@ import * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
 import type { PluginsPane } from './plugins';
-import { COMMANDS, TABS, commandHtml, groupsFor, icon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
+import { groupItemsHtml, COMMANDS, TABS, commandHtml, groupsFor, icon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
 import type { PluginInfo, PluginsState } from './plugins';
 
 const LS_KEY = 'geospax.workbench.v1';
@@ -306,6 +306,7 @@ export class Workbench {
       <button class="tk-ask" data-cmd="view.palette">${icon('search', 16)}<span>What do you want to do?</span><kbd>Ctrl K</kbd></button>
       <div class="tk-tasks">
         ${task('data-cmd="home.start"', 'phone', 'Add data', 'Drop files, a phone, a GPS, a drone card')}
+        ${task('data-cmd="data.online"', 'globe', 'Online data', 'Climate, soil, species, boundaries')}
         ${task('data-cmd="style.autoAll"', 'wand', 'Make it look good', 'Style every layer for you')}
         ${task('data-menu="recipes"', 'hotspot', 'Find patterns', `${this.recipes.length} ready-made analyses`)}
         ${task('data-cmd="analyze.toolbox"', 'search', 'All tools', 'Search every tool by name')}
@@ -348,7 +349,8 @@ export class Workbench {
     const groups = groupsFor(this.layout.ribbon);
     const parts: string[] = [];
     for (const g of groups) {
-      parts.push(`<div class="rb-group"><div class="rb-items">${g.items.map((c) => commandHtml(c)).join('')}</div><div class="rb-title">${esc(g.group)}</div></div>`);
+      const items = groupItemsHtml(g.items.filter((c) => c.big).map((c) => commandHtml(c)), g.items.filter((c) => !c.big).map((c) => commandHtml(c)));
+      parts.push(`<div class="rb-group"><div class="rb-items">${items}</div><div class="rb-title">${esc(g.group)}</div></div>`);
     }
     // contextual Layer tab: the analyses that fit the selected layer, run on it
     if (this.layout.ribbon === 'layer') {
@@ -392,46 +394,46 @@ export class Workbench {
         }
       } catch { /* engine offline: the static commands still work */ }
     }
-    // Plugin tools, one group per plugin (docs/PLUGINS.md).
+    // Plugin tools on the tab their manifest names (`tab:`), one group per tool group; a whole
+    // tool library (GeoLibre's 1,000+) is one button that opens the Toolbox; tools that name no
+    // tab go to Add-ins (ArcGIS Pro's Add-In tab).
+    const tab = this.layout.ribbon;
     for (const p of this.pluginTools()) {
-      // a whole tool library (GeoLibre's 1,000+) is one button that opens the Toolbox on it
       if (p.tools.length > 40) {
+        if ((p.tools[0]?.tab ?? 'analyze') !== tab) continue;
         parts.push(`<div class="rb-group" data-group="plugin:${esc(p.id)}"><div class="rb-items">
           <button class="rb-btn big" data-toolbox="${esc(p.name)}" title="Search the ${p.tools.length.toLocaleString('en-US')} tools of ${esc(p.name)} in the Toolbox">
             <span class="rb-ico">${icon('grid', 20)}</span><span class="rb-label">${esc(p.name)}<br><small>${p.tools.length.toLocaleString('en-US')} tools</small></span></button>
-          </div><div class="rb-title">${esc(p.name)} <span class="dim">plugin</span></div></div>`);
+          </div><div class="rb-title">${esc(p.name)}</div></div>`);
         continue;
       }
-      const tools = p.tools.slice(0, 12);
-      const inline = tools
-        .map(
-          (t) =>
-            `<button class="rb-btn" data-plugin-tool="${esc(p.id)}/${esc(t.id)}" title="${esc(t.summary || t.name)}">
-              <span class="rb-ico">${icon(t.icon ?? 'grid', 18)}</span>
+      const mine = p.tools.filter((t) => (t.tab ?? 'addins') === tab);
+      const groups = new Map<string, typeof mine>();
+      for (const t of mine) groups.set(t.group || p.name, [...(groups.get(t.group || p.name) ?? []), t]);
+      for (const [group, tools] of groups) {
+        const key = `plugin:${p.id}:${group}`;
+        const inline = groupItemsHtml(
+          [],
+          tools.slice(0, 12).map(
+            (t) =>
+              `<button class="rb-btn small" data-plugin-tool="${esc(p.id)}/${esc(t.id)}" title="${esc(t.summary || t.name)}">
+              <span class="rb-ico">${icon(t.icon ?? 'grid', 16)}</span>
               <span class="rb-label">${esc(t.name)}</span>
             </button>`,
-        )
-        .join('');
-      // More than three tools and the row would eat the ribbon: collapse to a list.
-      if (this.layout.compact && tools.length > 3) {
-        parts.push(
-          `<div class="rb-group" data-group="plugin:${esc(p.id)}"><div class="rb-items">${this.comboHtml({
-            menu: `plugin:${p.id}`,
-            icon: 'grid',
-            label: p.name,
-            count: tools.length,
-            title: `${tools.length} tools from ${p.name}`,
-          })}</div><div class="rb-title">${esc(p.name)} <span class="dim">plugin</span>${this.galleryToggle()}</div></div>`,
+          ),
         );
-      } else {
+        // more than three tools and the row would eat the ribbon: collapse to a list
+        const body =
+          this.layout.compact && tools.length > 3
+            ? this.comboHtml({ menu: key, icon: tools[0].icon ?? 'grid', label: group.replace(/^GSX · /, ''), count: tools.length, title: `${tools.length} tools: ${tools.map((t) => t.name).join(', ')}` })
+            : inline;
         parts.push(
-          `<div class="rb-group" data-group="plugin:${esc(p.id)}"><div class="rb-items">${inline}</div><div class="rb-title">${esc(
-            p.name,
-          )} <span class="dim">plugin</span>${
-            tools.length > 3 ? this.galleryToggle() : ''
-          }</div></div>`,
+          `<div class="rb-group" data-group="${esc(key)}"><div class="rb-items">${body}</div><div class="rb-title">${esc(group)}${tools.length > 3 ? this.galleryToggle() : ''}</div></div>`,
         );
       }
+    }
+    if (tab === 'addins' && !parts.length) {
+      parts.push(`<div class="rb-group"><div class="rb-items"><span class="dim rb-empty">No add-ins yet. Plugins whose tools name no tab show here; manage them in the Plugins pane.</span></div><div class="rb-title">Add-ins</div></div>`);
     }
     bodyEl.innerHTML = parts.join('') + `<div class="rb-spacer"></div>`;
   }
@@ -465,7 +467,7 @@ export class Workbench {
   }
 
   private openMenu(anchor: HTMLElement, kind: string) {
-    const rows = kind === 'recipes' ? this.recipeRows() : kind.startsWith('plugin:') ? this.pluginRows(kind.slice(7)) : '';
+    const rows = kind === 'recipes' ? this.recipeRows() : kind.startsWith('plugin:') ? this.pluginRows(kind.slice(7).split(':')[0], kind.split(':').slice(2).join(':') || undefined) : '';
     if (!rows) return;
     const el = document.createElement('div');
     el.className = 'rb-menu';
@@ -528,11 +530,12 @@ export class Workbench {
     return head + rows;
   }
 
-  private pluginRows(pluginId: string): string {
+  private pluginRows(pluginId: string, group?: string): string {
     const p = this.host.plugins()?.plugins.find((x) => x.id === pluginId);
     if (!p) return '';
-    const head = `<div class="rb-menu-head"><span>${esc(p.name)}</span><span class="dim">${esc(p.source)} plugin</span></div>`;
+    const head = `<div class="rb-menu-head"><span>${esc(group ?? p.name)}</span><span class="dim">${esc(p.name)}</span></div>`;
     const rows = p.tools
+      .filter((t) => !group || (t.group || p.name) === group)
       .map(
         (t) => `<button class="rb-menu-row" data-plugin-tool="${esc(p.id)}/${esc(t.id)}" title="${esc(t.summary || t.name)}">
           <span class="rm-ico">${icon(t.icon ?? 'grid', 16)}</span>

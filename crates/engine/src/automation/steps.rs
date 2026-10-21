@@ -2,7 +2,7 @@
 //! parameters, does its work synchronously on the run's thread and returns outputs (for `${…}`
 //! references in later steps) plus plain-language "why" lines for the run log and the report.
 
-use super::{lidar_steps, providers, raster_steps, scene_steps, stats_steps};
+use super::{data_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps};
 use super::automap;
 use super::cartography::{self, Layout, MapLayer, MapSpec};
 use super::features::{self, Feat, FeatureSet, LocalProj, Val};
@@ -192,6 +192,34 @@ pub const CATALOGUE: &[StepSpec] = &[
     StepSpec { name: "style.apply", family: "Cartography", summary: "Apply saved styles exactly (what 'Save as recipe' records).", running: "Applying saved styles", params: &[("styles", true, "{layer id: style}"), ("save", false, "write to the project (default true)")], borrowed: "ArcGIS layer files, QGIS QML styles" },
     StepSpec { name: "overviews.build", family: "Performance", summary: "Build a PMTiles overview pyramid for a dense layer (skipped when not needed).", running: "Building overview tiles", params: &[("layer", true, "layer id"), ("maxzoom", false, "highest overview zoom (default: suggested)")], borrowed: "ArcGIS Build Pyramids, QGIS Build Overviews, GDAL gdaladdo" },
     StepSpec { name: "layout.auto", family: "Cartography", summary: "Page defaults (title, subtitle, size) for later export steps.", running: "Laying out the page", params: &[("title", false, ""), ("subtitle", false, ""), ("size", false, "")], borrowed: "ArcGIS Pro layouts, QGIS Print Layout" },
+    StepSpec {
+        name: "data.fetch",
+        family: "Input",
+        summary: "Online data for the area, no API keys: WorldClim 2.1 bioclim, monthly and CMIP6 future; CHELSA 2.1; SoilGrids 2.0; GBIF, OBIS and iNaturalist occurrences; GADM boundaries. Each with its citation.",
+        running: "Downloading data",
+        params: &[
+            ("source", true, "worldclim, worldclim-monthly, worldclim-future, chelsa, soilgrids, gbif, obis, inat, gadm"),
+            ("aoi", false, "[west, south, east, north], a layer/raster id, or auto"),
+            ("buffer", false, "margin in metres (default 10 %)"),
+            ("max_km", false, "largest area side (default 5000)"),
+            ("variables", false, "bioclim numbers 1–19 or all (default 1, 12)"),
+            ("resolution", false, "WorldClim: 10m (default), 5m, 2.5m, 30s"),
+            ("variable", false, "worldclim-monthly: tavg, tmin, tmax, prec, srad, wind, vapr"),
+            ("months", false, "worldclim-monthly: 1–12 (default all)"),
+            ("gcm", false, "worldclim-future: climate model (default ACCESS-CM2)"),
+            ("ssp", false, "worldclim-future: 126, 245, 370 or 585 (default)"),
+            ("period", false, "worldclim-future: 2021-2040, 2041-2060 (default), 2061-2080, 2081-2100"),
+            ("property", false, "soilgrids: phh2o (default), soc, clay, sand, silt, bdod, cec, nitrogen, cfvo, ocd"),
+            ("depth", false, "soilgrids: 0-5cm (default) … 100-200cm"),
+            ("species", false, "gbif/obis/inat: scientific name"),
+            ("limit", false, "gbif/obis/inat: most records (default 2000)"),
+            ("country", false, "gadm: ISO alpha-3 code"),
+            ("level", false, "gadm: 0–3 (default 1)"),
+            ("base", false, "mirror URL or folder with the provider's layout"),
+            ("name", false, "output name (prefix when several)"),
+        ],
+        borrowed: "R geodata (worldclim_country, cmip6_world, soil_world, gadm), rgbif, robis, rinat; ArcGIS Living Atlas; QGIS plugins",
+    },
     StepSpec {
         name: "dem.fetch",
         family: "Terrain",
@@ -637,6 +665,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "export.pdf" => export_map(sc, p, Some("pdf")),
         "export.series" => export_series(sc, p),
         "dem.fetch" => raster_steps::dem_fetch(sc, p),
+        "data.fetch" => data_steps::data_fetch(sc, p),
         "lidar.grid" => lidar_steps::lidar_grid(sc, p),
         "scene.3d" => scene_steps::scene_3d(sc, p),
         "terrain.derive" => raster_steps::terrain_derive(sc, p),

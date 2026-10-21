@@ -8,7 +8,7 @@ import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
 
 /** 'layer' is the contextual tab (Pro mode), shown while a layer is selected. */
-export type TabId = 'home' | 'data' | 'style' | 'analyze' | 'view' | 'automate' | 'help' | 'layer';
+export type TabId = 'home' | 'data' | 'style' | 'analyze' | 'imagery' | 'modelling' | 'view' | 'automate' | 'help' | 'addins' | 'layer';
 
 /** What a command can reach: the map, layers, the backend and a few host actions. */
 export interface CommandHost {
@@ -63,7 +63,7 @@ export const ICONS: Record<string, string> = {
   table: 'M3 4h18v16H3zM3 9h18M3 14h18M9 9v11M15 9v11',
   palette: 'M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2s-.7-1.8-.7-2.6c0-.9.7-1.4 1.7-1.4H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8zM7.5 10.5a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4zm3 4a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4zm5-1a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4z',
   wand: 'M5 19L16 8l1.5 1.5L7.5 20H5zM15 3l1.5 3.5L20 8l-3.5 1.5L15 13l-1.5-3.5L10 8l3.5-1.5zM18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z',
-  chart: 'M4 20V4M4 20h16M8 20v-6M12 20V8M16 20v-9M20 20V6',
+  chart: 'M3 19.5h18V21H3zM5 12h3v6.5H5zM10.5 5h3v13.5h-3zM16 9h3v9.5h-3z',
   hotspot: 'M12 2a6 6 0 0 0-3.5 10.9c.5 2.6 1.6 4.4 3.5 6.1 1.9-1.7 3-3.5 3.5-6.1A6 6 0 0 0 12 2zm0 8.5A2.5 2.5 0 1 1 12 7a2.5 2.5 0 0 1 0 5.5z',
   play: 'M7 4l13 8-13 8z',
   history: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5v5.6l4 2.3-1 1.7-5-2.9V7z',
@@ -91,15 +91,47 @@ export function icon(name: string, size = 20): string {
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path d="${d}" fill="currentColor"/></svg>`;
 }
 
+// Ribbon tabs, in ArcGIS Pro's order of work: get data, map it, analyse, imagery, model, automate.
 export const TABS: { id: TabId; label: string }[] = [
   { id: 'home', label: 'Home' },
   { id: 'data', label: 'Data' },
-  { id: 'style', label: 'Style' },
-  { id: 'analyze', label: 'Analyze' },
-  { id: 'view', label: 'View' },
+  { id: 'style', label: 'Map' },
+  { id: 'analyze', label: 'Analysis' },
+  { id: 'imagery', label: 'Imagery' },
+  { id: 'modelling', label: 'Modelling' },
   { id: 'automate', label: 'Automate' },
+  { id: 'view', label: 'View' },
   { id: 'help', label: 'Help' },
+  { id: 'addins', label: 'Add-ins' },
 ];
+
+/** A command that runs a gallery recipe by id. */
+const recipeCmd = (id: string, tab: TabId, group: string, title: string, icon: string, recipe: string, hint: string, big = false): Command => ({
+  id,
+  tab,
+  group,
+  title,
+  icon,
+  hint,
+  big,
+  run: async (h) => {
+    const r = await h.recipes();
+    if (r.some((x) => x.id === recipe)) await h.runRecipe(recipe);
+    else h.setStatus(`Recipe '${recipe}' is not installed`, 5000);
+  },
+});
+
+/** A command that opens the online-data form for a source (web/src/online.ts). */
+const onlineCmd = (id: string, title: string, icon: string, source: string, hint: string, big = false): Command => ({
+  id,
+  tab: 'data',
+  group: 'Online data',
+  title,
+  icon,
+  hint,
+  big,
+  run: () => { document.dispatchEvent(new CustomEvent('geospax:online', { detail: source })); },
+});
 
 // ---------------------------------------------------------------- commands
 
@@ -172,7 +204,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:start')); },
   },
   {
-    id: 'data.add', tab: 'data', group: 'Import', title: 'Add files', icon: 'download', big: true,
+    id: 'data.add', tab: 'data', group: 'Add data', title: 'Add files', icon: 'download', big: true,
     hint: 'Choose files to map (or drop them anywhere on the window)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:browse')); },
   },
@@ -204,17 +236,17 @@ export const COMMANDS: Command[] = [
 
   // ---- Data
   {
-    id: 'data.devices', tab: 'data', group: 'Import', title: 'Devices', icon: 'phone', big: true,
+    id: 'data.devices', tab: 'data', group: 'Add data', title: 'Devices', icon: 'phone', big: true,
     hint: 'Phones, GPS units, drone SD cards, sensors',
     run: (h) => { h.showTab('right', 'devices'); },
   },
   {
-    id: 'data.phone', tab: 'data', group: 'Import', title: 'Phone over Wi-Fi', icon: 'satellite',
+    id: 'data.phone', tab: 'data', group: 'Add data', title: 'Phone over Wi-Fi', icon: 'satellite',
     hint: 'Show the pairing QR code',
     run: (h) => { h.showTab('right', 'devices'); },
   },
   {
-    id: 'data.rasters', tab: 'data', group: 'Import', title: 'Rasters', icon: 'image', big: true,
+    id: 'data.rasters', tab: 'imagery', group: 'Rasters', title: 'Rasters', icon: 'image', big: true,
     hint: 'DEMs, hillshades, satellite indices',
     run: (h) => { h.showTab('right', 'rasters'); },
   },
@@ -286,7 +318,7 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: 'analyze.kriging', tab: 'analyze', group: 'Spatial statistics', title: 'Interpolate', icon: 'chart',
+    id: 'analyze.kriging', tab: 'modelling', group: 'Interpolation', title: 'Interpolate', icon: 'chart', big: true,
     hint: 'Kriging / IDW surface from sample points',
     run: async (h) => {
       const r = await h.recipes();
@@ -298,16 +330,6 @@ export const COMMANDS: Command[] = [
     id: 'analyze.charts', tab: 'analyze', group: 'Spatial statistics', title: 'Charts', icon: 'chart',
     hint: 'Attribute charts for the active layer',
     run: (h) => { h.showTab('right', 'attributes'); },
-  },
-  {
-    id: 'analyze.bench', tab: 'analyze', group: 'Diagnostics', title: 'Benchmark', icon: 'clock',
-    hint: 'Measure tile and API throughput',
-    run: (h) => { h.bench(); },
-  },
-  {
-    id: 'analyze.deck', tab: 'analyze', group: 'Diagnostics', title: 'Arrow → deck.gl', icon: 'grid',
-    hint: 'Load points as Arrow and draw them with deck.gl',
-    run: (h) => { h.deck(); },
   },
 
   // ---- View
@@ -439,17 +461,59 @@ export const COMMANDS: Command[] = [
     id: 'help.about', tab: 'help', group: 'About', title: 'About GeoSpaX', icon: 'globe',
     run: (h) => { h.setStatus('GeoSpaX — spatial automation engine, Rust + Tauri', 6000); },
   },
+  {
+    id: 'analyze.bench', tab: 'help', group: 'Diagnostics', title: 'Benchmark', icon: 'clock',
+    hint: 'Measure tile and API throughput',
+    run: (h) => { h.bench(); },
+  },
+  {
+    id: 'analyze.deck', tab: 'help', group: 'Diagnostics', title: 'Arrow → deck.gl', icon: 'grid',
+    hint: 'Load points as Arrow and draw them with deck.gl',
+    run: (h) => { h.deck(); },
+  },
+  // ------------------------------------------------ Data › Online data (no API keys; cut to the map view)
+  onlineCmd('data.online', 'All sources', 'globe', 'choose', 'Every online source: climate, future climate, soil, species, boundaries, elevation'),
+  onlineCmd('data.climate', 'Climate', 'globe', 'worldclim', 'WorldClim 2.1 or CHELSA 2.1 bioclim and monthly climate for the map view', true),
+  onlineCmd('data.future', 'Future climate', 'clock', 'worldclim-future', 'WorldClim CMIP6 projections: climate model, SSP and period'),
+  onlineCmd('data.soil', 'Soil', 'layers', 'soilgrids', 'SoilGrids 2.0: pH, organic carbon, texture … by depth'),
+  onlineCmd('data.species', 'Species', 'pin', 'gbif', 'Occurrences from GBIF, OBIS or iNaturalist, with the citation', true),
+  onlineCmd('data.boundaries', 'Boundaries', 'grid', 'gadm', 'GADM 4.1 administrative areas of a country'),
+  onlineCmd('data.elevation', 'Elevation', 'image', 'dem', 'Copernicus GLO-30 / GLO-90 DEM for the map view'),
+  // ------------------------------------------------ Imagery
+  recipeCmd('imagery.ndvi', 'imagery', 'Satellite', 'Latest NDVI', 'satellite', 'latest-ndvi', 'Newest cloud-free Sentinel-2 pass over the area → NDVI map', true),
+  recipeCmd('imagery.terrain', 'imagery', 'Terrain', 'Terrain report', 'image', 'terrain-report', 'DEM → hillshade, slope, aspect, contours, map and report', true),
+  recipeCmd('imagery.landforms', 'imagery', 'Terrain', 'Landforms', 'layers', 'landforms-grass', 'Geomorphons landforms (GRASS r.geomorphon)'),
+  recipeCmd('imagery.wetness', 'imagery', 'Terrain', 'Wetness index', 'chart', 'wetness-saga', 'Topographic wetness index (SAGA)'),
+  recipeCmd('imagery.lidar', 'imagery', 'LiDAR', 'LiDAR → terrain', 'layers', 'lidar-to-terrain', 'Point clouds → bare earth, canopy, buildings, trees', true),
+  {
+    id: 'imagery.rasterTools', tab: 'imagery', group: 'Raster tools', title: 'Raster tools', icon: 'search', big: true,
+    hint: 'Search the raster tools (GeoLibre, GSX, recipes) in the Toolbox',
+    run: (h) => {
+      h.showTab('right', 'toolbox');
+      document.dispatchEvent(new CustomEvent('geospax:toolbox-search', { detail: 'raster' }));
+    },
+  },
+  // ------------------------------------------------ Modelling
+  recipeCmd('modelling.rkrige', 'modelling', 'Interpolation', 'Kriging in R', 'chart', 'r-kriging', 'gstat kriging in R, cross-validated (needs R with sf and gstat)'),
 ];
 
 /** Render one ribbon button (shared by the ribbon and the palette footer). */
 export function commandHtml(c: Command, big = false): string {
   const useBig = big || !!c.big;
-  return `<button class="rb-btn${useBig ? ' big' : ''}" data-cmd="${c.id}" title="${esc(
+  return `<button class="rb-btn${useBig ? ' big' : ' small'}" data-cmd="${c.id}" title="${esc(
     `${c.title}${c.hint ? ' — ' + c.hint : ''}${c.keys ? ` (${c.keys})` : ''}`,
   )}">
-    <span class="rb-ico">${icon(c.icon, useBig ? 26 : 18)}</span>
-    <span class="rb-label">${esc(c.title)}${c.keys && !useBig ? `<kbd>${esc(c.keys)}</kbd>` : ''}</span>
+    <span class="rb-ico">${icon(c.icon, useBig ? 28 : 16)}</span>
+    <span class="rb-label">${esc(c.title)}</span>
   </button>`;
+}
+
+/** A ribbon group's items, ArcGIS Pro style: large buttons first, then the small ones stacked
+ *  three to a column, so every group has the same height and labels line up across tabs. */
+export function groupItemsHtml(bigs: string[], smalls: string[]): string {
+  const cols: string[] = [];
+  for (let i = 0; i < smalls.length; i += 3) cols.push(`<div class="rb-col">${smalls.slice(i, i + 3).join('')}</div>`);
+  return bigs.join('') + cols.join('');
 }
 
 /** Pick an icon for a recipe from its id and title, so the gallery is not 15 play buttons. */

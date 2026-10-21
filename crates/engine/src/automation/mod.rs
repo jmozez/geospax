@@ -14,6 +14,7 @@ pub mod providers;
 pub mod raster_steps;
 pub mod cartography;
 pub mod charts;
+pub mod data_steps;
 pub mod cli;
 pub mod features;
 pub mod furniture;
