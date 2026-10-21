@@ -436,7 +436,7 @@ gstat is one line away, and the `r-kriging` recipe shows how.
 | Code steps: separate process, scrubbed environment, own folder, timeout, cancel | ✅ (a process boundary, not a sandbox) |
 | Artifact downloads are confined to the run folder (`..` and `/` rejected) | ✅ |
 | Result layers are written to new files; inputs are never modified | ✅ |
-| Permission manifests (filesystem scopes, network hosts, devices) and signed gallery recipes, same model as WASM plugins ([TECH_STACK §4.11](../../gis-platform-research/TECH_STACK.md#411-plugins-replacing-arcgis-pro-add-ins)) | planned |
+| Permission manifests (filesystem scopes, network hosts, devices) and signed gallery recipes, same model as WASM plugins (TECH_STACK §4.11) | planned |
 
 ## 9. Interfaces (built)
 
