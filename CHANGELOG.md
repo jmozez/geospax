@@ -5,6 +5,11 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added — the lazy path, stage 3
+- **Light theme, now the default**, plus Dark and System (follows the OS). Switch with the ☀/☾/◐ button in the
+  title bar or View → Theme; the choice is remembered, `?theme=light|dark|system` overrides it. The map's
+  background, land and borders follow the theme.
+
 ### Added — the lazy path, stage 1
 - **Layers style themselves.** A layer seen for the first time gets AutoMap's style instead of a grey
   single symbol (e.g. PM2.5 readings in WHO guideline classes, a `kind` field as unique colours). The
