@@ -5,8 +5,10 @@
 [opengeos/geolibre-rust](https://github.com/opengeos/geolibre-rust), built on John Lindsay's
 [whitebox_next_gen](https://github.com/jblindsay/whitebox_next_gen)), running locally in GeoSpaX.
 
-- **Find them** in the **Toolbox** pane (search by name, or by what ArcGIS Pro / QGIS call the job),
-  or with the **GeoLibre tools** ribbon button.
+- **Built in:** GeoSpaX shows them as its own tools, filed in the **Toolbox** by task (Analysis,
+  Conversion, Spatial Statistics, Raster Analysis, Terrain, Hydrology, Image Analysis, LiDAR and 3D …,
+  from the runner's own category and subcategory; `gen.mjs` holds the mapping). Search by name, or by
+  what ArcGIS Pro / QGIS call the job.
 - **Inputs:** a vector parameter is a layer on the map; raster, LiDAR and table parameters take a
   file path. **Outputs** go to `<state>/plugin-results/geolibre-tools/` and are added to the map.
 - **Needs** [Node.js](https://nodejs.org) 18+ (the runner is WebAssembly, run with Node's WASI).

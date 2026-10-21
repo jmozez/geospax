@@ -164,7 +164,7 @@ layers. The reply to `POST …/run` names them in `"added"`, and the app styles 
 them. Write results into `out_dir`. A `kind: process` plugin whose program (the first word of `run:`)
 is not on `PATH` is listed as *needs &lt;program&gt;*.
 
-A non-zero exit turns the first line of stderr into the error shown in the Plugins pane. That is the
+A non-zero exit turns the first line of stderr into the error shown in Plugins › Manage plugins. That is the
 whole ABI, so the same plugin shape works for a Rust binary, an R script
 (`run: Rscript ${plugin}/tools.R ${tool}`) or a WASI module
 (`run: wasmtime run --dir ${workdir} ${plugin}/tools.wasm -- ${tool}`).
