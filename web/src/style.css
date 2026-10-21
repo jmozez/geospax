@@ -792,24 +792,24 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 #drop-veil b { font-size: 18px; } #drop-veil span { color: var(--muted); }
 
 /* ---------------------------------------------------------------- Finish my map (finish.ts) */
-:is(#finish, #online, #rconsole) { position: fixed; inset: 0; z-index: 55; display: grid; place-items: center; background: var(--overlay); padding: 20px; }
-:is(#finish, #online, #rconsole)[hidden] { display: none; }
-:is(#finish, #online, #rconsole) .sheet { width: min(1120px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 20px 60px var(--shadow); }
-:is(#finish, #online, #rconsole) header, :is(#finish, #online, #rconsole) footer { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
-:is(#finish, #online, #rconsole) header { justify-content: space-between; border-bottom: 1px solid var(--line); font-size: 15px; }
-:is(#finish, #online, #rconsole) header button { background: none; border: 0; color: var(--muted); }
-:is(#finish, #online, #rconsole) footer { justify-content: flex-end; border-top: 1px solid var(--line); }
-:is(#finish, #online, #rconsole) footer .dim { margin-right: auto; color: var(--muted); font-size: 12px; }
-:is(#finish, #online, #rconsole) .body { display: grid; gap: 12px; padding: 14px 16px; overflow-y: auto; min-height: 0; }
-:is(#finish, #online, #rconsole) .fin-lead { margin: 0; color: var(--text2); font-size: 13px; }
-:is(#finish, #online, #rconsole) label { display: grid; gap: 4px; font-size: 12px; }
-:is(#finish, #online, #rconsole) label > span { font-weight: 600; }
-:is(#finish, #online, #rconsole) input[name=title] { font-size: 15px; padding: 8px 10px; }
-:is(#finish, #online, #rconsole) fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; }
-:is(#finish, #online, #rconsole) legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
-:is(#finish, #online, #rconsole) label.ck { display: flex; align-items: center; gap: 6px; font-weight: 400; }
-:is(#finish, #online, #rconsole) details summary { cursor: pointer; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
-:is(#finish, #online, #rconsole) details[open] { display: grid; gap: 12px; }
+:is(#finish, #online, #rconsole, #plugin-manager) { position: fixed; inset: 0; z-index: 55; display: grid; place-items: center; background: var(--overlay); padding: 20px; }
+:is(#finish, #online, #rconsole, #plugin-manager)[hidden] { display: none; }
+:is(#finish, #online, #rconsole, #plugin-manager) .sheet { width: min(1120px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 20px 60px var(--shadow); }
+:is(#finish, #online, #rconsole, #plugin-manager) header, :is(#finish, #online, #rconsole, #plugin-manager) footer { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
+:is(#finish, #online, #rconsole, #plugin-manager) header { justify-content: space-between; border-bottom: 1px solid var(--line); font-size: 15px; }
+:is(#finish, #online, #rconsole, #plugin-manager) header button { background: none; border: 0; color: var(--muted); }
+:is(#finish, #online, #rconsole, #plugin-manager) footer { justify-content: flex-end; border-top: 1px solid var(--line); }
+:is(#finish, #online, #rconsole, #plugin-manager) footer .dim { margin-right: auto; color: var(--muted); font-size: 12px; }
+:is(#finish, #online, #rconsole, #plugin-manager) .body { display: grid; gap: 12px; padding: 14px 16px; overflow-y: auto; min-height: 0; }
+:is(#finish, #online, #rconsole, #plugin-manager) .fin-lead { margin: 0; color: var(--text2); font-size: 13px; }
+:is(#finish, #online, #rconsole, #plugin-manager) label { display: grid; gap: 4px; font-size: 12px; }
+:is(#finish, #online, #rconsole, #plugin-manager) label > span { font-weight: 600; }
+:is(#finish, #online, #rconsole, #plugin-manager) input[name=title] { font-size: 15px; padding: 8px 10px; }
+:is(#finish, #online, #rconsole, #plugin-manager) fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; }
+:is(#finish, #online, #rconsole, #plugin-manager) legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
+:is(#finish, #online, #rconsole, #plugin-manager) label.ck { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+:is(#finish, #online, #rconsole, #plugin-manager) details summary { cursor: pointer; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+:is(#finish, #online, #rconsole, #plugin-manager) details[open] { display: grid; gap: 12px; }
 
 /* theme switch (title bar) */
 #theme-switch { margin-right: 10px; background: none; border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: 12px; color: var(--muted); }
@@ -820,9 +820,9 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 .pr-tree [role='treeitem']:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .fin-field { margin-left: 22px; }
 /* Finish my map: layout chips (one map, side by side, facets, panels, map series) */
-:is(#finish, #online, #rconsole) fieldset.fin-layout, :is(#finish, #online, #rconsole) fieldset.fin-style { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-:is(#finish, #online, #rconsole) .fin-chips > label, :is(#finish, #online, #rconsole) .fin-looks > label { display: grid; }
-:is(#finish, #online, #rconsole) .fin-grid select, :is(#finish, #online, #rconsole) .fin-grid input { width: 100%; }
+:is(#finish, #online, #rconsole, #plugin-manager) fieldset.fin-layout, :is(#finish, #online, #rconsole, #plugin-manager) fieldset.fin-style { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+:is(#finish, #online, #rconsole, #plugin-manager) .fin-chips > label, :is(#finish, #online, #rconsole, #plugin-manager) .fin-looks > label { display: grid; }
+:is(#finish, #online, #rconsole, #plugin-manager) .fin-grid select, :is(#finish, #online, #rconsole, #plugin-manager) .fin-grid input { width: 100%; }
 .fin-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 6px; }
 .fin-chips label { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); cursor: pointer; }
 .fin-chips label:hover { background: var(--hover); }
@@ -845,16 +845,16 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 .fin-grid label { display: grid; gap: 3px; font-size: 12px; }
 .fin-legend-edit { margin-top: 8px; }
 /* Finish my map: live preview beside the form */
-:is(#finish, #online, #rconsole) .fin-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); min-height: 0; overflow: hidden; flex: 1; }
-:is(#finish, #online, #rconsole) .fin-cols > .body { order: 2; border-left: 1px solid var(--line); }
-:is(#finish, #online, #rconsole) .fin-preview { order: 1; margin: 0; padding: 14px; display: grid; align-content: start; gap: 6px; background: var(--sunken); overflow: auto; }
-:is(#finish, #online, #rconsole) .fin-preview img { width: 100%; height: auto; min-height: 160px; background: #fff; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 20px var(--shadow); transition: opacity 0.2s; }
-:is(#finish, #online, #rconsole) .fin-preview.busy img { opacity: 0.55; }
-:is(#finish, #online, #rconsole) .fin-preview figcaption { color: var(--muted); font-size: 12px; }
+:is(#finish, #online, #rconsole, #plugin-manager) .fin-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); min-height: 0; overflow: hidden; flex: 1; }
+:is(#finish, #online, #rconsole, #plugin-manager) .fin-cols > .body { order: 2; border-left: 1px solid var(--line); }
+:is(#finish, #online, #rconsole, #plugin-manager) .fin-preview { order: 1; margin: 0; padding: 14px; display: grid; align-content: start; gap: 6px; background: var(--sunken); overflow: auto; }
+:is(#finish, #online, #rconsole, #plugin-manager) .fin-preview img { width: 100%; height: auto; min-height: 160px; background: #fff; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 20px var(--shadow); transition: opacity 0.2s; }
+:is(#finish, #online, #rconsole, #plugin-manager) .fin-preview.busy img { opacity: 0.55; }
+:is(#finish, #online, #rconsole, #plugin-manager) .fin-preview figcaption { color: var(--muted); font-size: 12px; }
 @media (max-width: 860px) {
-  :is(#finish, #online, #rconsole) .fin-cols { grid-template-columns: minmax(0, 1fr); overflow: auto; }
-  :is(#finish, #online, #rconsole) .fin-cols > .body { border-left: 0; overflow: visible; }
-  :is(#finish, #online, #rconsole) .fin-preview { max-height: 40vh; }
+  :is(#finish, #online, #rconsole, #plugin-manager) .fin-cols { grid-template-columns: minmax(0, 1fr); overflow: auto; }
+  :is(#finish, #online, #rconsole, #plugin-manager) .fin-cols > .body { border-left: 0; overflow: visible; }
+  :is(#finish, #online, #rconsole, #plugin-manager) .fin-preview { max-height: 40vh; }
 }
 /* legend editor */
 .lg-list { display: grid; gap: 4px; }
@@ -918,3 +918,7 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 #rconsole .rc-progress { display: grid; grid-template-columns: 1fr; gap: 4px; }
 #rconsole .rc-progress[hidden] { display: none; }
 #rconsole .rc-progress progress { width: 100%; }
+
+/* Plugins › Manage plugins */
+#plugin-manager .sheet { width: min(980px, 100%); }
+#plugin-manager .body { display: block; }

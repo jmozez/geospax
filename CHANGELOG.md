@@ -8,6 +8,21 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Changed
+- **One place for plugins**: the bottom dock's Plugins tab is gone; **Plugins › Manage plugins** on the
+  ribbon opens the plugin manager, and the plugins' tools sit on the same tab.
+- Analysis: the static group beside the recipe dropdown is now **Geoprocessing** (it was a second
+  "Recipes" group).
+- **R kriging** (Modelling › Kriging in R) uses the nearest 32 samples and 10-fold cross-validation above
+  200 samples: 1,500 samples in 3 s instead of over 4 minutes, with the same accuracy.
+
+### Fixed
+- The map's zoom buttons and credits stayed 345 px from the right edge while Symbology was open,
+  floating over the map.
+- Map › Finish: a map split by a field (facets) failed when the layer was not styled by that field.
+- Command palette: a fast first search could be overwritten by the full list loading behind it.
+- Light theme: ribbon galleries, their menus and a few badges, tags and highlights kept dark colours.
+
 ### Added — R
 - **R tab** ([docs/R.md](docs/R.md)): an **R console** that runs R on a layer (sf) and a raster
   (terra), with editable templates for tmap and ggplot2 maps, rayshader relief, terra terrain,
@@ -37,8 +52,6 @@ design.
   that the tool dialog shows.
 - The **GeoSpaX 2.0 logo**: title bar, favicon, desktop icons and README.
 
-### Fixed
-- Light theme: ribbon galleries, their menus and a few badges, tags and highlights kept dark colours.
 
 ### Added — preview and legend editor
 - **Live preview in Finish my map**: the first page, redrawn as options change (`POST /api/preview/map`,

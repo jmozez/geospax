@@ -2090,7 +2090,8 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
             },
         };
         let mut want: Vec<usize> = Vec::new();
-        for f in [style["symbology"]["field"].as_str().map(str::to_string), label.clone(), Some("direction".to_string()), Some("length_m".to_string()), Some("area_m2".to_string()), Some("index".to_string())].into_iter().flatten() {
+        // the facet field too: a map split by a field needs it even when the layer is not styled by it
+        for f in [style["symbology"]["field"].as_str().map(str::to_string), label.clone(), p_str(p, "facet").map(str::to_string), Some("direction".to_string()), Some("length_m".to_string()), Some("area_m2".to_string()), Some("index".to_string())].into_iter().flatten() {
             if let Some(i) = l.field_index(&f) {
                 if !want.contains(&i) {
                     want.push(i);
