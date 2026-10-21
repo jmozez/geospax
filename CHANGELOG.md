@@ -18,6 +18,16 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   World (offline), OpenStreetMap (online) or none; the choice is saved in the project.
 - **The map opens on your data** when there is no saved view, instead of a fixed place.
 
+### Added — Lazy and Pro layer lists
+- **Contents has two modes**, switched at the top of the pane and remembered per browser (Lazy by default;
+  `?mode=lazy|pro`). **Lazy: layer cards** with a friendly name, a one-sentence summary written from the
+  layer's own classes ("88% of 1,500 readings are above 15"), a legend bar sized by class counts, status in
+  words, a big show/hide button and buttons for the recipes that fit the layer, run on that layer
+  (`POST /api/recipes/{id}/run` with `{"inputs": {"layer": …}}`). Cards are grouped by origin (devices, your
+  data, recipe results, reference) with the basemap as a card at the bottom. **Pro: layer tree** with file
+  names, drag-to-reorder, inline opacity, CRS / zoom range / classification on one line, legend counts and a
+  filter box. Benchmarks and UI tests (`?fresh`, `?bench`) open in Pro.
+
 ### Fixed
 - Switching a layer to graduated or unique colours no longer picks an identifier field (`id`, `fid`,
   `objectid`, `*_id`); it prefers measurements such as PM2.5, height, population or elevation.
