@@ -261,6 +261,16 @@ impl Engine {
             },
             ("GET", ["api", "recipes"]) => ApiResponse::json(200, &self.automation.summary_json()),
             ("GET", ["api", "steps"]) => ApiResponse::json(200, &json!({ "steps": crate::automation::catalogue_json() })),
+            ("POST", ["api", "preview", "map"]) => {
+                let body: serde_json::Value = match serde_json::from_slice(&req.body) {
+                    Ok(v) => v,
+                    Err(e) => return ApiResponse::error(400, format!("preview: {e}")),
+                };
+                match self.automation.preview_map(self, &body) {
+                    Ok(png) => ApiResponse { status: 200, content_type: "image/png", headers: vec![("Cache-Control", "no-store".to_string())], body: png },
+                    Err(e) => ApiResponse::error(422, e),
+                }
+            }
             ("POST", ["api", "recipes", "validate"]) => self.recipe_validate(&req.body),
             ("POST", ["api", "recipes"]) => self.recipe_save(&req.body, q),
             ("GET", ["api", "recipes", id]) => match self.automation.recipe(id) {
