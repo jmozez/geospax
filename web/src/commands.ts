@@ -324,6 +324,18 @@ export const COMMANDS: Command[] = [
     run: (h) => { h.fitAll(); },
   },
   {
+    id: 'view.themeLight', tab: 'view', group: 'Theme', title: 'Light', icon: 'image',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:theme', { detail: 'light' })); },
+  },
+  {
+    id: 'view.themeDark', tab: 'view', group: 'Theme', title: 'Dark', icon: 'layout',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:theme', { detail: 'dark' })); },
+  },
+  {
+    id: 'view.themeSystem', tab: 'view', group: 'Theme', title: 'Follow the system', icon: 'globe',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:theme', { detail: 'system' })); },
+  },
+  {
     id: 'view.basemapOffline', tab: 'view', group: 'Basemap', title: 'World (offline)', icon: 'globe',
     hint: 'Natural Earth land, lakes and borders, bundled with GeoSpaX: works without internet',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:basemap', { detail: 'offline' })); },
