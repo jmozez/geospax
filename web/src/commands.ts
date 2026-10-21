@@ -319,7 +319,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'analyze.toolbox', tab: 'analyze', group: 'Geoprocessing', title: 'Toolbox', icon: 'search', big: true,
-    hint: 'Every tool: recipes, building blocks, GeoLibre and plugin tools, searchable (ArcGIS and QGIS names work)',
+    hint: 'Every tool, by toolbox: Analysis, Conversion, Spatial Statistics, Terrain, Hydrology, Image Analysis … searchable (ArcGIS and QGIS names work)',
     run: (h) => { h.showTab('right', 'toolbox'); },
   },
   {
@@ -501,7 +501,7 @@ export const COMMANDS: Command[] = [
   recipeCmd('imagery.lidar', 'imagery', 'LiDAR', 'LiDAR → terrain', 'layers', 'lidar-to-terrain', 'Point clouds → bare earth, canopy, buildings, trees', true),
   {
     id: 'imagery.rasterTools', tab: 'imagery', group: 'Raster tools', title: 'Raster tools', icon: 'search', big: true,
-    hint: 'Search the raster tools (GeoLibre, GSX, recipes) in the Toolbox',
+    hint: 'The raster tools in the Toolbox: map algebra, zonal, reclassify, distance, terrain, hydrology',
     run: (h) => {
       h.showTab('right', 'toolbox');
       document.dispatchEvent(new CustomEvent('geospax:toolbox-search', { detail: 'raster' }));

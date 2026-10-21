@@ -115,7 +115,15 @@ pub struct PluginInfo {
     pub commands: Vec<CommandSpec>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warning: Option<String>,
+    /// Part of GeoSpaX itself (the GSX and GeoLibre tools): shipped with the app, shown with the
+    /// built-in tools, not in the plugin manager, never uninstalled.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub builtin: bool,
 }
+
+/// Tool sets that ship with GeoSpaX and are part of it, though they run on Node and WebAssembly
+/// through the plugin contract.
+pub const BUILTIN: &[&str] = &["gsx", "geolibre-tools"];
 
 // native plugin.yaml
 #[derive(Debug, Deserialize)]
@@ -386,6 +394,8 @@ fn run_program(path: &Path) -> Option<String> {
 
 fn finish(mut i: PluginInfo, path: &Path) -> PluginInfo {
     i.path = path.to_string_lossy().to_string();
+    let shipped = bundled_dirs().iter().any(|d| path.starts_with(d));
+    i.builtin = shipped && BUILTIN.contains(&i.id.as_str());
     // A runtime the machine does not have is reported, not silently dropped.
     if i.needs.is_none() {
         match i.kind.as_str() {
@@ -431,6 +441,7 @@ fn read_native(path: &Path) -> Option<PluginInfo> {
         Err(e) => {
             return Some(finish(
                 PluginInfo {
+                    builtin: false,
                     id: path.file_name()?.to_string_lossy().to_string(),
                     name: path.file_name()?.to_string_lossy().to_string(),
                     version: None,
@@ -469,6 +480,7 @@ fn read_native(path: &Path) -> Option<PluginInfo> {
     }
     Some(finish(
         PluginInfo {
+            builtin: false,
             id: m.plugin.clone(),
             name: m.title.clone().unwrap_or(m.plugin),
             version: m.version,
@@ -509,6 +521,7 @@ fn read_json_manifest(path: &Path) -> Option<PluginInfo> {
     }
     Some(finish(
         PluginInfo {
+            builtin: false,
             id: m.id.clone(),
             name: m.name.clone().unwrap_or_else(|| m.id.clone()),
             version: m.version,
@@ -574,6 +587,7 @@ fn read_qgis(path: &Path) -> Option<PluginInfo> {
     }
     Some(finish(
         PluginInfo {
+            builtin: false,
             id: id.clone(),
             name: id.clone(),
             version: map.get("version").cloned(),
@@ -685,6 +699,7 @@ fn read_arcgis(path: &Path) -> Option<PluginInfo> {
     }
     Some(finish(
         PluginInfo {
+            builtin: false,
             id,
             name,
             version: attr(&text, "AddInInfo", "version"),
@@ -773,6 +788,7 @@ fn read_package(path: &Path) -> Option<PluginInfo> {
         let json: JsonManifest = serde_json::from_str(&text).ok()?;
         return Some(finish(
             PluginInfo {
+                builtin: false,
                 id: json.id.clone(),
                 name: json.name.clone().unwrap_or_else(|| json.id.clone()),
                 version: json.version,
@@ -820,6 +836,7 @@ fn read_package(path: &Path) -> Option<PluginInfo> {
         }
         return Some(finish(
             PluginInfo {
+                builtin: false,
                 id: id.clone(),
                 name,
                 version: attr(&text, "AddInInfo", "version"),

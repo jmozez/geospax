@@ -9,6 +9,18 @@ GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpa
 design.
 
 ### Changed
+- **Dark theme is black**: neutral black and greys instead of navy, map controls (zoom, scale bar,
+  credits) themed too. Text meets WCAG AA (4.5:1) on every surface in both themes, most of it AAA
+  (body text 17:1 in dark); text on accent buttons uses the theme's on-accent colour; the light
+  theme's accent, success and warning colours were darkened to pass AA.
+- **Built-in tools are GeoSpaX's own**: the 1,062 raster, vector, terrain, hydrology, imagery and LiDAR
+  tools and the 13 conservation, landscape and biodiversity tools are filed in the Toolbox by task,
+  toolbox › toolset, like ArcGIS Pro and QGIS (Analysis, Cartography, Conversion, Data Management,
+  Spatial Statistics, Interpolation, Raster Analysis, Terrain, Hydrology, Image Analysis, LiDAR and 3D,
+  Network Analysis, Landscape Ecology, Conservation Planning, Biodiversity …), from the tool runner's
+  own taxonomy. No "GeoLibre" or "GSX" labels; they are not listed in Manage plugins; names are spaced
+  ("Add Point Coordinates To Table"); the engine's own tools have names ("Terrain derivatives", not
+  `terrain.derive`). Plugins you add keep their source label, under Plugins.
 - **One place for plugins**: the bottom dock's Plugins tab is gone; **Plugins › Manage plugins** on the
   ribbon opens the plugin manager, and the plugins' tools sit on the same tab.
 - Analysis: the static group beside the recipe dropdown is now **Geoprocessing** (it was a second
@@ -17,6 +29,9 @@ design.
   200 samples: 1,500 samples in 3 s instead of over 4 minutes, with the same accuracy.
 
 ### Fixed
+- Lazy mode: since Online data joined the task bar, the bar was wider than the window and pushed the
+  Lazy/Pro switch, the theme button and the Inspector off-screen.
+- Toolbox: a new search kept the old scroll position, hiding the best matches.
 - The map's zoom buttons and credits stayed 345 px from the right edge while Symbology was open,
   floating over the map.
 - Map › Finish: a map split by a field (facets) failed when the layer was not styled by that field.

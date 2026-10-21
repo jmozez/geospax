@@ -53,6 +53,8 @@ export interface PluginInfo {
   tools: ToolSpec[];
   commands: CommandSpec[];
   warning?: string;
+  /** part of GeoSpaX: its tools are filed with the built-in ones, not listed as a plugin */
+  builtin?: boolean;
 }
 
 export interface PluginsState {
@@ -133,16 +135,18 @@ export class PluginsPane {
       .filter(([, v]) => v)
       .map(([k]) => k)
       .join(', ');
+    // built-in tool sets are part of GeoSpaX: their tools are in the Toolbox, not listed here
+    const added = this.state.plugins.filter((p) => !p.builtin);
     const head = `<div class="pane-head">
         <span class="pane-title">Plugins</span>
-        <span class="pane-sub">${this.state.plugins.length} installed · runtimes: ${esc(rt || 'none found')}</span>
+        <span class="pane-sub">${added.length} installed · runtimes: ${esc(rt || 'none found')}</span>
       </div>
       <div class="plugin-tools">
         <button data-act="reload">Reload</button>
         <input id="plugin-import" type="text" placeholder="Folder or package (.rgplugin, .esriAddInX, .zip)" />
         <button data-act="import" class="primary">Install</button>
       </div>`;
-    if (!this.state.plugins.length) {
+    if (!added.length) {
       this.root.innerHTML = `${head}
         <div class="pane-empty">No plugins yet. Drop a folder into <code>${esc(
           this.state.dirs[0] ?? '<state>/plugins',
@@ -152,7 +156,7 @@ export class PluginsPane {
         <code>Config.daml</code> (ArcGIS Pro).</div>`;
       return;
     }
-    const cards = this.state.plugins.map((p) => this.card(p)).join('');
+    const cards = added.map((p) => this.card(p)).join('');
     this.root.innerHTML = head + `<div class="plugin-list">${cards}</div>`;
   }
 

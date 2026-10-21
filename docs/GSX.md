@@ -2,9 +2,11 @@
 
 The GSX tools bring the conservation, biodiversity and environmental analysis of **GeoSpaX 2.0**
 ([jm0535/GeoSpaX](https://github.com/jm0535/GeoSpaX)) and **GeoSpaX 1.4.2**
-([jm0535/map-kit](https://github.com/jm0535/map-kit)) into GeoSpaX 3, in GeoSpaX 3's design: one
-plugin (`plugins/gsx`) whose tools sit in the **Toolbox** with everything else, run from the ribbon,
-the command palette and the HTTP API, and put their results on the map with their provenance.
+([jm0535/map-kit](https://github.com/jm0535/map-kit)) into GeoSpaX 3, in GeoSpaX 3's design. They are
+built-in tools: filed in the **Toolbox** by task (Conservation Planning, Landscape Ecology,
+Biodiversity, Spatial Statistics › Point patterns, Analysis › Overlay), on the Analysis and Modelling
+ribbon tabs, in the command palette and the HTTP API, with no separate label. Inside, they run as
+`plugins/gsx` through the plugin contract, which is why the source lives there.
 In 2.0 the same code sat behind twelve domain panels; here each tool appears once, and the domains
 become ready-made recipes (see [Coming next](#coming-next)).
 
@@ -14,21 +16,21 @@ in CI). It needs **Node.js 18+** and nothing else; no tool here goes online.
 
 ## The tools (phase A)
 
-| Tool | Toolbox group | What it gives you |
+| Tool | Toolbox | What it gives you |
 | --- | --- | --- |
-| **Polygon overlay** | GSX · Landscape | Intersect, erase (difference) or union of two polygon layers |
-| **Weighted suitability (WLC)** | GSX · Planning | Weighted linear combination of fields, each rescaled 0–1 (`field:weight`, `:-` when lower is better), with an optional constraint field |
-| **Distance-decay suitability** | GSX · Planning | Exponential decay from a distance field: 1 at zero, 0.5 at the half-life |
-| **Unprotected priority sites** | GSX · Planning | High-score habitat points outside every protected area |
-| **Protection gap** | GSX · Planning | Protected and unprotected habitat in hectares (equal-area by default), as two layers |
-| **Minimum-cost representation (SCP)** | GSX · Planning | Cheapest planning units that meet each `field:target`; exact branch-and-bound for ≤ 28 units, greedy above |
-| **Weighted hotspot grid** | GSX · Planning | Hexagon or square grid scored from up to three weighted layers (descriptive; for statistical hot spots use *Hot spots*, Getis-Ord Gi*) |
-| **Fragmentation and patch metrics** | GSX · Landscape | NP, CA, LPI, TE, ED, MSI, core area and CAI, ENN; core-area polygons |
-| **Patch connectivity** | GSX · Landscape | Components of patches linked within a threshold distance; link lines |
-| **Two-date change** | GSX · Landscape | Loss, gain, persistence and the annual rate between two extents |
-| **DBSCAN clusters** | GSX · Species & patterns | Density clusters of up to 2,000 points; radius automatic or set |
-| **Occurrence pattern (Clark–Evans)** | GSX · Species & patterns | Nearest-neighbour ratio R, z-score: clustered, random-like or dispersed |
-| **Richness and diversity** | GSX · Species & patterns | Richness, Shannon H′, Simpson, Pielou evenness; optionally per area |
+| **Polygon overlay** | Analysis › Overlay | Intersect, erase (difference) or union of two polygon layers |
+| **Weighted suitability (WLC)** | Conservation Planning | Weighted linear combination of fields, each rescaled 0–1 (`field:weight`, `:-` when lower is better), with an optional constraint field |
+| **Distance-decay suitability** | Conservation Planning | Exponential decay from a distance field: 1 at zero, 0.5 at the half-life |
+| **Unprotected priority sites** | Conservation Planning | High-score habitat points outside every protected area |
+| **Protection gap** | Conservation Planning | Protected and unprotected habitat in hectares (equal-area by default), as two layers |
+| **Minimum-cost representation (SCP)** | Conservation Planning | Cheapest planning units that meet each `field:target`; exact branch-and-bound for ≤ 28 units, greedy above |
+| **Weighted hotspot grid** | Conservation Planning | Hexagon or square grid scored from up to three weighted layers (descriptive; for statistical hot spots use *Hot spots*, Getis-Ord Gi*) |
+| **Fragmentation and patch metrics** | Landscape Ecology | NP, CA, LPI, TE, ED, MSI, core area and CAI, ENN; core-area polygons |
+| **Patch connectivity** | Landscape Ecology | Components of patches linked within a threshold distance; link lines |
+| **Two-date change** | Landscape Ecology | Loss, gain, persistence and the annual rate between two extents |
+| **DBSCAN clusters** | Spatial Statistics › Point patterns | Density clusters of up to 2,000 points; radius automatic or set |
+| **Occurrence pattern (Clark–Evans)** | Spatial Statistics › Point patterns | Nearest-neighbour ratio R, z-score: clustered, random-like or dispersed |
+| **Richness and diversity** | Biodiversity | Richness, Shannon H′, Simpson, Pielou evenness; optionally per area |
 
 Every tool shows its results in its dialog (a table, plus the method's caveats) and adds its layers to
 the map, styled by AutoMap. Areas are in hectares and equal-area (an auto-centred Lambert azimuthal

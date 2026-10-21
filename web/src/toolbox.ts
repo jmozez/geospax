@@ -1,10 +1,13 @@
-// Toolbox (right pane, both modes): every tool GeoSpaX can run, from every ecosystem, in one
-// searchable list, like ArcGIS Pro's Geoprocessing pane but across sources:
+// Toolbox (right pane, both modes): every tool GeoSpaX can run in one searchable list, like
+// ArcGIS Pro's Geoprocessing pane. Built-in tools are organised by task, toolbox › toolset
+// (Analysis › Overlay, Hydrology › Flow routing …), whatever engine runs them:
 //
 //   - Ready-made analyses: the recipes (a form, then Run; they lay out a map and a report)
-//   - Building blocks: the engine's recipe steps, each with the ArcGIS Pro / QGIS / GRASS tools it
-//     covers, so typing an ArcGIS or QGIS tool name finds the GeoSpaX way to do it
-//   - Plugin tools: GeoLibre (1,000+ WebAssembly tools), GeoSpaX, RustGIS, QGIS and ArcGIS Pro plugins
+//   - the engine's own tools (recipe steps), each with the ArcGIS Pro / QGIS / GRASS tools it covers,
+//     so typing an ArcGIS or QGIS tool name finds the GeoSpaX way to do it
+//   - the built-in tool sets (raster, vector, terrain, hydrology, imagery, LiDAR; conservation,
+//     landscape and biodiversity), filed under the same toolboxes
+//   - tools of plugins the user added (QGIS, ArcGIS Pro, RustGIS …), under Plugins, with their source
 //
 // Search ranks by name, then summary, then the tools it stands in for. A tool opens in the pane
 // itself (no dialog for recipes and building blocks); plugin tools use the plugin's own form.
@@ -50,6 +53,38 @@ export interface ToolboxHost {
 
 const RECENT_KEY = 'geospax.toolbox.recent';
 
+/** Toolboxes in the order the pane lists them (ArcGIS Pro / QGIS names, by task). */
+const TOOLBOXES = [
+  'Ready-made analyses', 'Analysis', 'Cartography', 'Conversion', 'Data Management', 'Spatial Statistics', 'Interpolation',
+  'Raster Analysis', 'Terrain', 'Hydrology', 'Image Analysis', 'LiDAR and 3D', 'Network Analysis', 'Landscape Ecology',
+  'Conservation Planning', 'Biodiversity', 'Field data and devices', 'Maps and reports', 'Scripting (R and Python)', 'Plugins',
+];
+
+/** The engine's own tools (recipe steps) by family → toolbox. */
+const FAMILY_TOOLBOX: Record<string, string> = {
+  Analysis: 'Analysis', Cartography: 'Cartography', Code: 'Scripting (R and Python)', Data: 'Data Management', Input: 'Data Management',
+  Devices: 'Field data and devices', Geostatistics: 'Interpolation', LiDAR: 'LiDAR and 3D', Output: 'Maps and reports',
+  Performance: 'Data Management', Providers: 'Scripting (R and Python)', Raster: 'Raster Analysis', 'Remote sensing': 'Image Analysis',
+  Statistics: 'Spatial Statistics', Terrain: 'Terrain', '3D': 'LiDAR and 3D',
+};
+
+/** The engine's own tools by name (the ids stay in recipes; people see these). */
+const STEP_TITLES: Record<string, string> = {
+  'devices.import': 'Import from a device', 'devices.import_photos': 'Import geotagged photos', 'devices.import_tracks': 'Import GPS tracks',
+  'sensor.snapshot': 'Live sensor readings', 'sensor.summary': 'Summarize sensor readings', 'io.open': 'Open layers', 'vector.sql': 'SQL query',
+  'vector.buffer': 'Buffer', 'aggregate.hexbin': 'Hexagon bins', 'interpolate.idw': 'IDW interpolation', 'interpolate.auto': 'Kriging or IDW (automatic)',
+  'stats.hotspots': 'Optimized hot spot analysis', 'automap.style': 'Style automatically', 'style.apply': 'Apply saved styles',
+  'overviews.build': 'Build overviews', 'layout.auto': 'Page layout defaults', 'data.fetch': 'Get online data', 'dem.fetch': 'Get elevation (DEM)',
+  'terrain.derive': 'Terrain derivatives', 'terrain.contours': 'Contours', 'lidar.grid': 'LiDAR to terrain and canopy', 'scene.3d': '3D scene',
+  'raster.classify': 'Reclassify raster', 'raster.sample': 'Extract raster values to points', 'rs.search': 'Find satellite scenes',
+  'rs.index': 'Spectral index (NDVI …)', 'rs.fetch': 'Get satellite imagery', grass: 'GRASS GIS tool', saga: 'SAGA GIS tool',
+  'export.map': 'Export map', 'export.png': 'Export map (PNG)', 'export.pdf': 'Export map (PDF)', 'export.svg': 'Export map (SVG)',
+  'export.series': 'Map series (atlas)', 'export.report': 'Report', 'export.data': 'Export data', python: 'Python script', r: 'R script',
+};
+
+const toolboxOf = (category: string) => category.split(' › ')[0];
+const toolsetOf = (category: string) => category.split(' › ')[1] ?? '';
+
 export class Toolbox {
   private tools: Tool[] = [];
   private query = '';
@@ -69,6 +104,8 @@ export class Toolbox {
         this.query = t.value;
         this.current = null;
         this.render();
+        // a new query starts at the top of the list
+        this.el.closest('.dock-body')?.scrollTo(0, 0);
       }
     });
     el.addEventListener('click', (e) => this.onClick(e));
@@ -88,16 +125,18 @@ export class Toolbox {
     ]);
     const tools: Tool[] = [];
     for (const x of r.recipes) {
-      tools.push({ key: `r:${x.id}`, kind: 'recipe', name: x.title || x.id, summary: x.description, category: 'Ready-made analyses', source: 'GeoSpaX', aka: '', recipe: x });
+      tools.push({ key: `r:${x.id}`, kind: 'recipe', name: x.title || x.id, summary: x.description, category: 'Ready-made analyses', source: '', aka: '', recipe: x });
     }
     for (const x of s.steps) {
-      tools.push({ key: `s:${x.name}`, kind: 'step', name: x.name, summary: x.summary, category: `Building blocks · ${x.family}`, source: 'GeoSpaX', aka: x.borrowed ?? '', step: x });
+      tools.push({ key: `s:${x.name}`, kind: 'step', name: STEP_TITLES[x.name] ?? x.name, summary: x.summary, category: FAMILY_TOOLBOX[x.family] ?? 'Data Management', source: '', aka: x.borrowed ?? '', step: x });
     }
     for (const pl of p.plugins) {
       for (const t of pl.tools ?? []) {
+        // built-in tool sets file their tools by task, like the engine's own; added plugins go under
+        // Plugins, one toolset each, with where they come from
         const src = SOURCE_LABEL[pl.source] ?? pl.source;
-        const cat = t.group?.startsWith(src) ? t.group : `${src} · ${t.group || pl.name}`;
-        tools.push({ key: `p:${pl.id}/${t.id}`, kind: 'plugin', name: t.name, summary: t.summary, category: cat, source: pl.id === 'geolibre-tools' ? 'GeoLibre' : src, aka: t.id, plugin: pl, tool: t });
+        const cat = pl.builtin ? t.group || 'Analysis' : `Plugins › ${pl.name}`;
+        tools.push({ key: `p:${pl.id}/${t.id}`, kind: 'plugin', name: t.name, summary: t.summary, category: cat, source: pl.builtin ? '' : src, aka: t.id, plugin: pl, tool: t });
       }
     }
     this.tools = tools;
@@ -110,7 +149,7 @@ export class Toolbox {
     const scored: [number, Tool][] = [];
     for (const t of this.tools) {
       const name = t.name.toLowerCase();
-      const hay = `${name} ${t.summary} ${t.aka} ${t.category} ${t.source} ${t.plugin?.name ?? ''}`.toLowerCase();
+      const hay = `${name} ${t.summary} ${t.aka} ${t.category} ${t.source} ${t.step?.name ?? ''} ${t.plugin && !t.plugin.builtin ? t.plugin.name : ''}`.toLowerCase();
       if (!words.every((w) => hay.includes(w))) continue;
       let s = 0;
       if (name.startsWith(words[0])) s += 50;
@@ -125,11 +164,9 @@ export class Toolbox {
   render() {
     if (this.current) return this.renderTool(this.current);
     const q = this.query.trim();
-    const counts = new Map<string, number>();
-    for (const t of this.tools) counts.set(t.source, (counts.get(t.source) ?? 0) + 1);
     const head = `<div class="tb-head">
       <input type="search" class="tb-search" placeholder="Find a tool: buffer, slope, kernel density…" value="${esc(this.query)}" aria-label="Find a tool" />
-      <div class="tb-sources">${[...counts].map(([s, n]) => `<span class="tb-src src-${esc(s.toLowerCase())}">${esc(s)} ${n.toLocaleString('en-US')}</span>`).join('')}</div>
+      <div class="tb-sources"><span class="dim">${this.tools.length.toLocaleString('en-US')} tools in ${new Set(this.tools.map((t) => toolboxOf(t.category))).size} toolboxes</span></div>
     </div>`;
     let body = '';
     if (q) {
@@ -140,14 +177,22 @@ export class Toolbox {
     } else {
       const recent = this.recent.map((k) => this.tools.find((t) => t.key === k)).filter(Boolean) as Tool[];
       if (recent.length) body += `<div class="tb-cat static"><span>Recently used</span></div>${recent.slice(0, 5).map((t) => this.row(t)).join('')}`;
-      const cats = new Map<string, Tool[]>();
-      for (const t of this.tools) cats.set(t.category, [...(cats.get(t.category) ?? []), t]);
-      const order = [...cats.keys()].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+      // toolbox, then its toolsets (tools with no toolset first), like ArcGIS Pro's toolboxes
+      const boxes = new Map<string, Tool[]>();
+      for (const t of this.tools) boxes.set(toolboxOf(t.category), [...(boxes.get(toolboxOf(t.category)) ?? []), t]);
+      const order = [...boxes.keys()].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
       for (const c of order) {
-        const list = cats.get(c)!;
+        const list = boxes.get(c)!;
         const isOpen = this.open.has(c);
-        body += `<button class="tb-cat" data-cat="${esc(c)}" aria-expanded="${isOpen}"><span>${isOpen ? '▾' : '▸'} ${esc(c)}</span><em>${list.length}</em></button>`;
-        if (isOpen) body += list.sort((a, b) => a.name.localeCompare(b.name)).map((t) => this.row(t)).join('');
+        body += `<button class="tb-cat" data-cat="${esc(c)}" aria-expanded="${isOpen}"><span>${isOpen ? '▾' : '▸'} ${esc(c)}</span><em>${list.length.toLocaleString('en-US')}</em></button>`;
+        if (!isOpen) continue;
+        const sets = new Map<string, Tool[]>();
+        for (const t of list) sets.set(toolsetOf(t.category), [...(sets.get(toolsetOf(t.category)) ?? []), t]);
+        for (const set of [...sets.keys()].sort((a, b) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)))) {
+          const tools = sets.get(set)!.sort((a, b) => a.name.localeCompare(b.name));
+          if (set) body += `<div class="tb-set">${esc(set)} <em>${tools.length}</em></div>`;
+          body += tools.map((t) => this.row(t)).join('');
+        }
       }
     }
     this.el.innerHTML = head + `<div class="tb-list">${body}</div>`;
@@ -161,7 +206,7 @@ export class Toolbox {
   private row(t: Tool): string {
     const aka = t.kind === 'step' && t.aka ? `<small class="tb-aka">≈ ${esc(t.aka)}</small>` : '';
     return `<button class="tb-tool" data-tool="${esc(t.key)}">
-      <span class="tb-name">${esc(t.name)} <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span>${t.kind === 'step' ? '<span class="tb-src">step</span>' : ''}</span>
+      <span class="tb-name">${esc(t.name)}${t.source ? ` <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span>` : ''}</span>
       <small>${esc(t.summary.length > 120 ? `${t.summary.slice(0, 120)}…` : t.summary)}</small>${aka}
     </button>`;
   }
@@ -195,13 +240,14 @@ export class Toolbox {
         ${used.length ? used.map((u) => this.row(u)).join('') : '<p class="tb-note">None yet: use it in your own recipe (docs/AUTOMATION.md).</p>'}`;
     } else {
       const p = t.plugin!;
-      body = `<p class="tb-note">${esc(p.name)} · ${esc(SOURCE_LABEL[p.source] ?? p.source)} plugin${p.runnable ? '' : ` · <b>needs ${esc(p.needs ?? 'its runtime')}</b>`}</p>
+      const where = p.builtin ? esc(t.category.replace(' › ', ' › ')) : `${esc(p.name)} · ${esc(SOURCE_LABEL[p.source] ?? p.source)} plugin`;
+      body = `<p class="tb-note">${where}${p.runnable ? '' : ` · <b>needs ${esc(p.needs ?? 'its runtime')}${p.needs === 'node' ? ' (Node.js)' : ''}</b>`}</p>
         <h4>Parameters</h4><ul class="tb-plist">${(t.tool!.params ?? []).map((x) => `<li><b>${esc(x.label || x.name)}</b>${x.required ? ' *' : ''} <small>${esc(x.description ?? '')}</small></li>`).join('') || '<li>none</li>'}</ul>
         <button class="primary" data-open-plugin ${p.runnable ? '' : 'disabled'}>Open the tool…</button>`;
     }
     this.el.innerHTML = `<div class="tb-detail">
       <button class="tb-back" data-back>← All tools</button>
-      <h3>${esc(t.name)} <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span></h3>
+      <h3>${esc(t.name)}${t.source ? ` <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span>` : ''}</h3>
       <p class="tb-sum">${esc(t.summary)}</p>${body}</div>`;
   }
 
@@ -266,8 +312,6 @@ export class Toolbox {
 
 /** Ready-made first, then building blocks, then plugin toolboxes. */
 function rank(c: string): number {
-  if (c === 'Ready-made analyses') return 0;
-  if (c.startsWith('Building blocks')) return 1;
-  if (c.startsWith('GeoSpaX')) return 2;
-  return 3;
+  const i = TOOLBOXES.indexOf(c);
+  return i < 0 ? TOOLBOXES.length - 1 : i;
 }
