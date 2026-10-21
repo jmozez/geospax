@@ -462,6 +462,19 @@ const saveClosed = () => {
   }
 };
 
+// ---------------------------------------------------------------- Pro tree keyboard focus
+let treeFocus = '';
+const treeKey = (x: HTMLElement) => (x.dataset.id ? `l:${x.dataset.id}` : x.dataset.group ? `g:${x.dataset.group}` : x.classList.contains('pr-map') ? 'map' : 'base');
+const treeItems = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>('.pr-tree [role=treeitem]')];
+/** One tab stop for the whole tree (roving tabindex); a re-render keeps keyboard focus where it was. */
+function restoreTreeFocus(root: HTMLElement, refocus: boolean) {
+  const items = treeItems(root);
+  if (!items.length) return;
+  const cur = items.find((x) => treeKey(x) === treeFocus) ?? items.find((x) => x.classList.contains('selected')) ?? items[0];
+  items.forEach((x) => (x.tabIndex = x === cur ? 0 : -1));
+  if (refocus) cur.focus();
+}
+
 /** Pro tree actions on group layers. */
 function groupAction(act: string, gid: string, el?: HTMLInputElement) {
   const g = project.groups?.find((x) => x.id === gid);
@@ -585,7 +598,9 @@ function renderContents() {
   }
   // keep the filter box focused while typing
   const focused = document.activeElement?.classList.contains('pr-filter');
+  const treeHadFocus = !!document.activeElement?.closest('.pr-tree');
   el.innerHTML = body;
+  restoreTreeFocus(el, treeHadFocus);
   renderInspector();
   if (focused) {
     const fi = el.querySelector<HTMLInputElement>('.pr-filter');
@@ -726,6 +741,47 @@ function wireContents() {
       renderContents();
       document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
     }
+  });
+  // Pro tree keyboard (WAI-ARIA tree pattern): ↑/↓ move, →/← expand/collapse (or go to the parent),
+  // Home/End, Space shows/hides, Enter opens symbology, Alt+↑/↓ moves the layer in the draw order
+  el.addEventListener('keydown', (e) => {
+    const item = (e.target as HTMLElement).closest<HTMLElement>('.pr-tree [role=treeitem]');
+    if (!item || e.target !== item) return;
+    const items = treeItems(el);
+    const i = items.indexOf(item);
+    const id = item.dataset.id;
+    const gid = item.dataset.group;
+    const go = (to: HTMLElement | undefined) => {
+      if (!to) return;
+      treeFocus = treeKey(to);
+      items.forEach((x) => (x.tabIndex = x === to ? 0 : -1));
+      to.focus();
+    };
+    const open = item.getAttribute('aria-expanded') === 'true';
+    let done = true;
+    if (e.altKey && id && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) moveLayer(id, e.key === 'ArrowUp' ? 'up' : 'down');
+    else if (e.key === 'ArrowDown') go(items[i + 1]);
+    else if (e.key === 'ArrowUp') go(items[i - 1]);
+    else if (e.key === 'Home') go(items[0]);
+    else if (e.key === 'End') go(items[items.length - 1]);
+    else if (e.key === 'ArrowRight') {
+      if (gid && !open) groupAction('twisty', gid);
+      else if (id && !open && closedLegends.delete(id)) (saveClosed(), renderContents());
+      else go(items[i + 1]);
+    } else if (e.key === 'ArrowLeft') {
+      if (gid && open) groupAction('twisty', gid);
+      else if (id && open && item.querySelector('.legend')) (closedLegends.add(id), saveClosed(), renderContents());
+      else if (id && project.member?.[id]) go(items.find((x) => x.dataset.group === project.member![id]));
+      else go(items[0]);
+    } else if (e.key === ' ') item.querySelector<HTMLInputElement>('input[type=checkbox]')?.click();
+    else if (e.key === 'Enter' && id) item.querySelector<HTMLElement>('.name')?.click();
+    else if (e.key === 'F2' && gid) groupAction('rename', gid);
+    else done = false;
+    if (done) e.preventDefault();
+  });
+  el.addEventListener('focusin', (e) => {
+    const item = (e.target as HTMLElement).closest<HTMLElement>('.pr-tree [role=treeitem]');
+    if (item) treeFocus = treeKey(item);
   });
   el.addEventListener('dblclick', (e) => {
     const g = (e.target as HTMLElement).closest<HTMLElement>('.pr-gname')?.closest<HTMLElement>('.pr-group');
@@ -1359,6 +1415,7 @@ async function main() {
       return top ? friendlyName(layerById(top)!, layers) : 'My map';
     },
     view: () => map.getBounds().toArray().flat() as [number, number, number, number],
+    geometry: (id) => layerById(id)?.geometry ?? '',
     run: async (id) => {
       workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
       await automatePane?.run(id);
