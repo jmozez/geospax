@@ -62,11 +62,11 @@ the API; the first-use download verified and byte-identical to the npm package.
 
 ---
 
-## 1b. GSX tools (bundled)
+## 1b. Conservation, raster and species tools (bundled)
 
-`plugins/gsx` brings the conservation, biodiversity and environmental tools of GeoSpaX 2.0 and 1.4.2
-into GeoSpaX 3 as one Node plugin: suitability, protection gaps, minimum-cost representation,
-fragmentation, connectivity, change, clusters and diversity. See [GSX.md](GSX.md).
+`plugins/gsx` brings the conservation, biodiversity, raster and species-distribution tools of GeoSpaX
+2.0 and 1.4.2 into GeoSpaX 3 as one Node plugin; they show as built-in tools, filed by task. See
+[GSX.md](GSX.md).
 
 ## 2. Plugin folders
 
@@ -155,6 +155,17 @@ their `group`.
 A plugin that reads GeoJSON sets **`geojson: true`** in `plugin.yaml`: every layer named by a `layer`
 parameter is then written to the workdir as GeoJSON, whatever its source format, and passed in
 **`layer_geojson`** (`{"layer id": "/tmp/…/gsx-layer.geojson"}`).
+
+**Rasters in and out.** A parameter of kind **`raster`** (one) or **`rasters`** (several) is a raster on
+the map. GeoSpaX hands each one over as a plain float32 grid in **`raster_grids`**
+(`{"raster id": "/tmp/…/gsx-climate.grid.json"}`): the JSON header has `width`, `height`, `bands`,
+`band_names`, the GDAL `transform`, the `crs` (WKT), `title`, `kind`, `units`, and `data`, the path of
+the bands as little-endian float32, row-major, north up, band after band, NaN = no data. All rasters of
+one run are resampled onto the first one's grid (at most 1,500 cells a side), so a tool can stack them
+cell by cell with no GDAL of its own. To return a raster, write the same pair (`<name>.grid.json` + its
+float32 band) into `out_dir` and list the `.grid.json` in `outputs`; GeoSpaX turns it into a GeoTIFF and
+adds it to the map, using the header's `title`, `kind` (`suitability`, `change`, `classes`, `slope`,
+`ndvi` … pick the styling) and `classes` (`[{value, label, color}]`).
 
 The answer may also carry **`table`** (`[["label", value], …]`) and **`notes`** (strings): the tool's
 dialog shows them under the form, so a tool can report numbers without making a layer.

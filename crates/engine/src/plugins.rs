@@ -35,7 +35,7 @@ pub struct ParamSpec {
     pub name: String,
     #[serde(default)]
     pub label: String,
-    /// `number` · `text` · `bool` · `layer` · `field` · `file` · `choice`
+    /// `number` · `text` · `bool` · `layer` · `field` · `file` · `choice` · `raster` · `rasters`
     #[serde(default = "default_kind")]
     pub kind: String,
     #[serde(default)]
@@ -992,8 +992,35 @@ impl Plugins {
                 as_geojson.insert(id.to_string(), serde_json::json!(path));
             }
         }
+        // Rasters go in as plain float32 grids (`<id>.grid.json` + `.f32`, row-major, north up), every
+        // raster of one run resampled onto the first one's grid, so a tool can read them with no
+        // GDAL of its own (docs/PLUGINS.md).
+        let mut grids = serde_json::Map::new();
+        let raster_ids: Vec<String> = tool
+            .params
+            .iter()
+            .filter(|ps| ps.kind == "raster" || ps.kind == "rasters")
+            .flat_map(|ps| match params.get(&ps.name) {
+                Some(serde_json::Value::String(s)) if !s.is_empty() => s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect(),
+                Some(serde_json::Value::Array(a)) => a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
+                _ => Vec::new(),
+            })
+            .collect();
+        if !raster_ids.is_empty() {
+            fs::create_dir_all(workdir()).map_err(|e| format!("{}: {e}", workdir().display()))?;
+            let mut template: Option<(usize, usize, [f64; 6], String)> = None;
+            for id in &raster_ids {
+                if grids.contains_key(id) {
+                    continue;
+                }
+                let r = engine.raster(id).ok_or_else(|| format!("unknown raster '{id}'"))?;
+                let path = write_grid(&r, &mut template, &workdir().join(format!("{}-{}", p.id, crate::raster::sanitize(id))))?;
+                grids.insert(id.clone(), serde_json::json!(path));
+            }
+        }
         let payload = serde_json::json!({
             "plugin": p.id, "tool": tool.id, "params": params,
+            "raster_grids": grids,
             "layer_geojson": as_geojson,
             "layers": engine.layer_ids(),
             "layer_sources": sources,
@@ -1095,7 +1122,17 @@ fn add_outputs(engine: &std::sync::Arc<crate::Engine>, result: &serde_json::Valu
             continue;
         }
         let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-        if matches!(ext.as_str(), "tif" | "tiff") {
+        if path.to_string_lossy().ends_with(".grid.json") {
+            match read_grid_to_tif(path) {
+                Ok(tif) => {
+                    let id = tif.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                    if let Ok(h) = engine.register_raster(&tif, &id) {
+                        ids.push(h.info.id.clone());
+                    }
+                }
+                Err(e) => eprintln!("plugin output {}: {e}", path.display()),
+            }
+        } else if matches!(ext.as_str(), "tif" | "tiff") {
             let id = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
             if let Ok(h) = engine.register_raster(path, &id) {
                 ids.push(h.info.id.clone());
@@ -1105,6 +1142,95 @@ fn add_outputs(engine: &std::sync::Arc<crate::Engine>, result: &serde_json::Valu
         }
     }
     ids
+}
+
+/// Write raster `r` as a float32 grid at `stem` (+ .grid.json, .f32). The first raster of a run sets
+/// the grid (its own, at most 1,500 cells a side); later ones are warped onto it.
+fn write_grid(r: &crate::raster::RasterHandle, template: &mut Option<(usize, usize, [f64; 6], String)>, stem: &Path) -> Result<PathBuf, String> {
+    use crate::raster;
+    let src = raster::open(&r.info.path)?;
+    let ds = match template.as_ref() {
+        None => {
+            let (w, h) = src.raster_size();
+            let k = (w.max(h) as f64 / 1500.0).max(1.0);
+            let ds = if k > 1.0 {
+                raster::translate(&src, "", &raster::strings(&["-of", "MEM", "-r", "average", "-ot", "Float32", "-outsize", &((w as f64 / k).round() as usize).to_string(), &((h as f64 / k).round() as usize).to_string()]))?
+            } else {
+                raster::translate(&src, "", &raster::strings(&["-of", "MEM", "-ot", "Float32"]))?
+            };
+            let (w, h) = ds.raster_size();
+            *template = Some((w, h, ds.geo_transform().map_err(|e| e.to_string())?, ds.projection()));
+            ds
+        }
+        Some((w, h, gt, wkt)) => {
+            let (minx, maxy) = (gt[0], gt[3]);
+            let (maxx, miny) = (gt[0] + gt[1] * *w as f64, gt[3] + gt[5] * *h as f64);
+            let mut a = raster::strings(&["-of", "MEM", "-ot", "Float32", "-r", "bilinear", "-dstnodata", "nan"]);
+            a.extend(["-te".into(), minx.to_string(), miny.to_string(), maxx.to_string(), maxy.to_string(), "-ts".into(), w.to_string(), h.to_string()]);
+            if !wkt.is_empty() {
+                a.extend(["-t_srs".into(), wkt.clone()]);
+            }
+            raster::warp(&[&src], "", &a)?
+        }
+    };
+    let (w, h) = ds.raster_size();
+    let bands = ds.raster_count();
+    let mut bytes: Vec<u8> = Vec::with_capacity(w * h * bands * 4);
+    let mut names = Vec::new();
+    for b in 1..=bands {
+        let band = ds.rasterband(b).map_err(|e| e.to_string())?;
+        let nd = band.no_data_value();
+        let (vals, _, _) = raster::read_full(&ds, b)?;
+        for v in vals {
+            let v = if nd.is_some_and(|n| (v as f64 - n).abs() < 1e-9) || !v.is_finite() { f32::NAN } else { v };
+            bytes.extend_from_slice(&v.to_le_bytes());
+        }
+        names.push(gdal::Metadata::description(&band).ok().filter(|d| !d.is_empty()).unwrap_or_else(|| format!("band {b}")));
+    }
+    let data = stem.with_extension("f32");
+    fs::write(&data, bytes).map_err(|e| format!("{}: {e}", data.display()))?;
+    let header = PathBuf::from(format!("{}.grid.json", stem.display()));
+    let meta = serde_json::json!({
+        "id": r.info.id, "title": r.info.title, "kind": r.info.kind, "units": r.info.units,
+        "width": w, "height": h, "bands": bands, "band_names": names,
+        "transform": ds.geo_transform().map_err(|e| e.to_string())?, "crs": ds.projection(),
+        "geographic": r.info.geographic, "pixel_m": r.info.pixel_m,
+        "data": data, "dtype": "float32", "nodata": "NaN",
+    });
+    fs::write(&header, meta.to_string()).map_err(|e| format!("{}: {e}", header.display()))?;
+    Ok(header)
+}
+
+/// A grid a tool wrote (`<name>.grid.json` + float32 data, band 1) as a GeoTIFF beside it, with the
+/// header's title, kind, units and classes as the raster's sidecar.
+fn read_grid_to_tif(header: &Path) -> Result<PathBuf, String> {
+    let meta: serde_json::Value = serde_json::from_slice(&fs::read(header).map_err(|e| e.to_string())?).map_err(|e| format!("{}: {e}", header.display()))?;
+    let w = meta["width"].as_u64().ok_or("width is missing")? as usize;
+    let h = meta["height"].as_u64().ok_or("height is missing")? as usize;
+    let gt: Vec<f64> = meta["transform"].as_array().ok_or("transform is missing")?.iter().filter_map(|v| v.as_f64()).collect();
+    if gt.len() != 6 {
+        return Err("transform must have 6 numbers".into());
+    }
+    let data_path = meta["data"].as_str().map(PathBuf::from).unwrap_or_else(|| header.with_file_name(header.file_name().unwrap().to_string_lossy().replace(".grid.json", ".f32")));
+    let data_path = if data_path.is_relative() { header.parent().unwrap_or(Path::new(".")).join(data_path) } else { data_path };
+    let bytes = fs::read(&data_path).map_err(|e| format!("{}: {e}", data_path.display()))?;
+    if bytes.len() < w * h * 4 {
+        return Err(format!("{} has {} bytes, the header says {w}×{h} float32", data_path.display(), bytes.len()));
+    }
+    let vals: Vec<f32> = bytes[..w * h * 4].chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+    let name = header.file_name().unwrap().to_string_lossy().replace(".grid.json", "");
+    let tif = header.with_file_name(format!("{name}.tif"));
+    crate::raster::write_tif_f32(&tif, w, h, [gt[0], gt[1], gt[2], gt[3], gt[4], gt[5]], meta["crs"].as_str().unwrap_or(""), vals, Some(f32::NAN as f64))?;
+    let mut side = serde_json::Map::new();
+    for k in ["title", "kind", "units", "description", "classes", "credit"] {
+        if let Some(v) = meta.get(k).filter(|v| !v.is_null()) {
+            side.insert(k.to_string(), v.clone());
+        }
+    }
+    if !side.is_empty() {
+        crate::raster::write_sidecar(&tif, &serde_json::Value::Object(side))?;
+    }
+    Ok(tif)
 }
 
 fn workdir() -> PathBuf {
