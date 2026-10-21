@@ -431,6 +431,55 @@ pub struct StepCtx<'a> {
     pub figures: Vec<(Option<String>, String)>,
 }
 
+impl<'a> StepCtx<'a> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        engine: &'a Arc<Engine>,
+        recipe_id: &'a str,
+        recipe_title: &'a str,
+        recipe_text: &'a str,
+        run_id: &'a str,
+        dir: &'a Path,
+        cancel: &'a AtomicBool,
+        trigger: &'a Value,
+        inputs: &'a Map<String, Value>,
+    ) -> Self {
+        StepCtx {
+            engine,
+            recipe_id,
+            recipe_title,
+            recipe_text,
+            run_id,
+            dir,
+            cancel,
+            trigger,
+            inputs,
+            step_id: String::new(),
+            styles: HashMap::new(),
+            names: HashMap::new(),
+            page: Map::new(),
+            touched: Vec::new(),
+            maps: Vec::new(),
+            methods: Vec::new(),
+            records: Vec::new(),
+            artifacts: Vec::new(),
+            extent: None,
+            device: None,
+            import_summary: None,
+            cards: Vec::new(),
+            hints: HashMap::new(),
+            rasters: Vec::new(),
+            scenes: Vec::new(),
+            aoi: None,
+            cloud_sample: None,
+            cloud_total: 0,
+            views: Vec::new(),
+            charts: Vec::new(),
+            figures: Vec::new(),
+        }
+    }
+}
+
 pub struct StepOut {
     pub outputs: Value,
     pub why: Vec<String>,
@@ -1794,7 +1843,8 @@ fn render_multi(sc: &StepCtx, p: &Value, spec: &MapSpec, defs: Vec<PanelDef>, ex
     };
     let extents: Vec<[f64; 4]> = panels.iter().map(|(_, e, _, _)| *e).collect();
     let ncol = p.get("ncol").and_then(Value::as_u64).map(|c| c as usize);
-    let (w, h, rects) = cartography::panel_grid(&extents, ncol, own_legends);
+    let beside = spec.furniture.legend == "right";
+    let (w, h, rects) = cartography::panel_grid(&extents, ncol, own_legends && beside, !own_legends && beside);
     let tags = p_str(p, "tags").unwrap_or("a");
     let mut out = Vec::new();
     for (i, ((title, e, layers, own), r)) in panels.into_iter().zip(rects).enumerate() {

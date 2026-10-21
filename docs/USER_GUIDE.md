@@ -84,10 +84,18 @@ Under *Page, legend, scale bar, north arrow, inset* (open in Pro, one click away
 - **Resolution**: 150, 300, 600 or 1200 dpi. The PNG is made at that resolution and carries it, so it
   opens at its print size in Word, InDesign or a journal's system; the PDF is vector at any size.
 - **Legend**: beside the map, **inside the map** (on a card) or none, with its heading. **Edit the
-  legend** to hide a layer, give it another title, or rename classes (`0.2 – 15 = ≤ 15`).
+  legend** lists every layer with its classes: untick to hide a layer, type a new title, rename any
+  class, and drag a row (or ▲▼) to change the order.
 - **Scale bar**: pill, checker, line or ruler; km/m, mi/ft or both.
 - **North arrow**: needle, compass, 8-point rose, minimal or none.
 - **Overview inset**: a world/region map with your area boxed.
+
+**Live preview.** The dialog shows the first page as it will be made, beside the options, and redraws
+it as you change the layout, look, legend or furniture (a quick low-resolution render; nothing is saved
+until you press **Make the map**).
+
+On **multi-panel pages** a legend *inside the map* sits in each panel (one legend per panel) or in the
+first panel (one shared legend); the north arrow and the overview inset go in the first panel.
 
 **Furniture goes where your data isn't.** GeoSpaX looks at how much of the map's data falls in each
 corner and puts the inside legend and the inset in the emptiest corners, the north arrow in the
