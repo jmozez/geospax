@@ -15,6 +15,7 @@ pub mod raster_steps;
 pub mod cartography;
 pub mod charts;
 pub mod data_steps;
+pub mod tool_step;
 pub mod cli;
 pub mod features;
 pub mod furniture;
@@ -56,6 +57,16 @@ pub const GALLERY: &[(&str, &str)] = &[
     ("wetness-saga", include_str!("../../../../recipes/wetness-saga.yaml")),
     ("sensor-log-to-map", include_str!("../../../../recipes/sensor-log-to-map.yaml")),
     ("air-quality-alert", include_str!("../../../../recipes/air-quality-alert.yaml")),
+    // domain kits (Biodiversity, Climate, Conservation, Forestry, Land cover, Agriculture, Disaster, Soil)
+    ("kit-species-distribution", include_str!("../../../../recipes/kit-species-distribution.yaml")),
+    ("kit-climate-range-shift", include_str!("../../../../recipes/kit-climate-range-shift.yaml")),
+    ("kit-survey-diversity", include_str!("../../../../recipes/kit-survey-diversity.yaml")),
+    ("kit-protection-gaps", include_str!("../../../../recipes/kit-protection-gaps.yaml")),
+    ("kit-forest-fragmentation", include_str!("../../../../recipes/kit-forest-fragmentation.yaml")),
+    ("kit-land-cover-change", include_str!("../../../../recipes/kit-land-cover-change.yaml")),
+    ("kit-vegetation-change", include_str!("../../../../recipes/kit-vegetation-change.yaml")),
+    ("kit-steep-slopes", include_str!("../../../../recipes/kit-steep-slopes.yaml")),
+    ("kit-soil-properties", include_str!("../../../../recipes/kit-soil-properties.yaml")),
 ];
 
 #[derive(Debug, Clone, Default)]

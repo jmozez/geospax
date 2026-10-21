@@ -520,17 +520,23 @@ export class Workbench {
 
   private recipeRows(): string {
     const head = `<div class="rb-menu-head"><span>Recipes</span><span class="dim">${this.recipes.length} — click to run</span></div>`;
-    const rows = this.recipes
-      .map((x) => {
-        const desc = (x.description ?? '').replace(/\s+/g, ' ').trim();
-        return `<button class="rb-menu-row" data-recipe="${esc(x.id)}" title="${esc(desc)}">
+    const row = (x: RecipeInfo) => {
+      const desc = (x.description ?? '').replace(/\s+/g, ' ').trim();
+      return `<button class="rb-menu-row" data-recipe="${esc(x.id)}" title="${esc(desc)}">
           <span class="rm-ico">${icon(recipeIcon(x), 16)}</span>
           <span class="rm-txt"><span class="rm-name">${esc(x.title ?? x.id)}</span>${
             desc ? `<span class="rm-desc">${esc(desc.length > 90 ? `${desc.slice(0, 90)}…` : desc)}</span>` : ''
           }</span></button>`;
-      })
-      .join('');
-    return head + rows;
+    };
+    // domain kits first, under their domain, then the general recipes
+    const kits = [...new Set(this.recipes.map((x) => x.kit).filter((k): k is string => !!k))].sort();
+    const sub = (t: string) => `<div class="rb-menu-sub">${esc(t)}</div>`;
+    return (
+      head +
+      kits.map((k) => sub(`${k} kit`) + this.recipes.filter((x) => x.kit === k).map(row).join('')).join('') +
+      (kits.length ? sub('General') : '') +
+      this.recipes.filter((x) => !x.kit).map(row).join('')
+    );
   }
 
   private pluginRows(pluginId: string, group?: string): string {

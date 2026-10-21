@@ -151,6 +151,9 @@ pub struct Recipe {
     pub version: u64,
     pub title: String,
     pub description: String,
+    /// Domain kit the recipe belongs to (Biodiversity, Conservation, Terrain …): the gallery and the
+    /// Toolbox group kits by it.
+    pub kit: String,
     pub triggers: Vec<Trigger>,
     pub inputs: Vec<InputSpec>,
     pub steps: Vec<Step>,
@@ -221,6 +224,7 @@ impl Recipe {
         let version = obj.get("version").and_then(Value::as_u64).unwrap_or(1);
         let title = obj.get("title").and_then(Value::as_str).unwrap_or(&id).to_string();
         let description = obj.get("description").and_then(Value::as_str).unwrap_or("").trim().to_string();
+        let kit = obj.get("kit").and_then(Value::as_str).unwrap_or("").trim().to_string();
 
         // triggers
         let mut triggers = Vec::new();
@@ -309,7 +313,7 @@ impl Recipe {
             _ => errs.push("a recipe needs a non-empty 'steps:' list".into()),
         }
         let outputs = as_str_list(obj.get("outputs"));
-        let r = Recipe { id, version, title, description, triggers, inputs, steps, outputs, text: text.to_string(), origin };
+        let r = Recipe { id, version, title, description, kit, triggers, inputs, steps, outputs, text: text.to_string(), origin };
         if let Err(e) = r.order() {
             errs.push(e);
         }
@@ -410,6 +414,7 @@ impl Recipe {
             "version": self.version,
             "title": self.title,
             "description": self.description,
+            "kit": self.kit,
             "origin": self.origin.as_str(),
             "triggers": self.triggers.iter().map(Trigger::json).collect::<Vec<_>>(),
             "inputs": self.inputs.iter().map(|i| json!({ "name": i.name, "type": i.kind, "default": i.default, "description": i.description })).collect::<Vec<_>>(),

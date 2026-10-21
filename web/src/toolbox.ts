@@ -87,6 +87,8 @@ const toolsetOf = (category: string) => category.split(' › ')[1] ?? '';
 
 export class Toolbox {
   private tools: Tool[] = [];
+  /** rasters on the map, for recipe inputs of type raster */
+  private rasterList: { id: string; title: string }[] = [];
   private query = '';
   private open = new Set<string>(['Ready-made analyses']);
   private current: Tool | null = null;
@@ -118,6 +120,7 @@ export class Toolbox {
   /** Read every source again (recipes, steps, plugins). */
   async reload() {
     const be = this.host.backend;
+    this.rasterList = await be.json<{ rasters: { id: string; title: string }[] }>('api/rasters').then((x) => x.rasters).catch(() => []);
     const [r, s, p] = await Promise.all([
       be.json<{ recipes: RecipeInfo[] }>('api/recipes').catch(() => ({ recipes: [] as RecipeInfo[] })),
       be.json<{ steps: StepDoc[] }>('api/steps').catch(() => ({ steps: [] as StepDoc[] })),
@@ -125,7 +128,7 @@ export class Toolbox {
     ]);
     const tools: Tool[] = [];
     for (const x of r.recipes) {
-      tools.push({ key: `r:${x.id}`, kind: 'recipe', name: x.title || x.id, summary: x.description, category: 'Ready-made analyses', source: '', aka: '', recipe: x });
+      tools.push({ key: `r:${x.id}`, kind: 'recipe', name: x.title || x.id, summary: x.description, category: x.kit ? `Ready-made analyses › ${x.kit} kit` : 'Ready-made analyses', source: '', aka: '', recipe: x });
     }
     for (const x of s.steps) {
       tools.push({ key: `s:${x.name}`, kind: 'step', name: STEP_TITLES[x.name] ?? x.name, summary: x.summary, category: FAMILY_TOOLBOX[x.family] ?? 'Data Management', source: '', aka: x.borrowed ?? '', step: x });
@@ -226,6 +229,10 @@ export class Toolbox {
         .map((i) => {
           const label = `<span>${esc(i.name.replace(/_/g, ' '))}<small>${esc(i.description)}</small></span>`;
           if (i.type === 'layer') return `<label>${label}${layerSel(i.name)}</label>`;
+          if (i.type === 'raster')
+            return `<label>${label}<select name="${esc(i.name)}"><option value="">(choose a raster)</option>${this.rasterList
+              .map((x) => `<option value="${esc(x.id)}">${esc(x.title || x.id)}</option>`)
+              .join('')}</select></label>`;
           if (i.type === 'field') return `<label>${label}<select name="${esc(i.name)}"><option value="auto">auto</option>${fields.map((f) => `<option>${esc(f)}</option>`).join('')}</select></label>`;
           return `<label>${label}<input name="${esc(i.name)}" value="${esc(i.default ?? '')}" /></label>`;
         })

@@ -1,0 +1,33 @@
+# Disaster and geoscience kit: slopes that matter for landslides, erosion and access.
+recipe: kit-steep-slopes
+version: 1
+kit: Disaster and geoscience
+title: Steep slopes (landslide and erosion screening)
+description: >-
+  An area in: the Copernicus 30 m DEM for it, Horn slope in three zones (gentle, moderate, steep;
+  breaks you choose), the area of each, and maps of the zones over relief shading.
+inputs:
+  area: { type: layer, default: auto, description: the area (any layer) }
+  breaks: { type: text, default: "15, 30", description: "slope breaks in degrees (15 and 30 are common landslide-screening thresholds)" }
+  buffer: { type: number, default: 500, description: margin around the area in metres }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}" }
+  - id: dem
+    use: dem.fetch
+    with: { aoi: "${area.layer}", buffer: "${inputs.buffer}" }
+  - id: terrain
+    use: terrain.derive
+    with: { products: [hillshade] }
+  - id: zones
+    use: tool
+    with: { tool: gsx/slope-zones, params: { dem: dem, breaks: "${inputs.breaks}" } }
+  - id: map
+    use: export.map
+    with: { name: slope-zones, layers: ["${zones.rasters.1}", hillshade, "${area.layer}"], title: "Slope zones (${inputs.breaks}°)" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Steep slopes · ${run.date}" }
+outputs: [map, report]

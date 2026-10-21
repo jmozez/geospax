@@ -913,15 +913,20 @@ fn draw_layer<'a>(
         }
         GeomKind::Point | GeomKind::Unknown => {
             let n: usize = l.fs.feats.iter().map(|f| if let Geom::Points(p) = &f.geom { p.len() } else { 1 }).sum();
-            if n > 30_000 {
+            if n > DENSITY_POINTS && !classed(l) {
                 return density(svg, l, lay);
             }
+            // a dense classed layer: every k-th feature, so the classes stay readable
+            let every = if n > DENSITY_POINTS { n.div_ceil(DENSITY_POINTS) } else { 1 };
             let device = role.is_some();
             let (r, stroke_w) = if device { (5.5, 1.6) } else if n > 3000 { (1.6, 0.0) } else if n > 500 { (2.6, 0.5) } else { (4.0, 0.9) };
             let dir_idx = if role == Some("photos") { l.fs.field("direction") } else { None };
             let mut wedges = String::new();
             let mut pts = Vec::new();
             for (i, f) in l.fs.feats.iter().enumerate() {
+                if i % every != 0 {
+                    continue;
+                }
                 let coords: Vec<[f64; 2]> = match &f.geom {
                     Geom::Points(p) => p.clone(),
                     g => super::features::anchor(g).into_iter().collect(),
@@ -969,6 +974,15 @@ fn draw_layer<'a>(
         }
     }
     drawn
+}
+
+/// Points above which a layer is drawn as a density grid, unless it is classed.
+const DENSITY_POINTS: usize = 30_000;
+
+/// A classed point layer (unique values or graduated) keeps its classes when it is dense: an even
+/// sample of its points is drawn instead of a density grid, so its legend (and renamed classes) holds.
+fn classed(l: &MapLayer) -> bool {
+    matches!(l.style["symbology"]["kind"].as_str(), Some("unique" | "graduated"))
 }
 
 /// Too many points to draw one by one: a density grid (6 px cells, log colour scale).
@@ -1102,7 +1116,13 @@ fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64,
         let text = |svg: &mut String, y: f64, t: &str| {
             let _ = write!(svg, "<text x=\"{:.1}\" y=\"{y:.1}\" font-size=\"12\" fill=\"#33414e\">{}</text>", x + 30.0, esc(&truncate(&rename(t), 32)));
         };
-        if l.fs.feats.len() > 30_000 && l.kind == GeomKind::Point {
+        if l.fs.feats.len() > DENSITY_POINTS && l.kind == GeomKind::Point && classed(l) {
+            // the counts below are for every point; the map shows an even sample
+            let k = l.fs.feats.len().div_ceil(DENSITY_POINTS);
+            let _ = write!(svg, "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"#5d6b78\">1 in {k} points drawn; counts are for all</text>", x, y - 2.0);
+            y += row - 4.0;
+        }
+        if l.fs.feats.len() > DENSITY_POINTS && l.kind == GeomKind::Point && !classed(l) {
             let colors = super::automap::ramp_colors("ylorrd", 5);
             for (i, c) in colors.iter().enumerate() {
                 let _ = write!(svg, "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"12\" height=\"12\" fill=\"{c}\"/>", x + i as f64 * 12.0, y - 10.0);
