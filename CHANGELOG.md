@@ -27,6 +27,42 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **Pro: a contextual Layer tab** (as ArcGIS Pro shows for a selected layer) with zoom, attribute table,
   symbology, AutoMap and the same next steps. Clicking a layer card selects it.
 
+### Added — Pro layer tree, Toolbox, GeoLibre tools
+- **The Pro Contents pane is a tree**, as in ArcGIS Pro: Map ▸ group layers ▸ layers ▸ legend, then the
+  basemap. **＋ Group**, rename (✎ or double-click), ungroup (⊟, keeps the layers), a group switch that
+  hides its layers without touching their own switches, twisties that fold a layer's legend (remembered),
+  expand/collapse all, and drag a layer onto a group, onto Map or onto another layer. Saved in the project
+  (`groups`, `member`). ARIA tree roles.
+- **Toolbox** (right pane, both modes; *All tools* in the Lazy task bar, *Analyze → Toolbox* in Pro): the
+  recipes, the engine's 36 building blocks (each with the ArcGIS Pro / QGIS / GRASS / SAGA tools it stands
+  in for, so those names find it, and the recipes that use it) and every plugin's tools, in one ranked
+  search with categories, recently used tools, source badges and in-pane recipe forms.
+- **1,062 GeoLibre tools, bundled** (`plugins/geolibre-tools`): GeoLibre's tool runner (geolibre-wasm 1.7.1,
+  MIT, built on whitebox_next_gen) as a GeoSpaX plugin, run under Node's WASI. Forms generated from its
+  manifests; vector inputs are layers on the map; results join the map. The runner is fetched once and
+  checked against its npm SHA-512 (not redistributed). See [PLUGINS §1a](docs/PLUGINS.md#1a-geolibre-tools-bundled).
+- **Plugin contract:** requests carry `layer_sources` (layer → file) and `out_dir`; files a tool lists in
+  `outputs` are added to the map (rasters and vector layers) and named in the reply's `added`.
+- **Bundled plugins load without flags** (source checkout, `.deb`, Windows, Docker; `$GEOSPAX_PLUGINS`);
+  the `.deb` recommends `nodejs`. A `process` plugin whose program is missing says so (*needs node*).
+- A plugin with more than 40 tools gets one ribbon button that opens the Toolbox on it.
+- `scripts/test-web-controls.mjs` clicks every control in both modes (48 ribbon commands, the Layer tab,
+  the tree, every dock tab, the Toolbox, the task bar, Inspector chips, card buttons, one analysis from a
+  card to its report) and fails on any page error, console error or 5xx: 18/18 pass.
+
+### Changed
+- Lazy mode: clicking a card, its name or its ⋯ opens the Inspector (Symbology is Pro-only); the Project
+  tab (transport, benchmark) is Pro-only.
+- New layers start visible; only the benchmark's duplicate synthetic copies start hidden (plugin and
+  recipe results in `.shp` were hidden before).
+
+### Fixed
+- Web tests waited for `window.map`, which the browser points at the `#map` element before the app
+  creates its map; they now wait for the map object.
+- CI on Debian 13: shell scripts executable, Windows checksums without a `.deb`, `USER` unset in
+  containers, the MQTT/TLS brokers in the Linux and Wine tests could not read their certificates as
+  the `mosquitto` user, `r-cran-gstat` taken from CRAN.
+
 ### Added — Lazy panes: the Inspector and Activity
 - **Inspector** (right pane in Lazy mode): the selected layer as a story: sentence, classes with count
   bars, AutoMap's reason, **Colour it by** chips (graduated for numbers, WHO classes for PM2.5/PM10, unique
