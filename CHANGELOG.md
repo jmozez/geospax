@@ -8,6 +8,17 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — rasters and species distribution models (from GeoSpaX 2.0)
+- **Spectral index and extent** (NDVI, NDWI, NDBI, NBR, any band pair) with an automatic Otsu
+  threshold; **raster change** between two dates with loss and gain thresholds; **slope zones**.
+- **Species distribution model**: BIOCLIM, Mahalanobis or presence-background logistic from
+  occurrences and environmental rasters, suitability and predicted-range rasters, spatially blocked
+  cross-validation (AUC, max TSS, Boyce) with presence blocks spread over the folds (Modelling tab,
+  Toolbox › Species Distribution).
+- Plugins take and return **rasters** (`raster` / `rasters` parameters, float32 grids aligned on one
+  grid; `docs/PLUGINS.md`); raster results are shown and framed on the map when a tool finishes.
+- Raster styling for suitability (fixed 0–1) and change (diverging, centred on zero).
+
 ### Changed
 - **Dark theme is black**: neutral black and greys instead of navy, map controls (zoom, scale bar,
   credits) themed too. Text meets WCAG AA (4.5:1) on every surface in both themes, most of it AAA

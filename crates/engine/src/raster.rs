@@ -511,6 +511,7 @@ fn ramp_stops(id: &str) -> Vec<String> {
         "gray" => &["#000000", "#ffffff"],
         "rough" => &["#ffffe5", "#fee391", "#fe9929", "#cc4c02", "#662506"],
         "uncert" => &["#fbf7fb", "#e7d4e8", "#c9a5cf", "#a66fb0", "#7b3f8c", "#4d1a5c"],
+        "change" => &["#b2182b", "#ef8a62", "#fddbc7", "#f7f7f7", "#d1e5f0", "#67a9cf", "#2166ac"],
         "canopy" => &["#f7fcb9", "#d9f0a3", "#addd8e", "#78c679", "#41ab5d", "#238443", "#006837", "#004529"],
         other => return crate::automation::automap::ramp_colors(other, 5),
     };
@@ -586,6 +587,17 @@ pub fn auto_style(info: &RasterInfo) -> (Value, String) {
             (
                 json!({ "kind": "stretch", "ramp": "uncert", "min": 0.0, "max": top, "opacity": 0.95 }),
                 "kriging standard error from pale (well supported by nearby samples) to dark purple (far from samples: treat the surface as a guess there)".into(),
+            )
+        }
+        "suitability" => (
+            json!({ "kind": "stretch", "ramp": "viridis", "min": 0.0, "max": 1.0, "opacity": 0.95 }),
+            "habitat suitability on Viridis with a fixed 0–1 scale (dark purple unsuitable, yellow most suitable), so models and runs compare".into(),
+        ),
+        "change" => {
+            let m = s.p2.abs().max(s.p98.abs()).max(1e-6);
+            (
+                json!({ "kind": "stretch", "ramp": "change", "min": -m, "max": m, "opacity": 1.0 }),
+                format!("change (after − before) on a diverging ramp centred on zero: red loss, blue gain, ±{}", crate::automation::cartography::fmt_num(m)),
             )
         }
         "classes" => (

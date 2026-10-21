@@ -269,8 +269,12 @@ export class PluginsPane {
 
   // ---------------------------------------------------------------- tool dialog
 
-  openTool(p: PluginInfo, tool: ToolSpec) {
+  async openTool(p: PluginInfo, tool: ToolSpec) {
     const layers = this.host.layers();
+    // rasters for raster parameters (newest first)
+    const rasters = (tool.params ?? []).some((x) => x.kind === 'raster' || x.kind === 'rasters')
+      ? ((await this.backend.json<{ rasters: { id: string; title: string; bands: number }[] }>('api/rasters').catch(() => ({ rasters: [] }))).rasters ?? []).slice().reverse()
+      : [];
     const field = (l: { fields?: { name: string; kind: string }[] }) => l.fields ?? [];
     const params = tool.params ?? [];
     const inputs = params
@@ -280,6 +284,13 @@ export class PluginsPane {
           return `<label class="pf"><span>${esc(prm.label || prm.name)}</span><select data-p="${esc(prm.name)}">
             <option value="">auto</option>
             ${layers.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}
+          </select></label>`;
+        }
+        if (prm.kind === 'raster' || prm.kind === 'rasters') {
+          const multi = prm.kind === 'rasters';
+          const opts = rasters.map((r) => `<option value="${esc(r.id)}">${esc(r.title || r.id)}${r.bands > 1 ? ` (${r.bands} bands)` : ''}</option>`).join('');
+          return `<label class="pf"><span>${esc(prm.label || prm.name)}${multi ? ' <small class="dim">(Ctrl/⌘-click for several)</small>' : ''}</span><select data-p="${esc(prm.name)}" ${multi ? `multiple size="${Math.min(6, Math.max(3, rasters.length))}"` : ''}>
+            ${multi ? '' : '<option value="">(choose)</option>'}${opts || '<option value="" disabled>No rasters on the map yet: add one (Data › Online data, Imagery)</option>'}
           </select></label>`;
         }
         if (prm.kind === 'field') {
@@ -306,13 +317,15 @@ export class PluginsPane {
       <header>
         <div>
           <b>${esc(tool.name)}</b>
-          <div class="dim">${esc(p.name)} · ${esc(SOURCE_LABEL[p.source] ?? p.source)} · ${esc(tool.id)}${
-            tool.recipe ? ` · recipe <code>${esc(tool.recipe)}</code>` : ''
+          <div class="dim">${
+            p.builtin
+              ? esc((tool.group ?? '').replace(' › ', ' › '))
+              : `${esc(p.name)} · ${esc(SOURCE_LABEL[p.source] ?? p.source)} · ${esc(tool.id)}${tool.recipe ? ` · recipe <code>${esc(tool.recipe)}</code>` : ''}`
           }</div>
         </div>
         <button data-close>×</button>
       </header>
-      <div class="body">${body}${tool.summary ? `<p class="dim">${esc(tool.summary)}</p>` : ''}<div id="plugin-result" class="plugin-result" hidden></div></div>
+      <div class="body">${tool.summary ? `<p class="dim">${esc(tool.summary)}</p>` : ''}${body}<div id="plugin-result" class="plugin-result" hidden></div></div>
       <footer>
         <span class="dim" id="plugin-msg"></span>
         <button data-close>Cancel</button>
@@ -334,6 +347,7 @@ export class PluginsPane {
     const params: Record<string, unknown> = {};
     for (const el of this.modal.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-p]')) {
       if (el instanceof HTMLInputElement && el.type === 'checkbox') params[el.dataset.p!] = el.checked;
+      else if (el instanceof HTMLSelectElement && el.multiple) params[el.dataset.p!] = [...el.selectedOptions].map((o) => o.value).filter(Boolean);
       else if (el instanceof HTMLInputElement && el.type === 'number') params[el.dataset.p!] = el.value === '' ? null : Number(el.value);
       else params[el.dataset.p!] = el.value;
     }

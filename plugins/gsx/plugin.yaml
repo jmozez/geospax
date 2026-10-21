@@ -3,7 +3,7 @@
 plugin: gsx
 version: 3.0.0
 title: Conservation, landscape and biodiversity tools
-description: "13 conservation, landscape and biodiversity tools: suitability, protection gaps, minimum-cost representation, fragmentation, connectivity, change, clusters and diversity. Runs on Node, offline."
+description: "17 conservation, landscape and biodiversity tools: suitability, protection gaps, minimum-cost representation, fragmentation, connectivity, change, clusters and diversity. Runs on Node, offline."
 author: J. Moses (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
 license: MIT
 homepage: https://github.com/jmozez/geospax
@@ -149,3 +149,47 @@ tools:
       - { name: "occurrences", label: "Occurrences", kind: layer, required: true }
       - { name: "species", label: "Species field", kind: field, required: true }
       - { name: "areas", label: "Per area (optional)", kind: layer, description: "Polygons; each gets richness, Shannon and Simpson of the points inside." }
+  - id: "spectral-index"
+    name: "Spectral index and extent (Otsu)"
+    summary: "NDVI, NDWI, NDBI, NBR or any band pair from a multiband image, with an automatic Otsu threshold and the area above it."
+    group: "Image Analysis › Spectral indices"
+    icon: satellite
+    tab: imagery
+    params:
+      - { name: "image", label: "Image", kind: raster, required: true, description: "A multiband raster (Sentinel-2, Landsat, drone …)." }
+      - { name: "index", label: "Index", kind: choice, default: "NDVI", description: "Formula (A − B) / (A + B); the bands below say which band is A and which is B.", choices: ["NDVI", "NDWI", "NDBI", "NBR", "CUSTOM"] }
+      - { name: "band_a", label: "Band A", kind: number, default: 4, description: "NDVI/NDWI/NBR: near infrared; NDBI: SWIR. 1 = first band." }
+      - { name: "band_b", label: "Band B", kind: number, default: 3, description: "NDVI: red; NDWI/NDBI: NIR or SWIR; NBR: SWIR2." }
+      - { name: "threshold", label: "Threshold (blank = Otsu)", kind: number, description: "Cells at or above it count as the extent (vegetation, water, built-up, burnt …)." }
+  - id: "raster-change"
+    name: "Raster change (two dates)"
+    summary: "After − before for one band of two images or index rasters, with Otsu thresholds for gain and loss and their areas."
+    group: "Image Analysis › Change detection"
+    icon: clock
+    tab: imagery
+    params:
+      - { name: "before", label: "Before", kind: raster, required: true, description: "The earlier raster (an NDVI from Spectral index, a DEM, a classification score …)." }
+      - { name: "after", label: "After", kind: raster, required: true, description: "The later raster; it is resampled onto the earlier one’s grid." }
+      - { name: "band", label: "Band", kind: number, default: 1 }
+  - id: "slope-zones"
+    name: "Slope zones"
+    summary: "Horn slope from a DEM in three zones (gentle, moderate, steep) with their areas; breaks in degrees."
+    group: "Terrain › Slope zones"
+    icon: image
+    tab: imagery
+    params:
+      - { name: "dem", label: "Elevation (DEM)", kind: raster, required: true, description: "Metres; geographic or projected." }
+      - { name: "breaks", label: "Breaks (°)", kind: text, default: "8, 20", description: "Two slopes that split gentle | moderate | steep." }
+  - id: "sdm"
+    name: "Species distribution model"
+    summary: "BIOCLIM, Mahalanobis or presence-background logistic suitability from occurrences and environmental rasters, with spatially blocked cross-validation (AUC, TSS, Boyce)."
+    group: "Species Distribution"
+    icon: pin
+    tab: modelling
+    params:
+      - { name: "occurrences", label: "Occurrences", kind: layer, required: true, description: "Presence points (e.g. Data › Species from GBIF)." }
+      - { name: "covariates", label: "Environmental rasters", kind: rasters, required: true, description: "One or more rasters (all their bands are used), e.g. WorldClim bioclim from Data › Climate." }
+      - { name: "method", label: "Method", kind: choice, default: "logistic", description: "logistic: presence vs background (a linear MaxEnt-like model); bioclim: percentile envelope; mahalanobis: distance to the presence mean.", choices: ["logistic", "bioclim", "mahalanobis"] }
+      - { name: "background", label: "Background points", kind: number, default: 5000, description: "Random cells for presence-background fitting and evaluation." }
+      - { name: "folds", label: "Cross-validation folds", kind: number, default: 5 }
+      - { name: "block_deg", label: "Block size (°, blank = automatic)", kind: number, description: "Spatial blocks for cross-validation, in degrees; automatic: about a sixth of the study area’s width, so every fold gets blocks." }

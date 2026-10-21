@@ -1322,6 +1322,18 @@ async function main() {
     await rasterPane?.reload();
     applyStyle();
     const first = ids.find((id) => layerById(id));
+    // a raster result (index, change, suitability …) is shown and framed; the tool lists its main one first
+    const raster = ids.find((id) => !layerById(id));
+    if (raster) {
+      rasterPane?.showRun([raster]);
+      applyStyle();
+      try {
+        const r = (await backend.json<{ rasters: { id: string; bounds: [number, number, number, number] }[] }>('api/rasters')).rasters.find((x) => x.id === raster);
+        if (r && !first) map.fitBounds([[r.bounds[0], r.bounds[1]], [r.bounds[2], r.bounds[3]]], { padding: 40, duration: 600 });
+      } catch {
+        /* the raster still shows; only the framing is skipped */
+      }
+    }
     if (first) fitLayer(first);
     workbench?.setStatus(`Added to the map: ${ids.join(', ')}`, 6000);
   });
@@ -1437,7 +1449,7 @@ async function main() {
   });
   // Plugins › Manage plugins: the plugins pane in a dialog
   const pm = $('#plugin-manager');
-  document.addEventListener('geospax:plugin-manager', () => { pm.hidden = false; void pluginsPane?.reload(); });
+  document.addEventListener('geospax:plugin-manager', () => { pm.hidden = false; });
   pm.addEventListener('click', (e) => { const t = e.target as HTMLElement; if (t === pm || t.closest('[data-close]')) pm.hidden = true; });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pm.hidden && document.querySelector('#plugin-modal[hidden]')) pm.hidden = true; }, true);
   // R tab: R setup and the R console (rconsole.ts)
