@@ -15,7 +15,7 @@ import { AttributesPane } from './attributes';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
-import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proRow, type Group, type UiMode } from './layercards';
+import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
   fmtNum,
@@ -116,7 +116,9 @@ function mergeProject(saved: Project | null): Project {
   for (const id of defaultOrder) if (!order.includes(id)) order.push(id);
   const styles: Record<string, LayerStyle> = {};
   for (const l of layers) styles[l.id] = { ...defaultStyle(l), ...(saved?.layers?.[l.id] ?? {}) };
-  return { version: 1, order, layers: styles, view: saved?.view, basemap: saved?.basemap };
+  const groups = saved?.groups ?? [];
+  const member = Object.fromEntries(Object.entries(saved?.member ?? {}).filter(([id, g]) => known.has(id) && groups.some((x) => x.id === g)));
+  return { version: 1, order, layers: styles, view: saved?.view, basemap: saved?.basemap, groups, member };
 }
 
 let saveTimer: number | undefined;
@@ -203,6 +205,10 @@ function heatmapLayer(l: LayerInfo, st: LayerStyle): maplibregl.LayerSpecificati
   } as unknown as maplibregl.LayerSpecification;
 }
 
+const groupOf_ = (id: string) => project.groups?.find((g) => g.id === project.member?.[id]);
+/** On the map = its own switch and its group's switch are both on. */
+const shownOnMap = (id: string) => !!project.layers[id]?.visible && (groupOf_(id)?.visible ?? true);
+
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
   const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': '#0d2233' } }];
@@ -210,7 +216,8 @@ function buildStyle(): maplibregl.StyleSpecification {
   for (const id of project.order) {
     const l = layerById(id);
     if (!l) continue;
-    const st = project.layers[id];
+    // a switched-off group hides its layers without touching their own switches
+    const st = { ...project.layers[id], visible: shownOnMap(id) };
     const [w, s, e, n] = l.bounds;
     const fld = symbologyField(st.symbology);
     const fields = fld && !l.tile_fields.includes(fld) ? [...l.tile_fields, fld] : undefined;
@@ -397,6 +404,52 @@ let uiMode: UiMode = (() => {
   }
 })();
 let layerFilter = '';
+/** Pro tree: layers whose legend is folded away (remembered per browser) */
+const closedLegends = new Set<string>((() => {
+  try {
+    return JSON.parse(localStorage.getItem('geospax.tree.closed') ?? '[]') as string[];
+  } catch {
+    return [];
+  }
+})());
+const saveClosed = () => {
+  try {
+    localStorage.setItem('geospax.tree.closed', JSON.stringify([...closedLegends]));
+  } catch {
+    /* session only */
+  }
+};
+
+/** Pro tree actions on group layers. */
+function groupAction(act: string, gid: string, el?: HTMLInputElement) {
+  const g = project.groups?.find((x) => x.id === gid);
+  if (!g) return;
+  if (act === 'twisty') g.expanded = !g.expanded;
+  else if (act === 'visible') g.visible = !!el?.checked;
+  else if (act === 'rename') {
+    const name = prompt('Group name', g.name)?.trim();
+    if (!name) return;
+    g.name = name;
+  } else if (act === 'ungroup') {
+    project.groups = project.groups!.filter((x) => x.id !== gid);
+    for (const [id, m] of Object.entries(project.member ?? {})) if (m === gid) delete project.member![id];
+  }
+  applyStyle();
+  renderContents();
+  saveProject();
+}
+
+function newGroup() {
+  const id = panel.current;
+  if (!id) return workbench?.setStatus('Select a layer first, then group it', 4000);
+  const name = prompt('Name of the new group', 'New group')?.trim();
+  if (!name) return;
+  const gid = `g${Date.now().toString(36)}`;
+  project.groups = [...(project.groups ?? []), { id: gid, name, visible: true, expanded: true }];
+  project.member = { ...(project.member ?? {}), [id]: gid };
+  renderContents();
+  saveProject();
+}
 let recipeIds = new Set<string>();
 
 function setMode(m: UiMode) {
@@ -424,7 +477,7 @@ function renderContents() {
   document.body.dataset.mode = uiMode;
   // ArcGIS convention: top of the list draws on top (= end of the draw order)
   const list = [...project.order].reverse().filter((id) => layerById(id));
-  const row = (id: string, i: number) => {
+  const row = (id: string, i: number, depth = 0) => {
     const l = layerById(id)!;
     const st = project.layers[id];
     const state = {
@@ -437,6 +490,8 @@ function renderContents() {
       actions: actionsFor(l, st.symbology, recipeIds),
       autoOverviews: autoOverviewsOn(),
       all: layers,
+      depth,
+      expanded: !closedLegends.has(id),
     };
     return uiMode === 'lazy' ? lazyCard(state) : proRow(state);
   };
@@ -459,11 +514,32 @@ function renderContents() {
       <small>${b === 'osm' ? 'online' : b === 'none' ? 'plain colour' : 'offline · Natural Earth'}</small></span>
       <button data-basemap="${b === 'offline' ? 'osm' : 'offline'}" class="lc-switch">${b === 'offline' ? 'Streets' : 'World'}</button></div></div>`;
   } else {
+    // ArcGIS Pro's Contents: Map ▸ group layers ▸ layers ▸ legend classes, then the basemap
     const f = layerFilter.toLowerCase();
     const total = list.reduce((a, id) => a + (layerById(id)?.feature_count ?? 0), 0);
     body = `<div class="pr-tool"><input type="search" class="pr-filter" placeholder="Filter layers…" value="${layerFilter.replace(/"/g, '&quot;')}" aria-label="Filter layers" />
-      <span>${list.length} layers · ${total.toLocaleString('en-US')} features</span></div>`;
-    body += list.map((id, i) => (!f || id.toLowerCase().includes(f) ? row(id, i) : '')).join('');
+      <button data-tree="group" title="Put the selected layer in a new group">＋ Group</button>
+      <button data-tree="expand" title="Expand all">▾</button><button data-tree="collapse" title="Collapse all">▸</button></div>
+      <div class="pr-tree" role="tree" aria-label="Layers">
+      <div class="pr-map" role="treeitem" aria-level="1" aria-expanded="true"><span>▾</span> <b>Map</b><small>${list.length} layers · ${total.toLocaleString('en-US')} features</small></div>`;
+    if (f) {
+      body += list.map((id, i) => (id.toLowerCase().includes(f) ? row(id, i) : '')).join('');
+    } else {
+      const done = new Set<string>();
+      list.forEach((id, i) => {
+        const g = groupOf_(id);
+        if (!g) return void (body += row(id, i));
+        if (done.has(g.id)) return;
+        done.add(g.id);
+        const members = list.filter((x) => project.member?.[x] === g.id);
+        body += proGroup(g, members.length);
+        if (g.expanded) body += `<div class="pr-kids${g.visible ? '' : ' off'}">${members.map((m) => row(m, list.indexOf(m), 1)).join('')}</div>`;
+      });
+    }
+    const b = basemap();
+    body += `<div class="pr-base" role="treeitem" aria-level="2"><span class="pr-gico">🌍</span><b>Basemap</b>
+      <select data-tree="basemap" aria-label="Basemap"><option value="offline" ${b === 'offline' ? 'selected' : ''}>World (offline)</option>
+      <option value="osm" ${b === 'osm' ? 'selected' : ''}>OpenStreetMap (online)</option><option value="none" ${b === 'none' ? 'selected' : ''}>None</option></select></div></div>`;
   }
   // keep the filter box focused while typing
   const focused = document.activeElement?.classList.contains('pr-filter');
@@ -545,6 +621,9 @@ function wireContents() {
   const el = $('#contents');
   el.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
+    const gid = t.closest<HTMLElement>('.pr-group')?.dataset.group;
+    if (gid && t.dataset.gact === 'visible') return groupAction('visible', gid, t);
+    if (t.dataset.tree === 'basemap') return setBasemap(t.value as Basemap);
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
     if (!id) return;
     if (t.type === 'checkbox') {
@@ -564,10 +643,31 @@ function wireContents() {
     const t = e.target as HTMLElement;
     const bm = t.closest<HTMLElement>('[data-basemap]')?.dataset.basemap;
     if (bm) return setBasemap(bm as Basemap);
+    const tree = t.closest<HTMLElement>('button[data-tree]')?.dataset.tree;
+    if (tree === 'group') return newGroup();
+    if (tree === 'expand' || tree === 'collapse') {
+      for (const g of project.groups ?? []) g.expanded = tree === 'expand';
+      if (tree === 'expand') closedLegends.clear();
+      else for (const id of project.order) closedLegends.add(id);
+      saveClosed();
+      renderContents();
+      return saveProject();
+    }
+    const gEl = t.closest<HTMLElement>('.pr-group');
+    if (gEl) {
+      const ga = t.closest<HTMLElement>('button[data-gact]')?.dataset.gact;
+      if (ga) groupAction(ga, gEl.dataset.group!);
+      return;
+    }
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
     if (!id) return;
     const actEl = t.closest<HTMLElement>('[data-act]');
     const act = actEl?.dataset.act;
+    if (act === 'twisty') {
+      if (!closedLegends.delete(id)) closedLegends.add(id);
+      saveClosed();
+      return renderContents();
+    }
     if (act === 'up' || act === 'down') moveLayer(id, act);
     else if (act === 'zoom') fitLayer(id);
     else if (act === 'recipe' && actEl?.dataset.recipe) void automatePane?.run(actEl.dataset.recipe, { layer: id });
@@ -583,19 +683,46 @@ function wireContents() {
       document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
     }
   });
-  // Pro tree: drag a row onto another to put it there (Pro's Contents drag-and-drop)
+  el.addEventListener('dblclick', (e) => {
+    const g = (e.target as HTMLElement).closest<HTMLElement>('.pr-gname')?.closest<HTMLElement>('.pr-group');
+    if (g) groupAction('rename', g.dataset.group!);
+  });
+  // Pro tree: drag a row onto another to put it there (Pro's Contents drag-and-drop); onto a group
+  // to put it in the group
   let dragId: string | null = null;
   el.addEventListener('dragstart', (e) => {
     dragId = (e.target as HTMLElement).closest<HTMLElement>('.layer.pro')?.dataset.id ?? null;
     if (dragId) e.dataTransfer?.setData('text/plain', dragId);
   });
+  const clearDrop = () => el.querySelectorAll('.drop').forEach((x) => x.classList.remove('drop'));
   el.addEventListener('dragover', (e) => {
-    if (dragId && (e.target as HTMLElement).closest('.layer.pro')) e.preventDefault();
-  });
-  el.addEventListener('drop', (e) => {
-    const to = (e.target as HTMLElement).closest<HTMLElement>('.layer.pro')?.dataset.id;
+    const over = (e.target as HTMLElement).closest('.layer.pro, .pr-group, .pr-map');
+    if (!dragId || !over) return;
     e.preventDefault();
+    clearDrop();
+    over.classList.add('drop');
+  });
+  el.addEventListener('dragend', clearDrop);
+  el.addEventListener('drop', (e) => {
+    const target = e.target as HTMLElement;
+    e.preventDefault();
+    const gid = target.closest<HTMLElement>('.pr-group')?.dataset.group;
+    if (dragId && (gid || target.closest('.pr-map'))) {
+      // onto a group: join it; onto the Map node: leave any group
+      project.member = { ...(project.member ?? {}) };
+      if (gid) project.member[dragId] = gid;
+      else delete project.member[dragId];
+      dragId = null;
+      applyStyle();
+      renderContents();
+      return saveProject();
+    }
+    const to = target.closest<HTMLElement>('.layer.pro')?.dataset.id;
     if (!dragId || !to || to === dragId) return;
+    // dropped on a layer: take its place and its group
+    project.member = { ...(project.member ?? {}) };
+    if (project.member[to]) project.member[dragId] = project.member[to];
+    else delete project.member[dragId];
     const o = project.order.filter((x) => x !== dragId);
     // dropped on a row = takes that row's place in the list (list is top-first, order is bottom-first)
     const at = o.indexOf(to);
