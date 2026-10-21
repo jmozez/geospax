@@ -112,6 +112,7 @@ Planned control steps: `for_each` (files, features, dates, devices), `parallel` 
 | `overviews.build` | PMTiles overview pyramid for a dense layer; skipped when not needed | ArcGIS Build Pyramids, GDAL `gdaladdo` |
 | `layout.auto` | Page defaults (title, subtitle, size) for later exports | ArcGIS Pro layouts, QGIS Print Layout |
 | `export.map` (+ `export.png`, `export.svg`, `export.pdf`) | Finished page: title, subtitle, legend with class counts, ramps and class swatches, scale bar, north arrow, graticule, labels, credits; rasters under the vectors (relief shading multiplied on top); the automatic page takes the data's shape, so raster maps are neither cropped nor padded; PNG (resvg), SVG and vector PDF (krilla, selectable text) | ArcGIS Export Layout, QGIS Print Layout, MapInfo Layout Designer |
+| `export.series` | Binds every map this run laid out (a map series: index page + sheets) into one multi-page vector PDF; `export.map` `frames: [{extent, label}]` outlines the sheets on the index map | ArcGIS Pro Map Series export, QGIS Atlas |
 | `export.report` | Self-contained HTML: map, headline numbers, "How this map was made", every automatic decision, run log, provenance | ArcGIS Pro reports, R Markdown / Quarto |
 | `export.data` | GeoPackage, GeoJSON, CSV, FlatGeobuf, KML or Shapefile (EPSG:4326) | ArcGIS Export Features, QGIS Save As, ogr2ogr |
 | `python`, `r` (+ `script.python`, `script.r`) | User code in a sidecar process (§6) | ArcPy, PyQGIS, GRASS Python; R sf/gstat/terra |

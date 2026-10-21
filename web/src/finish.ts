@@ -4,6 +4,7 @@
 // has run history, provenance and can be re-run or put on a trigger like any other.
 // A map series (atlas, ArcGIS Pro's "map series", QGIS's atlas) is the same map once per page: a grid
 // over the area, or one page per feature of a layer (each district, each site), titled by a field.
+// It opens with an index page (every sheet outlined) and is also bound into one multi-page PDF.
 import type { Backend } from './backend';
 import type { LayerStyle } from './symbology';
 
@@ -104,7 +105,7 @@ export class FinishMap {
           <label class="fin-field"><span>Page title from field</span><select name="field" aria-label="Page title field"><option value="">(page number)</option></select></label>`
             : ''
         }
-        <small class="dim">A map series (atlas): the same layout once per page, up to ${MAX_PAGES} pages.</small></fieldset>
+        <small class="dim">A map series (atlas): an index page, then the same layout once per page (up to ${MAX_PAGES}), also bound into one PDF.</small></fieldset>
       <fieldset><legend>Files</legend>
         <label class="ck"><input type="checkbox" name="png" checked /> Picture (PNG)</label>
         <label class="ck"><input type="checkbox" name="pdf" checked /> Print (vector PDF)</label>
@@ -214,10 +215,21 @@ export class FinishMap {
       `    with: { layers: ${JSON.stringify(ids)}, title: ${JSON.stringify(title)}, subtitle: ${JSON.stringify(sub)}, size: ${JSON.stringify(String(f.get('size') ?? 'auto'))}, format: ${JSON.stringify(formats)}, extent: ${extent}, name: ${JSON.stringify(file)} }`,
     ];
     const n = pages?.length ?? 1;
-    const stepIds = pages ? pages.map((_, i) => (i ? `page${i + 1}` : 'map')) : ['map'];
+    // a series opens with an index page (every sheet outlined and labelled) and ends bound into one PDF
+    const stepIds = pages ? ['map', ...pages.map((_, i) => `page${i + 1}`)] : ['map'];
+    const frames = pages ? JSON.stringify(pages.map((p) => ({ extent: round(p.extent), label: p.label }))) : '';
+    const all = pages ? round(pages.reduce<Bbox>((a, p) => [Math.min(a[0], p.extent[0]), Math.min(a[1], p.extent[1]), Math.max(a[2], p.extent[2]), Math.max(a[3], p.extent[3])], pages[0].extent)) : null;
     const maps = pages
-      ? pages.flatMap((p, i) => mapStep(stepIds[i], JSON.stringify(round(p.extent)), `${p.label} · page ${i + 1} of ${n} · ${subtitle}`, `${name}-${String(i + 1).padStart(2, '0')}`))
+      ? [
+          ...mapStep('map', JSON.stringify(all), `Index of ${n} pages · ${subtitle}`, `${name}-00-index`).map((l, i, a) => (i === a.length - 1 ? l.replace(/ }$/, `, frames: ${frames} }`) : l)),
+          ...pages.flatMap((p, i) => mapStep(stepIds[i + 1], JSON.stringify(round(p.extent)), `${p.label} · page ${i + 1} of ${n} · ${subtitle}`, `${name}-${String(i + 1).padStart(2, '0')}`)),
+          '  - id: series',
+          '    use: export.series',
+          `    needs: [${stepIds.join(', ')}]`,
+          `    with: { name: ${JSON.stringify(`${name}-series`)} }`,
+        ]
       : mapStep('map', area === 'view' ? JSON.stringify(clipped) : 'auto', subtitle, name);
+    if (pages) stepIds.push('series');
     const what = pages ? `a ${n}-page map series` : 'one map';
     // JSON is valid YAML: values are written as JSON so titles with ':' or quotes stay intact
     const yaml = [

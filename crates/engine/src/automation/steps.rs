@@ -52,6 +52,7 @@ const MAP_PARAMS: &[(&str, bool, &str)] = &[
     ("grid", false, "lon/lat graticule (default true)"),
     ("scale", false, "PNG pixel scale 1-4 (default 1)"),
     ("name", false, "file name without extension (default map)"),
+    ("frames", false, "index map: [{extent: [w, s, e, n], label}] outlined on the map"),
     ("to", false, "also copy the files to this folder"),
 ];
 
@@ -307,6 +308,7 @@ pub const CATALOGUE: &[StepSpec] = &[
     StepSpec { name: "export.png", family: "Output", summary: "export.map as PNG.", running: "Exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout" },
     StepSpec { name: "export.pdf", family: "Output", summary: "export.map as a vector PDF (selectable text, print-ready page).", running: "Exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout to PDF, QGIS Export as PDF" },
     StepSpec { name: "export.svg", family: "Output", summary: "export.map as SVG (vector, editable in Inkscape or Illustrator).", running: "Exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout" },
+    StepSpec { name: "export.series", family: "Output", summary: "Bind the run's map pages (a map series / atlas, with its index page) into one multi-page vector PDF.", running: "Binding the map series", params: &[("name", false, "file name (default series)"), ("to", false, "also copy to this folder")], borrowed: "ArcGIS Pro Map Series export, QGIS Atlas export as a single PDF" },
     StepSpec { name: "export.report", family: "Output", summary: "One-page HTML report: the map, headline numbers, how it was made, every automatic decision, run log and provenance.", running: "Writing the report", params: &[("title", false, ""), ("subtitle", false, ""), ("notes", false, "free text"), ("name", false, "file name (default report)"), ("to", false, "also copy to this folder")], borrowed: "ArcGIS Pro reports, R Markdown / Quarto" },
     StepSpec { name: "export.data", family: "Output", summary: "Export layers as GeoPackage, GeoJSON, CSV, FlatGeobuf, KML or Shapefile (EPSG:4326).", running: "Exporting data", params: &[("layers", false, "default: every layer this run touched"), ("layer", false, ""), ("format", false, "gpkg, geojson, csv, fgb, kml, shp"), ("to", false, "also copy to this folder")], borrowed: "ArcGIS Export Features, QGIS Save As, ogr2ogr" },
     StepSpec { name: "python", family: "Code", summary: "Run Python code (geopandas if installed, otherwise plain GeoJSON); returned layers join the map.", running: "Running the Python step", params: CODE_PARAMS, borrowed: "ArcPy, PyQGIS, GRASS Python API, geopandas" },
@@ -565,6 +567,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "export.png" => export_map(sc, p, Some("png")),
         "export.svg" => export_map(sc, p, Some("svg")),
         "export.pdf" => export_map(sc, p, Some("pdf")),
+        "export.series" => export_series(sc, p),
         "dem.fetch" => raster_steps::dem_fetch(sc, p),
         "lidar.grid" => lidar_steps::lidar_grid(sc, p),
         "scene.3d" => scene_steps::scene_3d(sc, p),
@@ -1668,6 +1671,36 @@ fn copy_to(sc: &StepCtx, p: &Value, files: &[String]) -> Result<Option<String>, 
     Ok(Some(dest.display().to_string()))
 }
 
+/// `frames: [{extent: [w, s, e, n], label: "A1"}, …]`: page outlines for a map series' index page.
+fn frames_param(p: &Value) -> Result<Vec<([f64; 4], String)>, String> {
+    let Some(Value::Array(a)) = p.get("frames") else { return Ok(Vec::new()) };
+    a.iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let e = f.get("extent").and_then(Value::as_array).filter(|e| e.len() == 4).ok_or(format!("frames[{i}]: extent must be [west, south, east, north]"))?;
+            let e: Vec<f64> = e.iter().map(|v| v.as_f64().ok_or(format!("frames[{i}]: extent must be numbers"))).collect::<Result<_, _>>()?;
+            let label = f.get("label").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| (i + 1).to_string());
+            Ok(([e[0], e[1], e[2], e[3]], label))
+        })
+        .collect()
+}
+
+/// One multi-page PDF from every map this run laid out, in the order they were made.
+fn export_series(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
+    let svgs: Vec<PathBuf> = sc.maps.iter().map(|(svg, _)| svg.clone()).collect();
+    if svgs.is_empty() {
+        return Err("no maps to bind: put export.map steps before export.series".into());
+    }
+    let pages: Vec<String> = svgs.iter().map(|f| std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))).collect::<Result<_, _>>()?;
+    let name = sanitize(p_str(p, "name").unwrap_or("series"));
+    let f = format!("{name}.pdf");
+    std::fs::write(sc.dir.join(&f), cartography::svgs_to_pdf(&pages)?).map_err(|e| e.to_string())?;
+    let files = vec![f.clone()];
+    let copied = copy_to(sc, p, &files)?;
+    sc.artifacts.push(f.clone());
+    Ok(StepOut { outputs: json!({ "pdf": sc.dir.join(&f), "pages": pages.len(), "files": files, "copied_to": copied }), why: vec![format!("{} map pages bound into {f}", pages.len())] })
+}
+
 fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOut, String> {
     let mut opts = sc.page.clone();
     if let Some(o) = p.as_object() {
@@ -1873,7 +1906,7 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     credit_sources.dedup();
     let credits = format!("Made automatically by GeoSpaX · recipe {} · {} · Data: {}", sc.recipe_id, date.format("%Y-%m-%d %H:%M"), credit_sources.join(", "));
     let n_rasters = map_rasters.len();
-    let spec = MapSpec { rasters: map_rasters, title: title.clone(), subtitle, credits, layers, labels: p_bool(p, "labels", true), grid: p_bool(p, "grid", true) };
+    let spec = MapSpec { rasters: map_rasters, title: title.clone(), subtitle, credits, layers, labels: p_bool(p, "labels", true), grid: p_bool(p, "grid", true), frames: frames_param(p)? };
     let out = cartography::render_svg(&spec, &lay);
     let name = sanitize(p_str(p, "name").unwrap_or(if sc.step_id == "map" { "map" } else { &sc.step_id }));
     let mut files = Vec::new();

@@ -46,6 +46,8 @@ pub struct MapSpec {
     pub layers: Vec<MapLayer>,
     pub labels: bool,
     pub grid: bool,
+    /// Index map of a map series: each page's extent (lon/lat) outlined and labelled.
+    pub frames: Vec<([f64; 4], String)>,
 }
 
 pub struct MapOut {
@@ -486,6 +488,21 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
     }
     if spec.grid {
         graticule(&mut svg, lay);
+    }
+    for (b, label) in &spec.frames {
+        let p0 = lay.px([b[0], b[3]]);
+        let p1 = lay.px([b[2], b[1]]);
+        let (x, y, fw, fh) = (p0[0].min(p1[0]), p0[1].min(p1[1]), (p1[0] - p0[0]).abs(), (p1[1] - p0[1]).abs());
+        let _ = write!(
+            svg,
+            "<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{fw:.1}\" height=\"{fh:.1}\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"5\"/>\
+<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{fw:.1}\" height=\"{fh:.1}\" fill=\"none\" stroke=\"#14212b\" stroke-width=\"2.2\"/>\
+<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"{:.0}\" font-weight=\"bold\" text-anchor=\"middle\" dominant-baseline=\"central\" fill=\"#14212b\" stroke=\"#ffffff\" stroke-width=\"4\" paint-order=\"stroke\">{}</text>",
+            x + fw / 2.0,
+            y + fh / 2.0,
+            (fw.min(fh) / 4.0).clamp(10.0, 28.0),
+            esc(label)
+        );
     }
     svg.push_str("</g>");
     let _ = write!(
@@ -1053,6 +1070,23 @@ pub fn svg_to_pdf(svg: &str) -> Result<Vec<u8>, String> {
     doc.finish().map_err(|e| format!("PDF: {e:?}"))
 }
 
+/// Several map pages (SVG) as one multi-page PDF, in order; each page keeps its own size.
+pub fn svgs_to_pdf(svgs: &[String]) -> Result<Vec<u8>, String> {
+    use krilla_svg::SurfaceExt;
+    let opt = resvg::usvg::Options { fontdb: fonts(), ..Default::default() };
+    let mut doc = krilla::Document::new();
+    for svg in svgs {
+        let tree = resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| format!("SVG: {e}"))?;
+        let (w, h) = (tree.size().width() * 72.0 / DPI as f32, tree.size().height() * 72.0 / DPI as f32);
+        let mut page = doc.start_page_with(krilla::page::PageSettings::from_wh(w, h).ok_or("bad page size")?);
+        let mut surface = page.surface();
+        surface.draw_svg(&tree, krilla::geom::Size::from_wh(w, h).ok_or("bad page size")?, krilla_svg::SvgSettings { embed_text: true, filter_scale: 2.0 }).ok_or("a map page could not be drawn into the PDF")?;
+        surface.finish();
+        page.finish();
+    }
+    doc.finish().map_err(|e| format!("PDF: {e:?}"))
+}
+
 /// Rasterise the SVG (system fonts are loaded once per process).
 pub fn svg_to_png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
     use resvg::{tiny_skia, usvg};
@@ -1069,6 +1103,15 @@ pub fn svg_to_png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn series_pdf_has_one_page_per_map() {
+        let page = r##"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="300" height="200" fill="#fff"/></svg>"##.to_string();
+        let pdf = svgs_to_pdf(&[page.clone(), page.clone(), page]).unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        let t = text.replace("/Type /", "/Type/");
+        assert_eq!(t.matches("/Type/Page").count() - t.matches("/Type/Pages").count(), 3);
+    }
 
     #[test]
     fn clipping_and_simplification() {

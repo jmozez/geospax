@@ -56,7 +56,9 @@ The `.deb` and the Windows installer both contain both editions (on Windows: `ge
 Under **Pages** pick **A grid of pages over the area** (2 × 1 up to 4 × 4, sheets labelled A1, B1, …)
 or **One page per feature of** a visible polygon or line layer (each district, each site; up to 40
 pages), with the page title taken from a field such as `name`. Every page gets its own PNG/PDF
-(`title-01.png`, `title-02.png`, …) with "page 2 of 6" under the title.
+(`title-01.png`, `title-02.png`, …) with "page 2 of 6" under the title. The series opens with an
+**index page** (`title-00-index`) showing every sheet outlined and labelled, and all pages are also bound
+into **one multi-page PDF** (`title-series.pdf`) ready to print.
 
 Behind the scenes Finish my map is an ordinary recipe, `finished-map`, replaced each time: it has run
 history and provenance, and you can re-run it or give it a trigger like any other.
