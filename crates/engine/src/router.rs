@@ -103,6 +103,11 @@ impl Engine {
                 ApiResponse::json(200, &json!({ "layers": layers, "warnings": self.warnings, "reader": self.read_mode.as_str() }))
             }
             ("GET", ["api", "stats"]) => ApiResponse::json(200, &self.stats_json()),
+            // a file dropped on the app: saved next to the data and put on the map (upload.rs)
+            ("POST", ["api", "upload"]) => match crate::upload::upload(self, &param(q, "name").unwrap_or_default(), &req.body) {
+                Ok(v) => ApiResponse::json(201, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
             ("POST", ["api", "cache", "clear"]) => {
                 self.clear_cache();
                 ApiResponse::json(200, &json!({ "cleared": true }))

@@ -50,6 +50,15 @@ if [ -d "$PW" ]; then
   run "web UI: automation (run, map, report, auto, save recipe)" env PW="$PW" node scripts/test-web-automation.mjs "$URL" "$OUT"
   run "web UI: workbench (ribbon, docks, attributes, palette)" env PW="$PW" node scripts/test-web-workbench.mjs "$URL" "$OUT"
   run "web UI: every control in Lazy and Pro (ribbon, task bar, tree, cards, Inspector, Toolbox)" env PW="$PW" node scripts/test-web-controls.mjs "$URL" "$OUT"
+  # the start screen needs a server with no data of its own
+  START_DATA=$(mktemp -d) START_STATE=$(mktemp -d) START_FILES=$(mktemp -d)
+  python3 scripts/data-sample-field.py "$START_FILES" >/dev/null
+  ./target/release/geospax-server --data "$START_DATA" --state-dir "$START_STATE" --host 127.0.0.1 --port $((PORT + 7)) --web web/dist \
+    --no-device-mounts --no-triggers >"$OUT/test-start-server.log" 2>&1 &
+  START_PID=$!
+  sleep 3
+  run "web UI: start screen, drop a file, Finish my map" env PW="$PW" node scripts/test-web-start.mjs "http://127.0.0.1:$((PORT + 7))" "$START_FILES/field_samples.geojson" "$OUT"
+  kill "$START_PID" 2>/dev/null || true
   run "phone link (QR, HTTPS, send, camera, live track, map on the phone)" env PW="$PW" PORT="$((PORT + 21))" \
     node scripts/test-phone-link.mjs target/release/geospax-server "$SAMPLES" "$OUT"
 else

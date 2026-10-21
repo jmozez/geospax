@@ -27,6 +27,7 @@ pub mod reader;
 pub mod router;
 pub mod scene3d;
 pub mod tile;
+pub mod upload;
 pub mod wkb;
 
 pub use catalog::{GeomKind, LayerInfo};

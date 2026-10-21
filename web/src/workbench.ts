@@ -305,11 +305,11 @@ export class Workbench {
     bodyEl.innerHTML = `<div class="tk-bar">
       <button class="tk-ask" data-cmd="view.palette">${icon('search', 16)}<span>What do you want to do?</span><kbd>Ctrl K</kbd></button>
       <div class="tk-tasks">
-        ${task('data-cmd="data.devices"', 'phone', 'Add data', 'Phone, GPS, drone, files')}
+        ${task('data-cmd="home.start"', 'phone', 'Add data', 'Drop files, a phone, a GPS, a drone card')}
         ${task('data-cmd="style.autoAll"', 'wand', 'Make it look good', 'Style every layer for you')}
         ${task('data-menu="recipes"', 'hotspot', 'Find patterns', `${this.recipes.length} ready-made analyses`)}
         ${task('data-cmd="analyze.toolbox"', 'search', 'All tools', 'Search every tool by name')}
-        ${task('data-cmd="home.exportPng"', 'download', 'Finish the map', 'Save this view as a picture')}
+        ${task('data-cmd="home.finish"', 'print', 'Finish my map', 'Legend, scale bar, PDF and report')}
       </div>
       ${
         next

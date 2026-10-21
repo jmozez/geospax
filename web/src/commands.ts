@@ -162,6 +162,21 @@ export const COMMANDS: Command[] = [
     run: (h) => h.setStatus('Click a feature on the map', 4000),
   },
   {
+    id: 'home.finish', tab: 'home', group: 'Map', title: 'Finish my map', icon: 'print', big: true,
+    hint: 'The layers on the map, laid out with legend, scale bar and north arrow: PNG, PDF and a report',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:finish')); },
+  },
+  {
+    id: 'home.start', tab: 'home', group: 'Project', title: 'Start', icon: 'layout', big: true,
+    hint: 'The start screen: drop data, plug in a device, your finished maps',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:start')); },
+  },
+  {
+    id: 'data.add', tab: 'data', group: 'Import', title: 'Add files', icon: 'download', big: true,
+    hint: 'Choose files to map (or drop them anywhere on the window)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:browse')); },
+  },
+  {
     id: 'home.exportPng', tab: 'home', group: 'Map', title: 'Export PNG', icon: 'download',
     hint: 'Save the current view as an image',
     run: (h) => {
