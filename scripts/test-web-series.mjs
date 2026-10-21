@@ -58,8 +58,13 @@ for (let i = 0; i < 120 && !(run && ['done', 'failed'].includes(run.status)); i+
   const runs = (await (await page.request.get(`${base}/api/runs`)).json()).runs;
   if (runs.length > before) run = runs[0];
 }
-const pngs = (run?.artifacts ?? []).filter((a) => /^series-test-\d\d\.png$/.test(a));
+const arts = run?.artifacts ?? [];
+const pngs = arts.filter((a) => /^series-test-\d\d\.png$/.test(a));
 ok('a 2 × 1 series makes two map pages', run?.status === 'done' && pngs.length === 2, `${run?.status} · ${pngs.join(', ')}`);
+ok('it opens with an index page', arts.includes('series-test-00-index.png'));
+const pdf = arts.includes('series-test-series.pdf') ? await (await page.request.get(`${base}/api/runs/${run.id}/files/series-test-series.pdf`)).body() : null;
+const nPages = pdf ? (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length : 0;
+ok('and is bound into one 3-page PDF', nPages === 3, `${nPages} pages`);
 
 // ---- one page per feature: too many features is refused with a reason
 const idx = await page.evaluate(() => 0);
