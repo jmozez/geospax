@@ -427,6 +427,7 @@ function renderContents() {
       last: i === list.length - 1,
       actions: actionsFor(l, st.symbology, recipeIds),
       autoOverviews: autoOverviewsOn(),
+      all: layers,
     };
     return uiMode === 'lazy' ? lazyCard(state) : proRow(state);
   };
@@ -491,7 +492,10 @@ function wireContents() {
     const t = e.target as HTMLInputElement;
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
     if (!id) return;
-    if (t.type === 'checkbox') setLayerStyle(id, { ...project.layers[id], visible: t.checked });
+    if (t.type === 'checkbox') {
+      setLayerStyle(id, { ...project.layers[id], visible: t.checked });
+      if (t.checked) void queueAutoOverviews();
+    }
     else if (t.dataset.act === 'opacity') setLayerStyle(id, { ...project.layers[id], opacity: Number(t.value) / 100 });
   });
   el.addEventListener('input', (e) => {
@@ -599,7 +603,8 @@ async function queueAutoOverviews() {
   const busy = (j?: Job | null) => j && (j.status === 'queued' || j.status === 'running');
   if (layers.some((l) => busy(jobs.get(l.id) ?? l.overview_job))) return; // pollJob calls back when it ends
   // a job that failed or was cancelled is not retried until the page reloads
-  const next = layers.find((l) => !l.overview && l.overview_suggested != null && !['failed', 'cancelled'].includes(jobs.get(l.id)?.status ?? ''));
+  // only layers that are on the map: hidden ones wait until someone shows them
+  const next = layers.find((l) => project.layers[l.id]?.visible && !l.overview && l.overview_suggested != null && !['failed', 'cancelled'].includes(jobs.get(l.id)?.status ?? ''));
   if (!next) return;
   autoOverviewBusy = true;
   try {

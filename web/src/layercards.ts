@@ -27,7 +27,13 @@ const NOUN: Record<string, [string, string]> = {
 const noun = (l: LayerInfo, n = l.feature_count) => NOUN[l.geometry]?.[n === 1 ? 0 : 1] ?? 'features';
 
 /** "air_quality_samples" → "Air quality samples"; "natural_earth.countries" → "Countries". */
-export function friendlyName(l: LayerInfo): string {
+export function friendlyName(l: LayerInfo, all?: LayerInfo[]): string {
+  const base = friendlyBase(l);
+  // the same data in two formats (buildings.gpkg, buildings.fgb): say which is which
+  return all && all.some((o) => o.id !== l.id && friendlyBase(o) === base) ? `${base} (${l.driver})` : base;
+}
+
+function friendlyBase(l: LayerInfo): string {
   const base = (l.name || l.id).replace(/\.(geojson|json|gpkg|shp|fgb|csv|kml|gpx|parquet)$/i, '').split('.').pop() ?? l.id;
   const words = base.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim().toLowerCase();
   return words ? words[0].toUpperCase() + words.slice(1) : l.id;
@@ -96,6 +102,8 @@ export interface RowState {
   selected: boolean;
   first: boolean;
   last: boolean;
+  /** every layer, to tell apart layers with the same friendly name */
+  all: LayerInfo[];
   /** recipes that fit this layer: [recipe id, button label] */
   actions: [string, string][];
   autoOverviews: boolean;
@@ -107,7 +115,7 @@ function statusChips(r: RowState): string {
   const chips: string[] = [];
   if (running) chips.push(`<span class="lc-chip busy">Preparing zoomed-out view · ${Math.round(job!.progress * 100)}%</span>`);
   else if (!l.overview && l.overview_suggested != null)
-    chips.push(r.autoOverviews ? `<span class="lc-chip busy">Zoomed-out view queued</span>` : `<span class="lc-chip warn">Shows from zoom ${l.live_minzoom}</span>`);
+    chips.push(r.autoOverviews && st.visible ? `<span class="lc-chip busy">Zoomed-out view queued</span>` : `<span class="lc-chip warn">Shows from zoom ${l.live_minzoom}</span>`);
   else chips.push(`<span class="lc-chip ok">✓ Ready</span>`);
   if (st.auto) chips.push(`<span class="lc-chip" title="${esc(st.auto)}">✨ Styled for you</span>`);
   if (!st.visible) chips.push(`<span class="lc-chip">Hidden</span>`);
@@ -126,9 +134,9 @@ export function lazyCard(r: RowState): string {
   return `<div class="layer card${r.selected ? ' selected' : ''}${st.visible ? '' : ' off'}" data-id="${esc(l.id)}" style="--c:${esc(c)}">
     <div class="lc-top">
       <span class="lc-glyph">${GLYPH[l.geometry] ?? '◆'}</span>
-      <span class="lc-title"><b class="name" title="${esc(l.id)}">${esc(friendlyName(l))}</b>
+      <span class="lc-title"><b class="name" title="${esc(l.id)}">${esc(friendlyName(l, r.all))}</b>
         <small>${fmt(l.feature_count)} ${noun(l)} · ${esc(l.driver)}</small></span>
-      <label class="lc-eye" title="${st.visible ? 'Hide' : 'Show'}"><input type="checkbox" ${st.visible ? 'checked' : ''} aria-label="Show ${esc(friendlyName(l))}" /><span>${st.visible ? '👁' : '◌'}</span></label>
+      <label class="lc-eye" title="${st.visible ? 'Hide' : 'Show'}"><input type="checkbox" ${st.visible ? 'checked' : ''}  aria-label="Show ${esc(friendlyName(l, r.all))}" /><span>${st.visible ? '👁' : '◌'}</span></label>
     </div>
     <p class="lc-sentence">${sentence(l, st.symbology)}</p>
     ${legendBar(st.symbology)}
@@ -152,7 +160,7 @@ export function proRow(r: RowState): string {
   const zr = l.overview ? `pyramid z0–${l.overview.max_zoom}` : l.overview_suggested != null ? `live z${l.live_minzoom}–${l.maxzoom}` : `z${l.minzoom}–${l.maxzoom}`;
   const badges = [
     running ? `<b class="busy">pyramid ${Math.round(job!.progress * 100)}%</b>` : '',
-    !l.overview && !running && l.overview_suggested != null ? `<b class="warn">${r.autoOverviews ? 'pyramid queued' : 'overviews suggested'}</b>` : '',
+    !l.overview && !running && l.overview_suggested != null ? `<b class="warn">${r.autoOverviews && st.visible ? 'pyramid queued' : 'overviews suggested'}</b>` : '',
     st.auto ? `<b title="${esc(st.auto)}">auto</b>` : '',
   ].join('');
   return `<div class="layer pro${r.selected ? ' selected' : ''}" data-id="${esc(l.id)}" draggable="true" style="--c:${esc(primaryColor(st.symbology))}">
