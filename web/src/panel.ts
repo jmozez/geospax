@@ -25,6 +25,8 @@ export interface PanelHost {
   buildOverviews(id: string): Promise<void>;
   cancelJob(jobId: number): Promise<void>;
   deleteOverviews(id: string): Promise<void>;
+  /** AutoMap: let the engine choose the style (and say why) */
+  autostyle(id: string): Promise<void>;
 }
 
 const esc = (s: unknown) =>
@@ -167,6 +169,11 @@ export class SymbologyPanel {
           ${opt('unique', 'Unique values', s.kind === 'unique', !cat.length)}
           ${opt('graduated', 'Graduated colors', s.kind === 'graduated', !num.length)}
         </select></label>
+      ${
+        st.auto
+          ? `<p class="auto-why"><b>✨ Styled automatically</b> ${esc(st.auto)}. Change anything below to take over.</p>`
+          : `<button data-k="autostyle" class="auto-btn">✨ Style automatically</button>`
+      }
       ${body}
       ${this.busy ? `<p class="hint">${esc(this.busy)}</p>` : ''}
       ${this.stats ? `<p class="hint">${this.stats}</p>` : ''}
@@ -242,6 +249,12 @@ export class SymbologyPanel {
       case 'cancel-job':
         await this.host.cancelJob(Number(t.dataset.job));
         return this.render();
+      case 'autostyle':
+        this.busy = 'AutoMap is choosing a style…';
+        this.render();
+        await this.host.autostyle(id);
+        this.busy = '';
+        return this.render();
       case 'delete-ov':
         await this.host.deleteOverviews(id);
         return this.render();
@@ -275,8 +288,14 @@ export class SymbologyPanel {
           return this.update((x) => (x.symbology = { kind: 'single', color }));
         }
         const fields = v === 'graduated' ? this.numericFields(l) : this.categoryFields(l);
-        const preferred = fields.find((f) => /height|pop|area|value|count/i.test(f.name) || /kind|type|class|continent/i.test(f.name));
-        const field = (s.kind !== 'single' && fields.some((f) => f.name === s.field) ? s.field : (preferred ?? fields[0])?.name) ?? '';
+        // never an identifier: classing row numbers says nothing about the data
+        const isId = (n: string) => /^(id|fid|gid|oid|objectid|ogc_fid|uuid|index)$|_id$|^id_/i.test(n);
+        const useful = fields.filter((f) => !isId(f.name));
+        const preferred = useful.find((f) =>
+          /pm2_?5|pm10|no2|o3|value|height|elev|depth|temp|pop|area|count|rate|density|speed|ndvi|level/i.test(f.name) ||
+          /kind|type|class|category|continent|landuse|status/i.test(f.name));
+        const firstUseful = useful[0] ?? fields[0];
+        const field = (s.kind !== 'single' && fields.some((f) => f.name === s.field) ? s.field : (preferred ?? firstUseful)?.name) ?? '';
         return this.classify(
           v === 'graduated' ? { kind: v, field, ramp: 'viridis', method: 'jenks', classes: 5 } : { kind: v, field, ramp: 'tableau' },
         );

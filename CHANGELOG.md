@@ -5,6 +5,25 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added — the lazy path, stage 1
+- **Layers style themselves.** A layer seen for the first time gets AutoMap's style instead of a grey
+  single symbol (e.g. PM2.5 readings in WHO guideline classes, a `kind` field as unique colours). The
+  Symbology pane shows AutoMap's reason; editing the symbology takes over, and **✨ Style automatically**
+  re-applies it. Opt out with `?auto=0`.
+- **Overviews build themselves.** Layers too dense to draw zoomed out get their overview pyramid in the
+  background, one job at a time; the Contents badge reads "preparing zoomed-out view" instead of asking
+  you to click. Opt out with `?autooverviews=0`.
+- **Offline basemap.** Natural Earth 1:50m land, lakes and country borders (public domain, 1.8 MB) ship
+  with the web UI, so the map never opens on an empty void, even without internet. **View → Basemap**:
+  World (offline), OpenStreetMap (online) or none; the choice is saved in the project.
+- **The map opens on your data** when there is no saved view, instead of a fixed place.
+
+### Fixed
+- Switching a layer to graduated or unique colours no longer picks an identifier field (`id`, `fid`,
+  `objectid`, `*_id`); it prefers measurements such as PM2.5, height, population or elevation.
+- Benchmarks and UI tests (`?bench`, `?fresh`) keep the old manual behaviour so their steps stay deterministic.
+
+
 ### Security
 - **The web edition is no longer open to the network by default.** `geospax-server` used to listen on
   every interface with no access control, so anyone who could reach port 8080 could save and run

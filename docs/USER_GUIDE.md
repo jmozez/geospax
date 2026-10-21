@@ -35,6 +35,15 @@ The `.deb` and the Windows installer both contain both editions (on Windows: `ge
 
 ## 2. Your first map: four lazy ways
 
+**Opening the app is already lazy.** Every layer GeoSpaX sees for the first time is styled by AutoMap,
+the same engine the recipes use: it picks the field that matters (never an ID), the classification and a
+colour-blind-safe colour scheme, and the Symbology pane says why ("✨ Styled automatically …"). Change
+anything and the style is yours; **✨ Style automatically** brings AutoMap back. Layers too dense to draw
+zoomed out get their overview pyramid built in the background, one at a time, without a click. The map
+opens on your data over an offline world basemap (Natural Earth land, lakes and borders); **View →
+Basemap** switches to OpenStreetMap (online) or none. Add `?auto=0` or `?autooverviews=0` to the address
+to turn either automation off.
+
 **a) Drop files into `~/GeoSpaX/Inbox`.** Photos, GPX/KML/NMEA tracks, drone logs and sensor logs dropped here
 are mapped by the matching recipe within about 5 seconds, with no switches to turn on:
 

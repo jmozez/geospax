@@ -20,6 +20,7 @@ import {
   legendItems,
   primaryColor,
   symbologyField,
+  type Basemap,
   type LayerStyle,
   type Project,
 } from './symbology';
@@ -113,7 +114,7 @@ function mergeProject(saved: Project | null): Project {
   for (const id of defaultOrder) if (!order.includes(id)) order.push(id);
   const styles: Record<string, LayerStyle> = {};
   for (const l of layers) styles[l.id] = { ...defaultStyle(l), ...(saved?.layers?.[l.id] ?? {}) };
-  return { version: 1, order, layers: styles, view: saved?.view };
+  return { version: 1, order, layers: styles, view: saved?.view, basemap: saved?.basemap };
 }
 
 let saveTimer: number | undefined;
@@ -203,6 +204,7 @@ function heatmapLayer(l: LayerInfo, st: LayerStyle): maplibregl.LayerSpecificati
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
   const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': '#0d2233' } }];
+  addBasemap(sources, out);
   for (const id of project.order) {
     const l = layerById(id);
     if (!l) continue;
@@ -273,15 +275,54 @@ function buildStyle(): maplibregl.StyleSpecification {
     { id: 'live#pos', type: 'circle', source: 'live', filter: ['==', ['get', 'role'], 'position'],
       paint: { 'circle-color': '#ffd166', 'circle-radius': 7, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 } } as maplibregl.LayerSpecification,
   );
-  // rasters sit above the land polygons and below every other vector layer
+  // rasters sit above the basemap and land polygons and below every other vector layer
   if (rasterPane) {
     const r = rasterPane.styleParts();
     Object.assign(sources, r.sources);
     let at = 1;
-    while (at < out.length && 'source' in out[at] && isLand((out[at] as { source: string }).source)) at++;
+    const under = (src: string) => isLand(src) || src.startsWith('basemap:');
+    while (at < out.length && 'source' in out[at] && under((out[at] as { source: string }).source)) at++;
     out.splice(at, 0, ...r.layers);
   }
   return { version: 8, sources, layers: out };
+}
+
+// ---------------------------------------------------------------- basemap
+// A map should never open on an empty void. 'offline' is Natural Earth 1:50m (public domain) shipped
+// with the app, so it works with no network; 'osm' is OpenStreetMap's raster tiles (needs internet).
+const basemapUrl = (f: string) => new URL(`basemap/${f}.geojson`, location.href).href;
+const basemap = (): Basemap => (params.get('basemap') as Basemap | null) ?? project.basemap ?? 'offline';
+
+function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: maplibregl.LayerSpecification[]) {
+  const b = basemap();
+  if (b === 'osm') {
+    sources['basemap:osm'] = {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    };
+    // dimmed so the data, not the basemap, carries the colour
+    out.push({ id: 'basemap:osm', type: 'raster', source: 'basemap:osm', paint: { 'raster-opacity': 0.55, 'raster-saturation': -0.6 } } as maplibregl.LayerSpecification);
+  } else if (b === 'offline') {
+    for (const f of ['land', 'lakes', 'boundaries']) sources[`basemap:${f}`] = { type: 'geojson', data: basemapUrl(f), tolerance: 0.6 };
+    out.push(
+      { id: 'basemap:land', type: 'fill', source: 'basemap:land', paint: { 'fill-color': '#1d3a35' } } as maplibregl.LayerSpecification,
+      { id: 'basemap:lakes', type: 'fill', source: 'basemap:lakes', paint: { 'fill-color': '#0d2233' } } as maplibregl.LayerSpecification,
+      {
+        id: 'basemap:boundaries', type: 'line', source: 'basemap:boundaries',
+        paint: { 'line-color': '#4f7468', 'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.4, 6, 1], 'line-dasharray': [3, 2] },
+      } as maplibregl.LayerSpecification,
+    );
+  }
+}
+
+function setBasemap(b: Basemap) {
+  project.basemap = b;
+  applyStyle();
+  saveProject();
+  workbench?.setStatus(b === 'offline' ? 'Basemap: Natural Earth (offline)' : b === 'osm' ? 'Basemap: OpenStreetMap (online)' : 'Basemap off');
 }
 
 function applyStyle() {
@@ -310,13 +351,32 @@ function fitAll() {
 }
 
 /** Let the engine choose a style for one layer (AutoMap). */
-async function autostyleLayer(id: string) {
-  const r = await backend.json<{ style: Partial<LayerStyle> }>(`api/layers/${encodeURIComponent(id)}/autostyle`).catch(() => null);
+async function autostyleLayer(id: string, opts: { keepVisibility?: boolean; quiet?: boolean } = {}) {
+  const r = await backend.json<{ style: Partial<LayerStyle>; why?: string }>(`api/layers/${encodeURIComponent(id)}/autostyle`).catch(() => null);
   if (!r?.style || !layerById(id)) return;
-  project.layers[id] = { ...project.layers[id], ...(r.style as LayerStyle), visible: true };
+  const prev = project.layers[id];
+  project.layers[id] = { ...prev, ...(r.style as LayerStyle), visible: opts.keepVisibility ? prev.visible : true, auto: r.why || 'chosen by AutoMap' };
+  if (opts.quiet) return;
   applyStyle();
   renderContents();
+  if (panel?.current === id) panel.refresh();
   saveProject();
+}
+
+/** The lazy-mapper automation (auto styles, auto overviews) is on unless ?<name>=0. Benchmarks and the
+ *  UI tests (?bench, ?fresh) drive every step themselves, so it is off there unless ?<name>=1. */
+const lazyOn = (name: string) => params.has(name) ? params.get(name) !== '0' : !params.has('bench') && !params.has('fresh');
+
+/** Layers seen for the first time get AutoMap's style instead of a grey default (opt out: ?auto=0). */
+async function autostyleNew(ids: string[]) {
+  if (!ids.length || !lazyOn('auto')) return;
+  workbench?.setStatus(`Styling ${ids.length} new layer${ids.length > 1 ? 's' : ''} automatically…`);
+  for (const id of ids) await autostyleLayer(id, { keepVisibility: true, quiet: true });
+  applyStyle();
+  renderContents();
+  panel?.refresh();
+  saveProject();
+  workbench?.setStatus(`Styled ${ids.length} layer${ids.length > 1 ? 's' : ''} automatically · the ⚙ panel says why`, 6000);
 }
 
 // ---------------------------------------------------------------- Contents
@@ -341,8 +401,8 @@ function renderContents() {
       <span class="meta"><b class="name" title="Open symbology">${esc(id)}</b>
         <small>${l.geometry} · ${fmt(l.feature_count)} features · z${l.minzoom}–${l.maxzoom} · ${esc(l.driver)}</small>
         ${l.overview ? `<small class="badge ok">pyramid z0–${l.overview.max_zoom} · ${(l.overview.bytes / 1e6).toFixed(1)} MB</small>` : ''}
-        ${running ? `<small class="badge busy">building overviews ${(job!.progress * 100).toFixed(0)}%</small>` : ''}
-        ${!l.overview && !running && l.overview_suggested != null ? `<small class="badge warn">live from z${l.live_minzoom} · overviews suggested</small>` : ''}
+        ${running ? `<small class="badge busy">preparing zoomed-out view ${(job!.progress * 100).toFixed(0)}%</small>` : ''}
+        ${!l.overview && !running && l.overview_suggested != null ? (autoOverviewsOn() ? `<small class="badge busy">zoomed-out view queued</small>` : `<small class="badge warn">live from z${l.live_minzoom} · overviews suggested</small>`) : ''}
       </span>
       <span class="tools">
         <button data-act="up" title="Move up" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>▲</button>
@@ -362,6 +422,8 @@ function renderContents() {
 }
 
 function setLayerStyle(id: string, st: LayerStyle) {
+  const prev = project.layers[id];
+  if (prev && JSON.stringify(prev.symbology) !== JSON.stringify(st.symbology)) delete st.auto;
   project.layers[id] = st;
   applyStyle();
   renderContents();
@@ -405,13 +467,16 @@ async function reloadLayers() {
   const r = await backend.json<{ layers: LayerInfo[] }>('api/layers');
   layers = r.layers;
   // Layers that appeared at runtime (device imports) join the project with default styles, on top.
-  const before = project.order.length;
+  const known = new Set(project.order);
   project = mergeProject(project);
-  if (project.order.length !== before) saveProject();
+  const added = project.order.filter((id) => !known.has(id));
+  if (added.length) saveProject();
+  void autostyleNew(added);
   applyStyle();
   renderContents();
   panel.refresh();
   document.dispatchEvent(new CustomEvent('geospax:reload-views'));
+  void queueAutoOverviews();
 }
 
 function pollJob(layerId: string, jobId: number) {
@@ -440,6 +505,29 @@ async function buildOverviews(id: string) {
   jobs.set(id, j);
   renderContents();
   pollJob(id, j.id);
+}
+
+/** Dense layers get their overview pyramid built in the background, one at a time, without a
+ *  click (opt out: ?autooverviews=0). Same job the "Build overviews" button starts. */
+const autoOverviewsOn = () => lazyOn('autooverviews');
+let autoOverviewBusy = false;
+async function queueAutoOverviews() {
+  if (!autoOverviewsOn() || autoOverviewBusy) return;
+  const busy = (j?: Job | null) => j && (j.status === 'queued' || j.status === 'running');
+  if (layers.some((l) => busy(jobs.get(l.id) ?? l.overview_job))) return; // pollJob calls back when it ends
+  // a job that failed or was cancelled is not retried until the page reloads
+  const next = layers.find((l) => !l.overview && l.overview_suggested != null && !['failed', 'cancelled'].includes(jobs.get(l.id)?.status ?? ''));
+  if (!next) return;
+  autoOverviewBusy = true;
+  try {
+    await buildOverviews(next.id);
+    workbench?.setStatus(`Preparing the zoomed-out view of ${next.id} in the background`, 5000);
+  } catch (e) {
+    jobs.set(next.id, { ...(jobs.get(next.id) ?? ({} as Job)), status: 'failed' } as Job);
+    console.warn('automatic overviews failed', next.id, e);
+  } finally {
+    autoOverviewBusy = false;
+  }
 }
 
 // ---------------------------------------------------------------- HUD
@@ -602,13 +690,17 @@ async function main() {
   ]);
   layers = ls;
   // ?fresh ignores the saved project (benchmarks, smoke tests)
-  project = mergeProject(params.has('fresh') || params.has('bench') ? null : saved);
+  const savedProject = params.has('fresh') || params.has('bench') ? null : saved;
+  project = mergeProject(savedProject);
+  const firstSeen = layers.map((l) => l.id).filter((id) => !savedProject?.layers?.[id]);
   $('#edition').textContent = backend.edition === 'web' ? 'Web edition · Axum' : 'Desktop edition · Tauri';
 
   const hasHashView = /[#&]view=/.test(location.hash);
   const pv = (params.get('view') ?? '').split('/').map(Number);
   const urlView = pv.length === 3 && pv.every(Number.isFinite) ? { zoom: pv[0], center: [pv[2], pv[1]] as [number, number] } : null;
-  const view = urlView ?? (!hasHashView && project.view ? project.view : { center: [144.25, -5.87] as [number, number], zoom: 12.5 });
+  // no saved view: open on the data itself (fitted once the map exists), not on a fixed place
+  const fitOnLoad = !urlView && !hasHashView && !project.view && !params.has('bench');
+  const view = urlView ?? (!hasHashView && project.view ? project.view : { center: [144.25, -5.87] as [number, number], zoom: fitOnLoad ? 1 : 12.5 });
   const ua = navigator.userAgent;
   const webkitGtk = /Linux/.test(ua) && /AppleWebKit/.test(ua) && !/Chrom/.test(ua);
   const preserveBuffer = params.has('glpdb') ? params.get('glpdb') === '1' : webkitGtk;
@@ -655,6 +747,7 @@ async function main() {
     cancelJob: async (jobId) => {
       await backend.json(`api/jobs/${jobId}/cancel`, { method: 'POST' });
     },
+    autostyle: (id) => autostyleLayer(id, { keepVisibility: true }),
     deleteOverviews: async (id) => {
       await backend.json(`api/layers/${id}/overviews`, { method: 'DELETE' });
       jobs.delete(id);
@@ -828,6 +921,10 @@ async function main() {
     renderContents();
   }
   (window as unknown as { workbench: Workbench | null }).workbench = workbench;
+  if (fitOnLoad) fitAll();
+  // the lazy path: new layers styled by AutoMap, dense ones get overviews, without a click
+  void autostyleNew(firstSeen).then(() => queueAutoOverviews());
+  document.addEventListener('geospax:basemap', (e) => setBasemap((e as CustomEvent<Basemap>).detail));
 
   if (params.has('bench')) map.once('idle', () => void runBench());
 }
