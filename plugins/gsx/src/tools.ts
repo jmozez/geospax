@@ -35,6 +35,8 @@ export interface Tool {
   summary: string;
   group: string;
   icon: string;
+  /** ribbon tab (GeoSpaX 3: analyze, modelling, imagery …); set from the group below */
+  tab?: string;
   params: Param[];
   run(ctx: Ctx): Out | Promise<Out>;
 }
@@ -481,3 +483,8 @@ export const TOOLS: Tool[] = [
     },
   },
 ];
+
+// Where each group sits on the ribbon: planning (suitability, gaps, representation) is modelling;
+// landscape metrics and point patterns are analysis.
+const TAB_OF: Record<string, string> = { [PLAN]: 'modelling', [LAND]: 'analyze', [SPECIES]: 'analyze' };
+for (const t of TOOLS) t.tab ??= TAB_OF[t.group];
