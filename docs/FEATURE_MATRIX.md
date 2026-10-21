@@ -4,11 +4,11 @@ GeoSpaX borrows proven features from commercial and open-source GIS, remote-sens
 **automates** them: smart defaults, auto-chosen methods, recipes and triggers ([VISION.md](VISION.md), [AUTOMATION.md](AUTOMATION.md)).
 
 **Rules for borrowing**
-- From **commercial products** we borrow *ideas and workflows* only, through clean-room specs written from public docs. No decompiled code, copied UI assets or doc text ([TECH_STACK §1](../../gis-platform-research/TECH_STACK.md#1-ground-rules-clean-room-not-decompilation)).
+- From **commercial products** we borrow *ideas and workflows* only, through clean-room specs written from public docs. No decompiled code, copied UI assets or doc text (TECH_STACK §1).
 - From **open-source tools** we reuse code where the license allows. GPL/AGPL engines (GRASS, SAGA, SNAP, R, OpenDroneMap) run as **separate processes** ("providers"), so the GeoSpaX core stays Apache-2.0 OR MIT.
 
 **How each feature is built:** `N` native Rust engine · `G` GDAL/PDAL/PROJ in-process · `P` provider process · `R` R step · `Py` Python step · `W` WASM in the web edition · `AI` optional LLM.
-**Phase** (see [TECH_STACK §8](../../gis-platform-research/TECH_STACK.md#8-phased-roadmap)): P1 Viewer · P2 Autopilot · P3 Field & sensors · P4 Remote-sensing & geostats autopilot · P5 Cartographer & publisher · P6 Platform. ✅ built · 🚧 started.
+**Phase** (see TECH_STACK §8): P1 Viewer · P2 Autopilot · P3 Field & sensors · P4 Remote-sensing & geostats autopilot · P5 Cartographer & publisher · P6 Platform. ✅ built · 🚧 started.
 
 **Plugins (1.8):** one tool model that reads the manifests of five ecosystems — GeoSpaX `plugin.yaml`,
 RustGIS `.rgplugin` (Apache-2.0), GeoLibre `plugin.json` + WASI tool bundles (MIT), QGIS `metadata.txt`

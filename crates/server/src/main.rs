@@ -1,6 +1,6 @@
 //! GeoSpaX web edition: a thin Axum adapter over `engine::Engine::handle`.
 //!
-//!   geospax-server [--data DIR]... [--host 0.0.0.0] [--port 8080] [--web web/dist]
+//!   geospax-server [--data DIR]... [--host 127.0.0.1] [--port 8080] [--token T] [--web web/dist]
 //!                [--no-cache] [--no-gzip] [--threads N] [--bench-log FILE]
 //!                [--reader arrow|features] [--state-dir DIR]
 //!                [--watch DIR]... [--auto-import] [--gps SRC]... [--mqtt URL]... [--sta URL]... [--no-device-mounts]
@@ -8,6 +8,8 @@
 //!
 //!   geospax-server run|check|watch|recipes|steps …   automation without the web UI
 //!                                                  (docs/AUTOMATION.md §9)
+
+mod auth;
 
 use axum::body::{to_bytes, Body};
 use axum::extract::{Request, State};
@@ -28,6 +30,7 @@ struct Args {
     port: u16,
     web: PathBuf,
     gzip: bool,
+    token: Option<String>,
 }
 
 fn parse_args() -> Args {
@@ -38,10 +41,11 @@ fn parse_args() -> Args {
             automation: geospax_engine::automation::AutomationConfig { triggers: true, ..Default::default() },
             ..Default::default()
         },
-        host: "0.0.0.0".into(),
+        host: "127.0.0.1".into(),
         port: 8080,
         web: "web/dist".into(),
         gzip: true,
+        token: std::env::var("GEOSPAX_TOKEN").ok().filter(|t| !t.is_empty()),
     };
     let mut it = std::env::args().skip(1);
     let mut web_given = false;
@@ -50,6 +54,7 @@ fn parse_args() -> Args {
         match k.as_str() {
             "--data" => a.cfg.data.push(v().into()),
             "--host" => a.host = v(),
+            "--token" => a.token = Some(v()),
             "--port" => a.port = v().parse().expect("port"),
             "--web" => {
                 a.web = v().into();
@@ -146,7 +151,10 @@ usage: geospax-server [options]                 serve the app at http://localhos
 options:
   --data DIR|FILE        GIS data to serve (repeatable; default ./data)
   --state-dir DIR        runs, overviews, project (default <first data dir>/.geospax)
-  --host ADDR            listen address (default 0.0.0.0)    --port N   (default 8080)
+  --host ADDR            listen address (default 127.0.0.1: this computer only)    --port N   (default 8080)
+                         Any other address (e.g. 0.0.0.0) requires an access token; one is generated and
+                         printed as a login link unless given
+  --token T              access token for the API (or GEOSPAX_TOKEN); required by every client
   --web DIR              web UI folder (default web/dist, or the installed copy)
   --inbox DIR            drop folder: files put here are mapped by the matching recipe (repeatable)
   --watch DIR            treat a folder as a device (repeatable)
@@ -346,11 +354,15 @@ async fn serve(args: Args) {
     }
     let index = args.web.join("index.html");
     let static_files = ServeDir::new(&args.web).fallback(ServeFile::new(index));
+    // Beyond this computer, the API needs a token: it can run recipe code and install plugins
+    let token = args.token.clone().or_else(|| (!auth::is_loopback(&args.host)).then(auth::new_token));
+    let auth = Arc::new(auth::Auth { token: token.clone() });
     let mut app = Router::new()
         .route("/api/{*rest}", any(api))
         .route("/tiles/{*rest}", any(api))
         .with_state(engine)
-        .fallback_service(static_files);
+        .fallback_service(static_files)
+        .layer(axum::middleware::from_fn_with_state(auth, auth::middleware));
     if args.gzip {
         // Gzip vector tiles and JSON, but not Arrow: float64 coordinates barely
         // compress (measured: -13% size for +80% time on 1M points).
@@ -360,6 +372,13 @@ async fn serve(args: Args) {
     let addr = format!("{}:{}", args.host, args.port);
     let listener = tokio::net::TcpListener::bind(&addr).await.expect("bind");
     println!("web edition listening on http://{addr}  (static: {})", args.web.display());
+    match &token {
+        Some(t) => {
+            let shown = if auth::is_loopback(&args.host) || args.host == "0.0.0.0" || args.host == "::" { "localhost".to_string() } else { args.host.clone() };
+            println!("open http://{shown}:{}/?token={t}  (the API refuses requests without this token)", args.port);
+        }
+        None => println!("open http://localhost:{}  (only this computer can connect)", args.port),
+    }
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
