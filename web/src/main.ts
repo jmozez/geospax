@@ -18,6 +18,7 @@ import { inspectorHtml } from './inspector';
 import { Toolbox } from './toolbox';
 import { StartScreen } from './start';
 import { FinishMap, FINISH_RECIPE } from './finish';
+import { OnlineData } from './online';
 import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
@@ -1416,6 +1417,17 @@ async function main() {
     },
     view: () => map.getBounds().toArray().flat() as [number, number, number, number],
     geometry: (id) => layerById(id)?.geometry ?? '',
+    run: async (id) => {
+      workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+      await automatePane?.run(id);
+    },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  });
+  // Data › Online data: climate, soil, species, boundaries and elevation for the area (online.ts)
+  new OnlineData({
+    backend,
+    view: () => map.getBounds().toArray().flat() as [number, number, number, number],
+    layers: () => project.order.filter((id) => layerById(id)).reverse(),
     run: async (id) => {
       workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
       await automatePane?.run(id);
