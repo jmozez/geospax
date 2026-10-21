@@ -15,6 +15,7 @@ import { AttributesPane } from './attributes';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
+import { Toolbox } from './toolbox';
 import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
@@ -78,7 +79,9 @@ const DEVICE_COLORS: Record<string, string> = { photos: '#ff8c42', tracks: '#e04
 const colorFor = (id: string) => PALETTE[id] ?? DEVICE_COLORS[id.split('.').pop() ?? ''] ?? '#9aa5b1';
 const isDeviceLayer = (id: string) => (id.split('.').pop() ?? '') in DEVICE_COLORS;
 let liveData: LiveGeoJSON = { type: 'FeatureCollection', features: [] };
-const defaultVisible = (l: LayerInfo) => !l.id.endsWith('.fgb') && !l.id.endsWith('.shp') && l.id !== 'synthetic.points';
+// the benchmark sample ships the same synthetic data in three formats and a 1M-point layer: start
+// with one copy on; every other layer (yours, devices', recipe and plugin results) starts visible
+const defaultVisible = (l: LayerInfo) => !/^synthetic[._]/.test(l.id) || l.id === 'synthetic.buildings';
 const GEOM_ORDER: Record<string, number> = { polygon: 0, line: 1, point: 2, unknown: 3 };
 const isLand = (id: string) => id === 'natural_earth.countries';
 
@@ -1167,6 +1170,31 @@ async function main() {
     onChanged: () => document.dispatchEvent(new CustomEvent('geospax:plugins-changed')),
   });
   void pluginsPane.reload();
+
+  // Toolbox (web/src/toolbox.ts): recipes, building blocks and every plugin's tools, searchable
+  const toolbox = new Toolbox($('#toolbox'), {
+    backend,
+    layers: () => layers,
+    activeId: () => panel.current,
+    runRecipe: (id, inputs) => {
+      void automatePane?.run(id, inputs);
+      workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+    },
+    openPluginTool: (p, t) => pluginsPane?.openTool(p, t),
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  });
+  void toolbox.reload();
+  document.addEventListener('geospax:plugins-changed', () => void toolbox.reload());
+  document.addEventListener('geospax:toolbox-search', (e) => toolbox.find((e as CustomEvent<string>).detail));
+  document.addEventListener('geospax:plugin-ran', async (e) => {
+    const ids = (e as CustomEvent<string[]>).detail;
+    await reloadLayers();
+    await rasterPane?.reload();
+    applyStyle();
+    const first = ids.find((id) => layerById(id));
+    if (first) fitLayer(first);
+    workbench?.setStatus(`Added to the map: ${ids.join(', ')}`, 6000);
+  });
 
   workbench = new Workbench({
     backend,

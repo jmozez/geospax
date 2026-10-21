@@ -256,6 +256,12 @@ export class Workbench {
         if (p && tl) this.host.plugins()?.openTool(p, tl);
         return;
       }
+      const tbx = t.closest<HTMLElement>('[data-toolbox]')?.dataset.toolbox;
+      if (tbx) {
+        this.showTab('right', 'toolbox');
+        document.dispatchEvent(new CustomEvent('geospax:toolbox-search', { detail: tbx }));
+        return;
+      }
       const next = t.closest<HTMLElement>('[data-next]');
       if (next) {
         this.nextList[Number(next.dataset.next)]?.run();
@@ -302,6 +308,7 @@ export class Workbench {
         ${task('data-cmd="data.devices"', 'phone', 'Add data', 'Phone, GPS, drone, files')}
         ${task('data-cmd="style.autoAll"', 'wand', 'Make it look good', 'Style every layer for you')}
         ${task('data-menu="recipes"', 'hotspot', 'Find patterns', `${this.recipes.length} ready-made analyses`)}
+        ${task('data-cmd="analyze.toolbox"', 'search', 'All tools', 'Search every tool by name')}
         ${task('data-cmd="home.exportPng"', 'download', 'Finish the map', 'Save this view as a picture')}
       </div>
       ${
@@ -387,6 +394,14 @@ export class Workbench {
     }
     // Plugin tools, one group per plugin (docs/PLUGINS.md).
     for (const p of this.pluginTools()) {
+      // a whole tool library (GeoLibre's 1,000+) is one button that opens the Toolbox on it
+      if (p.tools.length > 40) {
+        parts.push(`<div class="rb-group" data-group="plugin:${esc(p.id)}"><div class="rb-items">
+          <button class="rb-btn big" data-toolbox="${esc(p.name)}" title="Search the ${p.tools.length.toLocaleString('en-US')} tools of ${esc(p.name)} in the Toolbox">
+            <span class="rb-ico">${icon('grid', 20)}</span><span class="rb-label">${esc(p.name)}<br><small>${p.tools.length.toLocaleString('en-US')} tools</small></span></button>
+          </div><div class="rb-title">${esc(p.name)} <span class="dim">plugin</span></div></div>`);
+        continue;
+      }
       const tools = p.tools.slice(0, 12);
       const inline = tools
         .map(
@@ -735,7 +750,7 @@ export class Workbench {
     const right = this.layout.tabs.right;
     const bottom = this.layout.tabs.bottom;
     if (lazy) {
-      if (!['inspector', 'devices', 'attributes'].includes(right)) this.layout.tabs.right = 'inspector';
+      if (!['inspector', 'toolbox', 'devices', 'attributes'].includes(right)) this.layout.tabs.right = 'inspector';
       if (bottom !== 'activity') this.layout.tabs.bottom = 'activity';
     } else {
       if (right === 'inspector') this.layout.tabs.right = 'symbology';
@@ -776,7 +791,7 @@ export class Workbench {
             ? ideas.map((x, i) => `<button class="act-idea" data-act-idea="${i}"><span class="act-idea-ico">▶</span><span><b>${esc(x.label)}</b><small>on ${esc(x.layer)}</small></span></button>`).join('')
             : `<p class="act-empty">Add points (a phone, a GPS, a sensor log or a file) and GeoSpaX suggests what to do with them.</p>`
         }
-        <button class="act-more" data-cmd-act="analyze.gallery">All ${this.recipes.length || ''} ready-made analyses</button>
+        <button class="act-more" data-cmd-act="analyze.toolbox">All tools in the Toolbox →</button>
       </div>
       <div class="act-col">
         <h3>What happened</h3>

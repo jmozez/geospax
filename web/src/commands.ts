@@ -257,6 +257,11 @@ export const COMMANDS: Command[] = [
     run: (h) => { h.showTab('bottom', 'automate'); },
   },
   {
+    id: 'analyze.toolbox', tab: 'analyze', group: 'Recipes', title: 'Toolbox', icon: 'search', big: true,
+    hint: 'Every tool: recipes, building blocks, GeoLibre and plugin tools, searchable (ArcGIS and QGIS names work)',
+    run: (h) => { h.showTab('right', 'toolbox'); },
+  },
+  {
     id: 'analyze.hotspots', tab: 'analyze', group: 'Spatial statistics', title: 'Hot spots', icon: 'hotspot', big: true,
     hint: 'Optimized hot spot analysis (Gi*) on incidents or points',
     run: async (h) => {

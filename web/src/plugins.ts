@@ -347,6 +347,9 @@ export class PluginsPane {
       if (msg) msg.textContent = text;
       this.host.setStatus(text, 6000);
       this.host.log(`${key}: ${text}`);
+      // tools that wrote files report them in "outputs"; the engine adds them to the map
+      const added = (res as { added?: string[] }).added ?? [];
+      if (added.length) document.dispatchEvent(new CustomEvent('geospax:plugin-ran', { detail: added }));
     } catch (e) {
       const text = String((e as Error).message ?? e);
       if (msg) msg.textContent = text;
