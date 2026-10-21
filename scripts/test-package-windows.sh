@@ -85,7 +85,7 @@ for f in geospax-server.exe WebView2Loader.dll gdal.dll share/proj/proj.db share
   [ -f "$INST/$f" ] || { echo "      missing $f"; MISSING=1; }
 done
 check "${MISSING:-0}" "install folder has the server, GDAL/PROJ data, fonts, web UI, recipes, licenses, uninstaller"
-SM="$WINEPREFIX/drive_c/users/$USER/AppData/Roaming/Microsoft/Windows/Start Menu/Programs"
+SM="$WINEPREFIX/drive_c/users/${USER:-$(id -un)}/AppData/Roaming/Microsoft/Windows/Start Menu/Programs"
 check "$([ -n "$(find "$SM" -iname 'GeoSpaX.lnk' | head -1)" ] && [ -f "$SM/GeoSpaX Web Server.lnk" ] && echo 0 || echo 1)" \
   "Start menu: GeoSpaX + GeoSpaX Web Server"
 echo "      $(du -sh "$INST" | cut -f1) installed, $(find "$INST" -maxdepth 1 -name '*.dll' | wc -l) DLLs"
