@@ -597,7 +597,7 @@ body[data-mode='lazy'] #contents + .hint { display: none; }
 @media (max-width: 1250px) { .tk-txt small { display: none; } }
 
 /* ---------------------------------------------------------------- panes per mode */
-body[data-mode='lazy'] .dock-tabs button:is([data-tab='symbology'], [data-tab='rasters'], [data-tab='automate'], [data-tab='plugins'], [data-tab='history'], [data-tab='log']) { display: none; }
+body[data-mode='lazy'] .dock-tabs button:is([data-tab='symbology'], [data-tab='rasters'], [data-tab='automate'], [data-tab='plugins'], [data-tab='history'], [data-tab='log'], [data-tab='project']) { display: none; }
 body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='activity']) { display: none; }
 
 /* ---------------------------------------------------------------- Lazy: Inspector (right) */

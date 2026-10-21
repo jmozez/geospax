@@ -676,12 +676,14 @@ function wireContents() {
     else if (act === 'recipe' && actEl?.dataset.recipe) void automatePane?.run(actEl.dataset.recipe, { layer: id });
     else if (act === 'props' || t.classList.contains('name') || t.closest('.name')) {
       panel.open(id);
-      workbench?.showTab('right', 'symbology');
+      // Lazy: the layer's story; Pro: its full symbology
+      workbench?.showTab('right', uiMode === 'lazy' ? 'inspector' : 'symbology');
       renderContents();
       document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
     } else if (!t.closest('button, input, label')) {
       // a click anywhere else on a card selects the layer: the ribbon offers its next steps
       panel.open(id);
+      if (uiMode === 'lazy') workbench?.showTab('right', 'inspector');
       renderContents();
       document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
     }
