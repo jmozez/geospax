@@ -27,6 +27,18 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **Pro: a contextual Layer tab** (as ArcGIS Pro shows for a selected layer) with zoom, attribute table,
   symbology, AutoMap and the same next steps. Clicking a layer card selects it.
 
+### Added — Lazy panes: the Inspector and Activity
+- **Inspector** (right pane in Lazy mode): the selected layer as a story: sentence, classes with count
+  bars, AutoMap's reason, **Colour it by** chips (graduated for numbers, WHO classes for PM2.5/PM10, unique
+  values for text), opacity, next steps, and where the data came from.
+- **Activity** (bottom pane in Lazy mode): ideas for the data on the map, run with one click, and a
+  plain-language timeline of runs with **Open report**, then the latest notes.
+- Switching mode opens that mode's panes; Pro keeps the existing tabs.
+
+### Fixed
+- A finished recipe no longer overwrites the style of an input layer that was already styled (by hand or
+  by AutoMap); run styles now dress the layers the run created and layers nobody styled.
+
 ### Added — Lazy and Pro layer lists
 - **Contents has two modes**, switched at the top of the pane and remembered per browser (Lazy by default;
   `?mode=lazy|pro`). **Lazy: layer cards** with a friendly name, a one-sentence summary written from the

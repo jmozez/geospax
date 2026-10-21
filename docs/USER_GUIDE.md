@@ -92,6 +92,18 @@ default) changes the ribbon and the layer list together:
 - **Pro: the full ribbon** (Home, Data, Style, Analyze, View, Automate, Help) plus a contextual **Layer**
   tab while a layer is selected: zoom, attribute table, symbology, AutoMap and the same next steps.
 
+The side and bottom panes follow it too:
+
+- **Lazy, right: the Inspector.** The selected layer as a short story: what it shows (with a bar per class
+  and its count), *why* it looks like that, **Colour it by** (one chip per useful column, plus *Let GeoSpaX
+  choose* and *One colour*), a see-through slider, **Do something with it** (the analyses that fit, zoom,
+  see the rows) and **Where it came from** (file, format, extent, columns).
+- **Lazy, bottom: Activity.** *Ideas for your data* (the analyses that fit the layers on the map, one click
+  each) and *What happened* (every run, including the ones devices start by themselves, with **Open
+  report**, then the latest notes).
+- **Pro** keeps Symbology, Attributes, Rasters, Devices on the right and Automate, Plugins, History, Log at
+  the bottom.
+
 The layer list follows the same switch:
 
 | | Lazy: layer cards | Pro: layer tree |

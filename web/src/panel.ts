@@ -198,6 +198,21 @@ export class SymbologyPanel {
     if (rerender) this.render();
   }
 
+  /** The Inspector's "Colour by" chips: graduated for numbers (WHO classes for PM2.5/PM10), unique
+   *  values for text; null = one colour. */
+  async colourBy(id: string, field: string | null) {
+    this.open(id);
+    const l = this.layer;
+    if (!l) return;
+    if (!field) return this.update((x) => (x.symbology = { kind: 'single', color: rampColors('tableau', 1)[0] }));
+    const f = l.fields.find((x) => x.name === field);
+    if (f && (f.kind === 'real' || f.kind === 'integer')) {
+      const pm = /^(pm2_?5|pm10)$/i.test(field);
+      return this.classify({ kind: 'graduated', field, ramp: pm ? 'ylorrd' : 'viridis', method: pm ? 'guideline' : 'jenks', classes: pm ? 6 : 5 });
+    }
+    return this.classify({ kind: 'unique', field, ramp: 'tableau' });
+  }
+
   /** (Re)classify with the engine and apply. */
   private async classify(next: { kind: 'unique' | 'graduated'; field: string; ramp: string; method?: Method; classes?: number }) {
     const l = this.layer!;

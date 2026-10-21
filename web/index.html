@@ -64,12 +64,16 @@
           <div id="splitter-bottom" class="splitter horizontal" data-dock="bottom" title="Drag to resize · double-click to reset"></div>
           <section id="dock-bottom" class="dock" data-dock="bottom" aria-label="Automation, history and log">
             <div class="dock-tabs" data-dock="bottom">
+              <button data-tab="activity">Activity</button>
               <button data-tab="automate">Automate</button>
               <button data-tab="plugins">Plugins</button>
               <button data-tab="history">History</button>
               <button data-tab="log">Log</button>
             </div>
             <div class="dock-body">
+              <section data-tab="activity">
+                <div id="activity"></div>
+              </section>
               <section data-tab="automate">
                 <div id="automate"></div>
               </section>
@@ -90,12 +94,16 @@
         <div id="splitter-right" class="splitter" data-dock="right" title="Drag to resize · double-click to reset"></div>
         <aside id="dock-right" class="dock" data-dock="right" aria-label="Layer details">
           <div class="dock-tabs" data-dock="right">
+            <button data-tab="inspector">Inspector</button>
             <button data-tab="symbology">Symbology</button>
             <button data-tab="attributes">Attributes</button>
             <button data-tab="rasters">Rasters</button>
             <button data-tab="devices">Devices</button>
           </div>
           <div class="dock-body">
+            <section data-tab="inspector">
+              <div id="inspector" aria-label="Layer inspector"></div>
+            </section>
             <section data-tab="symbology">
               <div id="panel" aria-label="Symbology"></div>
             </section>
