@@ -206,6 +206,10 @@ basemap. **＋ Group** puts the selected layer in a new group; drag a layer onto
 without changing their own switches; the twisty (▾/▸) folds a layer's legend; ✎ renames a group
 (or double-click its name) and ⊟ ungroups it, keeping the layers. Groups are saved in the project.
 
+**Theme.** GeoSpaX opens in a light theme. The button left of the Lazy/Pro switch cycles ☀ Light → ☾ Dark →
+◐ System (follows your operating system); View → Theme does the same. The choice is remembered; add
+`?theme=dark` to a link to force one. The map's background and land colours follow the theme.
+
 ## 2c. Plugins: tools from five ecosystems
 
 Open the **Plugins** tab (bottom dock). Every plugin is a folder with a manifest, and GeoSpaX reads
