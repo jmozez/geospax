@@ -677,3 +677,37 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 #contents .pr-kids .layer.pro { margin-left: 0; padding-left: 6px; }
 #contents .layer.pro.dragging { opacity: 0.4; }
 .pr-group.drop, .pr-map.drop, #contents .layer.pro.drop { outline: 1px dashed var(--accent); }
+
+/* ---------------------------------------------------------------- Toolbox (both modes) */
+#toolbox { display: flex; flex-direction: column; height: 100%; }
+.tb-head { position: sticky; top: 0; z-index: 1; background: var(--panel); padding: 2px 0 8px; }
+.tb-search { width: 100%; padding: 8px 12px; border-radius: 999px; background: #0f1922; border: 1px solid var(--line); color: var(--fg); font-size: 13px; }
+.tb-search:focus { border-color: var(--accent); outline: none; }
+.tb-sources { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.tb-src { display: inline-block; font-size: 10px; padding: 0 6px; border-radius: 999px; background: #0f1922; color: var(--muted); font-weight: 500; vertical-align: 1px; }
+.tb-src.src-geolibre { color: #6fcf97; } .tb-src.src-geospax { color: var(--accent); } .tb-src.src-qgis { color: #8fd14f; }
+.tb-src.src-arcgis { color: #4aa3df; } .tb-src.src-rustgis { color: #e59866; }
+.tb-count { font-size: 11px; color: var(--muted); margin: 2px 2px 6px; }
+.tb-cat { display: flex; justify-content: space-between; width: 100%; padding: 6px 4px; margin-top: 2px; background: none; border: 0; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--fg); text-align: left; }
+.tb-cat em { font-style: normal; color: var(--muted); font-weight: 400; }
+.tb-cat.static { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; cursor: default; }
+.tb-tool { display: block; width: 100%; text-align: left; padding: 7px 8px; background: none; border: 0; border-radius: 6px; }
+.tb-tool:hover { background: #1c2a37; }
+.tb-name { display: block; font-size: 12.5px; font-weight: 600; color: var(--fg); }
+.tb-tool small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.35; margin-top: 1px; }
+.tb-tool .tb-aka { color: #7f97ab; font-style: italic; }
+.tb-empty, .tb-note { color: var(--muted); font-size: 12px; }
+.tb-detail h3 { margin: 8px 0 4px; font-size: 15px; text-transform: none; letter-spacing: 0; color: var(--fg); }
+.tb-detail h4 { margin: 14px 0 6px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tb-back { background: none; border: 0; color: var(--accent); padding: 2px 0; font-size: 12px; }
+.tb-sum { font-size: 12.5px; line-height: 1.5; color: #cfd9e2; }
+.tb-aka-big { font-size: 12px; padding: 8px 10px; border-left: 3px solid #4aa3df; background: rgba(74, 163, 223, 0.08); border-radius: 4px; }
+.tb-aka-big b { display: block; color: #4aa3df; margin-bottom: 2px; }
+.tb-form { display: grid; gap: 10px; margin-top: 10px; }
+.tb-form label { display: grid; gap: 4px; font-size: 12px; }
+.tb-form label span { font-weight: 600; text-transform: capitalize; }
+.tb-form label small { display: block; font-weight: 400; color: var(--muted); text-transform: none; }
+.tb-form select, .tb-form input { width: 100%; }
+.tb-params { display: grid; grid-template-columns: 110px 1fr; gap: 4px 8px; font-size: 12px; margin: 0; }
+.tb-params dt { font-weight: 600; } .tb-params dd { margin: 0; color: var(--muted); }
+.tb-plist { padding-left: 16px; font-size: 12px; margin: 0; } .tb-plist small { color: var(--muted); }

@@ -17,6 +17,9 @@ acknowledges — including the two the workbench UI was modelled on.
 * **JavaScript** — [`web/package.json`](web/package.json): MapLibre GL JS
   (BSD-3-Clause), deck.gl (MIT), Apache Arrow JS (Apache-2.0), Vite (MIT),
   TypeScript (Apache-2.0), Playwright (Apache-2.0, dev only).
+* **GeoLibre tools plugin** (`plugins/geolibre-tools/`) — downloads, on first use, the `geolibre-wasm`
+  1.7.1 tool runner (MIT; opengeos/geolibre-rust, built on whitebox_next_gen by John Lindsay, MIT) from
+  the npm registry and verifies its SHA-512. It is not redistributed in this repository or the installers.
 * **Data at runtime** — Natural Earth (public domain) for the sample layers and the bundled offline basemap
   (`web/public/basemap/`: 1:50m land, lakes and admin-0 boundary lines, coordinates rounded to 0.001°).
 

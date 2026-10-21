@@ -70,6 +70,7 @@ cp "$(ls "${CARGO_HOME:-$HOME/.cargo}"/registry/src/*/webview2-com-sys-"$WV2"/x6
 cp -rp "$GDAL_WIN/Library/share/gdal" "$GDAL_WIN/Library/share/proj" "$STAGE/share/"
 cp -rp web/dist "$STAGE/web"
 cp -p recipes/*.yaml "$STAGE/recipes/"
+cp -r plugins "$STAGE/plugins"   # bundled plugins (GeoLibre tools run on Node.js when it is installed)
 cp -p docs/USER_GUIDE.md "$STAGE/docs/"
 cp -p LICENSE-MIT "$STAGE/LICENSE-MIT.txt"
 cp -p LICENSE-APACHE "$STAGE/LICENSE-APACHE.txt"
