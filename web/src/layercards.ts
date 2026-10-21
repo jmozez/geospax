@@ -40,7 +40,7 @@ function friendlyBase(l: LayerInfo): string {
 }
 
 /** A readable field name: pm2_5 → PM2.5, pop_est → pop est. */
-const fieldName = (f: string) => (/^pm2_?5$/i.test(f) ? 'PM2.5' : /^pm10$/i.test(f) ? 'PM10' : f.replace(/_/g, ' '));
+export const fieldName = (f: string) => (/^pm2_?5$/i.test(f) ? 'PM2.5' : /^pm10$/i.test(f) ? 'PM10' : f.replace(/_/g, ' '));
 
 export type Group = 'data' | 'devices' | 'results' | 'reference';
 export const GROUP_TITLE: Record<Group, string> = {

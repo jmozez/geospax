@@ -125,8 +125,17 @@ export class Workbench {
     });
     document.addEventListener('geospax:plugins-changed', () => this.buildRibbon());
     // the mode and the selected layer decide what the ribbon offers
-    document.addEventListener('geospax:mode', () => this.buildRibbon());
-    document.addEventListener('geospax:active', () => this.buildRibbon());
+    document.addEventListener('geospax:mode', () => {
+      this.buildRibbon();
+      this.applyModeTabs();
+    });
+    document.addEventListener('geospax:active', () => {
+      this.buildRibbon();
+      this.renderActivity();
+    });
+    document.addEventListener('geospax:reload-views', () => this.renderActivity());
+    this.applyModeTabs();
+    this.renderActivity();
   }
 
   /** The command host every ribbon button sees. */
@@ -716,7 +725,84 @@ export class Workbench {
     } catch { /* transient */ }
   }
 
+  /**
+   * Each mode has its own panes: Lazy shows the Inspector (right) and Activity (bottom); Pro the
+   * Symbology / Attributes / Rasters / Devices and Automate / Plugins / History / Log tabs. Moving to
+   * a mode opens its pane if the current one belongs to the other mode.
+   */
+  private applyModeTabs() {
+    const lazy = this.host.mode() === 'lazy';
+    const right = this.layout.tabs.right;
+    const bottom = this.layout.tabs.bottom;
+    if (lazy) {
+      if (!['inspector', 'devices', 'attributes'].includes(right)) this.layout.tabs.right = 'inspector';
+      if (bottom !== 'activity') this.layout.tabs.bottom = 'activity';
+    } else {
+      if (right === 'inspector') this.layout.tabs.right = 'symbology';
+      if (bottom === 'activity') this.layout.tabs.bottom = 'automate';
+    }
+    this.applyLayout();
+  }
+
+  /**
+   * Lazy mode's bottom pane: what GeoSpaX suggests for the data on the map, and what has happened
+   * (recipe runs with their reports, then the latest notes), in words rather than tabs of logs.
+   */
+  renderActivity() {
+    const el = document.querySelector<HTMLElement>('#activity');
+    if (!el) return;
+    const ideas: { label: string; layer: string; run: () => void }[] = [];
+    for (const l of this.host.layers()) {
+      const first = this.host.nextSteps(l.id)[0];
+      if (first) ideas.push({ label: first.label, layer: this.host.layerName(l.id), run: first.run });
+      if (ideas.length >= 4) break;
+    }
+    this.activityIdeas = ideas;
+    const st: Record<string, [string, string]> = {
+      done: ['✓', 'Finished'], failed: ['!', 'Failed'], running: ['◌', 'Running'], queued: ['◌', 'Waiting'], cancelled: ['×', 'Stopped'],
+    };
+    const runs = this.runs.slice(0, 8).map((r) => {
+      const [ico, word] = st[r.status] ?? ['•', r.status];
+      return `<div class="act-item ${esc(r.status)}"><span class="act-ico">${ico}</span>
+        <span class="act-txt"><b>${esc(r.title || r.recipe)}</b><small>${esc(word)}${r.trigger?.text ? ` · ${esc(r.trigger.text)}` : ''} · ${(r.elapsed_ms / 1000).toFixed(1)} s</small></span>
+        ${r.status === 'done' ? `<button data-act-open="${esc(r.id)}">Open report</button>` : ''}</div>`;
+    });
+    const notes = [...this.logs].reverse().slice(0, 5).map((l) => `<div class="act-note ${l.level}"><span>${esc(l.t)}</span>${esc(l.text)}</div>`);
+    el.innerHTML = `<div class="act">
+      <div class="act-col">
+        <h3>Ideas for your data</h3>
+        ${
+          ideas.length
+            ? ideas.map((x, i) => `<button class="act-idea" data-act-idea="${i}"><span class="act-idea-ico">▶</span><span><b>${esc(x.label)}</b><small>on ${esc(x.layer)}</small></span></button>`).join('')
+            : `<p class="act-empty">Add points (a phone, a GPS, a sensor log or a file) and GeoSpaX suggests what to do with them.</p>`
+        }
+        <button class="act-more" data-cmd-act="analyze.gallery">All ${this.recipes.length || ''} ready-made analyses</button>
+      </div>
+      <div class="act-col">
+        <h3>What happened</h3>
+        ${runs.join('') || `<p class="act-empty">Nothing yet. Every analysis you run (or that runs by itself when a device is plugged in) appears here with its report.</p>`}
+        ${notes.length ? `<div class="act-notes">${notes.join('')}</div>` : ''}
+      </div>
+    </div>`;
+    el.onclick = (e) => {
+      const t = e.target as HTMLElement;
+      const idea = t.closest<HTMLElement>('[data-act-idea]');
+      if (idea) {
+        this.activityIdeas[Number(idea.dataset.actIdea)]?.run();
+        this.setStatus('Running…');
+        return;
+      }
+      const open = t.closest<HTMLElement>('[data-act-open]')?.dataset.actOpen;
+      if (open) return this.host.openRun(open);
+      const cmd = t.closest<HTMLElement>('[data-cmd-act]')?.dataset.cmdAct;
+      if (cmd) void this.run(cmd);
+    };
+  }
+
+  private activityIdeas: { run: () => void }[] = [];
+
   renderHistory() {
+    this.renderActivity();
     const el = document.querySelector<HTMLElement>('#history');
     if (!el) return;
     if (!this.runs.length) {
@@ -747,6 +833,7 @@ export class Workbench {
     this.logs.push({ t, level, text: line });
     if (this.logs.length > 300) this.logs.shift();
     this.renderLog();
+    this.renderActivity();
   }
 
   renderLog() {

@@ -14,6 +14,7 @@ import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
+import { inspectorHtml } from './inspector';
 import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
@@ -467,11 +468,57 @@ function renderContents() {
   // keep the filter box focused while typing
   const focused = document.activeElement?.classList.contains('pr-filter');
   el.innerHTML = body;
+  renderInspector();
   if (focused) {
     const fi = el.querySelector<HTMLInputElement>('.pr-filter');
     fi?.focus();
     fi?.setSelectionRange(fi.value.length, fi.value.length);
   }
+}
+
+/** Lazy mode's right pane: the selected layer as a story (web/src/inspector.ts). */
+function renderInspector() {
+  const el = document.querySelector<HTMLElement>('#inspector');
+  if (!el) return;
+  const id = panel?.current;
+  const l = id ? layerById(id) : undefined;
+  el.innerHTML = inspectorHtml(
+    l && id
+      ? { layer: l, style: project.layers[id], all: layers, next: actionsFor(l, project.layers[id].symbology, recipeIds).map(([, label]) => ({ label })) }
+      : null,
+  );
+}
+
+function wireInspector() {
+  const el = $('#inspector');
+  el.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-ins]');
+    const id = panel.current;
+    if (!b || !id) return;
+    const l = layerById(id)!;
+    switch (b.dataset.ins) {
+      case 'auto':
+        return void autostyleLayer(id, { keepVisibility: true });
+      case 'colour':
+        workbench?.setStatus(b.dataset.field ? `Colouring by ${b.dataset.field}…` : 'One colour');
+        return void panel.colourBy(id, b.dataset.field || null);
+      case 'next': {
+        const a = actionsFor(l, project.layers[id].symbology, recipeIds)[Number(b.dataset.i)];
+        if (a) void automatePane?.run(a[0], { layer: id });
+        return;
+      }
+      case 'zoom':
+        return fitLayer(id);
+      case 'table':
+        void attributesPane?.open(id);
+        return workbench?.showTab('right', 'attributes');
+    }
+  });
+  el.addEventListener('change', (e) => {
+    const t = e.target as HTMLInputElement;
+    const id = panel.current;
+    if (id && t.dataset.ins === 'opacity') setLayerStyle(id, { ...project.layers[id], opacity: Number(t.value) / 100 });
+  });
 }
 
 function setLayerStyle(id: string, st: LayerStyle) {
@@ -855,6 +902,7 @@ async function main() {
     },
   });
   wireContents();
+  wireInspector();
   renderContents();
   renderModeSwitch();
   document.querySelector('#mode-switch')?.addEventListener('click', (e) => {
@@ -911,8 +959,12 @@ async function main() {
         const main = steps.find((s) => s.outputs?.svg && Array.isArray(s.outputs?.rasters))?.outputs?.rasters;
         if (run.status === 'done') rasterPane.showRun(run.rasters, main);
       }
+      // the run's styles dress the layers it made; a layer someone (or AutoMap) already styled keeps its look
       for (const [id, st] of Object.entries(run.styles ?? {})) {
-        if (layerById(id)) project.layers[id] = { ...project.layers[id], ...(st as LayerStyle), visible: true };
+        const cur = project.layers[id];
+        if (!layerById(id)) continue;
+        const styled = cur && (cur.symbology.kind !== 'single' || cur.auto);
+        project.layers[id] = styled ? { ...cur, visible: true } : { ...cur, ...(st as LayerStyle), visible: true };
       }
       applyStyle();
       renderContents();
