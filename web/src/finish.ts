@@ -2,8 +2,10 @@
 // laid-out map (title, legend, scale bar, north arrow, credits) as PNG, PDF and SVG plus a one-page
 // report, in one click. It is an ordinary recipe ("finished-map", replaced each time) so the result
 // has run history, provenance and can be re-run or put on a trigger like any other.
-// A map series (atlas, ArcGIS Pro's "map series", QGIS's atlas) is the same map once per page: a grid
-// over the area, or one page per feature of a layer (each district, each site), titled by a field.
+// Layouts, in both modes: one map; several tagged panels on one page after R patchwork (each layer side
+// by side, or several areas) or ggplot2 facet_wrap (one panel per value of a field, one legend); or a
+// map series (ArcGIS Pro's map series, QGIS's atlas): an index page, then one page per area (a grid, or
+// each feature of a layer, titled by a field), each showing exactly its area, bound into one PDF.
 import type { Backend } from './backend';
 import type { LayerStyle } from './symbology';
 
@@ -84,6 +86,38 @@ export class FinishMap {
     const lazy = this.host.mode() === 'lazy';
     // page layers: visible polygon or line layers small enough to page through
     const index = this.host.visible().map((l) => l.id).filter((id) => /polygon|line/.test(this.host.geometry(id))).reverse();
+    const layers = this.host.visible().map((l) => l.id).reverse();
+    const multi = layers.length > 1; // one layer: "side by side" is a single-panel figure
+    const layout = `<fieldset class="fin-layout"><legend>Layout</legend>
+      <div class="fin-chips" role="radiogroup" aria-label="Layout">
+        <label><input type="radio" name="layout" value="one" checked /><b>One map</b><small>everything on one map</small></label>
+        <label><input type="radio" name="layout" value="side" /><b>${multi ? 'Side by side' : 'Single panel'}</b><small>${multi ? 'each layer in its own panel' : 'a figure panel, tagged'}</small></label>
+        <label><input type="radio" name="layout" value="facet" /><b>Split by a field</b><small>small multiples, one legend</small></label>
+        <label><input type="radio" name="layout" value="panels" /><b>Panels</b><small>several areas on one page</small></label>
+        <label><input type="radio" name="layout" value="atlas" /><b>Map series</b><small>one page per area, bound PDF</small></label>
+      </div>
+      <div class="fin-opt" data-for="facet">
+        <label><span>Layer</span><select name="facet_layer" aria-label="Layer to split">${layers.map((id) => `<option>${esc(id)}</option>`).join('')}</select></label>
+        <label><span>Field</span><select name="facet" aria-label="Field to split by"><option value="">…</option></select></label>
+      </div>
+      <div class="fin-opt" data-for="panels atlas">
+        <label class="ck"><input type="radio" name="split" value="grid" checked /> A grid over the area
+          <select name="grid" aria-label="Grid"><option value="1x1">1 × 1</option><option value="2x1">2 × 1</option><option value="2x2" selected>2 × 2</option><option value="3x2">3 × 2</option><option value="3x3">3 × 3</option><option value="4x4">4 × 4</option></select></label>
+        ${
+          index.length
+            ? `<label class="ck"><input type="radio" name="split" value="features" /> One per feature of
+          <select name="index" aria-label="Area layer">${index.map((id) => `<option>${esc(id)}</option>`).join('')}</select></label>
+          <label class="fin-field"><span>Titles from field</span><select name="field" aria-label="Title field"><option value="">(numbered)</option></select></label>`
+            : ''
+        }
+      </div>
+      <div class="fin-opt" data-for="side facet panels">
+        <label><span>Columns</span><select name="ncol"><option value="">Automatic</option><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+        <label><span>Legend</span><select name="legends"><option value="auto">Automatic</option><option value="collect">One shared legend</option><option value="keep">One per panel</option></select></label>
+        <label><span>Tags</span><select name="tags"><option value="a">(a) (b) (c)</option><option value="A">(A) (B) (C)</option><option value="1">(1) (2) (3)</option><option value="i">(i) (ii) (iii)</option><option value="none">No tags</option></select></label>
+      </div>
+      <small class="dim fin-hint"></small>
+    </fieldset>`;
     const today = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     const more = `
       <label><span>Subtitle</span><input name="subtitle" value="${esc(today)}" /></label>
@@ -93,18 +127,6 @@ export class FinishMap {
       <label><span>Page</span><select name="size">
         <option value="auto">Automatic (fits the area)</option><option value="a4">A4 landscape</option><option value="a4-portrait">A4 portrait</option>
         <option value="a3">A3 landscape</option><option value="letter">US Letter</option></select></label>
-      <fieldset class="fin-series"><legend>Pages</legend>
-        <label class="ck"><input type="radio" name="pages" value="one" checked /> One map</label>
-        <label class="ck"><input type="radio" name="pages" value="grid" /> A grid of pages over the area
-          <select name="grid" aria-label="Grid"><option value="2x1">2 × 1</option><option value="2x2" selected>2 × 2</option><option value="3x2">3 × 2</option><option value="3x3">3 × 3</option><option value="4x4">4 × 4</option></select></label>
-        ${
-          index.length
-            ? `<label class="ck"><input type="radio" name="pages" value="features" /> One page per feature of
-          <select name="index" aria-label="Page layer">${index.map((id) => `<option>${esc(id)}</option>`).join('')}</select></label>
-          <label class="fin-field"><span>Page title from field</span><select name="field" aria-label="Page title field"><option value="">(page number)</option></select></label>`
-            : ''
-        }
-        <small class="dim">A map series (atlas): the same layout once per page, up to ${MAX_PAGES} pages.</small></fieldset>
       <fieldset><legend>Files</legend>
         <label class="ck"><input type="checkbox" name="png" checked /> Picture (PNG)</label>
         <label class="ck"><input type="checkbox" name="pdf" checked /> Print (vector PDF)</label>
@@ -115,6 +137,7 @@ export class FinishMap {
       <div class="body">
         <p class="fin-lead">The ${this.host.visible().length} layer${this.host.visible().length > 1 ? 's' : ''} on the map, styled as you see them, laid out with a legend, scale bar, north arrow and credits.</p>
         <label><span>Title</span><input name="title" value="${esc(this.host.suggestTitle())}" required /></label>
+        ${layout}
         ${lazy ? `<details><summary>More options</summary>${more}</details>` : more}
       </div>
       <footer><span class="dim" id="finish-msg"></span><button type="button" data-close>Cancel</button><button class="primary" type="submit">Make the map</button></footer>
@@ -128,26 +151,78 @@ export class FinishMap {
       try {
         const r = await this.host.backend.json<{ fields: string[] }>(`api/layers/${encodeURIComponent(idx.value)}/rows?limit=1`);
         const good = r.fields.find((f) => /^(name|title|label|district|region|sheet|id)$/i.test(f)) ?? '';
-        sel.innerHTML = `<option value="">(page number)</option>${r.fields.map((f) => `<option ${f === good ? 'selected' : ''}>${esc(f)}</option>`).join('')}`;
+        sel.innerHTML = `<option value="">(numbered)</option>${r.fields.map((f) => `<option ${f === good ? 'selected' : ''}>${esc(f)}</option>`).join('')}`;
       } catch {
-        /* keep page numbers */
+        /* keep numbers */
       }
     };
     idx?.addEventListener('change', () => void fillFields());
     void fillFields();
-    // picking a grid size or page layer picks that kind of series
+    const fl = this.el.querySelector<HTMLSelectElement>('select[name=facet_layer]')!;
+    fl.addEventListener('change', () => void this.facetFields(fl.value));
+    // picking a grid size or area layer picks that kind of split
     this.el.querySelector('select[name=grid]')?.addEventListener('change', () => this.pick('grid'));
     idx?.addEventListener('change', () => this.pick('features'));
+    const show = () => {
+      const v = (this.el.querySelector<HTMLInputElement>('input[name=layout]:checked')?.value ?? 'one');
+      this.el.querySelectorAll<HTMLElement>('.fin-opt').forEach((o) => (o.hidden = !o.dataset.for!.split(' ').includes(v)));
+      const hint = this.el.querySelector<HTMLElement>('.fin-hint')!;
+      hint.textContent = {
+        one: '',
+        side: 'Like R patchwork: one page, each layer in its own tagged panel, same area, each with its legend.',
+        facet: 'Like ggplot2 facet_wrap: one panel per value of the field, same area and classes, one shared legend.',
+        panels: 'Like R patchwork: several areas on one page, each showing exactly its area, tagged (a), (b)…',
+        atlas: `Like ArcGIS map series / QGIS atlas: an index page, then one page per area (up to ${MAX_PAGES}), bound into one PDF.`,
+      }[v]!;
+      if (v === 'facet' && this.el.querySelector<HTMLSelectElement>('select[name=facet]')!.options.length <= 1) void this.firstFacetLayer(fl, layers);
+    };
+    this.el.querySelectorAll('input[name=layout]').forEach((r) => r.addEventListener('change', show));
+    show();
+  }
+
+  /** Start on the first visible layer (top first) that has a field worth splitting by. */
+  private async firstFacetLayer(sel: HTMLSelectElement, layers: string[]) {
+    for (const id of [sel.value, ...layers.filter((x) => x !== sel.value)]) {
+      sel.value = id;
+      if (await this.facetFields(id)) return;
+    }
+  }
+
+  /** Fields worth splitting by: 2 to 12 different values (ggplot2 facets of a categorical variable). */
+  private async facetFields(layer: string): Promise<boolean> {
+    const sel = this.el.querySelector<HTMLSelectElement>('select[name=facet]');
+    if (!sel) return false;
+    sel.innerHTML = '<option value="">checking fields…</option>';
+    const r = await this.host.backend.json<{ layers: { id: string; fields: { name: string; kind: string }[] }[] }>('api/layers');
+    const fields = r.layers.find((l) => l.id === layer)?.fields ?? [];
+    const good: [string, number][] = [];
+    // text fields first: they are usually the categories (kind, land use, month name)
+    for (const f of [...fields].sort((a, b) => Number(a.kind !== 'string') - Number(b.kind !== 'string'))) {
+      if (f.kind === 'real' || /^(id|fid|ogc_fid|objectid)$/i.test(f.name)) continue;
+      try {
+        const u = await this.host.backend.json<{ distinct: number }>(`api/layers/${encodeURIComponent(layer)}/unique?field=${encodeURIComponent(f.name)}&limit=13`);
+        if (u.distinct >= 2 && u.distinct <= 12) good.push([f.name, u.distinct]);
+      } catch {
+        /* skip */
+      }
+      if (good.length >= 6) break;
+    }
+    sel.innerHTML = good.length
+      ? good.map(([n, k]) => `<option value="${esc(n)}">${esc(n)} (${k} panels)</option>`).join('')
+      : '<option value="">no field with 2–12 values</option>';
+    return good.length > 0;
   }
 
   private pick(v: string) {
-    const r = this.el.querySelector<HTMLInputElement>(`input[name=pages][value=${v}]`);
+    const r = this.el.querySelector<HTMLInputElement>(`input[name=split][value=${v}]`);
     if (r) r.checked = true;
   }
 
-  /** The pages of the series, or null for one map. */
+  /** The areas of a series or of panels, or null for one map. */
   private async pages(f: FormData, area: Bbox | null): Promise<Page[] | null> {
-    const kind = f.get('pages') ?? 'one';
+    const layout = f.get('layout') ?? 'one';
+    if (layout !== 'atlas' && layout !== 'panels') return null;
+    const kind = f.get('split') ?? 'grid';
     if (kind === 'grid') {
       const [c, r] = String(f.get('grid') ?? '2x2').split('x').map(Number);
       const b = area ?? (await this.dataBounds());
@@ -213,12 +288,64 @@ export class FinishMap {
       '    needs: [open, style]',
       `    with: { layers: ${JSON.stringify(ids)}, title: ${JSON.stringify(title)}, subtitle: ${JSON.stringify(sub)}, size: ${JSON.stringify(String(f.get('size') ?? 'auto'))}, format: ${JSON.stringify(formats)}, extent: ${extent}, name: ${JSON.stringify(file)} }`,
     ];
+    const layout = String(f.get('layout') ?? 'one');
+    const panelOpts = () =>
+      [
+        f.get('ncol') ? `ncol: ${Number(f.get('ncol'))}` : '',
+        `legends: ${JSON.stringify(String(f.get('legends') ?? 'auto'))}`,
+        `tags: ${JSON.stringify(String(f.get('tags') ?? 'a'))}`,
+      ]
+        .filter(Boolean)
+        .join(', ');
+    const onePage = (extra: string, ext: string) => mapStep('map', ext, subtitle, name).map((l, i, a) => (i === a.length - 1 ? l.replace(/ }$/, `, ${extra} }`) : l));
+    const ext = area === 'view' ? JSON.stringify(clipped) : 'auto';
+    if (layout === 'facet' && !f.get('facet')) {
+      if (msg) msg.textContent = 'Pick a field to split by';
+      return;
+    }
+    if (layout === 'side' || layout === 'facet' || layout === 'panels') {
+      const extra =
+        layout === 'side'
+          ? `panels: ${JSON.stringify([...ids].reverse().map((id) => ({ title: id.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '), layers: [id] })))}, ${panelOpts()}`
+          : layout === 'facet'
+            ? `facet: ${JSON.stringify(String(f.get('facet')))}, facet_layer: ${JSON.stringify(String(f.get('facet_layer')))}, ${panelOpts()}`
+            : `panels: ${JSON.stringify(pages!.map((p) => ({ extent: round(p.extent), title: p.label })))}, ${panelOpts()}`;
+      return this.submit(form, f, title, layers, formats, has, onePage(extra, ext), ['map'], `a ${layout === 'facet' ? 'faceted' : 'multi-panel'} page`);
+    }
     const n = pages?.length ?? 1;
-    const stepIds = pages ? pages.map((_, i) => (i ? `page${i + 1}` : 'map')) : ['map'];
+    // a series opens with an index page (every sheet outlined and labelled) and ends bound into one PDF
+    const stepIds = pages ? ['map', ...pages.map((_, i) => `page${i + 1}`)] : ['map'];
+    const frames = pages ? JSON.stringify(pages.map((p) => ({ extent: round(p.extent), label: p.label }))) : '';
+    const all = pages ? round(pages.reduce<Bbox>((a, p) => [Math.min(a[0], p.extent[0]), Math.min(a[1], p.extent[1]), Math.max(a[2], p.extent[2]), Math.max(a[3], p.extent[3])], pages[0].extent)) : null;
     const maps = pages
-      ? pages.flatMap((p, i) => mapStep(stepIds[i], JSON.stringify(round(p.extent)), `${p.label} · page ${i + 1} of ${n} · ${subtitle}`, `${name}-${String(i + 1).padStart(2, '0')}`))
+      ? [
+          ...mapStep('map', JSON.stringify(all), `Index of ${n} pages · ${subtitle}`, `${name}-00-index`).map((l, i, a) => (i === a.length - 1 ? l.replace(/ }$/, `, frames: ${frames} }`) : l)),
+          ...pages.flatMap((p, i) => mapStep(stepIds[i + 1], JSON.stringify(round(p.extent)), `${p.label} · page ${i + 1} of ${n} · ${subtitle}`, `${name}-${String(i + 1).padStart(2, '0')}`).map((l, k, a) => (k === a.length - 1 ? l.replace(/ }$/, ', exact: true }') : l))),
+          '  - id: series',
+          '    use: export.series',
+          `    needs: [${stepIds.join(', ')}]`,
+          `    with: { name: ${JSON.stringify(`${name}-series`)} }`,
+        ]
       : mapStep('map', area === 'view' ? JSON.stringify(clipped) : 'auto', subtitle, name);
-    const what = pages ? `a ${n}-page map series` : 'one map';
+    if (pages) stepIds.push('series');
+    return this.submit(form, f, title, layers, formats, has, maps, stepIds, pages ? `a ${n}-page map series` : 'one map', pages?.length);
+  }
+
+  private async submit(
+    _form: HTMLFormElement,
+    _f: FormData,
+    title: string,
+    layers: { id: string; style: LayerStyle }[],
+    formats: string[],
+    has: (k: string) => boolean,
+    maps: string[],
+    stepIds: string[],
+    what: string,
+    nPages?: number,
+  ) {
+    const msg = this.el.querySelector<HTMLElement>('#finish-msg');
+    const ids = layers.map((l) => l.id);
+    const styles = Object.fromEntries(layers.map((l) => [l.id, l.style]));
     // JSON is valid YAML: values are written as JSON so titles with ':' or quotes stay intact
     const yaml = [
       `# Made by "Finish my map" on ${new Date().toLocaleString()}; replaced the next time you finish a map.`,
@@ -242,7 +369,7 @@ export class FinishMap {
       if (msg) msg.textContent = 'Laying out…';
       await this.host.backend.json('api/recipes', { method: 'POST', body: yaml, headers: { 'content-type': 'text/yaml' } });
       this.close();
-      this.host.setStatus(`Finishing “${title}”${pages ? ` (${pages.length} pages)` : ''}: map, legend, scale bar, ${formats.join(' + ').toUpperCase()}${has('report') ? ' and the report' : ''}…`, 15000);
+      this.host.setStatus(`Finishing “${title}”${nPages ? ` (${nPages} pages)` : ''}: ${what}, legend, scale bar, ${formats.join(' + ').toUpperCase()}${has('report') ? ' and the report' : ''}…`, 15000);
       await this.host.run(FINISH_RECIPE);
     } catch (err) {
       if (msg) msg.textContent = String((err as Error).message ?? err);

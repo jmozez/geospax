@@ -46,6 +46,8 @@ pub struct MapSpec {
     pub layers: Vec<MapLayer>,
     pub labels: bool,
     pub grid: bool,
+    /// Index map of a map series: each page's extent (lon/lat) outlined and labelled.
+    pub frames: Vec<([f64; 4], String)>,
 }
 
 pub struct MapOut {
@@ -114,6 +116,15 @@ pub struct Layout {
 
 impl Layout {
     pub fn new(extent: [f64; 4], width: f64, height: f64) -> Layout {
+        Layout::with_margin(extent, width, height, 1.16)
+    }
+
+    /// Exactly the extent (a map series sheet): no margin, so neighbouring sheets do not overlap.
+    pub fn new_exact(extent: [f64; 4], width: f64, height: f64) -> Layout {
+        Layout::with_margin(extent, width, height, 1.0)
+    }
+
+    fn with_margin(extent: [f64; 4], width: f64, height: f64, pad: f64) -> Layout {
         let fw = width - 2.0 * MARGIN - LEGEND_W - 18.0;
         let fh = height - HEADER - FOOTER;
         let a = merc(extent[0], extent[1]);
@@ -123,7 +134,7 @@ impl Layout {
         let lat_c = (extent[1] + extent[3]) / 2.0;
         let min_span = 400.0 / (40_075_016.686 * lat_c.to_radians().cos().max(0.05));
         let (cx, cy) = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
-        let (w, h) = ((x1 - x0).max(min_span) * 1.16, (y1 - y0).max(min_span) * 1.16);
+        let (w, h) = ((x1 - x0).max(min_span) * pad, (y1 - y0).max(min_span) * pad);
         x0 = cx - w / 2.0;
         x1 = cx + w / 2.0;
         y0 = cy - h / 2.0;
@@ -142,6 +153,17 @@ impl Layout {
         let (x0, x1, y0, y1) = (a[0].min(b[0]), a[0].max(b[0]), a[1].min(b[1]), a[1].max(b[1]));
         let s = (fw / (x1 - x0).max(1e-12)).max(fh / (y1 - y0).max(1e-12));
         Layout { width, height, fx: MARGIN, fy: HEADER, fw, fh, s, cx: (x0 + x1) / 2.0, cy: (y0 + y1) / 2.0 }
+    }
+
+    /// A map frame at a given place on the page showing exactly `extent` (no margin): the extent fits
+    /// the frame and the longer side is matched, so a frame shaped like the extent shows exactly it.
+    /// Used for the panels of a multi-panel page.
+    pub fn in_rect(extent: [f64; 4], fx: f64, fy: f64, fw: f64, fh: f64) -> Layout {
+        let a = merc(extent[0], extent[1]);
+        let b = merc(extent[2], extent[3]);
+        let (x0, x1, y0, y1) = (a[0].min(b[0]), a[0].max(b[0]), a[1].min(b[1]), a[1].max(b[1]));
+        let s = (fw / (x1 - x0).max(1e-12)).min(fh / (y1 - y0).max(1e-12));
+        Layout { width: 0.0, height: 0.0, fx, fy, fw, fh, s, cx: (x0 + x1) / 2.0, cy: (y0 + y1) / 2.0 }
     }
 
     pub fn px(&self, c: [f64; 2]) -> [f64; 2] {
@@ -421,7 +443,6 @@ fn context_paint(id: &str, kind: GeomKind) -> (&'static str, &'static str, f64) 
 /// Render the page. Layers are drawn bottom first.
 pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
     let (w, h) = (lay.width, lay.height);
-    let clip = lay.clip_rect();
     let mut svg = String::with_capacity(256 * 1024);
     let _ = write!(
         svg,
@@ -430,10 +451,54 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
 <defs><clipPath id=\"frame\"><rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\"/></clipPath></defs>",
         lay.fx, lay.fy, lay.fw, lay.fh
     );
-    let has_land = spec.layers.iter().any(|l| l.context && l.kind == GeomKind::Polygon);
+    let (drawn, n_labels) = draw_frame(&mut svg, spec, &spec.rasters, lay, &spec.frames, "frame");
+    // title block
     let _ = write!(
         svg,
-        "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\"/><g clip-path=\"url(#frame)\">",
+        "<text x=\"{MARGIN}\" y=\"50\" font-size=\"30\" font-weight=\"bold\" fill=\"#14212b\">{}</text>\
+<text x=\"{MARGIN}\" y=\"78\" font-size=\"15\" fill=\"#4a5a68\">{}</text>",
+        esc(&spec.title),
+        esc(&spec.subtitle)
+    );
+    north_arrow(&mut svg, lay);
+    scale_bar(&mut svg, lay);
+    let legend_layers: Vec<&MapLayer> = spec.layers.iter().rev().filter(|l| !l.context).collect();
+    legend(&mut svg, &legend_layers, &spec.rasters, lay.fx + lay.fw + 18.0, lay.fy, lay.fy + lay.fh);
+    let denom = lay.scale_denominator();
+    // footer: credits (trimmed to the page width), then the scale statement
+    let max_chars = ((w - 2.0 * MARGIN) / (11.0 * 0.6)) as usize;
+    let _ = write!(
+        svg,
+        "<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">{}</text>\
+<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">Scale ≈ 1:{} at {DPI:.0} dpi · Web Mercator · WGS 84 · north is up</text></svg>",
+        h - 22.0,
+        esc(&truncate(&spec.credits, max_chars)),
+        h - 8.0,
+        fmt_num(round_sig(denom, 2))
+    );
+    MapOut { svg, drawn, labels: n_labels, scale_denominator: denom }
+}
+
+/// One map frame: background, rasters, layers, labels, graticule, sheet outlines and the border, drawn
+/// into `lay`'s frame rectangle and clipped to it. Returns (features drawn, labels placed).
+fn draw_frame(svg: &mut String, spec: &MapSpec, rasters: &[MapRaster], lay: &Layout, frames: &[([f64; 4], String)], clip_id: &str) -> (usize, usize) {
+    let all: Vec<&MapLayer> = spec.layers.iter().collect();
+    draw_frame_with(svg, spec, &all, rasters, lay, frames, clip_id)
+}
+
+fn draw_frame_layers(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], rasters: &[MapRaster], lay: &Layout, clip_id: &str) -> (usize, usize) {
+    draw_frame_with(svg, spec, layers, rasters, lay, &[], clip_id)
+}
+
+fn draw_frame_with(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], rasters: &[MapRaster], lay: &Layout, frames: &[([f64; 4], String)], clip_id: &str) -> (usize, usize) {
+    let clip = lay.clip_rect();
+    if clip_id != "frame" {
+        let _ = write!(svg, "<defs><clipPath id=\"{clip_id}\"><rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\"/></clipPath></defs>", lay.fx, lay.fy, lay.fw, lay.fh);
+    }
+    let has_land = layers.iter().any(|l| l.context && l.kind == GeomKind::Polygon);
+    let _ = write!(
+        svg,
+        "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\"/><g clip-path=\"url(#{clip_id})\">",
         lay.fx,
         lay.fy,
         lay.fw,
@@ -448,15 +513,15 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
     let mut drawn = 0usize;
     let mut point_layers = Vec::new();
     let mut rasters_done = false;
-    for l in &spec.layers {
+    for &l in layers {
         if !rasters_done && !(l.context && l.kind == GeomKind::Polygon) {
-            draw_rasters(&mut svg, &spec.rasters, lay);
+            draw_rasters(svg, rasters, lay);
             rasters_done = true;
         }
-        drawn += draw_layer(&mut svg, l, lay, clip, &mut labels, &mut point_layers);
+        drawn += draw_layer(svg, l, lay, clip, &mut labels, &mut point_layers);
     }
     if !rasters_done {
-        draw_rasters(&mut svg, &spec.rasters, lay);
+        draw_rasters(svg, rasters, lay);
     }
     // labels for point layers go last so every label sits above every symbol
     if spec.labels {
@@ -485,7 +550,22 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
         }
     }
     if spec.grid {
-        graticule(&mut svg, lay);
+        graticule(svg, lay);
+    }
+    for (b, label) in frames {
+        let p0 = lay.px([b[0], b[3]]);
+        let p1 = lay.px([b[2], b[1]]);
+        let (x, y, fw, fh) = (p0[0].min(p1[0]), p0[1].min(p1[1]), (p1[0] - p0[0]).abs(), (p1[1] - p0[1]).abs());
+        let _ = write!(
+            svg,
+            "<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{fw:.1}\" height=\"{fh:.1}\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"5\"/>\
+<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{fw:.1}\" height=\"{fh:.1}\" fill=\"none\" stroke=\"#14212b\" stroke-width=\"2.2\"/>\
+<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"{:.0}\" font-weight=\"bold\" text-anchor=\"middle\" dominant-baseline=\"central\" fill=\"#14212b\" stroke=\"#ffffff\" stroke-width=\"4\" paint-order=\"stroke\">{}</text>",
+            x + fw / 2.0,
+            y + fh / 2.0,
+            (fw.min(fh) / 4.0).clamp(10.0, 28.0),
+            esc(label)
+        );
     }
     svg.push_str("</g>");
     let _ = write!(
@@ -493,31 +573,128 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
         "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"none\" stroke=\"#2f3b46\" stroke-width=\"1.2\"/>",
         lay.fx, lay.fy, lay.fw, lay.fh
     );
-    // title block
+    (drawn, labels.count)
+}
+
+/// One panel of a multi-panel map page (patchwork-style): a tag, a title, its own frame, rasters and
+/// layers (`None` = every layer of the spec).
+pub struct Panel {
+    pub tag: String,
+    pub title: String,
+    pub layout: Layout,
+    pub rasters: Vec<MapRaster>,
+    pub layers: Option<Vec<String>>,
+    /// Layers only this panel draws (a facet: the subset of features for this panel's value).
+    pub own: Vec<MapLayer>,
+}
+
+const GUTTER: f64 = 26.0;
+const PANEL_TITLE: f64 = 30.0;
+const PANEL_LEGEND_W: f64 = LEGEND_W;
+
+/// Page size and each panel's frame rectangle for `n` extents in a grid, like R patchwork's
+/// `wrap_plots(ncol = …)`: equal cells in rows, each frame shaped like its extent so a panel shows
+/// exactly its area. `own_legends` gives each cell room for its own legend; otherwise one legend is
+/// collected on the right of the page (`guides = "collect"`).
+pub fn panel_grid(extents: &[[f64; 4]], ncol: Option<usize>, own_legends: bool) -> (f64, f64, Vec<[f64; 4]>) {
+    let n = extents.len().max(1);
+    let aspect = |e: &[f64; 4]| {
+        let (a, b) = (merc(e[0], e[1]), merc(e[2], e[3]));
+        ((a[1] - b[1]).abs() / (b[0] - a[0]).abs().max(1e-12)).clamp(0.35, 2.5)
+    };
+    let mut asp: Vec<f64> = extents.iter().map(aspect).collect();
+    asp.sort_by(|a, b| a.total_cmp(b));
+    let a = asp[asp.len() / 2];
+    // columns: a landscape page about 1.4 : 1 (tall panels sit side by side, wide ones stack)
+    let ncol = ncol.filter(|&c| c > 0).unwrap_or_else(|| ((1.4 * a * n as f64).sqrt().round() as usize).clamp(1, n)).min(n);
+    let nrow = n.div_ceil(ncol);
+    let fw = match ncol {
+        1 => 1100.0,
+        2 => 720.0,
+        3 => 560.0,
+        _ => 460.0,
+    } * if own_legends { 0.85 } else { 1.0 };
+    let fh = (fw * a).clamp(260.0, 1200.0);
+    let cell_w = fw + if own_legends { 14.0 + PANEL_LEGEND_W } else { 0.0 };
+    let cell_h = PANEL_TITLE + fh;
+    let w = 2.0 * MARGIN + ncol as f64 * cell_w + (ncol - 1) as f64 * GUTTER + if own_legends { 0.0 } else { 18.0 + LEGEND_W };
+    let h = HEADER + nrow as f64 * cell_h + (nrow - 1) as f64 * GUTTER + FOOTER + 8.0;
+    let rects = (0..n)
+        .map(|i| {
+            let (r, c) = (i / ncol, i % ncol);
+            [MARGIN + c as f64 * (cell_w + GUTTER), HEADER + r as f64 * (cell_h + GUTTER) + PANEL_TITLE, fw, fh]
+        })
+        .collect();
+    (w, h, rects)
+}
+
+/// A multi-panel map page: one title block, panels tagged (a), (b), … each with its title and scale
+/// bar, one north arrow, and either one collected legend or a legend beside each panel.
+pub fn render_panels(spec: &MapSpec, panels: &[Panel], w: f64, h: f64, own_legends: bool) -> MapOut {
+    let mut svg = String::with_capacity(512 * 1024);
     let _ = write!(
         svg,
-        "<text x=\"{MARGIN}\" y=\"50\" font-size=\"30\" font-weight=\"bold\" fill=\"#14212b\">{}</text>\
-<text x=\"{MARGIN}\" y=\"78\" font-size=\"15\" fill=\"#4a5a68\">{}</text>",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:.0}\" height=\"{h:.0}\" viewBox=\"0 0 {w:.0} {h:.0}\" font-family=\"{FONT}\"><rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>"
+    );
+    let (mut drawn, mut n_labels) = (0, 0);
+    let mut max_denom: f64 = 0.0;
+    for (i, p) in panels.iter().enumerate() {
+        let keep = |l: &&MapLayer| l.context || p.layers.as_ref().is_none_or(|ids| ids.contains(&l.id));
+        let sub = MapSpec {
+            rasters: Vec::new(),
+            title: String::new(),
+            subtitle: String::new(),
+            credits: String::new(),
+            layers: Vec::new(),
+            labels: spec.labels,
+            grid: spec.grid,
+            frames: Vec::new(),
+        };
+        // draw_frame reads layers from the spec: borrow the panel's subset without copying features
+        let lay = &p.layout;
+        let shown: Vec<&MapLayer> = spec.layers.iter().filter(keep).chain(p.own.iter()).collect();
+        let (d, l) = draw_frame_layers(&mut svg, &sub, &shown, &p.rasters, lay, &format!("panel{i}"));
+        drawn += d;
+        n_labels += l;
+        let _ = write!(
+            svg,
+            "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"17\" fill=\"#14212b\"><tspan font-weight=\"bold\">{}</tspan> {}</text>",
+            lay.fx,
+            lay.fy - 9.0,
+            if p.tag.is_empty() { String::new() } else { format!("({})", esc(&p.tag)) },
+            esc(&p.title)
+        );
+        scale_bar(&mut svg, lay);
+        if i == 0 {
+            north_arrow(&mut svg, lay);
+        }
+        if own_legends {
+            let legend_layers: Vec<&MapLayer> = shown.iter().rev().filter(|l| !l.context).copied().collect();
+            legend(&mut svg, &legend_layers, &p.rasters, lay.fx + lay.fw + 14.0, lay.fy - 26.0, lay.fy + lay.fh);
+        }
+        max_denom = max_denom.max(lay.scale_denominator());
+    }
+    let _ = write!(
+        svg,
+        "<text x=\"{MARGIN}\" y=\"50\" font-size=\"30\" font-weight=\"bold\" fill=\"#14212b\">{}</text><text x=\"{MARGIN}\" y=\"78\" font-size=\"15\" fill=\"#4a5a68\">{}</text>",
         esc(&spec.title),
         esc(&spec.subtitle)
     );
-    north_arrow(&mut svg, lay);
-    scale_bar(&mut svg, lay);
-    let legend_layers: Vec<&MapLayer> = spec.layers.iter().rev().filter(|l| !l.context).collect();
-    legend(&mut svg, &legend_layers, &spec.rasters, lay.fx + lay.fw + 18.0, lay.fy, lay.fy + lay.fh);
-    let denom = lay.scale_denominator();
-    // footer: credits (trimmed to the page width), then the scale statement
+    if !own_legends {
+        let legend_layers: Vec<&MapLayer> = spec.layers.iter().rev().filter(|l| !l.context).collect();
+        let x = w - MARGIN - LEGEND_W;
+        legend(&mut svg, &legend_layers, panels.first().map(|p| p.rasters.as_slice()).unwrap_or(&[]), x, HEADER, h - FOOTER);
+    }
     let max_chars = ((w - 2.0 * MARGIN) / (11.0 * 0.6)) as usize;
     let _ = write!(
         svg,
-        "<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">{}</text>\
-<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">Scale ≈ 1:{} at {DPI:.0} dpi · Web Mercator · WGS 84 · north is up</text></svg>",
+        "<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">{}</text><text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">{} panels · each with its own scale bar · Web Mercator · WGS 84 · north is up</text></svg>",
         h - 22.0,
         esc(&truncate(&spec.credits, max_chars)),
         h - 8.0,
-        fmt_num(round_sig(denom, 2))
+        panels.len()
     );
-    MapOut { svg, drawn, labels: labels.count, scale_denominator: denom }
+    MapOut { svg, drawn, labels: n_labels, scale_denominator: max_denom }
 }
 
 fn round_sig(v: f64, digits: i32) -> f64 {
@@ -1053,6 +1230,23 @@ pub fn svg_to_pdf(svg: &str) -> Result<Vec<u8>, String> {
     doc.finish().map_err(|e| format!("PDF: {e:?}"))
 }
 
+/// Several map pages (SVG) as one multi-page PDF, in order; each page keeps its own size.
+pub fn svgs_to_pdf(svgs: &[String]) -> Result<Vec<u8>, String> {
+    use krilla_svg::SurfaceExt;
+    let opt = resvg::usvg::Options { fontdb: fonts(), ..Default::default() };
+    let mut doc = krilla::Document::new();
+    for svg in svgs {
+        let tree = resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| format!("SVG: {e}"))?;
+        let (w, h) = (tree.size().width() * 72.0 / DPI as f32, tree.size().height() * 72.0 / DPI as f32);
+        let mut page = doc.start_page_with(krilla::page::PageSettings::from_wh(w, h).ok_or("bad page size")?);
+        let mut surface = page.surface();
+        surface.draw_svg(&tree, krilla::geom::Size::from_wh(w, h).ok_or("bad page size")?, krilla_svg::SvgSettings { embed_text: true, filter_scale: 2.0 }).ok_or("a map page could not be drawn into the PDF")?;
+        surface.finish();
+        page.finish();
+    }
+    doc.finish().map_err(|e| format!("PDF: {e:?}"))
+}
+
 /// Rasterise the SVG (system fonts are loaded once per process).
 pub fn svg_to_png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
     use resvg::{tiny_skia, usvg};
@@ -1069,6 +1263,15 @@ pub fn svg_to_png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn series_pdf_has_one_page_per_map() {
+        let page = r##"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="300" height="200" fill="#fff"/></svg>"##.to_string();
+        let pdf = svgs_to_pdf(&[page.clone(), page.clone(), page]).unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        let t = text.replace("/Type /", "/Type/");
+        assert_eq!(t.matches("/Type/Page").count() - t.matches("/Type/Pages").count(), 3);
+    }
 
     #[test]
     fn clipping_and_simplification() {

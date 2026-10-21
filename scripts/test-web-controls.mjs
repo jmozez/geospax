@@ -168,7 +168,8 @@ await page.screenshot({ path: `${out}/controls-lazy.png` });
 
 // one analysis end to end from a card: it must finish and show in Activity
 await page.click('#dock-left .dock-tabs [data-tab="contents"]');
-const before = (await (await page.request.get(`${base}/api/runs`)).json()).runs.length;
+// the list is capped (newest first): watch for a new id at the top
+const top0 = (await (await page.request.get(`${base}/api/runs`)).json()).runs[0]?.id;
 const run = page.locator('#contents .layer.card [data-act="recipe"]').first();
 if (await run.count()) {
   where = 'card recipe button';
@@ -177,7 +178,7 @@ if (await run.count()) {
   for (let i = 0; i < 90 && !['done', 'failed'].includes(status); i++) {
     await settle(1000);
     const runs = (await (await page.request.get(`${base}/api/runs`)).json()).runs;
-    if (runs.length > before) status = runs[0].status;
+    if (runs[0] && runs[0].id !== top0) status = runs[0].status;
   }
   await page.click('#dock-bottom .dock-tabs [data-tab="activity"]');
   await settle(800);
