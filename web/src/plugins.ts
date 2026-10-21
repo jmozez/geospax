@@ -306,7 +306,7 @@ export class PluginsPane {
         </div>
         <button data-close>×</button>
       </header>
-      <div class="body">${body}</div>
+      <div class="body">${body}${tool.summary ? `<p class="dim">${esc(tool.summary)}</p>` : ''}<div id="plugin-result" class="plugin-result" hidden></div></div>
       <footer>
         <span class="dim" id="plugin-msg"></span>
         <button data-close>Cancel</button>
@@ -338,12 +338,23 @@ export class PluginsPane {
         `api/plugins/${encodeURIComponent(pluginId)}/tools/${encodeURIComponent(toolId)}/run`,
         { method: 'POST', body: JSON.stringify({ params }), headers: { 'content-type': 'application/json' } },
       );
-      const text =
-        res.run?.id
-          ? `Recipe started: ${res.run.id} (see History)`
-          : res.message
-            ? String(res.message)
+      // a tool's answer: its message as text, its table and notes in the dialog (not raw JSON)
+      const r = (res.result ?? {}) as { message?: string; table?: [string, unknown][]; notes?: string[] };
+      const text = res.run?.id
+        ? `Recipe started: ${res.run.id} (see History)`
+        : res.message
+          ? String(res.message)
+          : r.message
+            ? String(r.message)
             : JSON.stringify(res.result ?? res).slice(0, 300);
+      const box = this.modal.querySelector<HTMLElement>('#plugin-result');
+      if (box && (r.table?.length || r.notes?.length)) {
+        box.innerHTML = `${r.table?.length ? `<table>${r.table.map(([k, v]) => `<tr><th>${esc(String(k))}</th><td>${esc(String(v))}</td></tr>`).join('')}</table>` : ''}${(r.notes ?? [])
+          .filter(Boolean)
+          .map((n) => `<p class="dim">${esc(n)}</p>`)
+          .join('')}`;
+        box.hidden = false;
+      }
       if (msg) msg.textContent = text;
       this.host.setStatus(text, 6000);
       this.host.log(`${key}: ${text}`);
