@@ -30,8 +30,9 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
 COPY apps/desktop/src-tauri apps/desktop/src-tauri
-# the recipe gallery is compiled in (include_str!)
+# compiled in (include_str!/include_bytes!): the recipe gallery, the phone page, the offline basemap
 COPY recipes recipes
+COPY web/public web/public
 RUN --mount=type=cache,target=/root/.cargo/registry --mount=type=cache,target=/src/target \
     cargo build --release -p geospax-server \
     && strip --strip-unneeded -o /geospax-server target/release/geospax-server

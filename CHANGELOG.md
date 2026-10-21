@@ -27,6 +27,27 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **Pro: a contextual Layer tab** (as ArcGIS Pro shows for a selected layer) with zoom, attribute table,
   symbology, AutoMap and the same next steps. Clicking a layer card selects it.
 
+### Added — the lazy path, stage 2: start screen, drop anywhere, Finish my map
+- **Start screen** ("Make a map"): a drop zone, the other ways in (a device, a phone, an analysis) and
+  your finished maps as thumbnails. It opens by itself in Lazy mode when there is no data of your own;
+  **Add data** (task bar) and **Home → Start** bring it back; Escape or *Go to the map* closes it.
+- **Drop files anywhere** on the window, in either mode (also **Data → Add files**): `POST /api/upload`
+  saves them in `Uploads/` of the first writable data folder (or `<state>/uploads`), never overwriting,
+  unpacks zips safely (shapefile sidecars travel together; `../` and absolute members refused), and adds
+  vector layers and GeoTIFF rasters to the map at once; the app styles, selects and zooms to them.
+- **Finish my map** (task bar, **Home → Finish my map**): the visible layers with their exact styles,
+  the area on screen (or all the data), as a laid-out PNG + vector PDF (+ SVG) with a one-page report that
+  opens by itself. A recipe (`finished-map`) under the hood. Lazy asks only for a title.
+- **Every exported map has a world underneath:** when no land/roads/rivers layers are loaded, `export.map`
+  draws Natural Earth land and borders (compiled into the engine, the same data as the offline basemap)
+  and credits Natural Earth. Also from the CLI and every recipe.
+- `scripts/test-web-start.mjs`: the whole path on an empty server (start screen → file → card → Finish my
+  map → PNG/PDF/report → listed on the start screen): 8/8.
+
+### Fixed
+- The Docker build compiled `web/public/phone.html` into the engine without copying `web/` into the
+  server stage; it now copies `web/public` (also needed for the compiled-in basemap).
+
 ### Added — Pro layer tree, Toolbox, GeoLibre tools
 - **The Pro Contents pane is a tree**, as in ArcGIS Pro: Map ▸ group layers ▸ layers ▸ legend, then the
   basemap. **＋ Group**, rename (✎ or double-click), ungroup (⊟, keeps the layers), a group switch that

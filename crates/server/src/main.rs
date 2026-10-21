@@ -105,7 +105,9 @@ fn parse_args() -> Args {
 async fn api(State(engine): State<Arc<Engine>>, req: Request) -> Response {
     let method = req.method().to_string();
     let uri = req.uri().clone();
-    let body = to_bytes(req.into_body(), 16 << 20).await.unwrap_or_default();
+    // files dropped on the app may be large (GeoPackages, zipped shapefiles); everything else is small
+    let limit = if uri.path() == "/api/upload" { 1 << 30 } else { 16 << 20 };
+    let body = to_bytes(req.into_body(), limit).await.unwrap_or_default();
     let api_req = ApiRequest {
         method,
         path: uri.path().to_string(),

@@ -16,6 +16,8 @@ import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
 import { Toolbox } from './toolbox';
+import { StartScreen } from './start';
+import { FinishMap, FINISH_RECIPE } from './finish';
 import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
@@ -809,6 +811,29 @@ async function queueAutoOverviews() {
   }
 }
 
+/** A run's report (or its first HTML file) in the viewer. */
+async function openRunReport(runId: string) {
+  try {
+    const run = await backend.json<{ artifacts?: string[] }>(`api/runs/${runId}`);
+    const arts = run.artifacts ?? [];
+    const report = arts.find((f) => f.endsWith('report.html')) ?? arts.find((f) => f.endsWith('.html'));
+    if (report && automatePane) await automatePane.openArtifact(runId, report);
+    else window.open(backend.url(`api/runs/${runId}/files/${report ?? 'report.html'}`), '_blank', 'noopener');
+  } catch (e) {
+    workbench?.log(`open run failed: ${e}`, 'error');
+  }
+}
+
+/** Fit the map to a set of layers and rasters (what an upload brought in). */
+function fitTo(ids: string[], rasterBounds: [number, number, number, number][] = []) {
+  const bs = [...ids.map((id) => layerById(id)?.bounds).filter(Boolean), ...rasterBounds] as [number, number, number, number][];
+  const ok = bs.filter((b) => b.every(Number.isFinite));
+  if (!ok.length) return;
+  const w = Math.min(...ok.map((b) => b[0])), s = Math.min(...ok.map((b) => b[1]));
+  const e = Math.max(...ok.map((b) => b[2])), n = Math.max(...ok.map((b) => b[3]));
+  map.fitBounds([[Math.max(w, -180), Math.max(s, -85)], [Math.min(e, 180), Math.min(n, 85)]], { padding: 60, maxZoom: 16, duration: 500 });
+}
+
 // ---------------------------------------------------------------- HUD
 function startHud() {
   let frames = 0;
@@ -1083,6 +1108,14 @@ async function main() {
   // chose appear on the map, and the view moves to them.
   const automate = new AutomatePane($('#automate'), backend, {
     onRunFinished: async (run: RunInfo) => {
+      // Finish my map: show the result as soon as it is ready
+      if ((run as unknown as { recipe?: string }).recipe === FINISH_RECIPE) {
+        if (run.status === 'done') {
+          workbench?.setStatus('Your map is finished: the report has the map, the PDF and the files', 8000);
+          void openRunReport(run.id);
+        } else workbench?.setStatus(`The map could not be finished: ${(run as unknown as { error?: string }).error ?? run.status}`, 10000);
+        return;
+      }
       await reloadLayers();
       if (rasterPane && run.rasters?.length) {
         await rasterPane.reload();
@@ -1229,17 +1262,7 @@ async function main() {
     reload: reloadLayers,
     save: saveProject,
     runRecipe: (id) => automatePane!.run(id),
-    openRun: async (runId) => {
-      try {
-        const run = await backend.json<{ artifacts?: string[] }>(`api/runs/${runId}`);
-        const arts = run.artifacts ?? [];
-        const report = arts.find((f) => f.endsWith('report.html')) ?? arts.find((f) => f.endsWith('.html'));
-        if (report && automatePane) await automatePane.openArtifact(runId, report);
-        else window.open(backend.url(`api/runs/${runId}/files/${report ?? 'report.html'}`), '_blank', 'noopener');
-      } catch (e) {
-        workbench?.log(`open run failed: ${e}`, 'error');
-      }
-    },
+    openRun: openRunReport,
     bench: () => void runBench(),
     deck: () => ab.click(),
     refreshContents: renderContents,
@@ -1258,6 +1281,60 @@ async function main() {
   }
   (window as unknown as { workbench: Workbench | null }).workbench = workbench;
   if (fitOnLoad) fitAll();
+
+  // Stage 2 of the lazy path: a start screen with a drop zone, drag-and-drop anywhere, and
+  // "Finish my map" (web/src/start.ts, web/src/finish.ts)
+  const start = new StartScreen({
+    backend,
+    added: async (ids, rasterIds) => {
+      await reloadLayers();
+      let rb: [number, number, number, number][] = [];
+      if (rasterIds.length && rasterPane) {
+        await rasterPane.reload();
+        try {
+          const r = await backend.json<{ rasters: { id: string; bounds: [number, number, number, number] }[] }>('api/rasters');
+          rb = r.rasters.filter((x) => rasterIds.includes(x.id)).map((x) => x.bounds);
+        } catch {
+          /* fit to the vector layers only */
+        }
+        applyStyle();
+      }
+      for (const id of ids) if (project.layers[id]) project.layers[id].visible = true;
+      applyStyle();
+      renderContents();
+      fitTo(ids, rb);
+      if (ids[0]) {
+        panel.open(ids[0]);
+        document.dispatchEvent(new CustomEvent('geospax:active', { detail: ids[0] }));
+      }
+    },
+    devices: () => workbench?.showTab('right', 'devices'),
+    toolbox: () => workbench?.showTab('right', 'toolbox'),
+    openRun: openRunReport,
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  });
+  const finish = new FinishMap({
+    backend,
+    mode: () => uiMode,
+    visible: () => project.order.filter((id) => layerById(id) && shownOnMap(id)).map((id) => ({ id, style: project.layers[id] })),
+    suggestTitle: () => {
+      const top = [...project.order].reverse().find((id) => layerById(id) && shownOnMap(id));
+      return top ? friendlyName(layerById(top)!, layers) : 'My map';
+    },
+    view: () => map.getBounds().toArray().flat() as [number, number, number, number],
+    run: async (id) => {
+      workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+      await automatePane?.run(id);
+    },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  });
+  document.addEventListener('geospax:start', () => void start.show());
+  document.addEventListener('geospax:browse', () => start.browse());
+  document.addEventListener('geospax:finish', () => finish.open());
+  // a lazy mapper with nothing of their own on the map yet starts on the start screen
+  const own = layers.filter((l) => !/^(natural_earth|synthetic)[._]/.test(l.id));
+  if (uiMode === 'lazy' && !own.length && !params.has('fresh') && !params.has('bench')) void start.show();
+  (window as unknown as { geospax: object }).geospax = { start, finish };
   // the lazy path: new layers styled by AutoMap, dense ones get overviews, without a click
   void autostyleNew(firstSeen).then(() => queueAutoOverviews());
   document.addEventListener('geospax:basemap', (e) => setBasemap((e as CustomEvent<Basemap>).detail));

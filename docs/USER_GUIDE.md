@@ -35,6 +35,26 @@ The `.deb` and the Windows installer both contain both editions (on Windows: `ge
 
 ## 2. Your first map: four lazy ways
 
+**The quickest: drop a file, then Finish my map.**
+
+1. **Start screen.** With nothing of your own on the map yet, GeoSpaX opens on **Make a map**: a big drop
+   zone, the other ways in (plug in a device, send from your phone, start from an analysis) and **Your
+   finished maps**. It comes back any time with **Add data** (Lazy task bar) or **Home → Start** (Pro).
+2. **Drop your data** on the drop zone, or anywhere on the window, in either mode: GeoJSON, GeoPackage,
+   a **zipped** shapefile, KML/KMZ, GPX, CSV with coordinates, FlatGeobuf, GeoParquet, GeoTIFF, LAS/LAZ.
+   The file is saved in `Uploads/` in your data folder (never overwriting a file of the same name) and
+   appears styled, zoomed to and selected. Point clouds wait for the *LiDAR → terrain* analysis.
+3. **Finish my map** (Lazy task bar, or **Home → Finish my map** in Pro): give it a title (it suggests
+   one) and press **Make the map**. The layers you see, styled as you see them, over the area you see
+   (or all the data), are laid out with a title, legend with counts, scale bar, north arrow, graticule,
+   a world underneath (Natural Earth land and borders) and credits, as a **PNG**, a print-ready vector
+   **PDF** (and **SVG** if you want), with a **one-page report**. The report opens by itself; the files
+   are in the run's folder and under **Your finished maps**. In Lazy mode the dialog asks only for the
+   title (**More options**: subtitle, area, page size A4/A3/Letter, files); Pro shows them all.
+
+Behind the scenes Finish my map is an ordinary recipe, `finished-map`, replaced each time: it has run
+history and provenance, and you can re-run it or give it a trigger like any other.
+
 **Opening the app is already lazy.** Every layer GeoSpaX sees for the first time is styled by AutoMap,
 the same engine the recipes use: it picks the field that matters (never an ID), the classification and a
 colour-blind-safe colour scheme, and the Symbology pane says why ("✨ Styled automatically …"). Change

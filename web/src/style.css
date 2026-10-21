@@ -711,3 +711,59 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 .tb-params { display: grid; grid-template-columns: 110px 1fr; gap: 4px 8px; font-size: 12px; margin: 0; }
 .tb-params dt { font-weight: 600; } .tb-params dd { margin: 0; color: var(--muted); }
 .tb-plist { padding-left: 16px; font-size: 12px; margin: 0; } .tb-plist small { color: var(--muted); }
+
+/* ---------------------------------------------------------------- start screen (start.ts) */
+#center { position: relative; }
+#start { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px; overflow: auto;
+  background: radial-gradient(circle at 50% 30%, rgba(13, 34, 51, 0.72), rgba(8, 15, 22, 0.92)); backdrop-filter: blur(2px); }
+#start[hidden] { display: none; }
+.st-card { position: relative; width: min(760px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px 30px 22px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); }
+.st-card h1 { margin: 0 0 4px; font-size: 24px; }
+.st-card h2 { margin: 20px 0 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.st-lead { margin: 0 0 16px; color: #c6d2dd; font-size: 14px; }
+.st-close { position: absolute; top: 14px; right: 14px; background: none; border: 0; color: var(--muted); font-size: 16px; }
+.st-drop { display: grid; justify-items: center; gap: 6px; width: 100%; padding: 34px 16px; border-radius: 14px; border: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, #0f1922); color: var(--fg); cursor: pointer; transition: background 0.15s; }
+.st-drop:hover { background: color-mix(in srgb, var(--accent) 14%, #0f1922); }
+.st-drop-ico { font-size: 34px; color: var(--accent); line-height: 1; }
+.st-drop b { font-size: 16px; }
+.st-drop small { color: var(--muted); font-size: 12px; }
+.st-ways { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.st-ways button { text-align: left; padding: 12px; border-radius: 10px; background: #1a2734; border: 1px solid transparent; }
+.st-ways button:hover { border-color: var(--accent); }
+.st-ways b { display: block; font-size: 13px; margin-bottom: 3px; }
+.st-ways small { color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+.st-maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.st-map { padding: 0; border-radius: 8px; overflow: hidden; background: #0f1922; border: 1px solid var(--line); text-align: left; }
+.st-map:hover { border-color: var(--accent); }
+.st-map img { display: block; width: 100%; height: 96px; object-fit: cover; background: #fff; }
+.st-map span { display: block; padding: 6px 8px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-go { display: block; margin: 18px 0 0 auto; background: none; border: 0; color: var(--accent); font-size: 13px; }
+@media (max-width: 720px) { .st-ways { grid-template-columns: 1fr; } }
+
+/* drop anywhere */
+#drop-veil { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; pointer-events: none;
+  background: rgba(239, 123, 85, 0.12); border: 3px dashed var(--accent); }
+#drop-veil[hidden] { display: none; }
+#drop-veil div { display: grid; gap: 4px; text-align: center; padding: 22px 30px; border-radius: 14px; background: var(--panel); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+#drop-veil b { font-size: 18px; } #drop-veil span { color: var(--muted); }
+
+/* ---------------------------------------------------------------- Finish my map (finish.ts) */
+#finish { position: fixed; inset: 0; z-index: 55; display: grid; place-items: center; background: rgba(5, 12, 18, 0.7); padding: 20px; }
+#finish[hidden] { display: none; }
+#finish .sheet { width: min(460px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+#finish header, #finish footer { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
+#finish header { justify-content: space-between; border-bottom: 1px solid var(--line); font-size: 15px; }
+#finish header button { background: none; border: 0; color: var(--muted); }
+#finish footer { justify-content: flex-end; border-top: 1px solid var(--line); }
+#finish footer .dim { margin-right: auto; color: var(--muted); font-size: 12px; }
+#finish .body { display: grid; gap: 12px; padding: 14px 16px; }
+#finish .fin-lead { margin: 0; color: #c6d2dd; font-size: 13px; }
+#finish label { display: grid; gap: 4px; font-size: 12px; }
+#finish label > span { font-weight: 600; }
+#finish input[name=title] { font-size: 15px; padding: 8px 10px; }
+#finish fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; }
+#finish legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
+#finish label.ck { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+#finish details summary { cursor: pointer; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+#finish details[open] { display: grid; gap: 12px; }

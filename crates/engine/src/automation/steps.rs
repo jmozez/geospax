@@ -1624,6 +1624,34 @@ fn project_style(engine: &Engine, id: &str) -> Option<Value> {
     v["layers"].get(id).filter(|s| s.get("symbology").is_some()).cloned()
 }
 
+/// Natural Earth 1:50m land and country borders (public domain), the same files as the app's offline
+/// basemap, compiled in so every exported map has a world underneath, also from the CLI.
+static BASEMAP: [(&str, &str, &[u8]); 2] = [
+    ("Land", "land", include_bytes!("../../../../web/public/basemap/land.geojson")),
+    ("Borders", "boundaries", include_bytes!("../../../../web/public/basemap/boundaries.geojson")),
+];
+
+fn bundled_context(engine: &Engine) -> Vec<(&'static str, std::sync::Arc<LayerHandle>)> {
+    static CACHE: std::sync::OnceLock<Vec<(&'static str, std::sync::Arc<LayerHandle>)>> = std::sync::OnceLock::new();
+    CACHE
+        .get_or_init(|| {
+            let dir = engine.state_dir.join("basemap");
+            let _ = std::fs::create_dir_all(&dir);
+            BASEMAP
+                .iter()
+                .filter_map(|(title, name, bytes)| {
+                    let path = dir.join(format!("{name}.geojson"));
+                    if std::fs::metadata(&path).map(|m| m.len() != bytes.len() as u64).unwrap_or(true) {
+                        std::fs::write(&path, bytes).ok()?;
+                    }
+                    let h = catalog::load_layers(&path).ok()?.into_iter().next()?;
+                    Some((*title, std::sync::Arc::new(h)))
+                })
+                .collect()
+        })
+        .clone()
+}
+
 fn is_context_candidate(l: &LayerHandle) -> bool {
     let n = l.info.id.to_ascii_lowercase();
     (l.info.geometry == GeomKind::Polygon && ["countries", "admin", "land", "boundar"].iter().any(|w| n.contains(w)))
@@ -1757,6 +1785,15 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
             ctx_layers.push((rank(l.info.geometry), MapLayer { id: cid.clone(), title: humanize(&l.info.name), kind: l.info.geometry, style: json!({}), fs, label_field: None, context: true, legend_note: String::new() }));
         }
     }
+    // nothing loaded to put underneath: the offline world the app shows (Natural Earth land and borders)
+    if ctx_layers.is_empty() && !matches!(p.get("context"), Some(Value::Bool(false)) | Some(Value::String(_)) | Some(Value::Array(_))) {
+        for (title, l) in bundled_context(sc.engine) {
+            let fs = features::read_layer(sc.engine, &l, Some(view), Some(&[]), 60_000)?;
+            if !fs.feats.is_empty() {
+                ctx_layers.push((rank(l.info.geometry), MapLayer { id: l.info.id.clone(), title: title.to_string(), kind: l.info.geometry, style: json!({}), fs, label_field: None, context: true, legend_note: String::new() }));
+            }
+        }
+    }
     ctx_layers.sort_by_key(|(r, _)| *r);
     layers.extend(ctx_layers.into_iter().map(|(_, l)| l));
     let mut main = Vec::new();
@@ -1830,6 +1867,9 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         }
     }
     credit_sources.extend(ctx_ids.iter().filter_map(|c| sc.engine.layer(c)).map(|l| humanize(&l.info.name)));
+    if layers.iter().any(|l| l.context && BASEMAP.iter().any(|(_, n, _)| l.id.starts_with(n))) {
+        credit_sources.push("Natural Earth (public domain)".to_string());
+    }
     credit_sources.dedup();
     let credits = format!("Made automatically by GeoSpaX · recipe {} · {} · Data: {}", sc.recipe_id, date.format("%Y-%m-%d %H:%M"), credit_sources.join(", "));
     let n_rasters = map_rasters.len();
