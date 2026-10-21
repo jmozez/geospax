@@ -136,6 +136,10 @@ struct NativeManifest {
     /// Command template for process/python/r/wasm (${plugin} = plugin folder, ${tool} = tool id).
     #[serde(default)]
     run: Option<String>,
+    /// The tool reads GeoJSON: every layer named by a `layer` parameter is written to the workdir as
+    /// GeoJSON (whatever its source format) and passed in `layer_geojson` {id: path}.
+    #[serde(default)]
+    geojson: bool,
     #[serde(default)]
     tools: Vec<ToolSpec>,
     #[serde(default)]
@@ -950,8 +954,24 @@ impl Plugins {
         let _ = fs::create_dir_all(&out_dir);
         let sources: serde_json::Map<String, serde_json::Value> =
             engine.layers().iter().map(|l| (l.info.id.clone(), serde_json::json!(l.info.source))).collect();
+        let mut as_geojson = serde_json::Map::new();
+        if m.geojson {
+            for ps in tool.params.iter().filter(|ps| ps.kind == "layer") {
+                let Some(id) = params.get(&ps.name).and_then(|v| v.as_str()) else { continue };
+                let Some(l) = engine.layer(id) else { continue };
+                if as_geojson.contains_key(id) {
+                    continue;
+                }
+                let fs = crate::automation::features::read_layer(engine, &l, None, None, 2_000_000)?;
+                let safe: String = id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' }).collect();
+                let path = workdir().join(format!("{}-{safe}.geojson", p.id));
+                crate::automation::features::write_features(&path, "GeoJSON", id, &fs)?;
+                as_geojson.insert(id.to_string(), serde_json::json!(path));
+            }
+        }
         let payload = serde_json::json!({
             "plugin": p.id, "tool": tool.id, "params": params,
+            "layer_geojson": as_geojson,
             "layers": engine.layer_ids(),
             "layer_sources": sources,
             "workdir": workdir(),

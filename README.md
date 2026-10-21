@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/assets/geospax-logo.png" alt="GeoSpaX logo" width="120" /></p>
+
 # GeoSpaX
 
 **GeoSpaX is the open-source GIS where maps make themselves.** It's for people who don't want to spend hours making maps: drop in data or plug in a phone, GPS, watch, drone card, camera, sensor logger or a drive of LiDAR point clouds, and GeoSpaX finishes the map. Its power lies in **automation**:

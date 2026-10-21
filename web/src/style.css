@@ -860,3 +860,6 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 .lg-classes { grid-column: 2 / -1; font-size: 12px; }
 .lg-classes label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: center; margin: 2px 0; }
 .lg-classes label span { color: var(--muted); font-weight: 400; }
+
+/* the GeoSpaX logo (from GeoSpaX 2.0) beside the name */
+.brand-logo { width: 22px; height: 22px; vertical-align: -5px; margin-right: 6px; }
