@@ -8,6 +8,21 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — domain kits
+- **Nine domain kits** (Analysis › Recipes, by domain; Toolbox › Ready-made analyses; Lazy › Find
+  patterns): species distribution model (GBIF + WorldClim), survey diversity and clustering, range
+  shift under CMIP6 future climate, protection gaps, forest fragmentation and connectivity, land
+  cover change, vegetation change, steep slopes, topsoil properties (SoilGrids). Each ends in maps
+  and a report. `scripts/test-kits.py` checks them against data with known answers.
+- **`tool` recipe step**: any Toolbox tool inside a recipe, its layers and rasters passed on.
+- Species distribution model: **projection onto future climate** (range lost, stable, gained, net
+  change); `data.fetch` returns `raster_ids`; recipes take a `kit:` and raster inputs get a picker.
+
+### Fixed — maps
+- A classed point layer with more than 30,000 points (e.g. settlements by kind) was drawn as a density
+  grid on exported maps, so its classes and any class renamed in the legend editor disappeared; it now
+  keeps its classes (an even sample of points is drawn, the legend says so).
+
 ### Added — rasters and species distribution models (from GeoSpaX 2.0)
 - **Spectral index and extent** (NDVI, NDWI, NDBI, NBR, any band pair) with an automatic Otsu
   threshold; **raster change** between two dates with loss and gain thresholds; **slope zones**.

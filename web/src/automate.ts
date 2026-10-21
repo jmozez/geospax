@@ -7,6 +7,8 @@ export interface RecipeInfo {
   id: string;
   title: string;
   description: string;
+  /** domain kit (Biodiversity, Conservation, Forestry …); empty for general recipes */
+  kit?: string;
   origin: 'gallery' | 'user' | 'file' | 'api';
   triggers: { kind: string; text: string }[];
   inputs: { name: string; type: string; default: unknown; description: string }[];

@@ -1,0 +1,49 @@
+# Biodiversity kit: survey records in, where diversity is, how records cluster, out.
+recipe: kit-survey-diversity
+version: 1
+kit: Biodiversity
+title: Survey diversity and clustering
+description: >-
+  Species records (your survey, or Data › Species) with a species field: a hexagon grid with
+  species richness, Shannon and Simpson diversity per cell, density clusters (DBSCAN) and the
+  Clark–Evans nearest-neighbour test, mapped and reported.
+inputs:
+  records: { type: layer, default: auto, description: point records }
+  species: { type: field, default: species, description: the species field }
+  cell_m: { type: number, default: 5000, description: hexagon size in metres }
+  cluster_m: { type: number, default: 3000, description: "search radius for clusters in metres (records closer than this chain into one cluster)" }
+steps:
+  - id: records
+    use: io.open
+    with: { layer: "${inputs.records}", kind: point }
+  - id: grid
+    use: aggregate.hexbin
+    with: { layer: "${records.layer}", size: "${inputs.cell_m}", name: survey_cells }
+  - id: diversity
+    use: tool
+    with: { tool: gsx/diversity, params: { occurrences: "${records.layer}", species: "${inputs.species}", areas: "${grid.layer}" } }
+  - id: clusters
+    use: tool
+    with: { tool: gsx/dbscan, params: { points: "${records.layer}", epsilon_m: "${inputs.cluster_m}" } }
+  - id: pattern
+    use: tool
+    with: { tool: gsx/nearest-neighbour, params: { points: "${records.layer}" } }
+  - id: style
+    use: automap.style
+    with: { layers: ["${diversity.layer}"], field: richness }
+  - id: style_clusters
+    use: automap.style
+    with: { layers: ["${clusters.layer}"], field: dbscan_cluster }
+  - id: richness_map
+    use: export.map
+    needs: [style]
+    with: { name: richness, layers: ["${diversity.layer}", "${records.layer}"], title: Species richness per cell }
+  - id: cluster_map
+    use: export.map
+    needs: [style_clusters]
+    with: { name: clusters, layers: ["${clusters.layer}"], title: Density clusters of records }
+  - id: report
+    use: export.report
+    needs: [richness_map, cluster_map]
+    with: { title: "Survey diversity · ${run.date}" }
+outputs: [richness_map, cluster_map, report]

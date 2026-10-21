@@ -87,6 +87,21 @@ describe('species distribution model', () => {
       assert.ok(!(out.notes ?? []).some((n) => /^Fold \d+:/.test(n)), 'no empty folds');
     });
   }
+  it('projects onto a warmer future: the range moves and the table says how much', async () => {
+    const future = grid('future', (x) => 33 - x * 0.15, (_x, y) => 3000 - y * 20); // +3 °C everywhere
+    const r = { clim, future };
+    const out = await tool('sdm').run(ctx({ occurrences: 'occ', covariates: ['clim'], future: ['future'], method: 'mahalanobis', background: 2000 }, r, { occ: pts }));
+    assert.equal(out.rasters?.length, 4);
+    const change = out.rasters![3].data;
+    let lost = 0, gained = 0;
+    for (const v of change) { lost += +(v === 1); gained += +(v === 2 ? 0 : v === 3); }
+    assert.ok(lost > 0 && gained > 0, `lost ${lost}, gained ${gained}`);
+    assert.match(row(out.table, 'Net change'), /%/);
+  });
+  it('refuses future rasters with other variables', async () => {
+    const future = grid('future', (x) => 33 - x * 0.15);
+    await assert.rejects(Promise.resolve().then(() => tool('sdm').run(ctx({ occurrences: 'occ', covariates: ['clim'], future: ['future'] }, { clim, future }, { occ: pts }))), /same variables/);
+  });
   it('needs at least 5 usable occurrences', async () => {
     await assert.rejects(
       Promise.resolve().then(() => tool('sdm').run(ctx({ occurrences: 'occ', covariates: ['clim'] }, { clim }, { occ: pts.slice(0, 3) }))),

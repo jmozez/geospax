@@ -193,6 +193,17 @@ pub const CATALOGUE: &[StepSpec] = &[
     StepSpec { name: "overviews.build", family: "Performance", summary: "Build a PMTiles overview pyramid for a dense layer (skipped when not needed).", running: "Building overview tiles", params: &[("layer", true, "layer id"), ("maxzoom", false, "highest overview zoom (default: suggested)")], borrowed: "ArcGIS Build Pyramids, QGIS Build Overviews, GDAL gdaladdo" },
     StepSpec { name: "layout.auto", family: "Cartography", summary: "Page defaults (title, subtitle, size) for later export steps.", running: "Laying out the page", params: &[("title", false, ""), ("subtitle", false, ""), ("size", false, "")], borrowed: "ArcGIS Pro layouts, QGIS Print Layout" },
     StepSpec {
+        name: "tool",
+        family: "Analysis",
+        summary: "Run any Toolbox tool (species distribution model, suitability, fragmentation, spectral index, the raster and terrain tools, a plugin's tool) with its parameters; its layers and rasters go to the next steps and the map, its result table into the report.",
+        running: "Running the tool",
+        params: &[
+            ("tool", true, "plugin/tool, e.g. gsx/sdm or geolibre-tools/slope"),
+            ("params", false, "the tool's parameters; layers and rasters by id or by this recipe's own name"),
+        ],
+        borrowed: "ArcGIS Pro ModelBuilder tool calls, QGIS graphical modeler algorithms",
+    },
+    StepSpec {
         name: "data.fetch",
         family: "Input",
         summary: "Online data for the area, no API keys: WorldClim 2.1 bioclim, monthly and CMIP6 future; CHELSA 2.1; SoilGrids 2.0; GBIF, OBIS and iNaturalist occurrences; GADM boundaries. Each with its citation.",
@@ -666,6 +677,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "export.series" => export_series(sc, p),
         "dem.fetch" => raster_steps::dem_fetch(sc, p),
         "data.fetch" => data_steps::data_fetch(sc, p),
+        "tool" => super::tool_step::tool(sc, p),
         "lidar.grid" => lidar_steps::lidar_grid(sc, p),
         "scene.3d" => scene_steps::scene_3d(sc, p),
         "terrain.derive" => raster_steps::terrain_derive(sc, p),
