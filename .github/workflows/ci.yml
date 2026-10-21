@@ -37,7 +37,7 @@ jobs:
           key: cargo-trixie-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-trixie-
       - name: Docs links and anchors
-        run: python3 scripts/test-docs-links.py README.md CHANGELOG.md bench/RESULTS.md docs/*.md
+        run: python3 scripts/test-docs-links.py README.md CHANGELOG.md SECURITY.md bench/RESULTS.md docs/*.md
       - name: Web UI (type check + build)
         working-directory: web
         run: npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build

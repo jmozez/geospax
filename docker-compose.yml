@@ -1,6 +1,11 @@
 # GeoSpaX web edition + an MQTT broker for live sensors.
 #
-#   mkdir -p data inbox && docker compose up -d      ->  http://localhost:8080
+#   mkdir -p data inbox && docker compose up -d
+#   docker compose logs geospax | grep token         ->  http://localhost:8080/?token=...
+#
+#   The API needs an access token (it can run recipe code and install plugins). One is generated at
+#   each start and printed in the log; set GEOSPAX_TOKEN (e.g. in .env) to keep a fixed one.
+#   Ports are published on this computer only; change 127.0.0.1 below to share them on the network.
 #
 #   data/    GIS layers (GeoPackage, Shapefile, GeoTIFF, ...) -> layer list (read-only)
 #   inbox/   drop photos, GPS tracks, drone logs or sensor logs -> the matching recipe maps them
@@ -10,7 +15,9 @@ services:
   geospax:
     build: .
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
+    environment:
+      - GEOSPAX_TOKEN=${GEOSPAX_TOKEN:-}
     volumes:
       - ./data:/data:ro
       - ./inbox:/inbox
@@ -30,7 +37,7 @@ services:
     # local, anonymous broker for testing; add a password file before exposing it
     command: ["mosquitto", "-c", "/mosquitto-no-auth.conf"]
     ports:
-      - "1883:1883"
+      - "127.0.0.1:1883:1883"
     restart: unless-stopped
 volumes:
   geospax-state: {}

@@ -190,7 +190,7 @@ if [ -n "$MOSQ" ] && command -v openssl >/dev/null; then
   BROKER_PID=$!
   MQTT_ARGS=(--mqtt "mqtts://127.0.0.1:$((PORT + 2))/v3/%2B/devices/%2B/up?ca=$(winpath "$T/ca.pem")")
 fi
-wine "$SRV" --data "$(winpath "$W/data")" --state-dir "$(winpath "$W/state-srv")" --host 0.0.0.0 --port "$PORT" \
+wine "$SRV" --data "$(winpath "$W/data")" --state-dir "$(winpath "$W/state-srv")" --host 127.0.0.1 --port "$PORT" \
   --phone --phone-port "$((PORT + 1))" "${MQTT_ARGS[@]}" >"$W/run/server.txt" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 90); do curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && break; sleep 1; done

@@ -6,7 +6,7 @@
 > or attach to a trigger, so the next map makes itself.
 
 Status: positioning adopted October 2026. What exists today is listed in [README](../README.md#status); the plan is in
-[TECH_STACK.md §8](../../gis-platform-research/TECH_STACK.md#8-phased-roadmap).
+TECH_STACK.md §8.
 
 **The lazy loop runs today (automation engine v0 + Phase 2 slice 2 + sensor hub v1):**
 - Plug in a phone, GPS unit or drone card with its recipe on Auto, and a styled, labelled, laid-out map plus a one-page report is ready about 5 s later, set by the 5 s device poll; the run itself takes 0.15 s.
@@ -101,7 +101,7 @@ Whitebox, GeoDa, Global Mapper, FME and the R and Python ecosystems is in [FEATU
 
 ## 6. Non-goals
 
-- **Not an ArcGIS Pro clone.** We borrow workflows, not the UI or its complexity, and never decompiled code ([TECH_STACK §1](../../gis-platform-research/TECH_STACK.md#1-ground-rules-clean-room-not-decompilation)).
+- **Not an ArcGIS Pro clone.** We borrow workflows, not the UI or its complexity, and never decompiled code (TECH_STACK §1).
 - **Not a chatbot wrapper.** Natural language is one way to *write* a recipe.
 - **Not cloud-only.** It is local-first. The web edition runs the same engine on your own server.
 - **Not an editing-first CAD tool.** Editing exists, but finishing maps automatically comes first.

@@ -1,7 +1,8 @@
 @echo off
 rem GeoSpaX web edition: serves the app at http://localhost:8080 to any browser on this PC.
 rem Your maps live in %USERPROFILE%\GeoSpaX (the same folders the desktop app uses).
-rem Other devices on your network: run  geospax-web.cmd --host 0.0.0.0  (Windows will ask about the firewall).
+rem Other devices on your network: run  geospax-web.cmd --host 0.0.0.0  (Windows will ask about the firewall);
+rem the server then prints a link with an access token: open that link on the other device.
 setlocal
 set "GX=%USERPROFILE%\GeoSpaX"
 if not exist "%GX%\Data" mkdir "%GX%\Data"
