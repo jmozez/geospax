@@ -42,6 +42,15 @@ export function padBox([w, s, e, n]: Bbox, margin = 0.12): Bbox {
   return [Math.max(w - mx, -180), Math.max(s - my, -85), Math.min(e + mx, 180), Math.min(n + my, 85)];
 }
 
+/** One-click looks: each sets the furniture fields (and the user can change any of them after). */
+export const LOOKS: Record<string, { name: string; hint: string; set: Record<string, string> }> = {
+  geospax: { name: 'GeoSpaX', hint: 'pill scale, needle, tidy', set: { scale_bar: 'pill', north_arrow: 'needle', legend: 'right', inset: 'none', dpi: '150', units: 'metric' } },
+  journal: { name: 'Journal', hint: '300 dpi, legend inside, no frills', set: { scale_bar: 'line', north_arrow: 'minimal', legend: 'inside', legend_at: 'auto', inset: 'none', dpi: '300', size: '4:3' } },
+  poster: { name: 'Poster', hint: '600 dpi, overview inset, rose', set: { scale_bar: 'checker', north_arrow: 'rose', legend: 'right', inset: 'auto', dpi: '600', units: 'both' } },
+  classic: { name: 'Classic', hint: 'compass, checker bar', set: { scale_bar: 'checker', north_arrow: 'compass', legend: 'right', inset: 'none', dpi: '300' } },
+  slide: { name: 'Slide', hint: '16:9, legend inside, inset', set: { scale_bar: 'pill', north_arrow: 'needle', legend: 'inside', legend_at: 'auto', inset: 'auto', dpi: '150', size: '16:9' } },
+};
+
 const round = (b: Bbox) => b.map((v) => Math.round(v * 1e5) / 1e5) as Bbox;
 
 export interface FinishHost {
@@ -57,6 +66,38 @@ export interface FinishHost {
   geometry: (id: string) => string;
   run: (recipe: string) => Promise<void>;
   setStatus: (t: string, ms?: number) => void;
+}
+
+/** A page shape as the engine's size: named paper, or "W:H" as pixels at 150 dpi (about A4 wide). */
+export function pageSize(v: string): string {
+  const m = /^(\d+):(\d+)$/.exec(v);
+  if (!m) return v;
+  const r = Number(m[1]) / Number(m[2]);
+  return r >= 1 ? `1800x${Math.round(1800 / r)}` : `${Math.round(1800 * r)}x1800`;
+}
+
+/** The furniture fields as export.map parameters (", key: value" …); legend edits from the table. */
+function furniture(f: FormData, form: HTMLFormElement): string {
+  const out: string[] = [];
+  for (const k of ['dpi', 'legend', 'legend_at', 'legend_title', 'scale_bar', 'units', 'scale_bar_at', 'north_arrow', 'north_arrow_at', 'inset']) {
+    const v = f.get(k);
+    if (v == null) continue;
+    out.push(`${k}: ${k === 'dpi' ? Number(v) : JSON.stringify(String(v))}`);
+  }
+  const edit: Record<string, { title?: string; hide?: boolean; labels?: Record<string, string> }> = {};
+  form.querySelectorAll<HTMLTableRowElement>('tr[data-layer]').forEach((tr) => {
+    const id = tr.dataset.layer!;
+    const e: { title?: string; hide?: boolean; labels?: Record<string, string> } = {};
+    if (!tr.querySelector<HTMLInputElement>('[name=lg-show]')!.checked) e.hide = true;
+    const t = tr.querySelector<HTMLInputElement>('[name=lg-title]')!.value.trim();
+    if (t) e.title = t;
+    const pairs = tr.querySelector<HTMLInputElement>('[name=lg-labels]')!.value.split(';').map((x) => x.split('=').map((y) => y.trim()));
+    const labels = Object.fromEntries(pairs.filter((p) => p.length === 2 && p[0] && p[1]));
+    if (Object.keys(labels).length) e.labels = labels;
+    if (Object.keys(e).length) edit[id] = e;
+  });
+  if (Object.keys(edit).length) out.push(`legend_edit: ${JSON.stringify(edit)}`);
+  return out.length ? `, ${out.join(', ')}` : '';
 }
 
 export class FinishMap {
@@ -118,15 +159,50 @@ export class FinishMap {
       </div>
       <small class="dim fin-hint"></small>
     </fieldset>`;
+    // Style: one-click looks (what Lazy sees first) and every piece of map furniture (Pro sees all)
+    const corners = (name: string, auto: string) =>
+      `<select name="${name}"><option value="auto">${auto}</option><option value="tl">Top left</option><option value="tr">Top right</option><option value="bl">Bottom left</option><option value="br">Bottom right</option></select>`;
+    const legendRows = layers
+      .map(
+        (id) => `<tr data-layer="${esc(id)}"><td><input type="checkbox" name="lg-show" checked aria-label="Show ${esc(id)} in the legend" /></td>
+          <td><input name="lg-title" placeholder="${esc(id.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '))}" aria-label="Legend title for ${esc(id)}" /></td>
+          <td><input name="lg-labels" placeholder="old = new; …" aria-label="Rename classes of ${esc(id)}" /></td></tr>`,
+      )
+      .join('');
+    const styleBox = `<fieldset class="fin-style"><legend>Style</legend>
+      <div class="fin-looks" role="radiogroup" aria-label="Look">
+        ${Object.entries(LOOKS)
+          .map(([k, l]) => `<label><input type="radio" name="look" value="${k}" ${k === 'geospax' ? 'checked' : ''} /><b>${l.name}</b><small>${l.hint}</small></label>`)
+          .join('')}
+      </div>
+      <details class="fin-more" ${lazy ? '' : 'open'}><summary>Page, legend, scale bar, north arrow, inset</summary>
+        <div class="fin-grid">
+          <label><span>Page shape</span><select name="size">
+            <option value="auto">Automatic (fits the area)</option><option value="1:1">Square 1:1</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="16:9">Wide 16:9</option>
+            <option value="3:4">Portrait 3:4</option><option value="2:3">Portrait 2:3</option><option value="a4">A4 landscape</option><option value="a4-portrait">A4 portrait</option><option value="a3">A3 landscape</option><option value="letter">US Letter</option></select></label>
+          <label><span>Resolution</span><select name="dpi"><option value="150">150 dpi (screen)</option><option value="300">300 dpi (print, journals)</option><option value="600">600 dpi (fine print)</option><option value="1200">1200 dpi (line art)</option></select></label>
+          <label><span>Legend</span><select name="legend"><option value="right">Beside the map</option><option value="inside">Inside the map</option><option value="none">None</option></select></label>
+          <label><span>Legend corner</span>${corners('legend_at', 'Where the data isn’t')}</label>
+          <label><span>Legend heading</span><input name="legend_title" value="Legend" /></label>
+          <label><span>Scale bar</span><select name="scale_bar"><option value="pill">Pill</option><option value="checker">Checker</option><option value="line">Line</option><option value="ruler">Ruler</option><option value="none">None</option></select></label>
+          <label><span>Units</span><select name="units"><option value="metric">km / m</option><option value="imperial">mi / ft</option><option value="both">Both</option></select></label>
+          <label><span>Scale bar corner</span>${corners('scale_bar_at', 'Where the data isn’t')}</label>
+          <label><span>North arrow</span><select name="north_arrow"><option value="needle">Needle</option><option value="compass">Compass</option><option value="rose">Rose</option><option value="minimal">Minimal</option><option value="none">None</option></select></label>
+          <label><span>North arrow corner</span>${corners('north_arrow_at', 'Where the data isn’t')}</label>
+          <label><span>Overview inset</span><select name="inset"><option value="none">None</option><option value="auto">Where the data isn’t</option><option value="tl">Top left</option><option value="tr">Top right</option><option value="bl">Bottom left</option><option value="br">Bottom right</option></select></label>
+        </div>
+        <details class="fin-legend-edit"><summary>Edit the legend</summary>
+          <table><thead><tr><th>Show</th><th>Title</th><th>Rename classes</th></tr></thead><tbody>${legendRows}</tbody></table>
+          <small class="dim">Rename classes as <code>old = new</code>, separated by <code>;</code> (e.g. <code>0.2 – 15 = ≤ 15</code>). The legend lists layers top first, as on the map.</small>
+        </details>
+      </details>
+    </fieldset>`;
     const today = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     const more = `
       <label><span>Subtitle</span><input name="subtitle" value="${esc(today)}" /></label>
       <fieldset><legend>Area</legend>
         <label class="ck"><input type="radio" name="area" value="view" checked /> What you see now</label>
         <label class="ck"><input type="radio" name="area" value="auto" /> All of the data</label></fieldset>
-      <label><span>Page</span><select name="size">
-        <option value="auto">Automatic (fits the area)</option><option value="a4">A4 landscape</option><option value="a4-portrait">A4 portrait</option>
-        <option value="a3">A3 landscape</option><option value="letter">US Letter</option></select></label>
       <fieldset><legend>Files</legend>
         <label class="ck"><input type="checkbox" name="png" checked /> Picture (PNG)</label>
         <label class="ck"><input type="checkbox" name="pdf" checked /> Print (vector PDF)</label>
@@ -138,6 +214,7 @@ export class FinishMap {
         <p class="fin-lead">The ${this.host.visible().length} layer${this.host.visible().length > 1 ? 's' : ''} on the map, styled as you see them, laid out with a legend, scale bar, north arrow and credits.</p>
         <label><span>Title</span><input name="title" value="${esc(this.host.suggestTitle())}" required /></label>
         ${layout}
+        ${styleBox}
         ${lazy ? `<details><summary>More options</summary>${more}</details>` : more}
       </div>
       <footer><span class="dim" id="finish-msg"></span><button type="button" data-close>Cancel</button><button class="primary" type="submit">Make the map</button></footer>
@@ -177,6 +254,15 @@ export class FinishMap {
       if (v === 'facet' && this.el.querySelector<HTMLSelectElement>('select[name=facet]')!.options.length <= 1) void this.firstFacetLayer(fl, layers);
     };
     this.el.querySelectorAll('input[name=layout]').forEach((r) => r.addEventListener('change', show));
+    // a look fills in the furniture fields
+    this.el.querySelectorAll<HTMLInputElement>('input[name=look]').forEach((r) =>
+      r.addEventListener('change', () => {
+        for (const [k, v] of Object.entries(LOOKS[r.value].set)) {
+          const f = this.el.querySelector<HTMLSelectElement | HTMLInputElement>(`[name=${k}]`);
+          if (f) f.value = v;
+        }
+      }),
+    );
     show();
   }
 
@@ -281,12 +367,13 @@ export class FinishMap {
       if (msg) msg.textContent = 'No pages: that layer has no features with a location';
       return;
     }
+    const furn = furniture(f, form);
     // one export.map step per page; the first keeps the id "map" so the report shows it
     const mapStep = (id: string, extent: string, sub: string, file: string) => [
       `  - id: ${id}`,
       '    use: export.map',
       '    needs: [open, style]',
-      `    with: { layers: ${JSON.stringify(ids)}, title: ${JSON.stringify(title)}, subtitle: ${JSON.stringify(sub)}, size: ${JSON.stringify(String(f.get('size') ?? 'auto'))}, format: ${JSON.stringify(formats)}, extent: ${extent}, name: ${JSON.stringify(file)} }`,
+      `    with: { layers: ${JSON.stringify(ids)}, title: ${JSON.stringify(title)}, subtitle: ${JSON.stringify(sub)}, size: ${JSON.stringify(pageSize(String(f.get('size') ?? 'auto')))}, format: ${JSON.stringify(formats)}, extent: ${extent}, name: ${JSON.stringify(file)}${furn} }`,
     ];
     const layout = String(f.get('layout') ?? 'one');
     const panelOpts = () =>
