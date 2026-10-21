@@ -38,6 +38,7 @@ page.on('console', (m) => m.type() === 'error' && !OFFLINE.test(m.text()) && !/f
 page.on('response', (r) => r.status() >= 500 && problems.push(`[${where}] HTTP ${r.status()} ${r.url()}`));
 page.on('dialog', (d) => d.accept('Test group'));
 page.on('popup', (p) => p.close().catch(() => {}));
+page.on('filechooser', () => {}); // “Add files”: the chooser opens; nothing is picked here
 const settle = (ms = 250) => page.waitForTimeout(ms);
 const tidy = async () => {
   await page.keyboard.press('Escape');
