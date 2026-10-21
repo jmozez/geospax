@@ -147,7 +147,8 @@ rm -rf "$PORT" "$PORT.zip" && cp -r "$STAGE" "$PORT" && cp "$REL/geospax.exe" "$
 (cd "$ROOT/target/windows" && zip -q -r -9 "$(basename "$PORT").zip" "$(basename "$PORT")")
 rm -rf "$PORT"
 
-(cd releases && sha256sum ./*.deb ./*.exe 2>/dev/null | sed 's| \./| |' > SHA256SUMS)
+# checksums of whatever is in releases/ (no .deb when only the Windows edition was built)
+(cd releases && shopt -s nullglob && files=(./*.deb ./*.exe) && sha256sum "${files[@]}" | sed 's| \./| |' > SHA256SUMS)
 rm -rf "$TMPDIR"
 echo "== done in $(( $(date +%s) - t0 )) s"
 ls -la releases/GeoSpaX_"$VERSION"_x64-setup.exe "$PORT.zip" | awk '{printf "%6.1f MB  %s\n", $5 / 1e6, $NF}'
