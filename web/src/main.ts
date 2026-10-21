@@ -19,6 +19,7 @@ import { Toolbox } from './toolbox';
 import { StartScreen } from './start';
 import { FinishMap, FINISH_RECIPE } from './finish';
 import { OnlineData } from './online';
+import { RConsole } from './rconsole';
 import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
@@ -1428,6 +1429,17 @@ async function main() {
     backend,
     view: () => map.getBounds().toArray().flat() as [number, number, number, number],
     layers: () => project.order.filter((id) => layerById(id)).reverse(),
+    run: async (id) => {
+      workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+      await automatePane?.run(id);
+    },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  });
+  // R tab: R setup and the R console (rconsole.ts)
+  new RConsole({
+    backend,
+    layers: () => project.order.filter((id) => layerById(id)).reverse(),
+    rasters: async () => (await backend.json<{ rasters: { id: string }[] }>('api/rasters')).rasters.map((r) => r.id),
     run: async (id) => {
       workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
       await automatePane?.run(id);

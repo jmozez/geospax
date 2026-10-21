@@ -169,6 +169,7 @@ default) changes the ribbon and the layer list together:
   | **Analysis** | Recipes · Toolbox · Spatial statistics · GeoLibre tools · GSX landscape and species tools |
   | **Imagery** | Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools |
   | **Modelling** | Interpolation (kriging, kriging in R) · GSX planning (suitability, gaps, representation …) |
+  | **R** | R console · R setup · tmap, ggplot2 and rayshader maps · terra terrain · Earth Engine · biomod2 and MaxEnt species models · tidymodels · dbplyr ([R.md](R.md)) |
   | **Automate** | Recipes · Runs · Scripts |
   | **View** | Navigate · Theme · Basemap · Windows |
   | **Help** | Docs · About · Diagnostics |

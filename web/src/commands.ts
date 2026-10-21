@@ -8,7 +8,7 @@ import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
 
 /** 'layer' is the contextual tab (Pro mode), shown while a layer is selected. */
-export type TabId = 'home' | 'data' | 'style' | 'analyze' | 'imagery' | 'modelling' | 'view' | 'automate' | 'help' | 'plugins' | 'layer';
+export type TabId = 'home' | 'data' | 'style' | 'analyze' | 'imagery' | 'modelling' | 'r' | 'view' | 'automate' | 'help' | 'plugins' | 'layer';
 
 /** What a command can reach: the map, layers, the backend and a few host actions. */
 export interface CommandHost {
@@ -83,6 +83,7 @@ export const ICONS: Record<string, string> = {
   caret: 'M6 9.5l6 5.5 6-5.5z',
   gallery: 'M3 4h8v7H3zm10 0h8v7h-8zM3 13h8v7H3zm10 0h8v7h-8z',
   grid: 'M3 3h18v18H3zm2 2v4h4V5zm6 0v4h4V5zm6 0v4h2V5zM5 11v4h4v-4zm6 0v4h4v-4zm6 0v4h2v-4zM5 17v2h4v-2zm6 0v2h4v-2zm6 0v2h2v-2z',
+  rlogo: 'M12 3C6.5 3 2 5.9 2 9.6c0 3.1 3.2 5.7 7.5 6.4V21h3v-4.4h1.6l2.6 4.4h3.4l-3-4.9c2.3-.9 3.9-2.6 3.9-4.6 0-3.7-4.5-6.6-10-6.6zm.5 3.2c4.3 0 7.3 1.5 7.3 3.6 0 1.4-1.3 2.5-3.4 3.1V10c0-1.5-1.3-2.4-3.2-2.4H9.5v6.1C6.5 13 4.6 11.5 4.6 9.7c0-2 3.4-3.5 7.9-3.5zm0 4h1.6c.7 0 1.1.3 1.1.9s-.4.9-1.1.9h-1.6z',
   check: 'M4 12l5 5L20 6l-1.5-1.5L9 13.5 5.5 10z',
 };
 
@@ -99,6 +100,7 @@ export const TABS: { id: TabId; label: string }[] = [
   { id: 'analyze', label: 'Analysis' },
   { id: 'imagery', label: 'Imagery' },
   { id: 'modelling', label: 'Modelling' },
+  { id: 'r', label: 'R' },
   { id: 'automate', label: 'Automate' },
   { id: 'view', label: 'View' },
   { id: 'help', label: 'Help' },
@@ -131,6 +133,18 @@ const onlineCmd = (id: string, title: string, icon: string, source: string, hint
   hint,
   big,
   run: () => { document.dispatchEvent(new CustomEvent('geospax:online', { detail: source })); },
+});
+
+/** A command on the R tab: R setup or the R console on a template (web/src/rconsole.ts). */
+const rCmd = (id: string, group: string, title: string, icon: string, what: string, hint: string, big = false): Command => ({
+  id,
+  tab: 'r',
+  group,
+  title,
+  icon,
+  hint,
+  big,
+  run: () => { document.dispatchEvent(new CustomEvent('geospax:r', { detail: what })); },
 });
 
 // ---------------------------------------------------------------- commands
@@ -495,6 +509,18 @@ export const COMMANDS: Command[] = [
   },
   // ------------------------------------------------ Modelling
   recipeCmd('modelling.rkrige', 'modelling', 'Interpolation', 'Kriging in R', 'chart', 'r-kriging', 'gstat kriging in R, cross-validated (needs R with sf and gstat)'),
+  // ------------------------------------------------ R (rconsole.ts)
+  rCmd('r.console', 'Code', 'R console', 'rlogo', 'blank', 'Run R code on a layer (sf) and a raster (terra); results come back to the map', true),
+  rCmd('r.setup', 'Code', 'R setup', 'download', 'setup', 'Find or install R and package kits (sf, terra, tmap, biomod2 …)'),
+  rCmd('r.tmap', 'Maps', 'tmap map', 'layout', 'tmap', 'A thematic map with tmap, saved at print size', true),
+  rCmd('r.ggplot', 'Maps', 'ggplot2 map', 'chart', 'ggplot', 'A ggplot2 map (geom_sf) with scale bar and north arrow'),
+  rCmd('r.rayshader', 'Maps', 'Relief', 'image', 'rayshader', 'Shaded relief from a DEM with rayshader'),
+  rCmd('r.terrain', 'Rasters', 'Terrain', 'image', 'terrain', 'Slope, aspect, hillshade and ruggedness with terra', true),
+  rCmd('r.gee', 'Rasters', 'Earth Engine', 'globe', 'gee', 'Sentinel-2 NDVI from Google Earth Engine with rgee'),
+  rCmd('r.biomod2', 'Species models', 'biomod2', 'pin', 'biomod2', 'Ensemble species distribution model (GLM, RF, MaxNet) with biomod2', true),
+  rCmd('r.maxent', 'Species models', 'MaxEnt', 'pin', 'maxent', 'MaxEnt with maxnet: presences + background, cloglog suitability'),
+  rCmd('r.tidymodels', 'Machine learning', 'tidymodels', 'chart', 'tidymodels', 'Random forest with tidymodels, cross-validated', true),
+  rCmd('r.dbplyr', 'Machine learning', 'dbplyr', 'table', 'dbplyr', 'dplyr verbs run as SQL in DuckDB'),
 ];
 
 /** Render one ribbon button (shared by the ribbon and the palette footer). */

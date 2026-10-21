@@ -108,7 +108,7 @@ pub fn r_library() -> Option<&'static PathBuf> {
 pub fn install_hint(lang: Lang) -> &'static str {
     match lang {
         Lang::Python => "install Python 3 (https://www.python.org) or set GEOSPAX_PYTHON",
-        Lang::R => "install R (https://cran.r-project.org; Debian/Ubuntu: apt install r-base-core r-cran-sf r-cran-gstat) or set GEOSPAX_RSCRIPT",
+        Lang::R => "open R › R setup to install it (or install R from https://cran.r-project.org, or set GEOSPAX_RSCRIPT)",
     }
 }
 
@@ -223,7 +223,9 @@ outputs_dir <- {outputs}
 if (length(.missing) > 0) stop(paste0("missing R packages: ", paste(.missing, collapse = ", "),
   "  (install with: install.packages(c(", paste0('"', .missing, '"', collapse = ", "), ")))"), call. = FALSE)
 .has_sf <- requireNamespace("sf", quietly = TRUE)
-for (.n in names(inputs)) assign(.n, if (.has_sf) sf::st_read(inputs[[.n]], quiet = TRUE) else inputs[[.n]])
+.is_raster <- function(p) grepl("\\.(tif|tiff|vrt|nc|img|asc|jp2)$", tolower(p))
+for (.n in names(inputs)) assign(.n, if (.is_raster(inputs[[.n]]) && requireNamespace("terra", quietly = TRUE)) terra::rast(inputs[[.n]])
+  else if (.has_sf) sf::st_read(inputs[[.n]], quiet = TRUE) else inputs[[.n]])
 figure_path <- function(name, ext = "png") file.path(outputs_dir, paste0(name, ".", ext))
 # A figure at print size: a ggplot, a tmap, or a function that draws (base graphics, terra::plot …).
 # rayshader: rayshader::render_snapshot(figure_path("relief")) or save_figure("relief", function() plot_map(hillshade)).
