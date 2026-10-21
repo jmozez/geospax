@@ -68,6 +68,31 @@ north arrow; **Columns** (automatic: a landscape page) and **Legend**: *one shar
 same layers, otherwise one per panel). Map series pages are files `title-01.png`, `title-02.png`, …,
 the index `title-00-index`, and the bound `title-series.pdf`.
 
+**Style** sets how the finished map looks. Start from a **look**, then change anything:
+
+| Look | What it sets |
+| --- | --- |
+| **GeoSpaX** (default) | Pill scale bar, needle north arrow, legend beside the map, 150 dpi |
+| **Journal** | 300 dpi, 4:3 page, legend inside the map, line scale bar, minimal arrow |
+| **Poster** | 600 dpi, overview inset, rose, checker scale bar in km and miles |
+| **Classic** | Compass and checker bar, 300 dpi |
+| **Slide** | 16:9 page, legend inside, overview inset |
+
+Under *Page, legend, scale bar, north arrow, inset* (open in Pro, one click away in Lazy):
+
+- **Page shape**: automatic (fits the area), 1:1, 4:3, 3:2, 16:9, portrait 3:4 or 2:3, A4, A3, Letter.
+- **Resolution**: 150, 300, 600 or 1200 dpi. The PNG is made at that resolution and carries it, so it
+  opens at its print size in Word, InDesign or a journal's system; the PDF is vector at any size.
+- **Legend**: beside the map, **inside the map** (on a card) or none, with its heading. **Edit the
+  legend** to hide a layer, give it another title, or rename classes (`0.2 – 15 = ≤ 15`).
+- **Scale bar**: pill, checker, line or ruler; km/m, mi/ft or both.
+- **North arrow**: needle, compass, 8-point rose, minimal or none.
+- **Overview inset**: a world/region map with your area boxed.
+
+**Furniture goes where your data isn't.** GeoSpaX looks at how much of the map's data falls in each
+corner and puts the inside legend and the inset in the emptiest corners, the north arrow in the
+emptiest top corner and the scale bar in the emptiest bottom corner. Pick a corner to pin any of them.
+
 Behind the scenes Finish my map is an ordinary recipe, `finished-map`, replaced each time: it has run
 history and provenance, and you can re-run it or give it a trigger like any other.
 

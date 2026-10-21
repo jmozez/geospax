@@ -16,6 +16,7 @@ pub mod cartography;
 pub mod charts;
 pub mod cli;
 pub mod features;
+pub mod furniture;
 pub mod lidar_steps;
 pub mod recipe;
 pub mod report;

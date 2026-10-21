@@ -54,6 +54,18 @@ const MAP_PARAMS: &[(&str, bool, &str)] = &[
     ("name", false, "file name without extension (default map)"),
     ("frames", false, "index map: [{extent: [w, s, e, n], label}] outlined on the map"),
     ("exact", false, "show exactly the extent, no margin (map series sheets)"),
+    ("dpi", false, "PNG resolution: 150 (default), 300, 600 … 1200; written into the file"),
+    ("scale_bar", false, "pill (default), checker, line, ruler or none"),
+    ("units", false, "metric (default), imperial or both"),
+    ("north_arrow", false, "needle (default), compass, rose, minimal or none"),
+    ("legend", false, "right (default), inside or none"),
+    ("legend_at", false, "inside legend corner: auto (where the data is not), tl, tr, bl, br"),
+    ("legend_title", false, "legend heading (default Legend; empty for none)"),
+    ("legend_edit", false, "{layer: {title, hide, labels: {old: new}}}"),
+    ("legend_order", false, "layer ids, top first"),
+    ("inset", false, "overview map: none (default), auto, tl, tr, bl, br"),
+    ("scale_bar_at", false, "auto (default: where the data is not), tl, tr, bl, br"),
+    ("north_arrow_at", false, "auto (default), tl, tr, bl, br"),
     ("panels", false, "multi-panel page (R patchwork): [{extent?, title?, layers?}]"),
     ("facet", false, "one panel per value of this field (ggplot2 facet_wrap)"),
     ("facet_layer", false, "layer the facet field belongs to (default: the top mapped layer)"),
@@ -1678,6 +1690,21 @@ fn copy_to(sc: &StepCtx, p: &Value, files: &[String]) -> Result<Option<String>, 
     Ok(Some(dest.display().to_string()))
 }
 
+/// The overview inset's land (bundled Natural Earth) around the study area, when an inset is wanted.
+fn inset_for(sc: &StepCtx, fur: &cartography::Furniture, study: [f64; 4]) -> Result<Option<cartography::Inset>, String> {
+    if fur.inset_at == super::furniture::Place::Off {
+        return Ok(None);
+    }
+    let around = super::furniture::inset_extent(study);
+    for (_, l) in bundled_context(sc.engine) {
+        if l.info.geometry == crate::catalog::GeomKind::Polygon {
+            let land = features::read_layer(sc.engine, &l, Some(around), Some(&[]), 20_000)?;
+            return Ok(Some(cartography::Inset { land, study, around }));
+        }
+    }
+    Ok(None)
+}
+
 struct PanelDef {
     extent: Option<[f64; 4]>,
     title: String,
@@ -1911,7 +1938,16 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     // (interpolate.auto) are shown whole instead, or their edges would be cut off
     let masked = rhandles.iter().any(|r| matches!(r.info.kind.as_str(), "surface" | "stderr"));
     let cover = !rhandles.is_empty() && p.get("extent").is_none_or(|e| e.as_str() == Some("auto")) && p_bool(p, "fill", !masked);
-    let lay = if cover { Layout::new_cover(extent, w, h) } else if p_bool(p, "exact", false) { Layout::new_exact(extent, w, h) } else { Layout::new(extent, w, h) };
+    let fur = cartography::Furniture::from_params(p)?;
+    let fit = if cover {
+        cartography::Fit::Cover
+    } else if p_bool(p, "exact", false) {
+        cartography::Fit::Exact
+    } else {
+        cartography::Fit::Margin
+    };
+    // the legend inside the map (or none) gives the map the full page width
+    let lay = Layout::fit(extent, w, h, fit, fur.legend == "right");
     let view = lay.view();
     // rasters are rendered for the map frame at 2× page resolution (bottom first, shading on top)
     let mut map_rasters = Vec::new();
@@ -2037,7 +2073,7 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     credit_sources.dedup();
     let credits = format!("Made automatically by GeoSpaX · recipe {} · {} · Data: {}", sc.recipe_id, date.format("%Y-%m-%d %H:%M"), credit_sources.join(", "));
     let n_rasters = map_rasters.len();
-    let spec = MapSpec { rasters: map_rasters, title: title.clone(), subtitle, credits, layers, labels: p_bool(p, "labels", true), grid: p_bool(p, "grid", true), frames: frames_param(p)? };
+    let spec = MapSpec { rasters: map_rasters, title: title.clone(), subtitle, credits, layers, labels: p_bool(p, "labels", true), grid: p_bool(p, "grid", true), frames: frames_param(p)?, inset: inset_for(sc, &fur, view)?, furniture: fur };
     let out = if panel_defs.is_empty() && p.get("facet").is_none() {
         cartography::render_svg(&spec, &lay)
     } else {
@@ -2052,8 +2088,11 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     }
     let mut png = None;
     if formats.iter().any(|f| f == "png") {
-        let scale = p_f64(p, "scale").unwrap_or(1.0).clamp(0.5, 4.0) as f32;
-        let bytes = cartography::svg_to_png(&out.svg, scale)?;
+        // dpi: the PNG at print resolution (the page is laid out at 150 dpi; 300 = 2×, 600 = 4×),
+        // with the resolution written into the file so it opens at its print size
+        let dpi = p_f64(p, "dpi").unwrap_or(cartography::DPI * p_f64(p, "scale").unwrap_or(1.0)).clamp(72.0, 1200.0);
+        let scale = (dpi / cartography::DPI) as f32;
+        let bytes = super::furniture::png_with_dpi(cartography::svg_to_png(&out.svg, scale)?, dpi);
         let f = format!("{name}.png");
         std::fs::write(sc.dir.join(&f), bytes).map_err(|e| e.to_string())?;
         png = Some(sc.dir.join(&f));

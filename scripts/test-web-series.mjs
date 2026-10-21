@@ -124,13 +124,32 @@ await page.fill('input[name=title]', 'Panels test');
   const r = await runOf('panels');
   ok('panels make one page with every area', r?.status === 'done' && (r.artifacts ?? []).includes('panels-test.png'), r?.status + ' ' + (r?.error ?? ''));
 }
+// Style: the Journal look (300 dpi, legend inside) and an edited legend
+await openFinish();
+await page.click('.fin-looks label:has(input[value=journal])');
+ok('a look fills in the furniture', (await page.locator('select[name=dpi]').inputValue()) === '300' && (await page.locator('select[name=legend]').inputValue()) === 'inside');
+await page.evaluate(() => document.querySelectorAll('#finish details').forEach((d) => (d.open = true)));
+await page.selectOption('select[name=inset]', 'auto');
+await page.locator('tr[data-layer] input[name=lg-title]').first().fill('My renamed layer');
+await page.fill('input[name=title]', 'Journal test');
+{
+  const r = await runOf('journal');
+  const png = r?.status === 'done' ? await (await page.request.get(`${base}/api/runs/${r.id}/files/journal-test.png`)).body() : null;
+  // pHYs: pixels per metre, 300 dpi = 11811
+  const i = png ? png.indexOf('pHYs') : -1;
+  const ppm = i > 0 ? png.readUInt32BE(i + 4) : 0;
+  ok('the Journal look makes a 300 dpi PNG', ppm === 11811, `${r?.status} ${r?.error ?? ''} ppm=${ppm}`);
+  const svg = r?.status === 'done' ? await (await page.request.get(`${base}/api/runs/${r.id}/files/journal-test.svg`)).text() : '';
+  ok('with the inset and the renamed legend title', svg.includes('class="inset"') && svg.includes('My renamed layer'));
+}
+
 // Lazy mode has the same layouts in view (not hidden under More options)
 await closeAll();
 await page.click('#mode-switch [data-mode="lazy"]');
 await page.waitForTimeout(800);
 await page.locator('.tk-bar [data-cmd="home.finish"]').first().click();
 await page.waitForTimeout(500);
-ok('Lazy mode shows the layouts', await page.locator('#finish .fin-chips').isVisible());
+ok('Lazy mode shows the layouts and looks', (await page.locator('#finish .fin-chips').isVisible()) && (await page.locator('#finish .fin-looks').isVisible()));
 await page.keyboard.press('Escape');
 await page.click('#mode-switch [data-mode="pro"]');
 await page.waitForTimeout(800);
