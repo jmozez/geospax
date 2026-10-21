@@ -52,6 +52,12 @@ The `.deb` and the Windows installer both contain both editions (on Windows: `ge
    are in the run's folder and under **Your finished maps**. In Lazy mode the dialog asks only for the
    title (**More options**: subtitle, area, page size A4/A3/Letter, files); Pro shows them all.
 
+**A map series (atlas)** is the same map once per page, as ArcGIS Pro's map series and QGIS's atlas.
+Under **Pages** pick **A grid of pages over the area** (2 × 1 up to 4 × 4, sheets labelled A1, B1, …)
+or **One page per feature of** a visible polygon or line layer (each district, each site; up to 40
+pages), with the page title taken from a field such as `name`. Every page gets its own PNG/PDF
+(`title-01.png`, `title-02.png`, …) with "page 2 of 6" under the title.
+
 Behind the scenes Finish my map is an ordinary recipe, `finished-map`, replaced each time: it has run
 history and provenance, and you can re-run it or give it a trigger like any other.
 
@@ -205,6 +211,10 @@ basemap. **＋ Group** puts the selected layer in a new group; drag a layer onto
 **Map** to take it out, onto another layer to take its place. A group's switch hides all its layers
 without changing their own switches; the twisty (▾/▸) folds a layer's legend; ✎ renames a group
 (or double-click its name) and ⊟ ungroups it, keeping the layers. Groups are saved in the project.
+
+**Keyboard in the Pro tree.** Tab into the layer tree (one tab stop), then ↑/↓ move, Home/End jump,
+→/← expand or collapse a group or a legend (← on a layer in a group goes to the group), Space shows or
+hides, Enter opens the symbology, Alt+↑/↓ moves the layer in the drawing order, F2 renames a group.
 
 **Theme.** GeoSpaX opens in a light theme. The button left of the Lazy/Pro switch cycles ☀ Light → ☾ Dark →
 ◐ System (follows your operating system); View → Theme does the same. The choice is remembered; add
