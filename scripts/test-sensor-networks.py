@@ -184,9 +184,13 @@ def main():
     p_plain, p_tls, p_mtls, p_sta = a.port + 1, a.port + 2, a.port + 3, a.port + 4
     url = f"http://127.0.0.1:{a.port}"
     tmp = tempfile.mkdtemp(prefix="gx-sensor-networks-")
+    # started as root (CI containers), mosquitto drops to its own user, which must read the certificates
+    os.chmod(tmp, 0o755)
     procs = []
     try:
         c = make_certs(tmp)
+        for f in os.listdir(tmp):
+            os.chmod(os.path.join(tmp, f), 0o644)
         conf = os.path.join(tmp, "mosquitto.conf")
         with open(conf, "w") as f:
             f.write(f"allow_anonymous true\n\nlistener {p_plain} 127.0.0.1\n\n"

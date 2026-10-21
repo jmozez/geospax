@@ -350,12 +350,38 @@ pub fn read_plugin(path: &Path) -> Option<PluginInfo> {
     None
 }
 
+/// Plugins that ship with GeoSpaX: `$GEOSPAX_PLUGINS`, else the first of `./plugins` (a source
+/// checkout), `plugins/` next to the executable (Windows) and `../share/geospax/plugins` (.deb, Docker).
+pub fn bundled_dirs() -> Vec<PathBuf> {
+    if let Ok(v) = std::env::var("GEOSPAX_PLUGINS") {
+        return std::env::split_paths(&v).filter(|p| p.is_dir()).collect();
+    }
+    let exe = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf));
+    let mut c = vec![PathBuf::from("plugins")];
+    if let Some(d) = exe {
+        c.push(d.join("plugins"));
+        c.push(d.parent().unwrap_or(&d).join("share/geospax/plugins"));
+    }
+    c.into_iter()
+        .filter(|p| p.join("geolibre-tools").is_dir() || p.join("example-python").is_dir())
+        .filter_map(|p| p.canonicalize().ok())
+        .take(1)
+        .collect()
+}
+
+/// The program a native `process` plugin starts: the first word of its `run:` command.
+fn run_program(path: &Path) -> Option<String> {
+    let text = fs::read_to_string(path.join("plugin.yaml")).or_else(|_| fs::read_to_string(path.join("plugin.yml"))).ok()?;
+    let m: NativeManifest = serde_saphyr::from_str(&text).ok()?;
+    m.run?.split_whitespace().next().map(str::to_string)
+}
+
 fn finish(mut i: PluginInfo, path: &Path) -> PluginInfo {
     i.path = path.to_string_lossy().to_string();
     // A runtime the machine does not have is reported, not silently dropped.
     if i.needs.is_none() {
         match i.kind.as_str() {
-            "process" | "python" => {
+            "python" => {
                 if which("python3").is_none() && which("python").is_none() {
                     i.runnable = false;
                     i.needs = Some("python3".to_string());
@@ -365,6 +391,15 @@ fn finish(mut i: PluginInfo, path: &Path) -> PluginInfo {
                 if which("Rscript").is_none() {
                     i.runnable = false;
                     i.needs = Some("Rscript".to_string());
+                }
+            }
+            "process" => {
+                // the first word of `run:` is the program (node, java, a binary next to the manifest…)
+                if let Some(prog) = run_program(path) {
+                    if !prog.contains('/') && !prog.contains("${") && which(&prog).is_none() {
+                        i.runnable = false;
+                        i.needs = Some(prog);
+                    }
                 }
             }
             "wasm" => {
@@ -909,10 +944,18 @@ impl Plugins {
                 .replace("${workdir}", &workdir().to_string_lossy().to_string());
         }
         let (prog, args) = parts.split_first().ok_or("empty `run:` command")?;
+        // Results go to <state>/plugin-results/<plugin>/; the tool lists what it wrote in "outputs"
+        // and those files join the map (vector layers and rasters) without a restart.
+        let out_dir = engine.state_dir.join("plugin-results").join(&p.id);
+        let _ = fs::create_dir_all(&out_dir);
+        let sources: serde_json::Map<String, serde_json::Value> =
+            engine.layers().iter().map(|l| (l.info.id.clone(), serde_json::json!(l.info.source))).collect();
         let payload = serde_json::json!({
             "plugin": p.id, "tool": tool.id, "params": params,
             "layers": engine.layer_ids(),
+            "layer_sources": sources,
             "workdir": workdir(),
+            "out_dir": out_dir,
         });
         let child = Command::new(prog)
             .args(args)
@@ -943,7 +986,11 @@ impl Plugins {
         }
         let parsed: serde_json::Value = serde_json::from_str(stdout.trim())
             .unwrap_or_else(|_| serde_json::json!({ "ok": true, "message": stdout.trim() }));
-        Ok(serde_json::json!({ "kind": p.kind, "result": parsed, "stderr": stderr.lines().take(20).collect::<Vec<_>>() }))
+        let added = add_outputs(engine, &parsed);
+        Ok(serde_json::json!({
+            "kind": p.kind, "result": parsed, "added": added,
+            "stderr": stderr.lines().take(20).collect::<Vec<_>>(),
+        }))
     }
 
     /// Install a plugin from a folder or a package file into the first plugin directory.
@@ -993,6 +1040,28 @@ impl Plugins {
         self.reload();
         Ok(format!("uninstalled {} from {}", info.name, path.display()))
     }
+}
+
+/// Files a tool reports in `"outputs": [path, …]` join the map: GeoTIFFs as rasters, everything
+/// GDAL opens as vector layers. Returns the new layer / raster ids.
+fn add_outputs(engine: &std::sync::Arc<crate::Engine>, result: &serde_json::Value) -> Vec<String> {
+    let mut ids = Vec::new();
+    for path in result.get("outputs").and_then(|v| v.as_array()).into_iter().flatten().filter_map(|v| v.as_str()) {
+        let path = Path::new(path);
+        if !path.is_file() {
+            continue;
+        }
+        let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+        if matches!(ext.as_str(), "tif" | "tiff") {
+            let id = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            if let Ok(h) = engine.register_raster(path, &id) {
+                ids.push(h.info.id.clone());
+            }
+        } else if let Ok(handles) = crate::catalog::load_layers(path) {
+            ids.extend(engine.register_layers(handles));
+        }
+    }
+    ids
 }
 
 fn workdir() -> PathBuf {

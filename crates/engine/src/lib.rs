@@ -359,8 +359,12 @@ impl Engine {
             }
         }
         let devices = devices::Hub::new(cfg.devices.clone());
-        let mut plugin_dirs = cfg.plugins.dirs.clone();
+        // the plugins that ship with GeoSpaX (GeoLibre tools, examples) first, then --plugins
+        // folders, then <state>/plugins where imports are installed
+        let mut plugin_dirs = plugins::bundled_dirs();
+        plugin_dirs.extend(cfg.plugins.dirs.iter().cloned());
         plugin_dirs.push(state_dir.join("plugins"));
+        plugin_dirs.dedup();
         let plugins = plugins::Plugins::new(plugin_dirs);
         // A `kind: recipe` plugin ships GeoSpaX recipes in its `recipes/` folder: hand them
         // to the automation engine so its tools are ordinary, triggerable recipes.

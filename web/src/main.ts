@@ -14,12 +14,16 @@ import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
+import { inspectorHtml } from './inspector';
+import { Toolbox } from './toolbox';
+import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
   fmtNum,
   legendItems,
   primaryColor,
   symbologyField,
+  type Basemap,
   type LayerStyle,
   type Project,
 } from './symbology';
@@ -75,7 +79,9 @@ const DEVICE_COLORS: Record<string, string> = { photos: '#ff8c42', tracks: '#e04
 const colorFor = (id: string) => PALETTE[id] ?? DEVICE_COLORS[id.split('.').pop() ?? ''] ?? '#9aa5b1';
 const isDeviceLayer = (id: string) => (id.split('.').pop() ?? '') in DEVICE_COLORS;
 let liveData: LiveGeoJSON = { type: 'FeatureCollection', features: [] };
-const defaultVisible = (l: LayerInfo) => !l.id.endsWith('.fgb') && !l.id.endsWith('.shp') && l.id !== 'synthetic.points';
+// the benchmark sample ships the same synthetic data in three formats and a 1M-point layer: start
+// with one copy on; every other layer (yours, devices', recipe and plugin results) starts visible
+const defaultVisible = (l: LayerInfo) => !/^synthetic[._]/.test(l.id) || l.id === 'synthetic.buildings';
 const GEOM_ORDER: Record<string, number> = { polygon: 0, line: 1, point: 2, unknown: 3 };
 const isLand = (id: string) => id === 'natural_earth.countries';
 
@@ -113,7 +119,9 @@ function mergeProject(saved: Project | null): Project {
   for (const id of defaultOrder) if (!order.includes(id)) order.push(id);
   const styles: Record<string, LayerStyle> = {};
   for (const l of layers) styles[l.id] = { ...defaultStyle(l), ...(saved?.layers?.[l.id] ?? {}) };
-  return { version: 1, order, layers: styles, view: saved?.view };
+  const groups = saved?.groups ?? [];
+  const member = Object.fromEntries(Object.entries(saved?.member ?? {}).filter(([id, g]) => known.has(id) && groups.some((x) => x.id === g)));
+  return { version: 1, order, layers: styles, view: saved?.view, basemap: saved?.basemap, groups, member };
 }
 
 let saveTimer: number | undefined;
@@ -200,13 +208,19 @@ function heatmapLayer(l: LayerInfo, st: LayerStyle): maplibregl.LayerSpecificati
   } as unknown as maplibregl.LayerSpecification;
 }
 
+const groupOf_ = (id: string) => project.groups?.find((g) => g.id === project.member?.[id]);
+/** On the map = its own switch and its group's switch are both on. */
+const shownOnMap = (id: string) => !!project.layers[id]?.visible && (groupOf_(id)?.visible ?? true);
+
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
   const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': '#0d2233' } }];
+  addBasemap(sources, out);
   for (const id of project.order) {
     const l = layerById(id);
     if (!l) continue;
-    const st = project.layers[id];
+    // a switched-off group hides its layers without touching their own switches
+    const st = { ...project.layers[id], visible: shownOnMap(id) };
     const [w, s, e, n] = l.bounds;
     const fld = symbologyField(st.symbology);
     const fields = fld && !l.tile_fields.includes(fld) ? [...l.tile_fields, fld] : undefined;
@@ -273,15 +287,55 @@ function buildStyle(): maplibregl.StyleSpecification {
     { id: 'live#pos', type: 'circle', source: 'live', filter: ['==', ['get', 'role'], 'position'],
       paint: { 'circle-color': '#ffd166', 'circle-radius': 7, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 } } as maplibregl.LayerSpecification,
   );
-  // rasters sit above the land polygons and below every other vector layer
+  // rasters sit above the basemap and land polygons and below every other vector layer
   if (rasterPane) {
     const r = rasterPane.styleParts();
     Object.assign(sources, r.sources);
     let at = 1;
-    while (at < out.length && 'source' in out[at] && isLand((out[at] as { source: string }).source)) at++;
+    const under = (src: string) => isLand(src) || src.startsWith('basemap:');
+    while (at < out.length && 'source' in out[at] && under((out[at] as { source: string }).source)) at++;
     out.splice(at, 0, ...r.layers);
   }
   return { version: 8, sources, layers: out };
+}
+
+// ---------------------------------------------------------------- basemap
+// A map should never open on an empty void. 'offline' is Natural Earth 1:50m (public domain) shipped
+// with the app, so it works with no network; 'osm' is OpenStreetMap's raster tiles (needs internet).
+const basemapUrl = (f: string) => new URL(`basemap/${f}.geojson`, location.href).href;
+const basemap = (): Basemap => (params.get('basemap') as Basemap | null) ?? project.basemap ?? 'offline';
+
+function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: maplibregl.LayerSpecification[]) {
+  const b = basemap();
+  if (b === 'osm') {
+    sources['basemap:osm'] = {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    };
+    // dimmed so the data, not the basemap, carries the colour
+    out.push({ id: 'basemap:osm', type: 'raster', source: 'basemap:osm', paint: { 'raster-opacity': 0.55, 'raster-saturation': -0.6 } } as maplibregl.LayerSpecification);
+  } else if (b === 'offline') {
+    for (const f of ['land', 'lakes', 'boundaries']) sources[`basemap:${f}`] = { type: 'geojson', data: basemapUrl(f), tolerance: 0.6 };
+    out.push(
+      { id: 'basemap:land', type: 'fill', source: 'basemap:land', paint: { 'fill-color': '#1d3a35' } } as maplibregl.LayerSpecification,
+      { id: 'basemap:lakes', type: 'fill', source: 'basemap:lakes', paint: { 'fill-color': '#0d2233' } } as maplibregl.LayerSpecification,
+      {
+        id: 'basemap:boundaries', type: 'line', source: 'basemap:boundaries',
+        paint: { 'line-color': '#4f7468', 'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.4, 6, 1], 'line-dasharray': [3, 2] },
+      } as maplibregl.LayerSpecification,
+    );
+  }
+}
+
+function setBasemap(b: Basemap) {
+  project.basemap = b;
+  applyStyle();
+  renderContents();
+  saveProject();
+  workbench?.setStatus(b === 'offline' ? 'Basemap: Natural Earth (offline)' : b === 'osm' ? 'Basemap: OpenStreetMap (online)' : 'Basemap off');
 }
 
 function applyStyle() {
@@ -310,58 +364,245 @@ function fitAll() {
 }
 
 /** Let the engine choose a style for one layer (AutoMap). */
-async function autostyleLayer(id: string) {
-  const r = await backend.json<{ style: Partial<LayerStyle> }>(`api/layers/${encodeURIComponent(id)}/autostyle`).catch(() => null);
+async function autostyleLayer(id: string, opts: { keepVisibility?: boolean; quiet?: boolean } = {}) {
+  const r = await backend.json<{ style: Partial<LayerStyle>; why?: string }>(`api/layers/${encodeURIComponent(id)}/autostyle`).catch(() => null);
   if (!r?.style || !layerById(id)) return;
-  project.layers[id] = { ...project.layers[id], ...(r.style as LayerStyle), visible: true };
+  const prev = project.layers[id];
+  project.layers[id] = { ...prev, ...(r.style as LayerStyle), visible: opts.keepVisibility ? prev.visible : true, auto: r.why || 'chosen by AutoMap' };
+  if (opts.quiet) return;
+  applyStyle();
+  renderContents();
+  if (panel?.current === id) panel.refresh();
+  saveProject();
+}
+
+/** The lazy-mapper automation (auto styles, auto overviews) is on unless ?<name>=0. Benchmarks and the
+ *  UI tests (?bench, ?fresh) drive every step themselves, so it is off there unless ?<name>=1. */
+const lazyOn = (name: string) => params.has(name) ? params.get(name) !== '0' : !params.has('bench') && !params.has('fresh');
+
+/** Layers seen for the first time get AutoMap's style instead of a grey default (opt out: ?auto=0). */
+async function autostyleNew(ids: string[]) {
+  if (!ids.length || !lazyOn('auto')) return;
+  workbench?.setStatus(`Styling ${ids.length} new layer${ids.length > 1 ? 's' : ''} automatically…`);
+  for (const id of ids) await autostyleLayer(id, { keepVisibility: true, quiet: true });
+  applyStyle();
+  renderContents();
+  panel?.refresh();
+  saveProject();
+  workbench?.setStatus(`Styled ${ids.length} layer${ids.length > 1 ? 's' : ''} automatically · the ⚙ panel says why`, 6000);
+}
+
+// ---------------------------------------------------------------- Contents
+// Lazy mode: layer cards; Pro mode: a dense layer tree (web/src/layercards.ts). Remembered per browser;
+// the UI tests (?fresh, ?bench) get the Pro tree unless ?mode= says otherwise.
+const MODE_KEY = 'geospax.mode';
+let uiMode: UiMode = (() => {
+  const q = params.get('mode');
+  if (q === 'lazy' || q === 'pro') return q;
+  if (params.has('fresh') || params.has('bench')) return 'pro';
+  try {
+    return localStorage.getItem(MODE_KEY) === 'pro' ? 'pro' : 'lazy';
+  } catch {
+    return 'lazy';
+  }
+})();
+let layerFilter = '';
+/** Pro tree: layers whose legend is folded away (remembered per browser) */
+const closedLegends = new Set<string>((() => {
+  try {
+    return JSON.parse(localStorage.getItem('geospax.tree.closed') ?? '[]') as string[];
+  } catch {
+    return [];
+  }
+})());
+const saveClosed = () => {
+  try {
+    localStorage.setItem('geospax.tree.closed', JSON.stringify([...closedLegends]));
+  } catch {
+    /* session only */
+  }
+};
+
+/** Pro tree actions on group layers. */
+function groupAction(act: string, gid: string, el?: HTMLInputElement) {
+  const g = project.groups?.find((x) => x.id === gid);
+  if (!g) return;
+  if (act === 'twisty') g.expanded = !g.expanded;
+  else if (act === 'visible') g.visible = !!el?.checked;
+  else if (act === 'rename') {
+    const name = prompt('Group name', g.name)?.trim();
+    if (!name) return;
+    g.name = name;
+  } else if (act === 'ungroup') {
+    project.groups = project.groups!.filter((x) => x.id !== gid);
+    for (const [id, m] of Object.entries(project.member ?? {})) if (m === gid) delete project.member![id];
+  }
   applyStyle();
   renderContents();
   saveProject();
 }
 
-// ---------------------------------------------------------------- Contents
+function newGroup() {
+  const id = panel.current;
+  if (!id) return workbench?.setStatus('Select a layer first, then group it', 4000);
+  const name = prompt('Name of the new group', 'New group')?.trim();
+  if (!name) return;
+  const gid = `g${Date.now().toString(36)}`;
+  project.groups = [...(project.groups ?? []), { id: gid, name, visible: true, expanded: true }];
+  project.member = { ...(project.member ?? {}), [id]: gid };
+  renderContents();
+  saveProject();
+}
+let recipeIds = new Set<string>();
+
+function setMode(m: UiMode) {
+  uiMode = m;
+  document.body.dataset.mode = m;
+  try {
+    localStorage.setItem(MODE_KEY, m);
+  } catch {
+    /* private window: the choice lasts this session */
+  }
+  renderContents();
+  renderModeSwitch();
+  document.dispatchEvent(new CustomEvent('geospax:mode', { detail: m }));
+  workbench?.setStatus(m === 'lazy' ? 'Lazy mode: plain tasks and layers that explain themselves' : 'Pro mode: the full ribbon and every setting');
+}
+
+/** One switch in the title bar drives the ribbon and the layer list together. */
+function renderModeSwitch() {
+  const el = document.querySelector<HTMLElement>('#mode-switch');
+  if (el) el.innerHTML = modeSwitch(uiMode);
+}
+
 function renderContents() {
   const el = $('#contents');
-  el.innerHTML = '';
+  document.body.dataset.mode = uiMode;
   // ArcGIS convention: top of the list draws on top (= end of the draw order)
-  const list = [...project.order].reverse();
-  list.forEach((id, i) => {
-    const l = layerById(id);
-    if (!l) return;
+  const list = [...project.order].reverse().filter((id) => layerById(id));
+  const row = (id: string, i: number, depth = 0) => {
+    const l = layerById(id)!;
     const st = project.layers[id];
-    const job = jobs.get(id) ?? l.overview_job ?? undefined;
-    const running = job && (job.status === 'queued' || job.status === 'running');
-    const items = legendItems(st.symbology);
-    const row = document.createElement('div');
-    row.className = 'layer' + (panel?.current === id ? ' selected' : '');
-    row.dataset.id = id;
-    row.innerHTML = `
-      <input type="checkbox" ${st.visible ? 'checked' : ''} aria-label="Toggle ${esc(id)}" />
-      <span class="swatch ${l.geometry}" style="--c:${esc(primaryColor(st.symbology))}"></span>
-      <span class="meta"><b class="name" title="Open symbology">${esc(id)}</b>
-        <small>${l.geometry} · ${fmt(l.feature_count)} features · z${l.minzoom}–${l.maxzoom} · ${esc(l.driver)}</small>
-        ${l.overview ? `<small class="badge ok">pyramid z0–${l.overview.max_zoom} · ${(l.overview.bytes / 1e6).toFixed(1)} MB</small>` : ''}
-        ${running ? `<small class="badge busy">building overviews ${(job!.progress * 100).toFixed(0)}%</small>` : ''}
-        ${!l.overview && !running && l.overview_suggested != null ? `<small class="badge warn">live from z${l.live_minzoom} · overviews suggested</small>` : ''}
-      </span>
-      <span class="tools">
-        <button data-act="up" title="Move up" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>▲</button>
-        <button data-act="down" title="Move down" aria-label="Move down" ${i === list.length - 1 ? 'disabled' : ''}>▼</button>
-        <button data-act="props" title="Symbology" aria-label="Symbology">⚙</button>
-      </span>
-      ${
-        items.length
-          ? `<div class="legend"><small>${esc(st.symbology.kind === 'single' ? '' : (st.symbology as { field: string }).field)}</small>${items
-              .slice(0, 10)
-              .map((it) => `<div><i style="background:${esc(it.color)}"></i>${esc(it.label)}</div>`)
-              .join('')}${items.length > 10 ? `<div class="more">… ${items.length - 10} more</div>` : ''}</div>`
-          : ''
-      }`;
-    el.appendChild(row);
+    const state = {
+      layer: l,
+      style: st,
+      job: jobs.get(id) ?? l.overview_job ?? undefined,
+      selected: panel?.current === id,
+      first: i === 0,
+      last: i === list.length - 1,
+      actions: actionsFor(l, st.symbology, recipeIds),
+      autoOverviews: autoOverviewsOn(),
+      all: layers,
+      depth,
+      expanded: !closedLegends.has(id),
+    };
+    return uiMode === 'lazy' ? lazyCard(state) : proRow(state);
+  };
+  let body = '';
+  if (uiMode === 'lazy') {
+    // cards grouped by where the data came from; the draw order is kept inside each group
+    const groups = new Map<Group, string[]>();
+    list.forEach((id, i) => {
+      const g = groupOf(layerById(id)!, isDeviceLayer);
+      groups.set(g, [...(groups.get(g) ?? []), row(id, i)]);
+    });
+    for (const g of ['devices', 'data', 'results', 'reference'] as Group[]) {
+      const rows = groups.get(g);
+      if (rows) body += `<div class="lc-group"><span>${GROUP_TITLE[g]}</span><span>${rows.length}</span></div>${rows.join('')}`;
+    }
+    const b = basemap();
+    body += `<div class="lc-group"><span>Background</span></div>
+      <div class="card basemap" style="--c:#4f7468"><div class="lc-top"><span class="lc-glyph">🌍</span>
+      <span class="lc-title"><b>${b === 'osm' ? 'Streets (OpenStreetMap)' : b === 'none' ? 'No background' : 'World map'}</b>
+      <small>${b === 'osm' ? 'online' : b === 'none' ? 'plain colour' : 'offline · Natural Earth'}</small></span>
+      <button data-basemap="${b === 'offline' ? 'osm' : 'offline'}" class="lc-switch">${b === 'offline' ? 'Streets' : 'World'}</button></div></div>`;
+  } else {
+    // ArcGIS Pro's Contents: Map ▸ group layers ▸ layers ▸ legend classes, then the basemap
+    const f = layerFilter.toLowerCase();
+    const total = list.reduce((a, id) => a + (layerById(id)?.feature_count ?? 0), 0);
+    body = `<div class="pr-tool"><input type="search" class="pr-filter" placeholder="Filter layers…" value="${layerFilter.replace(/"/g, '&quot;')}" aria-label="Filter layers" />
+      <button data-tree="group" title="Put the selected layer in a new group">＋ Group</button>
+      <button data-tree="expand" title="Expand all">▾</button><button data-tree="collapse" title="Collapse all">▸</button></div>
+      <div class="pr-tree" role="tree" aria-label="Layers">
+      <div class="pr-map" role="treeitem" aria-level="1" aria-expanded="true"><span>▾</span> <b>Map</b><small>${list.length} layers · ${total.toLocaleString('en-US')} features</small></div>`;
+    if (f) {
+      body += list.map((id, i) => (id.toLowerCase().includes(f) ? row(id, i) : '')).join('');
+    } else {
+      const done = new Set<string>();
+      list.forEach((id, i) => {
+        const g = groupOf_(id);
+        if (!g) return void (body += row(id, i));
+        if (done.has(g.id)) return;
+        done.add(g.id);
+        const members = list.filter((x) => project.member?.[x] === g.id);
+        body += proGroup(g, members.length);
+        if (g.expanded) body += `<div class="pr-kids${g.visible ? '' : ' off'}">${members.map((m) => row(m, list.indexOf(m), 1)).join('')}</div>`;
+      });
+    }
+    const b = basemap();
+    body += `<div class="pr-base" role="treeitem" aria-level="2"><span class="pr-gico">🌍</span><b>Basemap</b>
+      <select data-tree="basemap" aria-label="Basemap"><option value="offline" ${b === 'offline' ? 'selected' : ''}>World (offline)</option>
+      <option value="osm" ${b === 'osm' ? 'selected' : ''}>OpenStreetMap (online)</option><option value="none" ${b === 'none' ? 'selected' : ''}>None</option></select></div></div>`;
+  }
+  // keep the filter box focused while typing
+  const focused = document.activeElement?.classList.contains('pr-filter');
+  el.innerHTML = body;
+  renderInspector();
+  if (focused) {
+    const fi = el.querySelector<HTMLInputElement>('.pr-filter');
+    fi?.focus();
+    fi?.setSelectionRange(fi.value.length, fi.value.length);
+  }
+}
+
+/** Lazy mode's right pane: the selected layer as a story (web/src/inspector.ts). */
+function renderInspector() {
+  const el = document.querySelector<HTMLElement>('#inspector');
+  if (!el) return;
+  const id = panel?.current;
+  const l = id ? layerById(id) : undefined;
+  el.innerHTML = inspectorHtml(
+    l && id
+      ? { layer: l, style: project.layers[id], all: layers, next: actionsFor(l, project.layers[id].symbology, recipeIds).map(([, label]) => ({ label })) }
+      : null,
+  );
+}
+
+function wireInspector() {
+  const el = $('#inspector');
+  el.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-ins]');
+    const id = panel.current;
+    if (!b || !id) return;
+    const l = layerById(id)!;
+    switch (b.dataset.ins) {
+      case 'auto':
+        return void autostyleLayer(id, { keepVisibility: true });
+      case 'colour':
+        workbench?.setStatus(b.dataset.field ? `Colouring by ${b.dataset.field}…` : 'One colour');
+        return void panel.colourBy(id, b.dataset.field || null);
+      case 'next': {
+        const a = actionsFor(l, project.layers[id].symbology, recipeIds)[Number(b.dataset.i)];
+        if (a) void automatePane?.run(a[0], { layer: id });
+        return;
+      }
+      case 'zoom':
+        return fitLayer(id);
+      case 'table':
+        void attributesPane?.open(id);
+        return workbench?.showTab('right', 'attributes');
+    }
+  });
+  el.addEventListener('change', (e) => {
+    const t = e.target as HTMLInputElement;
+    const id = panel.current;
+    if (id && t.dataset.ins === 'opacity') setLayerStyle(id, { ...project.layers[id], opacity: Number(t.value) / 100 });
   });
 }
 
 function setLayerStyle(id: string, st: LayerStyle) {
+  const prev = project.layers[id];
+  if (prev && JSON.stringify(prev.symbology) !== JSON.stringify(st.symbology)) delete st.auto;
   project.layers[id] = st;
   applyStyle();
   renderContents();
@@ -383,20 +624,119 @@ function wireContents() {
   const el = $('#contents');
   el.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
+    const gid = t.closest<HTMLElement>('.pr-group')?.dataset.group;
+    if (gid && t.dataset.gact === 'visible') return groupAction('visible', gid, t);
+    if (t.dataset.tree === 'basemap') return setBasemap(t.value as Basemap);
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
-    if (!id || t.type !== 'checkbox') return;
-    setLayerStyle(id, { ...project.layers[id], visible: t.checked });
+    if (!id) return;
+    if (t.type === 'checkbox') {
+      setLayerStyle(id, { ...project.layers[id], visible: t.checked });
+      if (t.checked) void queueAutoOverviews();
+    }
+    else if (t.dataset.act === 'opacity') setLayerStyle(id, { ...project.layers[id], opacity: Number(t.value) / 100 });
+  });
+  el.addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement;
+    if (t.classList.contains('pr-filter')) {
+      layerFilter = t.value;
+      renderContents();
+    }
   });
   el.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
+    const bm = t.closest<HTMLElement>('[data-basemap]')?.dataset.basemap;
+    if (bm) return setBasemap(bm as Basemap);
+    const tree = t.closest<HTMLElement>('button[data-tree]')?.dataset.tree;
+    if (tree === 'group') return newGroup();
+    if (tree === 'expand' || tree === 'collapse') {
+      for (const g of project.groups ?? []) g.expanded = tree === 'expand';
+      if (tree === 'expand') closedLegends.clear();
+      else for (const id of project.order) closedLegends.add(id);
+      saveClosed();
+      renderContents();
+      return saveProject();
+    }
+    const gEl = t.closest<HTMLElement>('.pr-group');
+    if (gEl) {
+      const ga = t.closest<HTMLElement>('button[data-gact]')?.dataset.gact;
+      if (ga) groupAction(ga, gEl.dataset.group!);
+      return;
+    }
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
     if (!id) return;
-    const act = t.closest<HTMLElement>('[data-act]')?.dataset.act;
-    if (act === 'up' || act === 'down') moveLayer(id, act);
-    else if (act === 'props' || t.classList.contains('name')) {
-      panel.open(id);
-      renderContents();
+    const actEl = t.closest<HTMLElement>('[data-act]');
+    const act = actEl?.dataset.act;
+    if (act === 'twisty') {
+      if (!closedLegends.delete(id)) closedLegends.add(id);
+      saveClosed();
+      return renderContents();
     }
+    if (act === 'up' || act === 'down') moveLayer(id, act);
+    else if (act === 'zoom') fitLayer(id);
+    else if (act === 'recipe' && actEl?.dataset.recipe) void automatePane?.run(actEl.dataset.recipe, { layer: id });
+    else if (act === 'props' || t.classList.contains('name') || t.closest('.name')) {
+      panel.open(id);
+      // Lazy: the layer's story; Pro: its full symbology
+      workbench?.showTab('right', uiMode === 'lazy' ? 'inspector' : 'symbology');
+      renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
+    } else if (!t.closest('button, input, label')) {
+      // a click anywhere else on a card selects the layer: the ribbon offers its next steps
+      panel.open(id);
+      if (uiMode === 'lazy') workbench?.showTab('right', 'inspector');
+      renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
+    }
+  });
+  el.addEventListener('dblclick', (e) => {
+    const g = (e.target as HTMLElement).closest<HTMLElement>('.pr-gname')?.closest<HTMLElement>('.pr-group');
+    if (g) groupAction('rename', g.dataset.group!);
+  });
+  // Pro tree: drag a row onto another to put it there (Pro's Contents drag-and-drop); onto a group
+  // to put it in the group
+  let dragId: string | null = null;
+  el.addEventListener('dragstart', (e) => {
+    dragId = (e.target as HTMLElement).closest<HTMLElement>('.layer.pro')?.dataset.id ?? null;
+    if (dragId) e.dataTransfer?.setData('text/plain', dragId);
+  });
+  const clearDrop = () => el.querySelectorAll('.drop').forEach((x) => x.classList.remove('drop'));
+  el.addEventListener('dragover', (e) => {
+    const over = (e.target as HTMLElement).closest('.layer.pro, .pr-group, .pr-map');
+    if (!dragId || !over) return;
+    e.preventDefault();
+    clearDrop();
+    over.classList.add('drop');
+  });
+  el.addEventListener('dragend', clearDrop);
+  el.addEventListener('drop', (e) => {
+    const target = e.target as HTMLElement;
+    e.preventDefault();
+    const gid = target.closest<HTMLElement>('.pr-group')?.dataset.group;
+    if (dragId && (gid || target.closest('.pr-map'))) {
+      // onto a group: join it; onto the Map node: leave any group
+      project.member = { ...(project.member ?? {}) };
+      if (gid) project.member[dragId] = gid;
+      else delete project.member[dragId];
+      dragId = null;
+      applyStyle();
+      renderContents();
+      return saveProject();
+    }
+    const to = target.closest<HTMLElement>('.layer.pro')?.dataset.id;
+    if (!dragId || !to || to === dragId) return;
+    // dropped on a layer: take its place and its group
+    project.member = { ...(project.member ?? {}) };
+    if (project.member[to]) project.member[dragId] = project.member[to];
+    else delete project.member[dragId];
+    const o = project.order.filter((x) => x !== dragId);
+    // dropped on a row = takes that row's place in the list (list is top-first, order is bottom-first)
+    const at = o.indexOf(to);
+    o.splice(project.order.indexOf(dragId) > project.order.indexOf(to) ? at : at + 1, 0, dragId);
+    project.order = o;
+    dragId = null;
+    applyStyle();
+    renderContents();
+    saveProject();
   });
 }
 
@@ -405,13 +745,16 @@ async function reloadLayers() {
   const r = await backend.json<{ layers: LayerInfo[] }>('api/layers');
   layers = r.layers;
   // Layers that appeared at runtime (device imports) join the project with default styles, on top.
-  const before = project.order.length;
+  const known = new Set(project.order);
   project = mergeProject(project);
-  if (project.order.length !== before) saveProject();
+  const added = project.order.filter((id) => !known.has(id));
+  if (added.length) saveProject();
+  void autostyleNew(added);
   applyStyle();
   renderContents();
   panel.refresh();
   document.dispatchEvent(new CustomEvent('geospax:reload-views'));
+  void queueAutoOverviews();
 }
 
 function pollJob(layerId: string, jobId: number) {
@@ -440,6 +783,30 @@ async function buildOverviews(id: string) {
   jobs.set(id, j);
   renderContents();
   pollJob(id, j.id);
+}
+
+/** Dense layers get their overview pyramid built in the background, one at a time, without a
+ *  click (opt out: ?autooverviews=0). Same job the "Build overviews" button starts. */
+const autoOverviewsOn = () => lazyOn('autooverviews');
+let autoOverviewBusy = false;
+async function queueAutoOverviews() {
+  if (!autoOverviewsOn() || autoOverviewBusy) return;
+  const busy = (j?: Job | null) => j && (j.status === 'queued' || j.status === 'running');
+  if (layers.some((l) => busy(jobs.get(l.id) ?? l.overview_job))) return; // pollJob calls back when it ends
+  // a job that failed or was cancelled is not retried until the page reloads
+  // only layers that are on the map: hidden ones wait until someone shows them
+  const next = layers.find((l) => project.layers[l.id]?.visible && !l.overview && l.overview_suggested != null && !['failed', 'cancelled'].includes(jobs.get(l.id)?.status ?? ''));
+  if (!next) return;
+  autoOverviewBusy = true;
+  try {
+    await buildOverviews(next.id);
+    workbench?.setStatus(`Preparing the zoomed-out view of ${next.id} in the background`, 5000);
+  } catch (e) {
+    jobs.set(next.id, { ...(jobs.get(next.id) ?? ({} as Job)), status: 'failed' } as Job);
+    console.warn('automatic overviews failed', next.id, e);
+  } finally {
+    autoOverviewBusy = false;
+  }
 }
 
 // ---------------------------------------------------------------- HUD
@@ -602,13 +969,17 @@ async function main() {
   ]);
   layers = ls;
   // ?fresh ignores the saved project (benchmarks, smoke tests)
-  project = mergeProject(params.has('fresh') || params.has('bench') ? null : saved);
+  const savedProject = params.has('fresh') || params.has('bench') ? null : saved;
+  project = mergeProject(savedProject);
+  const firstSeen = layers.map((l) => l.id).filter((id) => !savedProject?.layers?.[id]);
   $('#edition').textContent = backend.edition === 'web' ? 'Web edition · Axum' : 'Desktop edition · Tauri';
 
   const hasHashView = /[#&]view=/.test(location.hash);
   const pv = (params.get('view') ?? '').split('/').map(Number);
   const urlView = pv.length === 3 && pv.every(Number.isFinite) ? { zoom: pv[0], center: [pv[2], pv[1]] as [number, number] } : null;
-  const view = urlView ?? (!hasHashView && project.view ? project.view : { center: [144.25, -5.87] as [number, number], zoom: 12.5 });
+  // no saved view: open on the data itself (fitted once the map exists), not on a fixed place
+  const fitOnLoad = !urlView && !hasHashView && !project.view && !params.has('bench');
+  const view = urlView ?? (!hasHashView && project.view ? project.view : { center: [144.25, -5.87] as [number, number], zoom: fitOnLoad ? 1 : 12.5 });
   const ua = navigator.userAgent;
   const webkitGtk = /Linux/.test(ua) && /AppleWebKit/.test(ua) && !/Chrom/.test(ua);
   const preserveBuffer = params.has('glpdb') ? params.get('glpdb') === '1' : webkitGtk;
@@ -655,6 +1026,7 @@ async function main() {
     cancelJob: async (jobId) => {
       await backend.json(`api/jobs/${jobId}/cancel`, { method: 'POST' });
     },
+    autostyle: (id) => autostyleLayer(id, { keepVisibility: true }),
     deleteOverviews: async (id) => {
       await backend.json(`api/layers/${id}/overviews`, { method: 'DELETE' });
       jobs.delete(id);
@@ -662,7 +1034,21 @@ async function main() {
     },
   });
   wireContents();
+  wireInspector();
   renderContents();
+  renderModeSwitch();
+  document.querySelector('#mode-switch')?.addEventListener('click', (e) => {
+    const m = (e.target as HTMLElement).closest<HTMLElement>('[data-mode]')?.dataset.mode as UiMode | undefined;
+    if (m && m !== uiMode) setMode(m);
+  });
+  backend
+    .json<{ recipes: { id: string }[] }>('api/recipes')
+    .then((r) => {
+      recipeIds = new Set(r.recipes.map((x) => x.id));
+      renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: panel.current }));
+    })
+    .catch(() => {});
   startHud();
   // resume polling jobs started in another session/window
   for (const l of layers) if (l.overview_job) pollJob(l.id, l.overview_job.id);
@@ -705,8 +1091,12 @@ async function main() {
         const main = steps.find((s) => s.outputs?.svg && Array.isArray(s.outputs?.rasters))?.outputs?.rasters;
         if (run.status === 'done') rasterPane.showRun(run.rasters, main);
       }
+      // the run's styles dress the layers it made; a layer someone (or AutoMap) already styled keeps its look
       for (const [id, st] of Object.entries(run.styles ?? {})) {
-        if (layerById(id)) project.layers[id] = { ...project.layers[id], ...(st as LayerStyle), visible: true };
+        const cur = project.layers[id];
+        if (!layerById(id)) continue;
+        const styled = cur && (cur.symbology.kind !== 'single' || cur.auto);
+        project.layers[id] = styled ? { ...cur, visible: true } : { ...cur, ...(st as LayerStyle), visible: true };
       }
       applyStyle();
       renderContents();
@@ -783,6 +1173,31 @@ async function main() {
   });
   void pluginsPane.reload();
 
+  // Toolbox (web/src/toolbox.ts): recipes, building blocks and every plugin's tools, searchable
+  const toolbox = new Toolbox($('#toolbox'), {
+    backend,
+    layers: () => layers,
+    activeId: () => panel.current,
+    runRecipe: (id, inputs) => {
+      void automatePane?.run(id, inputs);
+      workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+    },
+    openPluginTool: (p, t) => pluginsPane?.openTool(p, t),
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  });
+  void toolbox.reload();
+  document.addEventListener('geospax:plugins-changed', () => void toolbox.reload());
+  document.addEventListener('geospax:toolbox-search', (e) => toolbox.find((e as CustomEvent<string>).detail));
+  document.addEventListener('geospax:plugin-ran', async (e) => {
+    const ids = (e as CustomEvent<string[]>).detail;
+    await reloadLayers();
+    await rasterPane?.reload();
+    applyStyle();
+    const first = ids.find((id) => layerById(id));
+    if (first) fitLayer(first);
+    workbench?.setStatus(`Added to the map: ${ids.join(', ')}`, 6000);
+  });
+
   workbench = new Workbench({
     backend,
     map,
@@ -793,6 +1208,20 @@ async function main() {
     setActive: (id) => {
       if (id) panel.open(id);
       renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
+    },
+    mode: () => uiMode,
+    layerName: (id) => {
+      const l = layerById(id);
+      return l ? friendlyName(l, layers) : id;
+    },
+    nextSteps: (id) => {
+      const l = layerById(id);
+      if (!l) return [];
+      return actionsFor(l, project.layers[id].symbology, recipeIds).map(([rid, label]) => ({
+        label,
+        run: () => void automatePane?.run(rid, { layer: id }),
+      }));
     },
     fitLayer,
     fitAll,
@@ -828,6 +1257,10 @@ async function main() {
     renderContents();
   }
   (window as unknown as { workbench: Workbench | null }).workbench = workbench;
+  if (fitOnLoad) fitAll();
+  // the lazy path: new layers styled by AutoMap, dense ones get overviews, without a click
+  void autostyleNew(firstSeen).then(() => queueAutoOverviews());
+  document.addEventListener('geospax:basemap', (e) => setBasemap((e as CustomEvent<Basemap>).detail));
 
   if (params.has('bench')) map.once('idle', () => void runBench());
 }

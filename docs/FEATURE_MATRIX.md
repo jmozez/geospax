@@ -55,12 +55,15 @@ These are marked ✅ / 🚧 in the tables below; details are in [AUTOMATION.md](
 | Layouts, map series, dynamic text | Auto layout (title, legend, scale bar, north arrow, credits) and auto atlas per feature or region | N (Typst/SVG) | P5 (🚧 auto layout → PNG/SVG/PDF ✅ in `export.map`, rasters with relief shading ✅; atlas next) |
 | Local scenes: elevation surfaces, vertical exaggeration, extrusion, LAS dataset layers, Export to glTF / 3D Object | **3D scene in every LiDAR and terrain recipe**: block diagram draped with map colours, relief shading, imagery or contours; buildings extruded to their heights, trees, point cloud; exaggeration chosen from the relief; glTF + offline viewer + picture in the report ([AUTOMATION §6d](AUTOMATION.md#6d-3d-scenes-built)) | N (own mesher, glTF writer, CPU renderer, WebGL viewer) | ✅ v1.5; LOD2 roofs, I3S/3D Tiles next |
 | Network Analyst (routes, service areas) | "What can I reach in 15 min?" as one step (isochrones, OD matrices) | P (Valhalla/OSRM) / Py (osmnx) | P4 |
+| Contents pane (drawing order, group layers, expandable legends), contextual tabs | **Pro mode**: a layer tree with Map node, group layers, twisties, drag into groups and a group switch; a contextual **Layer** tab for the selected layer. **Lazy mode** turns the same layers into cards that explain themselves | N | ✅ next |
+| Geoprocessing pane (search tools, favourites, history) | **Toolbox**: recipes, building blocks and every plugin's tools in one ranked search; each building block lists the ArcGIS Pro / QGIS tools it stands in for, so their names find it; recently used on top | N | ✅ next |
 | Pro assistant (help, SQL, ArcPy code) [1] | Natural language → **recipe** (previewed, never auto-run if it writes, deletes or uses the network) | AI | P2 |
 
 ### QGIS 4 (GPL)
 | Borrow | GeoSpaX lazy version | How | Phase |
 |---|---|---|---|
 | Processing toolbox with GDAL/GRASS/SAGA providers | **Provider federation**: one step vocabulary, and the best installed engine is picked automatically (and recorded) | N + P | P2 (🚧 GDAL in-process ✅, `grass` and `saga` steps ✅; automatic engine choice next) |
+| Processing toolbox search across providers | The **Toolbox** searches GeoSpaX, GeoLibre (1,062 tools), QGIS (`qgis_process`), ArcGIS Pro (`.pyt`) and RustGIS tools at once, with a badge per source | N | ✅ next |
 | Graphical modeler, batch processing | Recipes, batch over folders and devices, triggers | N | P2 (🚧 recipes + device/folder/schedule/after/stac/webhook/sensor triggers ✅) |
 | Expressions, data-defined overrides | DuckDB/SQL expressions in recipes and styles | N | P2 |
 | Print layouts, atlas, layout charts and legend sync modes (new in 4.0) [2] | Auto layouts with charts; legend synced to visible layers by default | N | P5 (🚧 legend from styles with class counts ✅; charts next) |
@@ -84,6 +87,7 @@ These are marked ✅ / 🚧 in the tables below; details are in [AUTOMATION.md](
 ### GeoLibre (MIT) and RustGIS (Apache-2.0)
 | Borrow | GeoSpaX lazy version | How | Phase |
 |---|---|---|---|
+| 1,000+ WebAssembly geoprocessing tools (GeoLibre, geolibre-wasm / whitebox_next_gen) | **Bundled**: all 1,062 tools as the `geolibre-tools` plugin, run locally under Node's WASI; layers resolve to their files and results join the map ([PLUGINS §1a](PLUGINS.md#1a-geolibre-tools-bundled)) | P (WASI) | ✅ next |
 | DuckDB Spatial SQL workspace (GeoLibre) | SQL steps inside recipes, in the native engine (larger-than-memory) | N | P2 (🚧 SQLite/SpatiaLite ✅; DuckDB next) |
 | Batch runner, model/pipeline chaining (GeoLibre) [4] | Recipes with triggers, caching and provenance | N | P2 (🚧 triggers, `after` chains, provenance ✅; cache next) |
 | Auditable, undoable assistant operations (GeoLibre) [4] | The AI only emits recipe steps, so everything stays auditable, undoable and re-runnable | AI | P2 |

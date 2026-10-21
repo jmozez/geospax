@@ -86,7 +86,8 @@ Whitebox, GeoDa, Global Mapper, FME and the R and Python ecosystems is in [FEATU
 4. **Offline, no account, no API key** for everything in the autopilot. AI is an optional accelerator that writes recipes; it never replaces them.
 5. **Borrow proven methods and say where they come from.** Jenks via ckmeans, variograms the gstat/automap way, OBIA the eCognition way. The methods panel and auto-generated report text cite the technique.
 6. **Show the code.** Every step can export equivalent R or Python. Lazy users grow into power users without switching tools.
-7. **Respect location privacy.** Device and photo locations are personal data. Imports are opt-in, nothing leaves the machine by default, and EXIF is stripped on share.
+7. **One engine, two densities.** *Lazy* and *Pro* are views, not editions: a task bar, layer cards, an Inspector and an Activity feed for people who want the map; the full ribbon, a layer tree and every setting for people who want control. One switch, the same project, the same map.
+8. **Respect location privacy.** Device and photo locations are personal data. Imports are opt-in, nothing leaves the machine by default, and EXIF is stripped on share.
 
 ## 5. Success metrics
 

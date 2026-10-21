@@ -70,6 +70,7 @@ cp "$(ls "${CARGO_HOME:-$HOME/.cargo}"/registry/src/*/webview2-com-sys-"$WV2"/x6
 cp -rp "$GDAL_WIN/Library/share/gdal" "$GDAL_WIN/Library/share/proj" "$STAGE/share/"
 cp -rp web/dist "$STAGE/web"
 cp -p recipes/*.yaml "$STAGE/recipes/"
+cp -r plugins "$STAGE/plugins"   # bundled plugins (GeoLibre tools run on Node.js when it is installed)
 cp -p docs/USER_GUIDE.md "$STAGE/docs/"
 cp -p LICENSE-MIT "$STAGE/LICENSE-MIT.txt"
 cp -p LICENSE-APACHE "$STAGE/LICENSE-APACHE.txt"
@@ -147,7 +148,8 @@ rm -rf "$PORT" "$PORT.zip" && cp -r "$STAGE" "$PORT" && cp "$REL/geospax.exe" "$
 (cd "$ROOT/target/windows" && zip -q -r -9 "$(basename "$PORT").zip" "$(basename "$PORT")")
 rm -rf "$PORT"
 
-(cd releases && sha256sum ./*.deb ./*.exe 2>/dev/null | sed 's| \./| |' > SHA256SUMS)
+# checksums of whatever is in releases/ (no .deb when only the Windows edition was built)
+(cd releases && shopt -s nullglob && files=(./*.deb ./*.exe) && sha256sum "${files[@]}" | sed 's| \./| |' > SHA256SUMS)
 rm -rf "$TMPDIR"
 echo "== done in $(( $(date +%s) - t0 )) s"
 ls -la releases/GeoSpaX_"$VERSION"_x64-setup.exe "$PORT.zip" | awk '{printf "%6.1f MB  %s\n", $5 / 1e6, $NF}'

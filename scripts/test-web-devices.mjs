@@ -36,7 +36,7 @@ const page = await context.newPage();
 watch(page, 'map');
 await page.goto(`${base}/?fresh&view=12/-5.86/144.25`);
 // 1.7: panes are docked — open the Devices tab before looking inside it
-await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 60000, polling: 300 });
+await page.waitForFunction(() => typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 60000, polling: 300 });
 await page.click('#dock-right .dock-tabs [data-tab="devices"]').catch(() => {});
 const phoneRow = page.locator('#devices .device', { hasText: 'TEST-PHONE' });
 await phoneRow.waitFor({ timeout: 30000 }).catch(() => fail('TEST-PHONE not listed in the Devices pane'));

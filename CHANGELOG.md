@@ -5,6 +5,92 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added — the lazy path, stage 1
+- **Layers style themselves.** A layer seen for the first time gets AutoMap's style instead of a grey
+  single symbol (e.g. PM2.5 readings in WHO guideline classes, a `kind` field as unique colours). The
+  Symbology pane shows AutoMap's reason; editing the symbology takes over, and **✨ Style automatically**
+  re-applies it. Opt out with `?auto=0`.
+- **Overviews build themselves.** Layers too dense to draw zoomed out get their overview pyramid in the
+  background, one job at a time; the Contents badge reads "preparing zoomed-out view" instead of asking
+  you to click. Opt out with `?autooverviews=0`.
+- **Offline basemap.** Natural Earth 1:50m land, lakes and country borders (public domain, 1.8 MB) ship
+  with the web UI, so the map never opens on an empty void, even without internet. **View → Basemap**:
+  World (offline), OpenStreetMap (online) or none; the choice is saved in the project.
+- **The map opens on your data** when there is no saved view, instead of a fixed place.
+
+### Added — Lazy and Pro ribbons
+- **One Lazy | Pro switch in the title bar** drives the ribbon and the layer list together.
+- **Lazy: a task bar instead of a ribbon.** One row: a "What do you want to do?" box (the command
+  palette), four tasks in plain words (Add data, Make it look good, Find patterns, Finish the map) and
+  **Next for <layer>**: the analyses that fit the selected layer, run on it with one click. Every button is
+  an ordinary command, so nothing is lazy-only.
+- **Pro: a contextual Layer tab** (as ArcGIS Pro shows for a selected layer) with zoom, attribute table,
+  symbology, AutoMap and the same next steps. Clicking a layer card selects it.
+
+### Added — Pro layer tree, Toolbox, GeoLibre tools
+- **The Pro Contents pane is a tree**, as in ArcGIS Pro: Map ▸ group layers ▸ layers ▸ legend, then the
+  basemap. **＋ Group**, rename (✎ or double-click), ungroup (⊟, keeps the layers), a group switch that
+  hides its layers without touching their own switches, twisties that fold a layer's legend (remembered),
+  expand/collapse all, and drag a layer onto a group, onto Map or onto another layer. Saved in the project
+  (`groups`, `member`). ARIA tree roles.
+- **Toolbox** (right pane, both modes; *All tools* in the Lazy task bar, *Analyze → Toolbox* in Pro): the
+  recipes, the engine's 36 building blocks (each with the ArcGIS Pro / QGIS / GRASS / SAGA tools it stands
+  in for, so those names find it, and the recipes that use it) and every plugin's tools, in one ranked
+  search with categories, recently used tools, source badges and in-pane recipe forms.
+- **1,062 GeoLibre tools, bundled** (`plugins/geolibre-tools`): GeoLibre's tool runner (geolibre-wasm 1.7.1,
+  MIT, built on whitebox_next_gen) as a GeoSpaX plugin, run under Node's WASI. Forms generated from its
+  manifests; vector inputs are layers on the map; results join the map. The runner is fetched once and
+  checked against its npm SHA-512 (not redistributed). See [PLUGINS §1a](docs/PLUGINS.md#1a-geolibre-tools-bundled).
+- **Plugin contract:** requests carry `layer_sources` (layer → file) and `out_dir`; files a tool lists in
+  `outputs` are added to the map (rasters and vector layers) and named in the reply's `added`.
+- **Bundled plugins load without flags** (source checkout, `.deb`, Windows, Docker; `$GEOSPAX_PLUGINS`);
+  the `.deb` recommends `nodejs`. A `process` plugin whose program is missing says so (*needs node*).
+- A plugin with more than 40 tools gets one ribbon button that opens the Toolbox on it.
+- `scripts/test-web-controls.mjs` clicks every control in both modes (48 ribbon commands, the Layer tab,
+  the tree, every dock tab, the Toolbox, the task bar, Inspector chips, card buttons, one analysis from a
+  card to its report) and fails on any page error, console error or 5xx: 18/18 pass.
+
+### Changed
+- Lazy mode: clicking a card, its name or its ⋯ opens the Inspector (Symbology is Pro-only); the Project
+  tab (transport, benchmark) is Pro-only.
+- New layers start visible; only the benchmark's duplicate synthetic copies start hidden (plugin and
+  recipe results in `.shp` were hidden before).
+
+### Fixed
+- Web tests waited for `window.map`, which the browser points at the `#map` element before the app
+  creates its map; they now wait for the map object.
+- CI on Debian 13: shell scripts executable, Windows checksums without a `.deb`, `USER` unset in
+  containers, the MQTT/TLS brokers in the Linux and Wine tests could not read their certificates as
+  the `mosquitto` user, `r-cran-gstat` taken from CRAN.
+
+### Added — Lazy panes: the Inspector and Activity
+- **Inspector** (right pane in Lazy mode): the selected layer as a story: sentence, classes with count
+  bars, AutoMap's reason, **Colour it by** chips (graduated for numbers, WHO classes for PM2.5/PM10, unique
+  values for text), opacity, next steps, and where the data came from.
+- **Activity** (bottom pane in Lazy mode): ideas for the data on the map, run with one click, and a
+  plain-language timeline of runs with **Open report**, then the latest notes.
+- Switching mode opens that mode's panes; Pro keeps the existing tabs.
+
+### Fixed
+- A finished recipe no longer overwrites the style of an input layer that was already styled (by hand or
+  by AutoMap); run styles now dress the layers the run created and layers nobody styled.
+
+### Added — Lazy and Pro layer lists
+- **Contents has two modes**, switched at the top of the pane and remembered per browser (Lazy by default;
+  `?mode=lazy|pro`). **Lazy: layer cards** with a friendly name, a one-sentence summary written from the
+  layer's own classes ("88% of 1,500 readings are above 15"), a legend bar sized by class counts, status in
+  words, a big show/hide button and buttons for the recipes that fit the layer, run on that layer
+  (`POST /api/recipes/{id}/run` with `{"inputs": {"layer": …}}`). Cards are grouped by origin (devices, your
+  data, recipe results, reference) with the basemap as a card at the bottom. **Pro: layer tree** with file
+  names, drag-to-reorder, inline opacity, CRS / zoom range / classification on one line, legend counts and a
+  filter box. Benchmarks and UI tests (`?fresh`, `?bench`) open in Pro.
+
+### Fixed
+- Switching a layer to graduated or unique colours no longer picks an identifier field (`id`, `fid`,
+  `objectid`, `*_id`); it prefers measurements such as PM2.5, height, population or elevation.
+- Benchmarks and UI tests (`?bench`, `?fresh`) keep the old manual behaviour so their steps stay deterministic.
+
+
 ### Security
 - **The web edition is no longer open to the network by default.** `geospax-server` used to listen on
   every interface with no access control, so anyone who could reach port 8080 could save and run
