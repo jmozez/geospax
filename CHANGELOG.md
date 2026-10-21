@@ -5,6 +5,13 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added — the lazy path, stage 4
+- **Map series (atlas) from Finish my map**: a grid of pages over the area, or one page per feature of a
+  polygon/line layer (up to 40) titled from a field; each page is its own PNG/PDF with "page n of N".
+- **Keyboard navigation in the Pro layer tree** (WAI-ARIA tree): ↑/↓, Home/End, →/←, Space, Enter,
+  Alt+↑/↓ to reorder, F2 to rename a group; one tab stop, focus kept across redraws.
+- `scripts/test-web-series.mjs`: tree keys and a two-page series, end to end.
+
 ### Added — the lazy path, stage 3
 - **Light theme, now the default**, plus Dark and System (follows the OS). Switch with the ☀/☾/◐ button in the
   title bar or View → Theme; the choice is remembered, `?theme=light|dark|system` overrides it. The map's
