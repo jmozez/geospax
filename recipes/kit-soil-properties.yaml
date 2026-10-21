@@ -1,0 +1,38 @@
+# Soil kit: topsoil pH, organic carbon and clay for an area from SoilGrids.
+recipe: kit-soil-properties
+version: 1
+kit: Soil
+title: Topsoil properties (SoilGrids)
+description: >-
+  An area in: SoilGrids 2.0 predictions at 250 m of topsoil pH, soil organic carbon and clay for
+  the depth you choose, each mapped with its legend and units, with the citation in the report.
+inputs:
+  area: { type: layer, default: auto, description: the area (any layer) }
+  depth: { type: text, default: 0-5cm, description: "0-5cm, 5-15cm, 15-30cm, 30-60cm, 60-100cm or 100-200cm" }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}" }
+  - id: ph
+    use: data.fetch
+    with: { source: soilgrids, property: phh2o, depth: "${inputs.depth}", aoi: "${area.layer}" }
+  - id: carbon
+    use: data.fetch
+    with: { source: soilgrids, property: soc, depth: "${inputs.depth}", aoi: "${area.layer}" }
+  - id: clay
+    use: data.fetch
+    with: { source: soilgrids, property: clay, depth: "${inputs.depth}", aoi: "${area.layer}" }
+  - id: ph_map
+    use: export.map
+    with: { name: soil-ph, layers: ["${ph.raster}", "${area.layer}"], title: "Soil pH (${inputs.depth})" }
+  - id: carbon_map
+    use: export.map
+    with: { name: soil-carbon, layers: ["${carbon.raster}", "${area.layer}"], title: "Soil organic carbon (${inputs.depth})" }
+  - id: clay_map
+    use: export.map
+    with: { name: soil-clay, layers: ["${clay.raster}", "${area.layer}"], title: "Clay (${inputs.depth})" }
+  - id: report
+    use: export.report
+    needs: [ph_map, carbon_map, clay_map]
+    with: { title: "Topsoil properties · ${run.date}" }
+outputs: [ph_map, carbon_map, clay_map, report]

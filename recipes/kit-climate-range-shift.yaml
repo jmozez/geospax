@@ -1,0 +1,57 @@
+# Climate kit: where a species' climate is now and where it moves under a CMIP6 scenario.
+recipe: kit-climate-range-shift
+version: 1
+kit: Climate
+title: Range shift under future climate (CMIP6)
+description: >-
+  A species distribution model on present WorldClim climate, projected onto a CMIP6 climate model,
+  scenario and period: maps of present and future suitability and of range lost, stable and
+  gained, with the areas and the net change in the report.
+inputs:
+  species: { type: text, default: "Paradisaea raggiana", description: scientific name }
+  area: { type: layer, default: auto, description: "the study area (any layer)" }
+  source: { type: text, default: gbif, description: "gbif, obis or inat" }
+  variables: { type: text, default: "1,4,12,15", description: bioclim variables }
+  resolution: { type: text, default: 2.5m, description: "10m, 5m or 2.5m (future climate has no 30s)" }
+  gcm: { type: text, default: MPI-ESM1-2-HR, description: climate model }
+  ssp: { type: text, default: "245", description: "126, 245, 370 or 585" }
+  period: { type: text, default: 2041-2060, description: "2021-2040, 2041-2060, 2061-2080 or 2081-2100" }
+  method: { type: text, default: mahalanobis, description: "logistic, bioclim or mahalanobis" }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}" }
+  - id: occurrences
+    use: data.fetch
+    with: { source: "${inputs.source}", species: "${inputs.species}", aoi: "${area.layer}", limit: 5000 }
+  - id: climate
+    use: data.fetch
+    with: { source: worldclim, variables: "${inputs.variables}", resolution: "${inputs.resolution}", aoi: "${area.layer}" }
+  - id: future
+    use: data.fetch
+    with: { source: worldclim-future, variables: "${inputs.variables}", resolution: "${inputs.resolution}", gcm: "${inputs.gcm}", ssp: "${inputs.ssp}", period: "${inputs.period}", aoi: "${area.layer}" }
+  - id: sdm
+    use: tool
+    with:
+      tool: gsx/sdm
+      params: { occurrences: "${occurrences.layer}", covariates: "${climate.raster_ids}", future: "${future.raster_ids}", method: "${inputs.method}" }
+  - id: style
+    use: automap.style
+    with: { layers: ["${occurrences.layer}"], field: none }
+  - id: now_map
+    use: export.map
+    needs: [style]
+    with: { name: suitability-now, layers: ["${sdm.rasters.0}", "${occurrences.layer}"], title: "${inputs.species}: suitability now" }
+  - id: future_map
+    use: export.map
+    needs: [style]
+    with: { name: suitability-future, layers: ["${sdm.rasters.2}"], title: "${inputs.species}: suitability ${inputs.period} (SSP${inputs.ssp}, ${inputs.gcm})" }
+  - id: change_map
+    use: export.map
+    needs: [style]
+    with: { name: range-change, layers: ["${sdm.rasters.3}", "${occurrences.layer}"], title: "${inputs.species}: range lost, stable and gained by ${inputs.period}" }
+  - id: report
+    use: export.report
+    needs: [now_map, future_map, change_map]
+    with: { title: "${inputs.species} · range shift · SSP${inputs.ssp} ${inputs.period} · ${run.date}" }
+outputs: [now_map, future_map, change_map, report]

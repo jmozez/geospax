@@ -92,13 +92,40 @@ node gen-manifest.mjs   # src/tools.ts → plugin.yaml
 
 CI checks that `run.mjs` and `plugin.yaml` match the source.
 
+## Domain kits
+
+Ready-made recipes that chain online data, the tools above, a finished map and a report. They are in
+**Analysis › Recipes** (grouped by domain), the **Toolbox** under *Ready-made analyses*, and Lazy mode's
+**Find patterns**; each takes a few inputs and runs to the end by itself.
+
+| Kit | Recipe | In → out |
+| --- | --- | --- |
+| Biodiversity | **Species distribution model (GBIF + WorldClim)** | A species name and an area → occurrences (GBIF, OBIS or iNaturalist), bioclim layers, a model with spatial cross-validation, suitability and range maps |
+| Biodiversity | **Survey diversity and clustering** | Point records with a species field → richness, Shannon and Simpson per hexagon, DBSCAN clusters, the Clark–Evans test |
+| Climate | **Range shift under future climate (CMIP6)** | The same model on present climate, projected onto a CMIP6 model, SSP and period → present and future suitability, range lost, stable and gained, the net change |
+| Conservation | **Protection gaps** | Habitat and protected areas → protected and unprotected hectares, the share protected, a gap map |
+| Forestry | **Forest fragmentation and connectivity** | Forest patches → landscape metrics, core areas, patches linked within a dispersal distance |
+| Land use and land cover | **Land cover change (two dates)** | Two extents (mangrove, forest, wetland …) → loss, gain, persistence, annual rate |
+| Agriculture and environment | **Vegetation change (two rasters)** | Two NDVI rasters → the difference, loss and gain with their areas |
+| Disaster and geoscience | **Steep slopes** | An area → Copernicus 30 m DEM, slope zones (default 15° and 30°, landslide screening), relief |
+| Soil | **Topsoil properties (SoilGrids)** | An area → pH, organic carbon and clay at a chosen depth |
+
+Every kit is an ordinary recipe (`recipes/kit-*.yaml`): open it in the Automate pane to see each step,
+change a default, or save a copy with your own steps. Kits call the tools with the **`tool`** step
+([AUTOMATION §2](AUTOMATION.md#2-recipe-format-v1-as-implemented)).
+
+**Checked:** `scripts/test-kits.py` runs all nine against data with known answers
+(`scripts/test-kits-data.R`): 25 % protected, 12 patches, net land-cover change of zero, 12 species in
+3 clusters, the planted vegetation-loss strip, and a future range that is both lost and gained. Kits
+that download data run with the downloads swapped for local test rasters, so their tools, maps and
+reports run for real; the downloads need internet and are covered by the `data.fetch` tests.
+
 ## Coming next
 
 - **Data:** WoRMS taxonomy checks, GEBCO bathymetry and the 2.0 catalogue layers (ecoregions,
   forest, marine, SPREP) in Data › Online data.
-- **Domain kits:** conservation, biodiversity, marine, environment, forestry, agriculture, climate,
-  disaster, geoscience, hydrology, land use and land cover, soil: each a set of recipes that end in a
-  finished map and report, and Lazy-mode tasks.
+- **More kits:** marine (OBIS with ocean covariates), hydrology (watersheds and stream networks with the
+  raster tools), ecosystem services.
 - **From 1.4.2:** local and global Moran's I, calculate field with expressions, opening 1.4.2 `.gspx`
   and 2.0 projects, the Papua New Guinea sample data, elevation profiles.
 

@@ -1,0 +1,27 @@
+# Conservation kit: how much habitat is protected, and where the gaps are.
+recipe: kit-protection-gaps
+version: 1
+kit: Conservation
+title: Protection gaps
+description: >-
+  Habitat polygons and protected areas in: protected and unprotected habitat in hectares
+  (equal-area), the share protected, and a map of the gaps against the protected areas.
+inputs:
+  habitat: { type: layer, default: auto, description: habitat or ecosystem polygons }
+  protected: { type: layer, default: auto, description: "protected areas (e.g. WDPA polygons)" }
+steps:
+  - id: gap
+    use: tool
+    with: { tool: gsx/protection-gap, params: { habitat: "${inputs.habitat}", protected: "${inputs.protected}" } }
+  - id: style
+    use: automap.style
+    with: { layers: "${gap.layers}", field: none }
+  - id: map
+    use: export.map
+    needs: [style]
+    with: { name: protection-gaps, layers: ["${gap.layers.1}", "${gap.layers.0}"], title: Protected and unprotected habitat }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Protection gaps · ${run.date}" }
+outputs: [map, report]

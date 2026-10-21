@@ -368,7 +368,8 @@ fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<Ste
     }
     sc.methods.push(format!("{} downloaded for {what} as windows of the provider's own grid ({:.4}° cells), without resampling. Source: {citation}", list.iter().map(|r| r.title.clone()).collect::<Vec<_>>().join("; "), list.first().map(|r| r.res_deg).unwrap_or(0.0)));
     sc.cards.push((format!("{} raster{}", made.len(), if made.len() == 1 { "" } else { "s" }), source.to_string()));
-    Ok(StepOut { outputs: json!({ "rasters": made, "aoi": b, "citation": citation, "seconds": t0.elapsed().as_secs_f64() }), why })
+    let ids: Vec<Value> = made.iter().map(|m| m["raster"].clone()).collect();
+    Ok(StepOut { outputs: json!({ "rasters": made, "raster_ids": ids, "raster": ids.first(), "aoi": b, "citation": citation, "seconds": t0.elapsed().as_secs_f64() }), why })
 }
 
 fn occurrences(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<StepOut, String> {

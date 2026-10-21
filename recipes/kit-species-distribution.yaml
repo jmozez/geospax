@@ -1,0 +1,56 @@
+# Biodiversity kit: a species name and an area in, a species distribution model out. Occurrences
+# from GBIF (or OBIS / iNaturalist), WorldClim bioclim for the same area, a model with spatially
+# blocked cross-validation, maps of suitability and the predicted range, and a report.
+recipe: kit-species-distribution
+version: 1
+kit: Biodiversity
+title: Species distribution model (GBIF + WorldClim)
+description: >-
+  Give a scientific name and an area: GeoSpaX downloads the occurrences (GBIF, OBIS or
+  iNaturalist) and WorldClim bioclimatic layers for that area, fits a species distribution model
+  (presence-background logistic, BIOCLIM or Mahalanobis) with spatially blocked cross-validation,
+  and maps habitat suitability and the predicted range, with AUC, TSS and Boyce in the report.
+inputs:
+  species: { type: text, default: "Paradisaea raggiana", description: scientific name }
+  area: { type: layer, default: auto, description: "the study area (any layer; auto = the largest layer)" }
+  source: { type: text, default: gbif, description: "gbif, obis or inat" }
+  variables: { type: text, default: "1,4,12,15", description: "bioclim variables (BIO1 annual mean temperature, BIO4 temperature seasonality, BIO12 annual precipitation, BIO15 precipitation seasonality)" }
+  resolution: { type: text, default: 2.5m, description: "10m, 5m, 2.5m or 30s" }
+  method: { type: text, default: logistic, description: "logistic, bioclim or mahalanobis" }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}" }
+  - id: occurrences
+    use: data.fetch
+    with: { source: "${inputs.source}", species: "${inputs.species}", aoi: "${area.layer}", limit: 5000 }
+  - id: climate
+    use: data.fetch
+    with: { source: worldclim, variables: "${inputs.variables}", resolution: "${inputs.resolution}", aoi: "${area.layer}" }
+  - id: sdm
+    use: tool
+    with:
+      tool: gsx/sdm
+      params: { occurrences: "${occurrences.layer}", covariates: "${climate.raster_ids}", method: "${inputs.method}" }
+  - id: style
+    use: automap.style
+    with: { layers: ["${occurrences.layer}"], field: none }
+  - id: suitability_map
+    use: export.map
+    needs: [style]
+    with:
+      name: suitability
+      layers: ["${sdm.rasters.0}", "${occurrences.layer}"]
+      title: "${inputs.species}: habitat suitability"
+  - id: range_map
+    use: export.map
+    needs: [style]
+    with:
+      name: range
+      layers: ["${sdm.rasters.1}", "${occurrences.layer}"]
+      title: "${inputs.species}: predicted range"
+  - id: report
+    use: export.report
+    needs: [suitability_map, range_map]
+    with: { title: "${inputs.species} · species distribution model · ${run.date}" }
+outputs: [suitability_map, range_map, report]
