@@ -2384,6 +2384,9 @@ fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut
                 let file = step_dir.join("inputs").join(format!("{}.geojson", sanitize(name)));
                 features::write_features(&file, "GeoJSON", name, &fs)?;
                 inputs.push((name.clone(), file));
+            } else if let Some(r) = sc.engine.raster(spec) {
+                // rasters go in as their file (R: a terra SpatRaster)
+                inputs.push((name.clone(), r.info.path.clone()));
             } else if let Some(path) = sc.resolve_path(spec) {
                 inputs.push((name.clone(), path));
             } else {

@@ -8,8 +8,19 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — R
+- **R tab** ([docs/R.md](docs/R.md)): an **R console** that runs R on a layer (sf) and a raster
+  (terra), with editable templates for tmap and ggplot2 maps, rayshader relief, terra terrain,
+  biomod2 ensemble SDMs, MaxEnt (maxnet), tidymodels, dbplyr and Google Earth Engine (rgee).
+- R steps now return **rasters** (SpatRaster), **figures** (ggplot2, tmap, base graphics, rayshader;
+  PNG at print resolution and PDF) and **tables** (data frames), not only sf layers, and take rasters
+  as inputs.
+- **R setup**: finds R (also the CRAN locations on macOS and per-user installs on Windows), installs R
+  when it is missing, and installs package kits as ready-built binaries into GeoSpaX's own library,
+  with progress. `GET /api/r`, `POST /api/r/install`.
+
 ### Added — ribbon and online data
-- **Ribbon reorganized**, ArcGIS Pro style: Home · Data · Map · Analysis · Imagery · Modelling · Automate ·
+- **Ribbon reorganized**, ArcGIS Pro style: Home · Data · Map · Analysis · Imagery · Modelling · R · Automate ·
   View · Help · Plugins. Every group is the same height (large buttons, then small ones three to a
   column); labels wrap instead of being cut. Plugin tools go on the tab their manifest names (`tab:`),
   others on Plugins; diagnostics moved to Help.
