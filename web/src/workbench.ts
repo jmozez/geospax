@@ -396,7 +396,7 @@ export class Workbench {
     }
     // Plugin tools on the tab their manifest names (`tab:`), one group per tool group; a whole
     // tool library (GeoLibre's 1,000+) is one button that opens the Toolbox; tools that name no
-    // tab go to Add-ins (ArcGIS Pro's Add-In tab).
+    // tab go to the Plugins tab (like ArcGIS Pro's Add-In tab).
     const tab = this.layout.ribbon;
     for (const p of this.pluginTools()) {
       if (p.tools.length > 40) {
@@ -407,7 +407,7 @@ export class Workbench {
           </div><div class="rb-title">${esc(p.name)}</div></div>`);
         continue;
       }
-      const mine = p.tools.filter((t) => (t.tab ?? 'addins') === tab);
+      const mine = p.tools.filter((t) => (t.tab ?? 'plugins') === tab);
       const groups = new Map<string, typeof mine>();
       for (const t of mine) groups.set(t.group || p.name, [...(groups.get(t.group || p.name) ?? []), t]);
       for (const [group, tools] of groups) {
@@ -432,8 +432,8 @@ export class Workbench {
         );
       }
     }
-    if (tab === 'addins' && !parts.length) {
-      parts.push(`<div class="rb-group"><div class="rb-items"><span class="dim rb-empty">No add-ins yet. Plugins whose tools name no tab show here; manage them in the Plugins pane.</span></div><div class="rb-title">Add-ins</div></div>`);
+    if (tab === 'plugins' && !parts.length) {
+      parts.push(`<div class="rb-group"><div class="rb-items"><span class="dim rb-empty">No plugin tools here yet. Tools of plugins that name no tab show here; manage plugins in the Plugins pane.</span></div><div class="rb-title">Plugins</div></div>`);
     }
     bodyEl.innerHTML = parts.join('') + `<div class="rb-spacer"></div>`;
   }

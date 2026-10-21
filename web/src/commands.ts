@@ -8,7 +8,7 @@ import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
 
 /** 'layer' is the contextual tab (Pro mode), shown while a layer is selected. */
-export type TabId = 'home' | 'data' | 'style' | 'analyze' | 'imagery' | 'modelling' | 'view' | 'automate' | 'help' | 'addins' | 'layer';
+export type TabId = 'home' | 'data' | 'style' | 'analyze' | 'imagery' | 'modelling' | 'view' | 'automate' | 'help' | 'plugins' | 'layer';
 
 /** What a command can reach: the map, layers, the backend and a few host actions. */
 export interface CommandHost {
@@ -102,7 +102,7 @@ export const TABS: { id: TabId; label: string }[] = [
   { id: 'automate', label: 'Automate' },
   { id: 'view', label: 'View' },
   { id: 'help', label: 'Help' },
-  { id: 'addins', label: 'Add-ins' },
+  { id: 'plugins', label: 'Plugins' },
 ];
 
 /** A command that runs a gallery recipe by id. */

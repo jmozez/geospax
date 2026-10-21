@@ -71,7 +71,7 @@ pub struct ToolSpec {
     /// Icon name for the ribbon (see web/src/commands.ts ICONS).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
-    /// Ribbon tab for the tool: home, data, style, analyze, imagery, modelling … (default: Add-ins).
+    /// Ribbon tab for the tool: home, data, style, analyze, imagery, modelling … (default: Plugins).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tab: Option<String>,
 }
