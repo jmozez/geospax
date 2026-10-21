@@ -652,3 +652,28 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 .act-note span { margin-right: 8px; opacity: 0.7; font-variant-numeric: tabular-nums; }
 .act-note.warn { color: #e9b44c; } .act-note.error { color: #ef5f5f; }
 .act-empty { color: var(--muted); font-size: 12px; margin: 0; }
+
+/* ---------------------------------------------------------------- Pro: the layer tree */
+.pr-tool button { padding: 2px 7px; font-size: 11px; border-radius: 5px; white-space: nowrap; }
+.pr-tree { position: relative; font-size: 12px; }
+.pr-map, .pr-group, .pr-base { display: flex; align-items: center; gap: 6px; padding: 4px 2px; border-radius: 4px; }
+.pr-map { color: var(--fg); padding-left: 2px; }
+.pr-map > span { color: var(--muted); width: 14px; text-align: center; }
+.pr-map small { margin-left: auto; color: var(--muted); font-size: 11px; }
+.pr-group { position: relative; margin-left: 14px; background: #172431; }
+.pr-group:hover, .pr-map:hover { background: #1c2a37; }
+.pr-group .pr-gname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.pr-gico { color: var(--muted); }
+.pr-group .tools { position: static; opacity: 0; display: flex; gap: 2px; }
+.pr-group:hover .tools, .pr-group:focus-within .tools { opacity: 1; }
+.pr-group .tools button { padding: 0 5px; font-size: 11px; line-height: 18px; border-radius: 4px; }
+.pr-kids { margin-left: 21px; border-left: 1px dotted #3a4e61; }
+.pr-kids.off { opacity: 0.5; }
+.pr-base { margin-left: 14px; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 6px; border-radius: 0; }
+.pr-base select { margin-left: auto; font-size: 11px; padding: 1px 4px; }
+.pr-tw { width: 14px; height: 18px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 10px; line-height: 18px; }
+.pr-tw:hover:not(:disabled) { color: var(--fg); }
+#contents .layer.pro { margin-left: calc(14px + var(--d, 0) * 0px); border-bottom-color: transparent; border-radius: 4px; cursor: grab; }
+#contents .pr-kids .layer.pro { margin-left: 0; padding-left: 6px; }
+#contents .layer.pro.dragging { opacity: 0.4; }
+.pr-group.drop, .pr-map.drop, #contents .layer.pro.drop { outline: 1px dashed var(--accent); }

@@ -107,6 +107,9 @@ export interface RowState {
   /** recipes that fit this layer: [recipe id, button label] */
   actions: [string, string][];
   autoOverviews: boolean;
+  /** Pro tree: nesting level (0 = under the map, 1 = in a group) and whether its legend is open */
+  depth?: number;
+  expanded?: boolean;
 }
 
 function statusChips(r: RowState): string {
@@ -163,8 +166,9 @@ export function proRow(r: RowState): string {
     !l.overview && !running && l.overview_suggested != null ? `<b class="warn">${r.autoOverviews && st.visible ? 'pyramid queued' : 'overviews suggested'}</b>` : '',
     st.auto ? `<b title="${esc(st.auto)}">auto</b>` : '',
   ].join('');
-  return `<div class="layer pro${r.selected ? ' selected' : ''}" data-id="${esc(l.id)}" draggable="true" style="--c:${esc(primaryColor(st.symbology))}">
-    <span class="pr-h" title="Drag to reorder" aria-hidden="true">⋮⋮</span>
+  const open = r.expanded ?? true;
+  return `<div class="layer pro${r.selected ? ' selected' : ''}" data-id="${esc(l.id)}" draggable="true" role="treeitem" aria-level="${(r.depth ?? 0) + 2}" aria-expanded="${open}" aria-selected="${r.selected}" style="--c:${esc(primaryColor(st.symbology))};--d:${r.depth ?? 0}">
+    <button class="pr-tw" data-act="twisty" aria-label="${open ? 'Collapse' : 'Expand'} legend" ${items.length ? '' : 'disabled'}>${items.length ? (open ? '▾' : '▸') : ''}</button>
     <input type="checkbox" ${st.visible ? 'checked' : ''} aria-label="Toggle ${esc(l.id)}" />
     <span class="swatch ${l.geometry}" style="--c:${esc(primaryColor(st.symbology))}"></span>
     <b class="name" title="Open symbology">${esc(ext ? l.id.slice(0, -ext.length) : l.id)}<em>${esc(ext)}</em></b>
@@ -177,13 +181,25 @@ export function proRow(r: RowState): string {
     </span>
     <small class="pr-sub">${esc(l.geometry)} · ${esc(l.crs)} · ${zr} · ${esc(symbologySummary(st.symbology))} ${badges}</small>
     ${
-      items.length
+      items.length && open
         ? `<div class="legend">${items
             .slice(0, 10)
             .map((it) => `<div><i style="background:${esc(it.color)}"></i>${esc(it.label)}<span>${it.count != null ? fmt(it.count) : ''}</span></div>`)
             .join('')}${items.length > 10 ? `<div class="more">… ${items.length - 10} more</div>` : ''}</div>`
         : ''
     }
+  </div>`;
+}
+
+/** A group layer row in the Pro tree: twisty, switch, name, member count, tools. */
+export function proGroup(g: { id: string; name: string; visible: boolean; expanded: boolean }, count: number): string {
+  return `<div class="pr-group" data-group="${esc(g.id)}" role="treeitem" aria-level="2" aria-expanded="${g.expanded}">
+    <button class="pr-tw" data-gact="twisty" aria-label="${g.expanded ? 'Collapse' : 'Expand'} group">${g.expanded ? '▾' : '▸'}</button>
+    <input type="checkbox" ${g.visible ? 'checked' : ''} data-gact="visible" aria-label="Show group ${esc(g.name)}" />
+    <span class="pr-gico" aria-hidden="true">▤</span>
+    <b class="pr-gname" title="Double-click to rename">${esc(g.name)}</b>
+    <span class="pr-n">${count} layer${count === 1 ? '' : 's'}</span>
+    <span class="tools"><button data-gact="rename" title="Rename group" aria-label="Rename group">✎</button><button data-gact="ungroup" title="Ungroup (keep the layers)" aria-label="Ungroup">⊟</button></span>
   </div>`;
 }
 

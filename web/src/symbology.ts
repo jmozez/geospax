@@ -49,6 +49,17 @@ export interface Project {
   layers: Record<string, LayerStyle>;
   view?: { center: [number, number]; zoom: number };
   basemap?: Basemap;
+  /** group layers (Pro tree): a group switches its layers on and off together */
+  groups?: LayerGroup[];
+  /** layer id -> group id */
+  member?: Record<string, string>;
+}
+
+export interface LayerGroup {
+  id: string;
+  name: string;
+  visible: boolean;
+  expanded: boolean;
 }
 
 // ------------------------------------------------------------------ ramps
