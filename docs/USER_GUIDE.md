@@ -172,7 +172,7 @@ default) changes the ribbon and the layer list together:
   | **Automate** | Recipes · Runs · Scripts |
   | **View** | Navigate · Theme · Basemap · Windows |
   | **Help** | Docs · About · Diagnostics |
-  | **Add-ins** | Plugin tools that name no tab |
+  | **Plugins** | Plugin tools that name no tab |
 
   Every group has the same height: its main commands are large buttons, the others small buttons stacked
   three to a column, as in ArcGIS Pro. A plugin tool appears on the tab its manifest names

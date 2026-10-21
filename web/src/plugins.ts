@@ -23,7 +23,7 @@ export interface ToolSpec {
   params?: ParamSpec[];
   recipe?: string;
   icon?: string;
-  /** ribbon tab (default: Add-ins) */
+  /** ribbon tab (default: Plugins) */
   tab?: string;
 }
 

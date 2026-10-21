@@ -10,9 +10,9 @@ design.
 
 ### Added — ribbon and online data
 - **Ribbon reorganized**, ArcGIS Pro style: Home · Data · Map · Analysis · Imagery · Modelling · Automate ·
-  View · Help · Add-ins. Every group is the same height (large buttons, then small ones three to a
+  View · Help · Plugins. Every group is the same height (large buttons, then small ones three to a
   column); labels wrap instead of being cut. Plugin tools go on the tab their manifest names (`tab:`),
-  others on Add-ins; diagnostics moved to Help.
+  others on Plugins; diagnostics moved to Help.
 - **Online data** (Data tab, Lazy task): WorldClim 2.1 bioclim, monthly and CMIP6 future climate, CHELSA
   2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries and the Copernicus DEM for
   the area on the map, no API keys, each with its citation. New recipe step **`data.fetch`**.

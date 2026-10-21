@@ -149,7 +149,7 @@ and expects **JSON on stdout**:
 ```
 
 A tool can name its ribbon tab with **`tab:`** (`home`, `data`, `style`, `analyze`, `imagery`,
-`modelling`, `automate`, `view`, `help`); tools that name none appear on the **Add-ins** tab, grouped by
+`modelling`, `automate`, `view`, `help`); tools that name none appear on the **Plugins** tab, grouped by
 their `group`.
 
 A plugin that reads GeoJSON sets **`geojson: true`** in `plugin.yaml`: every layer named by a `layer`

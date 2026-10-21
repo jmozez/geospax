@@ -28,7 +28,7 @@ await page.goto(`${base}/?mode=pro`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
 await page.click('#ribbon-tabs .rb-tab[data-tab="data"]');
 const tabs = await page.locator('#ribbon-tabs .rb-tab').allInnerTexts();
-ok('the ribbon has the 3.0 tabs', ['Home', 'Data', 'Map', 'Analysis', 'Imagery', 'Modelling', 'Automate', 'View', 'Help', 'Add-ins'].every((t) => tabs.includes(t)), tabs.join(' · '));
+ok('the ribbon has the 3.0 tabs', ['Home', 'Data', 'Map', 'Analysis', 'Imagery', 'Modelling', 'Automate', 'View', 'Help', 'Plugins'].every((t) => tabs.includes(t)), tabs.join(' · '));
 const submit = async (cmd, fill) => {
   saved = null;
   await page.click('#ribbon-tabs .rb-tab[data-tab="data"]');
