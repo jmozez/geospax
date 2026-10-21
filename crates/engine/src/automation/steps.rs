@@ -52,6 +52,14 @@ const MAP_PARAMS: &[(&str, bool, &str)] = &[
     ("grid", false, "lon/lat graticule (default true)"),
     ("scale", false, "PNG pixel scale 1-4 (default 1)"),
     ("name", false, "file name without extension (default map)"),
+    ("frames", false, "index map: [{extent: [w, s, e, n], label}] outlined on the map"),
+    ("exact", false, "show exactly the extent, no margin (map series sheets)"),
+    ("panels", false, "multi-panel page (R patchwork): [{extent?, title?, layers?}]"),
+    ("facet", false, "one panel per value of this field (ggplot2 facet_wrap)"),
+    ("facet_layer", false, "layer the facet field belongs to (default: the top mapped layer)"),
+    ("ncol", false, "panel columns (default: as square as possible)"),
+    ("legends", false, "collect (one shared), keep (one per panel) or auto"),
+    ("tags", false, "panel tags: a (default), A, 1, i or none"),
     ("to", false, "also copy the files to this folder"),
 ];
 
@@ -307,6 +315,7 @@ pub const CATALOGUE: &[StepSpec] = &[
     StepSpec { name: "export.png", family: "Output", summary: "export.map as PNG.", running: "Exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout" },
     StepSpec { name: "export.pdf", family: "Output", summary: "export.map as a vector PDF (selectable text, print-ready page).", running: "Exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout to PDF, QGIS Export as PDF" },
     StepSpec { name: "export.svg", family: "Output", summary: "export.map as SVG (vector, editable in Inkscape or Illustrator).", running: "Exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout" },
+    StepSpec { name: "export.series", family: "Output", summary: "Bind the run's map pages (a map series / atlas, with its index page) into one multi-page vector PDF.", running: "Binding the map series", params: &[("name", false, "file name (default series)"), ("to", false, "also copy to this folder")], borrowed: "ArcGIS Pro Map Series export, QGIS Atlas export as a single PDF" },
     StepSpec { name: "export.report", family: "Output", summary: "One-page HTML report: the map, headline numbers, how it was made, every automatic decision, run log and provenance.", running: "Writing the report", params: &[("title", false, ""), ("subtitle", false, ""), ("notes", false, "free text"), ("name", false, "file name (default report)"), ("to", false, "also copy to this folder")], borrowed: "ArcGIS Pro reports, R Markdown / Quarto" },
     StepSpec { name: "export.data", family: "Output", summary: "Export layers as GeoPackage, GeoJSON, CSV, FlatGeobuf, KML or Shapefile (EPSG:4326).", running: "Exporting data", params: &[("layers", false, "default: every layer this run touched"), ("layer", false, ""), ("format", false, "gpkg, geojson, csv, fgb, kml, shp"), ("to", false, "also copy to this folder")], borrowed: "ArcGIS Export Features, QGIS Save As, ogr2ogr" },
     StepSpec { name: "python", family: "Code", summary: "Run Python code (geopandas if installed, otherwise plain GeoJSON); returned layers join the map.", running: "Running the Python step", params: CODE_PARAMS, borrowed: "ArcPy, PyQGIS, GRASS Python API, geopandas" },
@@ -565,6 +574,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "export.png" => export_map(sc, p, Some("png")),
         "export.svg" => export_map(sc, p, Some("svg")),
         "export.pdf" => export_map(sc, p, Some("pdf")),
+        "export.series" => export_series(sc, p),
         "dem.fetch" => raster_steps::dem_fetch(sc, p),
         "lidar.grid" => lidar_steps::lidar_grid(sc, p),
         "scene.3d" => scene_steps::scene_3d(sc, p),
@@ -1668,6 +1678,153 @@ fn copy_to(sc: &StepCtx, p: &Value, files: &[String]) -> Result<Option<String>, 
     Ok(Some(dest.display().to_string()))
 }
 
+struct PanelDef {
+    extent: Option<[f64; 4]>,
+    title: String,
+    layers: Option<Vec<String>>,
+}
+
+/// `panels: [{extent?, title?, layers?}, …]`: the panels of a multi-panel page.
+fn panel_params(p: &Value) -> Result<Vec<PanelDef>, String> {
+    let Some(Value::Array(a)) = p.get("panels") else { return Ok(Vec::new()) };
+    if a.len() > 40 {
+        return Err(format!("{} panels: a page holds at most 40", a.len()));
+    }
+    a.iter()
+        .enumerate()
+        .map(|(i, d)| {
+            let extent = match d.get("extent") {
+                Some(Value::Array(e)) if e.len() == 4 => Some([0, 1, 2, 3].map(|k| e[k].as_f64().unwrap_or(0.0))),
+                None | Some(Value::Null) => None,
+                Some(_) => return Err(format!("panels[{i}]: extent must be [west, south, east, north]")),
+            };
+            let layers = d.get("layers").and_then(Value::as_array).map(|l| l.iter().filter_map(Value::as_str).map(str::to_string).collect());
+            Ok(PanelDef { extent, title: d.get("title").and_then(Value::as_str).unwrap_or_default().to_string(), layers })
+        })
+        .collect()
+}
+
+/// Panel tags as in patchwork's `tag_levels`: a, b, … (or A, 1, i).
+fn panel_tag(i: usize, style: &str) -> String {
+    match style {
+        "none" => String::new(),
+        "A" => ((b'A' + (i % 26) as u8) as char).to_string(),
+        "1" => (i + 1).to_string(),
+        "i" => ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii"].get(i).map(|s| s.to_string()).unwrap_or_else(|| (i + 1).to_string()),
+        _ => ((b'a' + (i % 26) as u8) as char).to_string(),
+    }
+}
+
+/// A multi-panel map page. Two ways in, after R:
+/// - `panels:` (patchwork): each panel its own area and/or layers;
+/// - `facet: field` (ggplot2 `facet_wrap`): one panel per value of a field of `facet_layer` (default:
+///   the top mapped layer), same area and classes in every panel.
+///
+/// `ncol` sets the columns, `tags` the tag style (a, A, 1, i), `legends` collect | keep | auto (auto:
+/// one shared legend when every panel shows the same layers, else a legend beside each panel).
+fn render_multi(sc: &StepCtx, p: &Value, spec: &MapSpec, defs: Vec<PanelDef>, extent: [f64; 4], rhandles: &[Arc<crate::raster::RasterHandle>]) -> Result<cartography::MapOut, String> {
+    let mut panels: Vec<(String, [f64; 4], Option<Vec<String>>, Vec<MapLayer>)> = Vec::new();
+    if let Some(field) = p_str(p, "facet") {
+        let main: Vec<&MapLayer> = spec.layers.iter().filter(|l| !l.context).collect();
+        let target = match p_str(p, "facet_layer") {
+            Some(id) => main.iter().find(|l| l.id == id || l.id.ends_with(&format!(".{id}"))).copied().ok_or(format!("facet_layer '{id}' is not on this map"))?,
+            None => *main.iter().rev().find(|l| l.fs.field(field).is_some()).ok_or(format!("no mapped layer has a field '{field}'"))?,
+        };
+        let k = target.fs.field(field).ok_or(format!("{} has no field '{field}'", target.title))?;
+        let mut values: Vec<String> = Vec::new();
+        for f in &target.fs.feats {
+            let v = f.props[k].text();
+            if !values.contains(&v) {
+                values.push(v);
+            }
+        }
+        values.sort_by(|a, b| match (a.parse::<f64>(), b.parse::<f64>()) {
+            (Ok(x), Ok(y)) => x.total_cmp(&y),
+            _ => a.cmp(b),
+        });
+        if values.len() > 24 {
+            return Err(format!("'{field}' has {} different values: facets need 24 or fewer (try a field with fewer classes)", values.len()));
+        }
+        let others: Vec<String> = spec.layers.iter().filter(|l| l.id != target.id).map(|l| l.id.clone()).collect();
+        for v in values {
+            let mut fs = target.fs.clone();
+            fs.feats.retain(|f| f.props[k].text() == v);
+            let n = fs.feats.len();
+            let label = if v.is_empty() { "(no value)".to_string() } else { v.clone() };
+            let own = MapLayer { id: target.id.clone(), title: target.title.clone(), kind: target.kind, style: target.style.clone(), fs, label_field: target.label_field.clone(), context: false, legend_note: format!("{n} features") };
+            panels.push((format!("{field} = {label} · {}", cartography::fmt_num(n as f64)), extent, Some(others.clone()), vec![own]));
+        }
+    } else {
+        for d in defs {
+            panels.push((d.title, d.extent.unwrap_or(extent), d.layers, Vec::new()));
+        }
+    }
+    let same_layers = panels.iter().all(|(_, _, l, _)| l == &panels[0].2);
+    let own_legends = match p_str(p, "legends").unwrap_or("auto") {
+        "keep" => true,
+        "collect" => false,
+        _ => !same_layers,
+    };
+    let extents: Vec<[f64; 4]> = panels.iter().map(|(_, e, _, _)| *e).collect();
+    let ncol = p.get("ncol").and_then(Value::as_u64).map(|c| c as usize);
+    let (w, h, rects) = cartography::panel_grid(&extents, ncol, own_legends);
+    let tags = p_str(p, "tags").unwrap_or("a");
+    let mut out = Vec::new();
+    for (i, ((title, e, layers, own), r)) in panels.into_iter().zip(rects).enumerate() {
+        let layout = Layout::in_rect(e, r[0], r[1], r[2], r[3]);
+        let mut rasters = Vec::new();
+        let fm = cartography::frame_merc(&layout);
+        let (rw, rh) = ((r[2] * 1.5) as usize, (r[3] * 1.5) as usize);
+        for rh_ in rhandles {
+            if layers.as_ref().is_some_and(|ids| !ids.contains(&rh_.info.id)) {
+                continue;
+            }
+            let style = rh_.style();
+            let rgba = rh_.render_rgba(&style, fm, rw, rh)?;
+            rasters.push(cartography::MapRaster {
+                id: rh_.info.id.clone(),
+                title: sc.names.get(&rh_.info.id).cloned().unwrap_or_else(|| rh_.info.title.clone()),
+                png: crate::raster::encode_png(rgba, rw, rh)?,
+                opacity: style["opacity"].as_f64().unwrap_or(1.0),
+                blend: style["blend"].as_str().map(str::to_string),
+                legend: crate::raster::legend(&rh_.info, &style),
+            });
+        }
+        out.push(cartography::Panel { tag: panel_tag(i, tags), title, layout, rasters, layers, own });
+    }
+    Ok(cartography::render_panels(spec, &out, w, h, own_legends))
+}
+
+/// `frames: [{extent: [w, s, e, n], label: "A1"}, …]`: page outlines for a map series' index page.
+fn frames_param(p: &Value) -> Result<Vec<([f64; 4], String)>, String> {
+    let Some(Value::Array(a)) = p.get("frames") else { return Ok(Vec::new()) };
+    a.iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let e = f.get("extent").and_then(Value::as_array).filter(|e| e.len() == 4).ok_or(format!("frames[{i}]: extent must be [west, south, east, north]"))?;
+            let e: Vec<f64> = e.iter().map(|v| v.as_f64().ok_or(format!("frames[{i}]: extent must be numbers"))).collect::<Result<_, _>>()?;
+            let label = f.get("label").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| (i + 1).to_string());
+            Ok(([e[0], e[1], e[2], e[3]], label))
+        })
+        .collect()
+}
+
+/// One multi-page PDF from every map this run laid out, in the order they were made.
+fn export_series(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
+    let svgs: Vec<PathBuf> = sc.maps.iter().map(|(svg, _)| svg.clone()).collect();
+    if svgs.is_empty() {
+        return Err("no maps to bind: put export.map steps before export.series".into());
+    }
+    let pages: Vec<String> = svgs.iter().map(|f| std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))).collect::<Result<_, _>>()?;
+    let name = sanitize(p_str(p, "name").unwrap_or("series"));
+    let f = format!("{name}.pdf");
+    std::fs::write(sc.dir.join(&f), cartography::svgs_to_pdf(&pages)?).map_err(|e| e.to_string())?;
+    let files = vec![f.clone()];
+    let copied = copy_to(sc, p, &files)?;
+    sc.artifacts.push(f.clone());
+    Ok(StepOut { outputs: json!({ "pdf": sc.dir.join(&f), "pages": pages.len(), "files": files, "copied_to": copied }), why: vec![format!("{} map pages bound into {f}", pages.len())] })
+}
+
 fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOut, String> {
     let mut opts = sc.page.clone();
     if let Some(o) = p.as_object() {
@@ -1731,6 +1888,13 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
             rhandles.iter().fold(v, |acc, r| features::union_bounds(acc, Some(r.info.bounds))).ok_or("no extent")?
         }
     };
+    // multi-panel page (patchwork-style panels or a ggplot2-style facet): read the data for every panel
+    let panel_defs = panel_params(p)?;
+    let extent = if panel_defs.iter().all(|d| d.extent.is_some()) && !panel_defs.is_empty() {
+        panel_defs.iter().filter_map(|d| d.extent).fold(None, |acc, e| features::union_bounds(acc, Some(e))).unwrap_or(extent)
+    } else {
+        extent
+    };
     let formats: Vec<String> = match force {
         Some(f) => vec![f.to_string()],
         None => {
@@ -1747,7 +1911,7 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     // (interpolate.auto) are shown whole instead, or their edges would be cut off
     let masked = rhandles.iter().any(|r| matches!(r.info.kind.as_str(), "surface" | "stderr"));
     let cover = !rhandles.is_empty() && p.get("extent").is_none_or(|e| e.as_str() == Some("auto")) && p_bool(p, "fill", !masked);
-    let lay = if cover { Layout::new_cover(extent, w, h) } else { Layout::new(extent, w, h) };
+    let lay = if cover { Layout::new_cover(extent, w, h) } else if p_bool(p, "exact", false) { Layout::new_exact(extent, w, h) } else { Layout::new(extent, w, h) };
     let view = lay.view();
     // rasters are rendered for the map frame at 2× page resolution (bottom first, shading on top)
     let mut map_rasters = Vec::new();
@@ -1873,8 +2037,12 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     credit_sources.dedup();
     let credits = format!("Made automatically by GeoSpaX · recipe {} · {} · Data: {}", sc.recipe_id, date.format("%Y-%m-%d %H:%M"), credit_sources.join(", "));
     let n_rasters = map_rasters.len();
-    let spec = MapSpec { rasters: map_rasters, title: title.clone(), subtitle, credits, layers, labels: p_bool(p, "labels", true), grid: p_bool(p, "grid", true) };
-    let out = cartography::render_svg(&spec, &lay);
+    let spec = MapSpec { rasters: map_rasters, title: title.clone(), subtitle, credits, layers, labels: p_bool(p, "labels", true), grid: p_bool(p, "grid", true), frames: frames_param(p)? };
+    let out = if panel_defs.is_empty() && p.get("facet").is_none() {
+        cartography::render_svg(&spec, &lay)
+    } else {
+        render_multi(sc, p, &spec, panel_defs, extent, &rhandles)?
+    };
     let name = sanitize(p_str(p, "name").unwrap_or(if sc.step_id == "map" { "map" } else { &sc.step_id }));
     let mut files = Vec::new();
     let svg_file = format!("{name}.svg");
