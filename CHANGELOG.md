@@ -3,6 +3,25 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Security
+- **The web edition is no longer open to the network by default.** `geospax-server` used to listen on
+  every interface with no access control, so anyone who could reach port 8080 could save and run
+  recipes (including their R and Python code) and install plugins. Now:
+  - the default listen address is `127.0.0.1` (this computer only);
+  - on any other address the API requires an access token (`--token`, `GEOSPAX_TOKEN`, or one
+    generated at start and printed as a login link); the link sets an `HttpOnly`, `SameSite=Strict`
+    cookie so the web UI works unchanged;
+  - on localhost without a token, requests must be addressed to `localhost` (blocks DNS rebinding) and
+    cross-site browser requests are refused (blocks other web sites posting to the API);
+  - `GET /api/health` and webhook URLs (`/api/hooks/{token}`) stay open;
+  - `docker-compose.yml` publishes GeoSpaX and the MQTT broker on `127.0.0.1` only.
+  See [SECURITY.md](SECURITY.md).
+
+### Changed
+- README and user guide brought up to 1.8.2; links to research notes outside this repository removed.
+
 ## [1.8.2] — 2026-10-16
 
 ### Added
