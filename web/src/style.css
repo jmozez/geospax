@@ -109,7 +109,6 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 /* Symbology lives in the right dock now, not in a floating card. */
 #panel { padding: 10px 12px 20px; }
 #panel[hidden] { display: none; }
-body.panel-open .maplibregl-ctrl-bottom-right { right: 345px; }
 #panel header { display: flex; justify-content: space-between; align-items: start; gap: 8px; margin-bottom: 8px; }
 #panel header b { display: block; word-break: break-all; }
 #panel header small { color: var(--muted); }
