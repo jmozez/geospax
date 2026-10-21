@@ -2341,6 +2341,32 @@ fn export_data(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     })
 }
 
+/// A CSV (as R's write.csv writes it) as `{columns, rows}`, at most `max` rows.
+fn csv_rows(text: &str, max: usize) -> Value {
+    fn split(line: &str) -> Vec<String> {
+        let (mut out, mut cur, mut q) = (Vec::new(), String::new(), false);
+        let mut it = line.chars().peekable();
+        while let Some(c) = it.next() {
+            match c {
+                '"' if q && it.peek() == Some(&'"') => {
+                    cur.push('"');
+                    it.next();
+                }
+                '"' => q = !q,
+                ',' if !q => out.push(std::mem::take(&mut cur)),
+                c => cur.push(c),
+            }
+        }
+        out.push(cur);
+        out
+    }
+    let mut lines = text.lines().filter(|l| !l.is_empty());
+    let columns = lines.next().map(split).unwrap_or_default();
+    let all: Vec<Vec<String>> = lines.map(split).collect();
+    let rows: Vec<Value> = all.iter().take(max).map(|r| Value::from(r.iter().map(|c| c.parse::<f64>().map(|f| json!(f)).unwrap_or_else(|_| if c == "NA" { Value::Null } else { json!(c) })).collect::<Vec<_>>())).collect();
+    json!({ "columns": columns, "rows": rows, "total": all.len() })
+}
+
 fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut, String> {
     let code = match (p_str(p, "code"), p_str(p, "file")) {
         (Some(c), _) => c.to_string(),
@@ -2377,12 +2403,48 @@ fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut
         let id = sc.write_output(name, &fs, humanize(name))?;
         layers.insert(name.clone(), Value::from(id));
     }
+    // rasters (terra SpatRaster …) join the run like any other raster
+    let out_dir = sc.outputs_dir();
+    std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
+    for (name, path) in &r.rasters {
+        let dest = out_dir.join(format!("{}.tif", sanitize(name)));
+        let ds = crate::raster::open(path)?;
+        let float = ds.rasterband(1).map(|b| b.band_type().name().starts_with("Float")).unwrap_or(false);
+        crate::raster::save_gtiff(&ds, &dest, float)?;
+        let id = format!("{}.{}", sc.recipe_id, sanitize(name));
+        let h = sc.engine.register_raster(&dest, &id)?;
+        sc.rasters.retain(|x| x != &id);
+        sc.rasters.push(id.clone());
+        sc.names.insert(id.clone(), h.info.title.clone());
+        layers.insert(name.clone(), Value::from(id));
+    }
+    // figures (ggplot2, tmap, rayshader …) are run artifacts; the PNG goes in the report
+    let mut figures = Map::new();
+    for (name, path) in &r.figures {
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png");
+        let f = format!("{}.{ext}", sanitize(name));
+        std::fs::copy(path, sc.dir.join(&f)).map_err(|e| e.to_string())?;
+        sc.artifacts.push(f.clone());
+        if ext == "png" {
+            sc.figures.push((Some(f.clone()), humanize(name)));
+        }
+        figures.entry(name.clone()).or_insert_with(|| json!([])).as_array_mut().unwrap().push(Value::from(f));
+    }
+    // tables (data frames) are shown in the run and kept as CSV
+    let mut tables = Map::new();
+    for (name, path) in &r.tables {
+        let f = format!("{}.csv", sanitize(name));
+        std::fs::copy(path, sc.dir.join(&f)).map_err(|e| e.to_string())?;
+        sc.artifacts.push(f.clone());
+        tables.insert(name.clone(), csv_rows(&std::fs::read_to_string(path).unwrap_or_default(), 500));
+    }
     let results: Vec<String> = r.result.iter().map(|(k, v)| format!("{k} = {}", super::recipe::value_text(v))).collect();
+    let returned: Vec<String> = layers.keys().chain(figures.keys()).chain(tables.keys()).map(|k| format!("'{k}'")).collect();
     sc.methods.push(format!(
         "A {} step ({}) ran custom analysis{}{}.",
         lang.name(),
         r.version,
-        if layers.is_empty() { String::new() } else { format!(" and returned {}", layers.keys().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", ")) },
+        if returned.is_empty() { String::new() } else { format!(" and returned {}", returned.join(", ")) },
         if results.is_empty() { String::new() } else { format!("; results: {}", results.join(", ")) }
     ));
     for (k, v) in r.result.iter().take(2) {
@@ -2390,13 +2452,15 @@ fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut
     }
     let stdout_tail: Vec<&str> = r.stdout.lines().rev().take(20).collect::<Vec<_>>().into_iter().rev().collect();
     Ok(StepOut {
-        outputs: json!({ "layers": layers, "result": r.result, "interpreter": r.version, "ms": r.ms, "stdout": stdout_tail.join("\n") }),
+        outputs: json!({ "layers": layers, "figures": figures, "tables": tables, "result": r.result, "interpreter": r.version, "ms": r.ms, "stdout": stdout_tail.join("\n") }),
         why: vec![format!(
-            "{} ({}) in {:.1} s → {} layer(s){}",
+            "{} ({}) in {:.1} s → {} layer(s), {} figure(s), {} table(s){}",
             lang.name(),
             r.version,
             r.ms / 1000.0,
             layers.len(),
+            r.figures.len(),
+            tables.len(),
             if results.is_empty() { String::new() } else { format!("; {}", results.join(", ")) }
         )],
     })
