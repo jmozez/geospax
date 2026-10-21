@@ -495,3 +495,8 @@ table.attr td.empty { color: var(--muted); text-align: center; padding: 14px; }
   border-radius: 4px; color: var(--muted);
 }
 .plugin .p-del:hover { color: #ffb4a2; border-color: #7a3b2e; background: #2a1f1c; }
+
+/* AutoMap: the style was chosen for you, and says why */
+#panel .auto-why { margin: 8px 0 10px; padding: 8px 10px; border-left: 3px solid var(--accent); background: rgba(239, 123, 85, 0.08); border-radius: 4px; font-size: 12px; color: var(--fg); }
+#panel .auto-why b { display: block; margin-bottom: 2px; color: var(--accent); }
+#panel .auto-btn { margin: 8px 0 10px; width: 100%; }

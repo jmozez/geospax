@@ -285,6 +285,20 @@ export const COMMANDS: Command[] = [
     run: (h) => { h.fitAll(); },
   },
   {
+    id: 'view.basemapOffline', tab: 'view', group: 'Basemap', title: 'World (offline)', icon: 'globe',
+    hint: 'Natural Earth land, lakes and borders, bundled with GeoSpaX: works without internet',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:basemap', { detail: 'offline' })); },
+  },
+  {
+    id: 'view.basemapOsm', tab: 'view', group: 'Basemap', title: 'OpenStreetMap (online)', icon: 'image',
+    hint: 'Streets and places from openstreetmap.org (needs internet)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:basemap', { detail: 'osm' })); },
+  },
+  {
+    id: 'view.basemapNone', tab: 'view', group: 'Basemap', title: 'No basemap', icon: 'layout',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:basemap', { detail: 'none' })); },
+  },
+  {
     id: 'view.palette', tab: 'view', group: 'Windows', title: 'Command palette', icon: 'terminal', big: true,
     hint: 'Every command, recipe and layer, searchable', keys: 'Ctrl+K',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:palette')); },

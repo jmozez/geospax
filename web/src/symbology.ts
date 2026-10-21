@@ -35,7 +35,12 @@ export interface LayerStyle {
   maxzoom: number;
   outline: boolean;
   symbology: Symbology;
+  /** AutoMap's reason for this style; dropped as soon as someone changes the symbology by hand */
+  auto?: string;
 }
+
+/** Map background: offline Natural Earth (bundled), OpenStreetMap (online) or none. */
+export type Basemap = 'offline' | 'osm' | 'none';
 
 export interface Project {
   version: 1;
@@ -43,6 +48,7 @@ export interface Project {
   order: string[];
   layers: Record<string, LayerStyle>;
   view?: { center: [number, number]; zoom: number };
+  basemap?: Basemap;
 }
 
 // ------------------------------------------------------------------ ramps

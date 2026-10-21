@@ -17,7 +17,8 @@ acknowledges — including the two the workbench UI was modelled on.
 * **JavaScript** — [`web/package.json`](web/package.json): MapLibre GL JS
   (BSD-3-Clause), deck.gl (MIT), Apache Arrow JS (Apache-2.0), Vite (MIT),
   TypeScript (Apache-2.0), Playwright (Apache-2.0, dev only).
-* **Data at runtime** — Natural Earth (public domain) for the sample layers.
+* **Data at runtime** — Natural Earth (public domain) for the sample layers and the bundled offline basemap
+  (`web/public/basemap/`: 1:50m land, lakes and admin-0 boundary lines, coordinates rounded to 0.001°).
 
 Licence texts for the big ones are reproduced below where their terms require it.
 
