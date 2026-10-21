@@ -62,7 +62,10 @@ jobs:
             --validator /tmp/gv/node_modules/gltf-validator
       - name: Spatial statistics (hot spots + kriging vs known truth, cross-checked with R spdep and gstat)
         run: |
-          apt-get install -y -q --no-install-recommends r-base-core r-cran-sf r-cran-spdep r-cran-gstat r-cran-jsonlite
+          apt-get install -y -q --no-install-recommends r-base-core r-base-dev r-cran-sf r-cran-spdep r-cran-jsonlite r-cran-sp r-cran-zoo r-cran-xts
+          # Debian 13 dropped r-cran-gstat: take it from CRAN (with whatever it needs that Debian lacks)
+          apt-get install -y -q --no-install-recommends r-cran-gstat 2>/dev/null \
+            || Rscript -e 'install.packages("gstat", repos = "https://cloud.r-project.org", Ncpus = 4)'
           python3 scripts/test-stats.py --bin target/release/geospax-server --data /tmp/gx-data --quick --results /tmp/gx-out/stats-results.json
       - name: Package (.deb)
         run: scripts/package-linux.sh --no-build releases
