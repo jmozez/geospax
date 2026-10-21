@@ -133,7 +133,7 @@ body.panel-open .maplibregl-ctrl-bottom-right { right: 345px; }
 #panel .progress { height: 8px; background: var(--hover); border-radius: 4px; overflow: hidden; }
 #panel .progress i { display: block; height: 100%; background: var(--accent); transition: width 0.4s; }
 .err { color: var(--err); }
-.fatal { position: fixed; inset: auto 10px 10px 350px; background: #3a1010; color: #ffb4b4; padding: 10px; white-space: pre-wrap; }
+.fatal { position: fixed; inset: auto 10px 10px 350px; background: color-mix(in srgb, var(--err) 18%, var(--panel)); color: var(--err); padding: 10px; white-space: pre-wrap; }
 @media (max-width: 900px) {
   /* Phone/tablet: the map takes the screen, panes become taps on the ribbon. */
   #shell { grid-template-columns: 0 0 1fr 0 0 !important; }
@@ -145,7 +145,7 @@ body.panel-open .maplibregl-ctrl-bottom-right { right: 345px; }
 /* Devices section (docs/DEVICES.md) */
 #devices .device { border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; margin: 6px 0; background: var(--sunken); }
 #devices .device.gone { opacity: 0.55; }
-#devices .device.live { border-color: #6b5a1f; }
+#devices .device.live { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
 #devices .dev-head { display: flex; align-items: baseline; gap: 6px; }
 #devices .dev-head .muted { margin-left: auto; font-size: 11px; }
 #devices .dev-icon { width: 1.3em; text-align: center; }
@@ -156,14 +156,14 @@ body.panel-open .maplibregl-ctrl-bottom-right { right: 345px; }
 #devices button { font-size: 12px; padding: 3px 9px; border-radius: 4px; border: 0; background: #ff6b35; color: #fff; cursor: pointer; }
 #devices button.ghost { background: var(--line); color: var(--text2); }
 #devices .muted, .hint { color: var(--muted); font-size: 12px; }
-.hint a { color: #ff8c42; }
+.hint a { color: var(--accent); }
 
 /* Automate section (docs/AUTOMATION.md) */
-section.automate h2 .tag { font-size: 9px; letter-spacing: 0.04em; text-transform: none; color: var(--accent); border: 1px solid #5a3426; border-radius: 8px; padding: 0 6px; margin-left: 4px; }
+section.automate h2 .tag { font-size: 9px; letter-spacing: 0.04em; text-transform: none; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
 #automate .recipe { border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; margin: 7px 0; background: var(--sunken); }
-#automate .recipe.auto { border-color: #6b4a1f; box-shadow: inset 3px 0 0 var(--accent); }
+#automate .recipe.auto { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); box-shadow: inset 3px 0 0 var(--accent); }
 #automate .r-head { display: flex; align-items: baseline; gap: 6px; }
-#automate .r-head .tag { font-size: 10px; color: var(--ok); border: 1px solid #2e5a3c; border-radius: 8px; padding: 0 6px; }
+#automate .r-head .tag { font-size: 10px; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--line)); border-radius: 8px; padding: 0 6px; }
 #automate .r-desc { font-size: 12px; color: var(--text2); margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
 #automate .recipe.open .r-desc { display: block; }
 #automate .triggers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
@@ -180,13 +180,13 @@ section.automate h2 .tag { font-size: 9px; letter-spacing: 0.04em; text-transfor
 #automate .arts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 #automate button.link { background: var(--raised); border: 1px solid var(--line); border-radius: 5px; font-size: 11px; padding: 1px 8px; color: var(--text2); }
 #automate .status button.link { margin-left: 6px; }
-#automate ol.steps { list-style: none; margin: 5px 0 0; padding: 0; font-size: 11px; color: #9fb2c4; }
+#automate ol.steps { list-style: none; margin: 5px 0 0; padding: 0; font-size: 11px; color: var(--text2); }
 #automate ol.steps li { line-height: 17px; }
 #automate ol.steps li span { display: inline-block; width: 12px; text-align: center; }
 #automate ol.steps li.done span { color: var(--ok); }
 #automate ol.steps li.failed { color: var(--err); }
 #automate ol.steps li.running { color: var(--warn); }
-#automate ol.steps small { color: #6f8396; }
+#automate ol.steps small { color: var(--muted); }
 #automate .row.save { margin-top: 8px; }
 #automate .muted { color: var(--muted); font-size: 11px; }
 #artifact-modal { position: fixed; inset: 0; z-index: 50; background: var(--overlay); display: flex; align-items: center; justify-content: center; padding: 3vh 3vw; }
@@ -373,8 +373,8 @@ table.attr th { position: sticky; top: 0; z-index: 1; background: var(--hover); 
 table.attr td { padding: 3px 7px; border-bottom: 1px solid var(--line); white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 table.attr td.rh { color: var(--muted); text-align: right; background: var(--raised); position: sticky; left: 0; }
 table.attr tr:hover td { background: var(--hover); cursor: pointer; }
-table.attr tr.sel td { background: #2c4256; }
-table.attr i.null { color: #5d7185; }
+table.attr tr.sel td { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
+table.attr i.null { color: var(--muted); }
 table.attr td.empty { color: var(--muted); text-align: center; padding: 14px; }
 .attr-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--muted); }
 .attr-foot button { font-size: 11px; padding: 2px 8px; }
@@ -476,9 +476,9 @@ table.attr td.empty { color: var(--muted); text-align: center; padding: 14px; }
    the same way), so a ten-recipe gallery costs one button instead of a whole row */
 .rb-combo {
   display: flex; align-items: center; gap: 6px; height: 46px; padding: 0 7px 0 10px;
-  background: #22303f; border: 1px solid var(--line); border-radius: 5px; color: var(--fg); font-size: 12px;
+  background: var(--raised); border: 1px solid var(--line); border-radius: 5px; color: var(--fg); font-size: 12px;
 }
-.rb-combo:hover { background: #2b3d50; border-color: var(--accent); }
+.rb-combo:hover { background: var(--hover); border-color: var(--accent); }
 .rb-combo.on { background: var(--line); border-color: var(--accent); }
 .rb-combo .rb-ico { display: flex; color: var(--accent); }
 .rb-combo-label { font-weight: 600; white-space: nowrap; }
@@ -494,7 +494,7 @@ table.attr td.empty { color: var(--muted); text-align: center; padding: 14px; }
 .rb-title-btn:hover { color: var(--accent); }
 .rb-menu {
   position: fixed; z-index: 60; display: flex; flex-direction: column; padding: 4px;
-  background: #18242f; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
   box-shadow: 0 12px 32px var(--shadow); overflow-y: auto;
 }
 .rb-menu-head {
@@ -724,7 +724,7 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 .tb-search:focus { border-color: var(--accent); outline: none; }
 .tb-sources { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
 .tb-src { display: inline-block; font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--sunken); color: var(--muted); font-weight: 500; vertical-align: 1px; }
-.tb-src.src-geolibre { color: #2f9a5f; } .tb-src.src-geospax { color: var(--accent); } .tb-src.src-qgis { color: #4c8f2a; }
+.tb-src.src-geolibre { color: #2f9a5f; } .tb-src.src-geospax, .tb-src.src-gsx { color: var(--accent); } .tb-src.src-qgis { color: #4c8f2a; }
 .tb-src.src-arcgis { color: #4aa3df; } .tb-src.src-rustgis { color: #c2703a; }
 .tb-count { font-size: 11px; color: var(--muted); margin: 2px 2px 6px; }
 .tb-cat { display: flex; justify-content: space-between; width: 100%; padding: 6px 4px; margin-top: 2px; background: none; border: 0; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--fg); text-align: left; }
@@ -863,3 +863,9 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 
 /* the GeoSpaX logo (from GeoSpaX 2.0) beside the name */
 .brand-logo { width: 22px; height: 22px; vertical-align: -5px; margin-right: 6px; }
+
+/* a plugin tool's results in its dialog */
+.plugin-result { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 12px; }
+.plugin-result table { width: 100%; border-collapse: collapse; }
+.plugin-result th { text-align: left; font-weight: 500; color: var(--text2); padding: 2px 8px 2px 0; }
+.plugin-result td { text-align: right; padding: 2px 0; font-variant-numeric: tabular-nums; }

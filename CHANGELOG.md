@@ -5,6 +5,21 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
+design.
+
+### Added — GSX tools (from GeoSpaX 2.0), phase A
+- **`plugins/gsx`**: 13 tools in the Toolbox: polygon overlay, weighted suitability (WLC), distance
+  decay, unprotected priority sites, protection gap, minimum-cost representation (SCP), weighted
+  hotspot grid, fragmentation metrics, patch connectivity, two-date change, DBSCAN, Clark–Evans and
+  richness/diversity. GeoSpaX 2.0's analysis code and its 103 tests, unchanged, on Node; offline.
+- Plugins can ask for **layers as GeoJSON** (`geojson: true`) and return a **results table and notes**
+  that the tool dialog shows.
+- The **GeoSpaX 2.0 logo**: title bar, favicon, desktop icons and README.
+
+### Fixed
+- Light theme: ribbon galleries, their menus and a few badges, tags and highlights kept dark colours.
+
 ### Added — preview and legend editor
 - **Live preview in Finish my map**: the first page, redrawn as options change (`POST /api/preview/map`,
   no run recorded).
