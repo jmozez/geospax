@@ -255,7 +255,7 @@ systemDark?.addEventListener?.('change', () => theme === 'system' && setTheme('s
 
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
-  const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': css('map-bg') || '#0d2233' } }];
+  const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': css('map-bg') || '#0b0b0b' } }];
   addBasemap(sources, out);
   for (const id of project.order) {
     const l = layerById(id);
@@ -1435,6 +1435,11 @@ async function main() {
     },
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
   });
+  // Plugins › Manage plugins: the plugins pane in a dialog
+  const pm = $('#plugin-manager');
+  document.addEventListener('geospax:plugin-manager', () => { pm.hidden = false; void pluginsPane?.reload(); });
+  pm.addEventListener('click', (e) => { const t = e.target as HTMLElement; if (t === pm || t.closest('[data-close]')) pm.hidden = true; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pm.hidden && document.querySelector('#plugin-modal[hidden]')) pm.hidden = true; }, true);
   // R tab: R setup and the R console (rconsole.ts)
   new RConsole({
     backend,

@@ -395,10 +395,13 @@ export class Workbench {
       } catch { /* engine offline: the static commands still work */ }
     }
     // Plugin tools on the tab their manifest names (`tab:`), one group per tool group; a whole
-    // tool library (GeoLibre's 1,000+) is one button that opens the Toolbox; tools that name no
+    // third-party tool library (40+ tools) is one button that opens the Toolbox (the built-in 1,000+ are filed in the Toolbox by task); tools that name no
     // tab go to the Plugins tab (like ArcGIS Pro's Add-In tab).
     const tab = this.layout.ribbon;
+    const before = parts.length;
     for (const p of this.pluginTools()) {
+      // a built-in library (1,000+ raster, terrain, hydrology … tools) lives in the Toolbox, by task
+      if (p.builtin && p.tools.length > 40) continue;
       if (p.tools.length > 40) {
         if ((p.tools[0]?.tab ?? 'analyze') !== tab) continue;
         parts.push(`<div class="rb-group" data-group="plugin:${esc(p.id)}"><div class="rb-items">
@@ -425,15 +428,15 @@ export class Workbench {
         // more than three tools and the row would eat the ribbon: collapse to a list
         const body =
           this.layout.compact && tools.length > 3
-            ? this.comboHtml({ menu: key, icon: tools[0].icon ?? 'grid', label: group.replace(/^GSX · /, ''), count: tools.length, title: `${tools.length} tools: ${tools.map((t) => t.name).join(', ')}` })
+            ? this.comboHtml({ menu: key, icon: tools[0].icon ?? 'grid', label: group.split(' › ').pop()!, count: tools.length, title: `${tools.length} tools: ${tools.map((t) => t.name).join(', ')}` })
             : inline;
         parts.push(
-          `<div class="rb-group" data-group="${esc(key)}"><div class="rb-items">${body}</div><div class="rb-title">${esc(group)}${tools.length > 3 ? this.galleryToggle() : ''}</div></div>`,
+          `<div class="rb-group" data-group="${esc(key)}"><div class="rb-items">${body}</div><div class="rb-title">${esc(group.split(' › ').pop()!)}${tools.length > 3 ? this.galleryToggle() : ''}</div></div>`,
         );
       }
     }
-    if (tab === 'plugins' && !parts.length) {
-      parts.push(`<div class="rb-group"><div class="rb-items"><span class="dim rb-empty">No plugin tools here yet. Tools of plugins that name no tab show here; manage plugins in the Plugins pane.</span></div><div class="rb-title">Plugins</div></div>`);
+    if (tab === 'plugins' && parts.length === before) {
+      parts.push(`<div class="rb-group"><div class="rb-items"><span class="dim rb-empty">No plugin tools here yet. Tools of plugins that name no other tab show here.</span></div><div class="rb-title">Plugins</div></div>`);
     }
     bodyEl.innerHTML = parts.join('') + `<div class="rb-spacer"></div>`;
   }
@@ -655,6 +658,10 @@ export class Workbench {
       const raw = localStorage.getItem(LS_KEY);
       if (raw) this.layout = { ...DEFAULT_LAYOUT, ...(JSON.parse(raw) as Layout), tabs: { ...DEFAULT_LAYOUT.tabs, ...(JSON.parse(raw) as Layout).tabs } };
     } catch { /* first run, or a stale shape: defaults are fine */ }
+    // a tab that no longer exists (e.g. the old bottom Plugins tab) falls back to the default
+    for (const dock of Object.keys(this.layout.tabs) as Dock[]) {
+      if (!document.querySelector(`.dock-tabs[data-dock="${dock}"] [data-tab="${this.layout.tabs[dock]}"]`)) this.layout.tabs[dock] = DEFAULT_LAYOUT.tabs[dock];
+    }
   }
 
   private saveLayout() {
@@ -989,7 +996,11 @@ export class Workbench {
     return (this.host.plugins()?.plugins ?? []).filter((p) => p.tools.length > 0);
   }
 
+  private paletteSeq = 0;
+
   private async buildPaletteItems(q: string) {
+    // the newest query wins: a slower earlier build (the one on open) must not overwrite it
+    const seq = ++this.paletteSeq;
     const items: typeof this.paletteItems = [];
     const host = this.cmdHost();
     for (const c of COMMANDS) {
@@ -1006,8 +1017,8 @@ export class Workbench {
         items.push({
           id: `plugin:${p.id}/${t.id}`,
           label: t.name,
-          sub: `plugin tool · ${p.name}`,
-          kind: 'plugin',
+          sub: p.builtin ? `tool · ${t.group ?? ''}` : `plugin tool · ${p.name}`,
+          kind: p.builtin ? 'tool' : 'plugin',
           run: () => this.host.plugins()?.openTool(p, t),
         });
       }
@@ -1044,6 +1055,7 @@ export class Workbench {
       const i = hay.indexOf(s);
       return i < 0 ? 99 : 1 + i / 100;
     };
+    if (seq !== this.paletteSeq) return;
     this.paletteItems = (s ? items.map((it) => ({ it, k: Math.min(score(it.label), score(it.sub) + 0.5) })).filter((x) => x.k < 99).sort((a, b) => a.k - b.k).map((x) => x.it) : items).slice(0, 60);
     this.paletteIndex = 0;
     this.renderPalette();

@@ -1,4 +1,4 @@
-// The GSX tools: GeoSpaX parameters in, src/analysis functions, layers and a result table out.
+// Conservation, landscape and biodiversity tools (from GeoSpaX 2.0): GeoSpaX parameters in, src/analysis functions, layers and a result table out.
 // Each tool appears once in the Toolbox (grouped by what it does); the domain kits (conservation,
 // forestry, hydrology …) are recipes that combine them.
 import type { Feature } from 'geojson';
@@ -83,16 +83,19 @@ function criteria(text: string) {
 
 // ---------------------------------------------------------------- planning
 
-const PLAN = 'GSX · Planning';
-const LAND = 'GSX · Landscape';
-const SPECIES = 'GSX · Species & patterns';
+// Toolbox › toolset, by task (the same names as every other GeoSpaX tool)
+const PLAN = 'Conservation Planning';
+const LAND = 'Landscape Ecology';
+const OVERLAY = 'Analysis › Overlay';
+const POINTS = 'Spatial Statistics › Point patterns';
+const BIODIV = 'Biodiversity';
 
 export const TOOLS: Tool[] = [
   {
     id: 'overlay',
     name: 'Polygon overlay',
     summary: 'Intersect, erase (difference) or union two polygon layers; areas in hectares.',
-    group: LAND,
+    group: OVERLAY,
     icon: 'layers',
     params: [
       { name: 'a', label: 'Layer A', kind: 'layer', required: true },
@@ -391,7 +394,7 @@ export const TOOLS: Tool[] = [
     id: 'dbscan',
     name: 'DBSCAN clusters',
     summary: 'Density-based clusters of up to 2,000 points (haversine distance); noise stays as cluster −1.',
-    group: SPECIES,
+    group: POINTS,
     icon: 'hotspot',
     params: [
       { name: 'points', label: 'Points', kind: 'layer', required: true },
@@ -421,7 +424,7 @@ export const TOOLS: Tool[] = [
     id: 'nearest-neighbour',
     name: 'Occurrence pattern (Clark–Evans)',
     summary: 'Nearest-neighbour ratio R and z-score: clustered, random-like or dispersed.',
-    group: SPECIES,
+    group: POINTS,
     icon: 'hotspot',
     params: [{ name: 'points', label: 'Points', kind: 'layer', required: true }],
     run(ctx) {
@@ -437,7 +440,7 @@ export const TOOLS: Tool[] = [
     id: 'diversity',
     name: 'Richness and diversity',
     summary: 'Species richness, Shannon H′, Simpson and evenness of an occurrence layer, overall and per area.',
-    group: SPECIES,
+    group: BIODIV,
     icon: 'chart',
     params: [
       { name: 'occurrences', label: 'Occurrences', kind: 'layer', required: true },
@@ -486,5 +489,5 @@ export const TOOLS: Tool[] = [
 
 // Where each group sits on the ribbon: planning (suitability, gaps, representation) is modelling;
 // landscape metrics and point patterns are analysis.
-const TAB_OF: Record<string, string> = { [PLAN]: 'modelling', [LAND]: 'analyze', [SPECIES]: 'analyze' };
+const TAB_OF: Record<string, string> = { [PLAN]: 'modelling', [LAND]: 'analyze', [OVERLAY]: 'analyze', [POINTS]: 'analyze', [BIODIV]: 'analyze' };
 for (const t of TOOLS) t.tab ??= TAB_OF[t.group];

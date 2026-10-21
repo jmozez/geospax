@@ -290,8 +290,11 @@ hides, Enter opens the symbology, Alt+↑/↓ moves the layer in the drawing ord
 
 ## 2c. Plugins: tools from five ecosystems
 
-Open the **Plugins** tab (bottom dock). Every plugin is a folder with a manifest, and GeoSpaX reads
-five formats, so a tool written for another GIS shows up here:
+Everything about plugins is on the **Plugins** ribbon tab. **Manage plugins** (first button) lists
+what is installed, the runtimes found, and imports, reloads or uninstalls plugins; the plugins' own
+tools follow on the same tab, unless a plugin puts them on another tab (`tab:`). Every plugin is a
+folder with a manifest, and GeoSpaX reads five formats, so a tool written for another GIS shows up
+here:
 
 | Written for | File it looks for | What runs |
 | --- | --- | --- |

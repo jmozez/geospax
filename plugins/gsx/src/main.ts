@@ -1,4 +1,4 @@
-// GSX tools for GeoSpaX 3 (plugins/gsx). One JSON request on stdin, one JSON answer on stdout
+// Conservation, landscape and biodiversity tools for GeoSpaX 3 (plugins/gsx). One JSON request on stdin, one JSON answer on stdout
 // (docs/PLUGINS.md). The analysis code in src/analysis comes from GeoSpaX 2.0 (@geospax/analysis,
 // jm0535/GeoSpaX) and 1.4.2 (jm0535/map-kit), by J. Moses, MIT; it is unchanged so its golden-value
 // tests still hold. This file only maps GeoSpaX parameters to those functions and writes results.
@@ -20,7 +20,7 @@ if (process.argv[2] === '--manifest') {
 }
 
 const tool = TOOLS.find((t) => t.id === process.argv[2]);
-if (!tool) fail(`GSX has no tool '${process.argv[2]}'`);
+if (!tool) fail(`there is no tool '${process.argv[2]}'`);
 const req = JSON.parse(readFileSync(0, 'utf8') || '{}');
 const params: Record<string, unknown> = req.params ?? {};
 const geojson: Record<string, string> = req.layer_geojson ?? {};

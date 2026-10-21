@@ -5,7 +5,8 @@ version: 1
 title: R kriging (gstat) → prediction and uncertainty
 description: >-
   Ordinary kriging in R with an automatically fitted variogram (spherical, exponential or
-  Gaussian, whichever fits best) and leave-one-out cross-validation. Needs R with sf and gstat.
+  Gaussian, whichever fits best) and cross-validation (leave-one-out, or 10-fold above 200
+  samples, where kriging uses the nearest 32). Needs R with sf and gstat.
 inputs:
   layer: { type: layer, default: auto, description: point samples (auto = the most sample-like layer) }
   field: { type: field, default: auto, description: numeric field to krige (auto = first numeric) }
@@ -40,13 +41,19 @@ steps:
         hull <- st_buffer(st_convex_hull(st_union(pts)), 50)
         keep <- st_intersects(centres, hull, sparse = FALSE)[, 1]
         grid <- grid[keep, ]
-        k <- krige(f, pts, centres[keep, ], model = model, debug.level = 0)
+        # local kriging (the nearest 32 samples) once there are many samples: same as global for
+        # small sets, and seconds instead of minutes for large ones
+        nmax <- if (nrow(pts) > 200) 32 else Inf
+        k <- krige(f, pts, centres[keep, ], model = model, nmax = nmax, debug.level = 0)
         grid$prediction <- round(k$var1.pred, 4)
         grid$std_error <- round(sqrt(pmax(k$var1.var, 0)), 4)
-        cv <- krige.cv(f, pts, model = model, verbose = FALSE)
+        # leave-one-out for small sets; 10-fold above 200 samples (LOO with a neighbourhood is slow)
+        nfold <- if (nrow(pts) > 200) 10 else nrow(pts)
+        set.seed(1)
+        cv <- krige.cv(f, pts, model = model, nmax = nmax, nfold = nfold, verbose = FALSE)
         last <- nrow(model)
-        result(field = fld, model = as.character(model$model[last]), range_m = round(model$range[last]),
-               cv_rmse = round(sqrt(mean(cv$residual^2)), 4), samples = nrow(pts), epsg = epsg)
+        result(field = fld, model = as.character(model$model[last]), range_m = round(model$range[last]), neighbours = if (is.finite(nmax)) nmax else nrow(pts),
+               cv_rmse = round(sqrt(mean(cv$residual^2)), 4), cv = if (nfold == nrow(pts)) "leave-one-out" else "10-fold", samples = nrow(pts), epsg = epsg)
         list(prediction = st_transform(grid, 4326))
   - id: style
     use: automap.style
