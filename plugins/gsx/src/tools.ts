@@ -4,15 +4,34 @@
 import type { Feature } from 'geojson';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import * as A from './analysis';
+import { RASTER_TOOLS, TAB_OF_RASTER } from './rastertools';
 
 export interface Param {
   name: string;
   label: string;
-  kind: 'number' | 'text' | 'bool' | 'layer' | 'field' | 'file' | 'choice';
+  kind: 'number' | 'text' | 'bool' | 'layer' | 'field' | 'file' | 'choice' | 'raster' | 'rasters';
   required?: boolean;
   default?: unknown;
   description?: string;
   choices?: string[];
+}
+
+/** A raster as GeoSpaX hands it to a tool: float32 bands, row-major, north up, NaN = no data.
+ *  Every raster of one run shares the first one's grid. */
+export interface Grid {
+  id: string;
+  title: string;
+  kind: string;
+  units: string;
+  width: number;
+  height: number;
+  bandNames: string[];
+  bands: Float32Array[];
+  /** GDAL geotransform [x0, dx, 0, y0, 0, dy] in the raster's CRS */
+  transform: number[];
+  /** WKT of the raster's CRS ('' = unknown) */
+  crs: string;
+  geographic: boolean;
 }
 
 export interface Ctx {
@@ -20,11 +39,28 @@ export interface Ctx {
   /** the features of the layer named by a layer parameter (null when the parameter is empty) */
   layer(name: string): Feature[] | null;
   layerName(name: string): string;
+  /** the raster named by a raster parameter (null when the parameter is empty) */
+  raster(name: string): Grid | null;
+  /** the rasters named by a rasters parameter (comma-separated ids or a list) */
+  rasters(name: string): Grid[];
+}
+
+/** A raster a tool returns: one float32 band on a grid (usually the input's). */
+export interface OutGrid {
+  name: string;
+  like: Grid;
+  data: Float32Array;
+  kind?: string;
+  units?: string;
+  description?: string;
+  /** categorical rasters: value, label and colour of each class */
+  classes?: { value: number; label: string; color: string }[];
 }
 
 export interface Out {
   message: string;
   layers?: { name: string; features: Feature[]; provenance?: unknown }[];
+  rasters?: OutGrid[];
   table?: [string, string | number][];
   notes?: string[];
 }
@@ -491,3 +527,5 @@ export const TOOLS: Tool[] = [
 // landscape metrics and point patterns are analysis.
 const TAB_OF: Record<string, string> = { [PLAN]: 'modelling', [LAND]: 'analyze', [OVERLAY]: 'analyze', [POINTS]: 'analyze', [BIODIV]: 'analyze' };
 for (const t of TOOLS) t.tab ??= TAB_OF[t.group];
+// phase B: rasters and species distribution models (src/rastertools.ts)
+for (const t of RASTER_TOOLS) TOOLS.push({ ...t, tab: t.tab ?? TAB_OF_RASTER[t.group] });

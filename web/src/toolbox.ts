@@ -57,7 +57,7 @@ const RECENT_KEY = 'geospax.toolbox.recent';
 const TOOLBOXES = [
   'Ready-made analyses', 'Analysis', 'Cartography', 'Conversion', 'Data Management', 'Spatial Statistics', 'Interpolation',
   'Raster Analysis', 'Terrain', 'Hydrology', 'Image Analysis', 'LiDAR and 3D', 'Network Analysis', 'Landscape Ecology',
-  'Conservation Planning', 'Biodiversity', 'Field data and devices', 'Maps and reports', 'Scripting (R and Python)', 'Plugins',
+  'Conservation Planning', 'Biodiversity', 'Species Distribution', 'Field data and devices', 'Maps and reports', 'Scripting (R and Python)', 'Plugins',
 ];
 
 /** The engine's own tools (recipe steps) by family → toolbox. */
