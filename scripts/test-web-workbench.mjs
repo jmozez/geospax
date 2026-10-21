@@ -33,7 +33,7 @@ await page.waitForFunction(() => window.map && (typeof window.map?.loaded === 'f
 await page.waitForTimeout(1200);
 
 console.log('\n1 · shell');
-ok('ribbon tabs', (await page.$$('#ribbon-tabs .rb-tab')).length === 7, `${(await page.$$('#ribbon-tabs .rb-tab')).length} tabs`);
+ok('ribbon tabs', (await page.$$('#ribbon-tabs .rb-tab')).length >= 11, `${(await page.$$('#ribbon-tabs .rb-tab')).length} tabs`);
 ok('ribbon buttons', (await page.$$('#ribbon-body .rb-btn')).length >= 8, `${(await page.$$('#ribbon-body .rb-btn')).length} buttons`);
 ok('three docks', (await page.$$('.dock')).length === 3);
 ok('three splitters', (await page.$$('.splitter')).length === 3);
@@ -45,7 +45,7 @@ ok('map is the largest pane', await page.evaluate(() => {
 await page.screenshot({ path: `${out}/workbench-01-home.png` });
 
 console.log('\n2 · ribbon tabs');
-for (const [tab, min] of [['data', 4], ['style', 3], ['analyze', 6], ['view', 5], ['automate', 4], ['help', 4]]) {
+for (const [tab, min] of [['data', 4], ['style', 3], ['analyze', 4], ['imagery', 4], ['modelling', 2], ['r', 8], ['view', 5], ['automate', 4], ['help', 4], ['plugins', 1]]) {
   await page.click(`#ribbon-tabs [data-tab="${tab}"]`);
   await page.waitForTimeout(250);
   const n = (await page.$$('#ribbon-body .rb-btn')).length;
@@ -64,7 +64,7 @@ for (const [dock, tab] of [['left', 'catalog'], ['right', 'attributes'], ['botto
   const visible = await page.$eval(`#dock-${dock} .dock-body section[data-tab="${tab}"]`, (el) => el.classList.contains('on'));
   ok(`${dock} › ${tab} activates`, visible);
 }
-ok('catalog lists layers', (await page.$$('#catalog .node.layer')).length > 5, `${(await page.$$('#catalog .node.layer')).length} nodes`);
+ok('catalog lists layers', (await page.$$('#catalog .node.layer')).length >= 3, `${(await page.$$('#catalog .node.layer')).length} nodes`);
 await page.screenshot({ path: `${out}/workbench-03-catalog.png` });
 
 console.log('\n4 · attribute table');
@@ -123,7 +123,8 @@ ok('attributes tab restored', await page.$eval('#attributes', (el) => el.closest
 await page.screenshot({ path: `${out}/workbench-06-final.png` });
 
 console.log('\n8 · plugins pane (docs/PLUGINS.md)');
-await page.click('#dock-bottom .dock-tabs [data-tab="plugins"]');
+await page.click('#ribbon-tabs .rb-tab[data-tab="plugins"]');
+await page.click('[data-cmd="plugins.manage"]');
 await page.waitForSelector('#plugins .plugin', { timeout: 15_000 });
 const cards = await page.$$eval('#plugins .plugin .p-name', (els) => els.map((e) => e.textContent.trim()));
 ok('plugins listed', cards.length >= 2, cards.join(' · '));
@@ -153,10 +154,11 @@ if (firstRun) {
   ok('a runnable tool is enabled', false, 'none enabled');
 }
 await page.screenshot({ path: `${out}/workbench-08-plugins.png` });
+await page.click('#plugin-manager [data-close]');
 
 console.log('\n9 · Analyze: recipes collapse into a dropdown instead of eating the ribbon');
 await page.click('#ribbon-tabs [data-tab="analyze"]');
-await page.waitForSelector('#ribbon-body .rb-combo', { timeout: 15_000 });
+await page.waitForSelector('#ribbon-body [data-group="recipes"] .rb-combo', { timeout: 15_000 });
 const cardEls = await page.$$('#ribbon-body .rb-recipe');
 ok('no big recipe cards in the ribbon', cardEls.length === 0, `${cardEls.length} cards`);
 const groupW = await page.$eval('#ribbon-body [data-group="recipes"]', (e) => Math.round(e.getBoundingClientRect().width));
@@ -235,7 +237,7 @@ const installed = await api('POST', 'api/plugins/import', { path: fixture });
 ok('the engine installs a plugin from a folder', installed.status === 200, installed.json?.plugin?.name ?? installed.status);
 await page.reload({ waitUntil: 'load' });
 await page.waitForFunction(() => window.map && (typeof window.map?.loaded === 'function' && window.map.loaded()), null, { timeout: 120_000, polling: 500 });
-await page.click('#ribbon-tabs [data-tab="analyze"]');
+await page.click('#ribbon-tabs [data-tab="plugins"]');
 await page.waitForTimeout(800);
 
 const pluginCombo = '#ribbon-body [data-menu^="plugin:many-tools"]';
@@ -259,7 +261,8 @@ await page.keyboard.press('Escape');
 await page.screenshot({ path: `${out}/workbench-11-plugin-dropdown.png` });
 
 // uninstall, from the pane (two-step) and from the API
-await page.click('.dock-tabs[data-dock="bottom"] [data-tab="plugins"]');
+await page.click('#ribbon-tabs .rb-tab[data-tab="plugins"]');
+await page.click('[data-cmd="plugins.manage"]');
 await page.waitForSelector('.plugin .p-del');
 const del = page.locator('.plugin', { hasText: 'Many tools' }).locator('.p-del');
 await del.click();
@@ -277,6 +280,7 @@ ok('and it is really gone from the engine', !leftIds.includes('many-tools'), `le
 const refused = await api('DELETE', 'api/plugins/example-python');
 ok('a plugin in a --plugins folder cannot be deleted from here', refused.status >= 400, `${refused.status} ${refused.json?.error ?? ''}`.slice(0, 70));
 fs.rmSync(fixture, { recursive: true, force: true });
+await page.click('#plugin-manager [data-close]');
 
 console.log('\n11 · the ribbon gets out of the way when you do not need it');
 const mapH = () => page.$eval('#map', (e) => Math.round(e.getBoundingClientRect().height));

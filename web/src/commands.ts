@@ -313,12 +313,12 @@ export const COMMANDS: Command[] = [
 
   // ---- Analyze
   {
-    id: 'analyze.gallery', tab: 'analyze', group: 'Recipes', title: 'Recipe gallery', icon: 'play', big: true,
+    id: 'analyze.gallery', tab: 'analyze', group: 'Geoprocessing', title: 'Recipe gallery', icon: 'play', big: true,
     hint: 'One-click workflows: pick one, press Run', keys: 'Ctrl+R',
     run: (h) => { h.showTab('bottom', 'automate'); },
   },
   {
-    id: 'analyze.toolbox', tab: 'analyze', group: 'Recipes', title: 'Toolbox', icon: 'search', big: true,
+    id: 'analyze.toolbox', tab: 'analyze', group: 'Geoprocessing', title: 'Toolbox', icon: 'search', big: true,
     hint: 'Every tool: recipes, building blocks, GeoLibre and plugin tools, searchable (ArcGIS and QGIS names work)',
     run: (h) => { h.showTab('right', 'toolbox'); },
   },
@@ -509,6 +509,12 @@ export const COMMANDS: Command[] = [
   },
   // ------------------------------------------------ Modelling
   recipeCmd('modelling.rkrige', 'modelling', 'Interpolation', 'Kriging in R', 'chart', 'r-kriging', 'gstat kriging in R, cross-validated (needs R with sf and gstat)'),
+  // ------------------------------------------------ Plugins (the plugins' own tools follow, by plugin)
+  {
+    id: 'plugins.manage', tab: 'plugins', group: 'Manage', title: 'Manage', icon: 'layers', big: true,
+    hint: 'What is installed, the runtimes found, import a plugin (GeoSpaX, RustGIS, GeoLibre, QGIS, ArcGIS Pro), reload or uninstall',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:plugin-manager')); },
+  },
   // ------------------------------------------------ R (rconsole.ts)
   rCmd('r.console', 'Code', 'R console', 'rlogo', 'blank', 'Run R code on a layer (sf) and a raster (terra); results come back to the map', true),
   rCmd('r.setup', 'Code', 'R setup', 'download', 'setup', 'Find or install R and package kits (sf, terra, tmap, biomod2 …)'),
