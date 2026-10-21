@@ -41,6 +41,33 @@ Layers in any format work: the plugin asks for GeoJSON (`geojson: true` in its `
 GeoSpaX hands it each layer the tool uses as GeoJSON, whatever the source (GeoPackage, Shapefile,
 FlatGeobuf …).
 
+## Rasters and species distribution (phase B)
+
+| Tool | Toolbox | What it gives you |
+| --- | --- | --- |
+| **Spectral index and extent (Otsu)** | Image Analysis › Spectral indices | NDVI, NDWI, NDBI, NBR or any band pair; an automatic Otsu threshold (or yours); the index raster, the extent as a class raster and its area; the band-assignment caveat on every result |
+| **Raster change (two dates)** | Image Analysis › Change detection | After − before, Otsu thresholds for loss and gain, a loss / no change / gain raster and the areas |
+| **Slope zones** | Terrain › Slope zones | Horn slope from a DEM and three zones (default breaks 8° and 20°) with their areas; warns when the DEM is too coarse for slope |
+| **Species distribution model** | Species Distribution | Occurrences + environmental rasters (all their bands) → suitability (0–1) and the predicted range at the max-TSS threshold. BIOCLIM, Mahalanobis or presence-background logistic; seeded background sample; spatially blocked cross-validation with AUC, max TSS and the Boyce index |
+
+The rasters come from the map (Data › Climate gives WorldClim or CHELSA; Data › Elevation the
+Copernicus DEM; Imagery the latest Sentinel-2 bands), and results go back to the map styled for what
+they are: suitability on a fixed 0–1 Viridis scale, change on a diverging red–blue scale centred on
+zero, classes with their own colours. Several environmental rasters are resampled onto the first
+one's grid.
+
+**Cross-validation.** Points are grouped in square lon/lat blocks (automatic size: about a sixth of the
+study area; or set it). Blocks that hold presences are dealt to the folds first, so every held-out fold
+has presences even when occurrences are clustered; when there are fewer such blocks than folds, the
+number of folds drops to match and the result says so. Report the cross-validated scores: training
+AUC is optimistic, and suitability from presence-background data is relative, not a probability of
+presence.
+
+Checked against synthetic data with known answers (`tests/rastertools.test.ts`): an image whose west
+half is vegetated (NDVI extent 50.0 %), a planted loss strip (found cell for cell), a 10° ramp (mean
+slope 10° ± 0.2) and a species confined to one climate corner (cross-validated AUC above 0.85 for
+Mahalanobis and logistic, above 0.7 for BIOCLIM).
+
 ## From scripts
 
 ```bash
@@ -67,10 +94,8 @@ CI checks that `run.mjs` and `plugin.yaml` match the source.
 
 ## Coming next
 
-- **Rasters, models and data:** spectral indices (NDVI, NDWI, NBR …) with Otsu thresholds, slope
-  zones, reclassify and polygonize, raster change, **species distribution models** (BIOCLIM,
-  Mahalanobis, presence-background logistic, spatial-block cross-validation), environmental
-  covariates (CHELSA, Copernicus DEM), occurrences from GBIF, OBIS, iNaturalist and WoRMS, GEBCO.
+- **Data:** WoRMS taxonomy checks, GEBCO bathymetry and the 2.0 catalogue layers (ecoregions,
+  forest, marine, SPREP) in Data › Online data.
 - **Domain kits:** conservation, biodiversity, marine, environment, forestry, agriculture, climate,
   disaster, geoscience, hydrology, land use and land cover, soil: each a set of recipes that end in a
   finished map and report, and Lazy-mode tasks.
