@@ -25,6 +25,7 @@ pub mod pmtiles_io;
 pub mod raster;
 pub mod reader;
 pub mod router;
+pub mod rsetup;
 pub mod scene3d;
 pub mod tile;
 pub mod upload;
@@ -379,6 +380,7 @@ impl Engine {
             }
         }
         let automation = automation::Automation::new(automation_cfg, &state_dir);
+        automation::sidecar::set_r_library(state_dir.join("r-library"));
         let phone = phone::PhoneLink::new(&state_dir, cfg.phone.clone());
         Ok(Engine {
             reg: RwLock::new(Registry { layers, by_id }),
