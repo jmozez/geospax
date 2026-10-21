@@ -18,6 +18,15 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   World (offline), OpenStreetMap (online) or none; the choice is saved in the project.
 - **The map opens on your data** when there is no saved view, instead of a fixed place.
 
+### Added — Lazy and Pro ribbons
+- **One Lazy | Pro switch in the title bar** drives the ribbon and the layer list together.
+- **Lazy: a task bar instead of a ribbon.** One row: a "What do you want to do?" box (the command
+  palette), four tasks in plain words (Add data, Make it look good, Find patterns, Finish the map) and
+  **Next for <layer>**: the analyses that fit the selected layer, run on it with one click. Every button is
+  an ordinary command, so nothing is lazy-only.
+- **Pro: a contextual Layer tab** (as ArcGIS Pro shows for a selected layer) with zoom, attribute table,
+  symbology, AutoMap and the same next steps. Clicking a layer card selects it.
+
 ### Added — Lazy and Pro layer lists
 - **Contents has two modes**, switched at the top of the pane and remembered per browser (Lazy by default;
   `?mode=lazy|pro`). **Lazy: layer cards** with a friendly name, a one-sentence summary written from the

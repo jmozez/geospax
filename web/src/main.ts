@@ -14,7 +14,7 @@ import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
-import { GROUP_TITLE, actionsFor, groupOf, lazyCard, modeSwitch, proRow, type Group, type UiMode } from './layercards';
+import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
   fmtNum,
@@ -407,7 +407,15 @@ function setMode(m: UiMode) {
     /* private window: the choice lasts this session */
   }
   renderContents();
-  workbench?.setStatus(m === 'lazy' ? 'Lazy mode: layers explain themselves' : 'Pro mode: every setting at hand');
+  renderModeSwitch();
+  document.dispatchEvent(new CustomEvent('geospax:mode', { detail: m }));
+  workbench?.setStatus(m === 'lazy' ? 'Lazy mode: plain tasks and layers that explain themselves' : 'Pro mode: the full ribbon and every setting');
+}
+
+/** One switch in the title bar drives the ribbon and the layer list together. */
+function renderModeSwitch() {
+  const el = document.querySelector<HTMLElement>('#mode-switch');
+  if (el) el.innerHTML = modeSwitch(uiMode);
 }
 
 function renderContents() {
@@ -458,7 +466,7 @@ function renderContents() {
   }
   // keep the filter box focused while typing
   const focused = document.activeElement?.classList.contains('pr-filter');
-  el.innerHTML = modeSwitch(uiMode) + body;
+  el.innerHTML = body;
   if (focused) {
     const fi = el.querySelector<HTMLInputElement>('.pr-filter');
     fi?.focus();
@@ -507,8 +515,6 @@ function wireContents() {
   });
   el.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
-    const mode = t.closest<HTMLElement>('.lc-mode [data-mode]')?.dataset.mode as UiMode | undefined;
-    if (mode) return setMode(mode);
     const bm = t.closest<HTMLElement>('[data-basemap]')?.dataset.basemap;
     if (bm) return setBasemap(bm as Basemap);
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
@@ -522,6 +528,12 @@ function wireContents() {
       panel.open(id);
       workbench?.showTab('right', 'symbology');
       renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
+    } else if (!t.closest('button, input, label')) {
+      // a click anywhere else on a card selects the layer: the ribbon offers its next steps
+      panel.open(id);
+      renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
     }
   });
   // Pro tree: drag a row onto another to put it there (Pro's Contents drag-and-drop)
@@ -844,11 +856,17 @@ async function main() {
   });
   wireContents();
   renderContents();
+  renderModeSwitch();
+  document.querySelector('#mode-switch')?.addEventListener('click', (e) => {
+    const m = (e.target as HTMLElement).closest<HTMLElement>('[data-mode]')?.dataset.mode as UiMode | undefined;
+    if (m && m !== uiMode) setMode(m);
+  });
   backend
     .json<{ recipes: { id: string }[] }>('api/recipes')
     .then((r) => {
       recipeIds = new Set(r.recipes.map((x) => x.id));
       renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: panel.current }));
     })
     .catch(() => {});
   startHud();
@@ -981,6 +999,20 @@ async function main() {
     setActive: (id) => {
       if (id) panel.open(id);
       renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
+    },
+    mode: () => uiMode,
+    layerName: (id) => {
+      const l = layerById(id);
+      return l ? friendlyName(l, layers) : id;
+    },
+    nextSteps: (id) => {
+      const l = layerById(id);
+      if (!l) return [];
+      return actionsFor(l, project.layers[id].symbology, recipeIds).map(([rid, label]) => ({
+        label,
+        run: () => void automatePane?.run(rid, { layer: id }),
+      }));
     },
     fitLayer,
     fitAll,

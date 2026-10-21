@@ -61,6 +61,12 @@ export interface WorkbenchHost {
   openAttributes: (id: string) => void;
   plugins: () => PluginsPane | null;
   layersWithFields: () => { id: string; name: string; fields?: { name: string; kind: string }[] }[];
+  /** Lazy: one-row task bar; Pro: the full ribbon with a contextual Layer tab. */
+  mode: () => 'lazy' | 'pro';
+  /** Friendly name of a layer, as the layer cards show it. */
+  layerName: (id: string) => string;
+  /** Analyses that fit this layer, best first (the same as its card's buttons). */
+  nextSteps: (id: string) => { label: string; run: () => void }[];
 }
 
 interface RunRow {
@@ -118,6 +124,9 @@ export class Workbench {
       void this.loadRunsSilently();
     });
     document.addEventListener('geospax:plugins-changed', () => this.buildRibbon());
+    // the mode and the selected layer decide what the ribbon offers
+    document.addEventListener('geospax:mode', () => this.buildRibbon());
+    document.addEventListener('geospax:active', () => this.buildRibbon());
   }
 
   /** The command host every ribbon button sees. */
@@ -176,10 +185,19 @@ export class Workbench {
     const bodyEl = document.querySelector<HTMLElement>('#ribbon-body');
     if (!tabsEl || !bodyEl) return;
     const pinned = this.layout.ribbonPinned;
-    tabsEl.innerHTML =
-      TABS.map(
+    const lazy = this.host.mode() === 'lazy';
+    document.querySelector<HTMLElement>('#ribbon')?.classList.toggle('lazy', lazy);
+    const active = this.host.activeId();
+    if (this.layout.ribbon === 'layer' && !active) this.layout.ribbon = 'home';
+    // contextual tab, coloured like Pro's: only while a layer is selected
+    const ctx = active
+      ? `<button class="rb-ctx${this.layout.ribbon === 'layer' ? ' on' : ''}" data-tab="layer" title="Tools for the selected layer"><span>Layer</span> ${esc(this.host.layerName(active))}</button>`
+      : '';
+    tabsEl.innerHTML = lazy
+      ? ''
+      : TABS.map(
         (t) => `<button class="rb-tab${t.id === this.layout.ribbon ? ' on' : ''}" data-tab="${t.id}">${esc(t.label)}</button>`,
-      ).join('') +
+      ).join('') + ctx +
       `<button class="rb-pin${pinned ? ' on' : ''}" data-ribbon-pin title="${
         pinned ? 'Ribbon is pinned open — click to auto-hide it (Ctrl+F1)' : 'Ribbon is hidden — it opens when you click a tab (Ctrl+F1)'
       }"><span class="rb-pin-ico">${icon('pin', 13)}</span><span class="rb-pin-txt">${pinned ? 'Pin' : 'Auto-hide'}</span></button>`;
@@ -229,10 +247,60 @@ export class Workbench {
         if (p && tl) this.host.plugins()?.openTool(p, tl);
         return;
       }
+      const next = t.closest<HTMLElement>('[data-next]');
+      if (next) {
+        this.nextList[Number(next.dataset.next)]?.run();
+        this.showTab('bottom', 'automate');
+        return;
+      }
       const b = t.closest<HTMLElement>('[data-cmd]');
       if (b) void this.run(b.dataset.cmd!);
     };
-    void this.renderRibbonBody(bodyEl);
+    void (lazy ? this.renderTaskBar(bodyEl) : this.renderRibbonBody(bodyEl));
+  }
+
+  private nextList: { label: string; run: () => void }[] = [];
+
+  /** "Next step" buttons: the analyses that fit the selected layer. */
+  private nextHtml(cls: string): string {
+    const id = this.host.activeId();
+    this.nextList = id ? this.host.nextSteps(id) : [];
+    if (!id || !this.nextList.length) return '';
+    return this.nextList
+      .map((n, i) => `<button class="${cls}" data-next="${i}" title="Run on ${esc(this.host.layerName(id))}">${icon('play', 12)} ${esc(n.label)}</button>`)
+      .join('');
+  }
+
+  /**
+   * Lazy mode: the ribbon becomes one row of tasks in plain words, a "What do you want to do?" box
+   * (the command palette) and the next steps for the selected layer. Every button is an ordinary
+   * command, so Pro mode, the palette and scripts reach the same things.
+   */
+  private async renderTaskBar(bodyEl: HTMLElement) {
+    bodyEl.hidden = false;
+    document.querySelector<HTMLElement>('#ribbon')?.classList.remove('auto');
+    requestAnimationFrame(() => this.host.map.resize());
+    try {
+      if (!this.recipes.length) this.recipes = (await this.host.backend.json<{ recipes: RecipeInfo[] }>('api/recipes')).recipes;
+    } catch { /* engine offline: the menu stays empty */ }
+    const task = (attr: string, ico: string, title: string, sub: string) =>
+      `<button class="tk-task" ${attr}><span class="tk-ico">${icon(ico, 20)}</span><span class="tk-txt"><b>${esc(title)}</b><small>${esc(sub)}</small></span></button>`;
+    const id = this.host.activeId();
+    const next = this.nextHtml('tk-next-btn');
+    bodyEl.innerHTML = `<div class="tk-bar">
+      <button class="tk-ask" data-cmd="view.palette">${icon('search', 16)}<span>What do you want to do?</span><kbd>Ctrl K</kbd></button>
+      <div class="tk-tasks">
+        ${task('data-cmd="data.devices"', 'phone', 'Add data', 'Phone, GPS, drone, files')}
+        ${task('data-cmd="style.autoAll"', 'wand', 'Make it look good', 'Style every layer for you')}
+        ${task('data-menu="recipes"', 'hotspot', 'Find patterns', `${this.recipes.length} ready-made analyses`)}
+        ${task('data-cmd="home.exportPng"', 'download', 'Finish the map', 'Save this view as a picture')}
+      </div>
+      ${
+        next
+          ? `<div class="tk-next"><span class="tk-next-h">Next for <b>${esc(this.host.layerName(id!))}</b></span>${next}</div>`
+          : `<div class="tk-next empty"><span class="tk-next-h">Select a layer to see what you can do with it</span></div>`
+      }
+    </div>`;
   }
 
   private ribbonVisible(): boolean {
@@ -265,6 +333,11 @@ export class Workbench {
     const parts: string[] = [];
     for (const g of groups) {
       parts.push(`<div class="rb-group"><div class="rb-items">${g.items.map((c) => commandHtml(c)).join('')}</div><div class="rb-title">${esc(g.group)}</div></div>`);
+    }
+    // contextual Layer tab: the analyses that fit the selected layer, run on it
+    if (this.layout.ribbon === 'layer') {
+      const next = this.nextHtml('rb-next');
+      if (next) parts.push(`<div class="rb-group"><div class="rb-items next">${next}</div><div class="rb-title">Next steps for this layer</div></div>`);
     }
     // Analyze: recipes straight from the engine — collapsed to one dropdown button by
     // default (Pro collapses a gallery the same way) so the ribbon stays one row tall.

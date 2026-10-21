@@ -82,8 +82,17 @@ GeoSpaX opens like a desktop GIS: a **ribbon** on top, **panes** docked around t
 underneath. Nothing is hidden behind a menu you have to hunt for — and every button still runs the same engine
 calls the recipes use.
 
-**Lazy or Pro: the layer list fits you.** A switch at the top of **Contents** picks how layers are shown
-(remembered in your browser; Lazy is the default):
+**Lazy or Pro: GeoSpaX fits you.** One switch in the title bar (remembered in your browser; Lazy is the
+default) changes the ribbon and the layer list together:
+
+- **Lazy: the task bar.** The ribbon becomes one slim row: a **What do you want to do?** box (type anything:
+  "hot spots", "export", a layer name), four tasks in plain words (**Add data**, **Make it look good**,
+  **Find patterns**, **Finish the map**) and **Next for <layer>**: the analyses that fit the layer you
+  selected, one click to run them on it.
+- **Pro: the full ribbon** (Home, Data, Style, Analyze, View, Automate, Help) plus a contextual **Layer**
+  tab while a layer is selected: zoom, attribute table, symbology, AutoMap and the same next steps.
+
+The layer list follows the same switch:
 
 | | Lazy: layer cards | Pro: layer tree |
 |---|---|---|
