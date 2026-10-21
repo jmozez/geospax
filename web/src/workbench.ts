@@ -750,6 +750,7 @@ export class Workbench {
     const right = this.layout.tabs.right;
     const bottom = this.layout.tabs.bottom;
     if (lazy) {
+      if (this.layout.tabs.left === 'project') this.layout.tabs.left = 'contents';
       if (!['inspector', 'toolbox', 'devices', 'attributes'].includes(right)) this.layout.tabs.right = 'inspector';
       if (bottom !== 'activity') this.layout.tabs.bottom = 'activity';
     } else {

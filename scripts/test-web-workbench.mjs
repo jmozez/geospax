@@ -29,7 +29,7 @@ page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && pr
 page.on('pageerror', (e) => problems.push(`[pageerror] ${e.message}`));
 
 await page.goto(`${base}/?fresh`);
-await page.waitForFunction(() => window.map && window.map.loaded() && window.map.areTilesLoaded(), null, { timeout: 120_000, polling: 500 });
+await page.waitForFunction(() => window.map && (typeof window.map?.loaded === 'function' && window.map.loaded()) && window.map.areTilesLoaded(), null, { timeout: 120_000, polling: 500 });
 await page.waitForTimeout(1200);
 
 console.log('\n1 · shell');
@@ -117,7 +117,7 @@ ok('pane reopens', !(await page.$eval('#dock-right', (el) => el.classList.contai
 console.log('\n7 · layout survives a reload');
 await page.click('#dock-right .dock-tabs [data-tab="attributes"]');
 await page.reload();
-await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000, polling: 500 });
+await page.waitForFunction(() => window.map && (typeof window.map?.loaded === 'function' && window.map.loaded()), null, { timeout: 120_000, polling: 500 });
 await page.waitForTimeout(1200);
 ok('attributes tab restored', await page.$eval('#attributes', (el) => el.closest('section').classList.contains('on')));
 await page.screenshot({ path: `${out}/workbench-06-final.png` });
@@ -234,7 +234,7 @@ const api = async (method, url, body) => {
 const installed = await api('POST', 'api/plugins/import', { path: fixture });
 ok('the engine installs a plugin from a folder', installed.status === 200, installed.json?.plugin?.name ?? installed.status);
 await page.reload({ waitUntil: 'load' });
-await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000, polling: 500 });
+await page.waitForFunction(() => window.map && (typeof window.map?.loaded === 'function' && window.map.loaded()), null, { timeout: 120_000, polling: 500 });
 await page.click('#ribbon-tabs [data-tab="analyze"]');
 await page.waitForTimeout(800);
 
@@ -305,7 +305,7 @@ await page.waitForFunction(() => document.querySelector('#ribbon-body')?.hidden 
 ok('it closes itself once you have run something', true);
 
 await page.reload({ waitUntil: 'load' });
-await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000, polling: 500 });
+await page.waitForFunction(() => window.map && (typeof window.map?.loaded === 'function' && window.map.loaded()), null, { timeout: 120_000, polling: 500 });
 ok('the choice survives a reload', await bodyHidden());
 await page.click('#ribbon-tabs [data-ribbon-pin]');
 await page.waitForFunction(() => document.querySelector('#ribbon-body')?.hidden === false, null, { timeout: 5000 });
