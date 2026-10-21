@@ -52,13 +52,21 @@ The `.deb` and the Windows installer both contain both editions (on Windows: `ge
    are in the run's folder and under **Your finished maps**. In Lazy mode the dialog asks only for the
    title (**More options**: subtitle, area, page size A4/A3/Letter, files); Pro shows them all.
 
-**A map series (atlas)** is the same map once per page, as ArcGIS Pro's map series and QGIS's atlas.
-Under **Pages** pick **A grid of pages over the area** (2 × 1 up to 4 × 4, sheets labelled A1, B1, …)
-or **One page per feature of** a visible polygon or line layer (each district, each site; up to 40
-pages), with the page title taken from a field such as `name`. Every page gets its own PNG/PDF
-(`title-01.png`, `title-02.png`, …) with "page 2 of 6" under the title. The series opens with an
-**index page** (`title-00-index`) showing every sheet outlined and labelled, and all pages are also bound
-into **one multi-page PDF** (`title-series.pdf`) ready to print.
+**Layout** (in both Lazy and Pro) picks how the result is arranged:
+
+| Layout | What you get | Like |
+| --- | --- | --- |
+| **One map** | Everything on one map | |
+| **Side by side** | One page, each visible layer in its own panel, same area. With one layer: a single tagged figure panel | R patchwork `wrap_plots()` |
+| **Split by a field** | One panel per value of a field (2–12 values, e.g. `kind`), same area and classes, one shared legend | ggplot2 `facet_wrap()` |
+| **Panels** | Several areas on one page (a grid 1 × 1 to 4 × 4, or one per feature of a layer), each showing exactly its area | R patchwork |
+| **Map series** | An index page with every sheet outlined, then one page per area, each exactly its sheet, bound into one PDF | ArcGIS Pro map series, QGIS atlas |
+
+Panels are tagged (a), (b), … (or A, 1, i, or no tags) with a title each and their own scale bar; one
+north arrow; **Columns** (automatic: a landscape page) and **Legend**: *one shared legend*
+(patchwork's `guides = "collect"`), *one per panel*, or *automatic* (shared when every panel shows the
+same layers, otherwise one per panel). Map series pages are files `title-01.png`, `title-02.png`, …,
+the index `title-00-index`, and the bound `title-series.pdf`.
 
 Behind the scenes Finish my map is an ordinary recipe, `finished-map`, replaced each time: it has run
 history and provenance, and you can re-run it or give it a trigger like any other.

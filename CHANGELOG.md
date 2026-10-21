@@ -6,6 +6,12 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased]
 
 ### Added — the lazy path, stage 5
+- **Multi-panel pages, after R.** Finish my map's new **Layout** (Lazy and Pro): *side by side* (each
+  layer its own panel, or a single tagged panel), *split by a field* (ggplot2 `facet_wrap`), *panels*
+  (several areas on one page, patchwork) and *map series*. Panels are tagged (a), (b)…, have their own
+  scale bar, and share one legend or keep their own. `export.map` takes `panels`, `facet`, `ncol`,
+  `legends`, `tags`.
+- **Map series sheets show exactly their area** (`exact: true`): neighbouring pages no longer overlap.
 - **Map series index page and one bound PDF.** A series now opens with an index map (every sheet outlined
   and labelled) and is bound into a single multi-page vector PDF.
 - Recipe step **`export.series`**: binds every map the run laid out into one PDF. `export.map` takes
