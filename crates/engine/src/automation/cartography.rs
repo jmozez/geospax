@@ -5,7 +5,9 @@
 //! features that share a colour share one SVG path, so a page stays small even for big layers.
 
 use super::automap::{device_role, Colorer, NULL_COLOR};
-use super::features::{fmt_distance, nice_floor, FeatureSet};
+use super::features::FeatureSet;
+use super::furniture;
+pub use super::furniture::Furniture;
 use crate::catalog::GeomKind;
 use crate::wkb::Geom;
 use serde_json::Value;
@@ -48,6 +50,16 @@ pub struct MapSpec {
     pub grid: bool,
     /// Index map of a map series: each page's extent (lon/lat) outlined and labelled.
     pub frames: Vec<([f64; 4], String)>,
+    /// Scale bar, north arrow, legend and inset: styles and places.
+    pub furniture: Furniture,
+    pub inset: Option<Inset>,
+}
+
+/// The overview map: land around the study area, the study area to box.
+pub struct Inset {
+    pub land: FeatureSet,
+    pub study: [f64; 4],
+    pub around: [f64; 4],
 }
 
 pub struct MapOut {
@@ -101,6 +113,17 @@ pub fn page_size(size: &str, extent: [f64; 4]) -> (f64, f64) {
 }
 
 /// Map frame and projection (Web Mercator, north up) for a data extent on a page.
+/// How an extent fills the map frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fit {
+    /// the extent with a margin around it
+    Margin,
+    /// exactly the extent
+    Exact,
+    /// the extent covers the frame (one axis cropped)
+    Cover,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Layout {
     pub width: f64,
@@ -116,20 +139,33 @@ pub struct Layout {
 
 impl Layout {
     pub fn new(extent: [f64; 4], width: f64, height: f64) -> Layout {
-        Layout::with_margin(extent, width, height, 1.16)
+        Layout::fit(extent, width, height, Fit::Margin, true)
     }
 
     /// Exactly the extent (a map series sheet): no margin, so neighbouring sheets do not overlap.
     pub fn new_exact(extent: [f64; 4], width: f64, height: f64) -> Layout {
-        Layout::with_margin(extent, width, height, 1.0)
+        Layout::fit(extent, width, height, Fit::Exact, true)
     }
 
-    fn with_margin(extent: [f64; 4], width: f64, height: f64, pad: f64) -> Layout {
-        let fw = width - 2.0 * MARGIN - LEGEND_W - 18.0;
+    /// Zoom so the extent covers the whole frame (no padding; one axis is cropped). Used for raster
+    /// maps, so the frame is filled with data instead of showing empty margins.
+    pub fn new_cover(extent: [f64; 4], width: f64, height: f64) -> Layout {
+        Layout::fit(extent, width, height, Fit::Cover, true)
+    }
+
+    /// The map frame on a page: beside a legend column, or the full width when the legend sits inside
+    /// the map or is switched off.
+    pub fn fit(extent: [f64; 4], width: f64, height: f64, fit: Fit, legend_column: bool) -> Layout {
+        let fw = width - 2.0 * MARGIN - if legend_column { LEGEND_W + 18.0 } else { 0.0 };
         let fh = height - HEADER - FOOTER;
         let a = merc(extent[0], extent[1]);
         let b = merc(extent[2], extent[3]);
         let (mut x0, mut x1, mut y0, mut y1) = (a[0].min(b[0]), a[0].max(b[0]), a[1].min(b[1]), a[1].max(b[1]));
+        if fit == Fit::Cover {
+            let s = (fw / (x1 - x0).max(1e-12)).max(fh / (y1 - y0).max(1e-12));
+            return Layout { width, height, fx: MARGIN, fy: HEADER, fw, fh, s, cx: (x0 + x1) / 2.0, cy: (y0 + y1) / 2.0 };
+        }
+        let pad = if fit == Fit::Exact { 1.0 } else { 1.16 };
         // at least ~400 m across, so a single photo still gets a sensible map
         let lat_c = (extent[1] + extent[3]) / 2.0;
         let min_span = 400.0 / (40_075_016.686 * lat_c.to_radians().cos().max(0.05));
@@ -141,18 +177,6 @@ impl Layout {
         y1 = cy + h / 2.0;
         let s = (fw / (x1 - x0)).min(fh / (y1 - y0));
         Layout { width, height, fx: MARGIN, fy: HEADER, fw, fh, s, cx, cy }
-    }
-
-    /// Zoom so the extent covers the whole frame (no padding; one axis is cropped). Used for raster
-    /// maps, so the frame is filled with data instead of showing empty margins.
-    pub fn new_cover(extent: [f64; 4], width: f64, height: f64) -> Layout {
-        let fw = width - 2.0 * MARGIN - LEGEND_W - 18.0;
-        let fh = height - HEADER - FOOTER;
-        let a = merc(extent[0], extent[1]);
-        let b = merc(extent[2], extent[3]);
-        let (x0, x1, y0, y1) = (a[0].min(b[0]), a[0].max(b[0]), a[1].min(b[1]), a[1].max(b[1]));
-        let s = (fw / (x1 - x0).max(1e-12)).max(fh / (y1 - y0).max(1e-12));
-        Layout { width, height, fx: MARGIN, fy: HEADER, fw, fh, s, cx: (x0 + x1) / 2.0, cy: (y0 + y1) / 2.0 }
     }
 
     /// A map frame at a given place on the page showing exactly `extent` (no margin): the extent fits
@@ -451,7 +475,18 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
 <defs><clipPath id=\"frame\"><rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\"/></clipPath></defs>",
         lay.fx, lay.fy, lay.fw, lay.fh
     );
-    let (drawn, n_labels) = draw_frame(&mut svg, spec, &spec.rasters, lay, &spec.frames, "frame");
+    let fur = &spec.furniture;
+    let all: Vec<&MapLayer> = spec.layers.iter().collect();
+    let legend_layers: Vec<&MapLayer> = spec.layers.iter().rev().filter(|l| !l.context).collect();
+    let pl = furniture::place(fur, &all, lay);
+    // an inside legend: measured first, then drawn on a panel in its corner
+    let inside = (fur.legend == "inside").then(|| {
+        let mut tmp = String::new();
+        let end = legend(&mut tmp, &legend_layers, &spec.rasters, 0.0, 0.0, lay.fh * 0.85, fur);
+        (LEGEND_W + 40.0, end + 4.0)
+    });
+    let obstacles = furniture::obstacles(&pl, lay, inside);
+    let (drawn, n_labels) = draw_frame_with(&mut svg, spec, &all, &spec.rasters, lay, &spec.frames, "frame", &obstacles);
     // title block
     let _ = write!(
         svg,
@@ -460,10 +495,18 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
         esc(&spec.title),
         esc(&spec.subtitle)
     );
-    north_arrow(&mut svg, lay);
-    scale_bar(&mut svg, lay);
-    let legend_layers: Vec<&MapLayer> = spec.layers.iter().rev().filter(|l| !l.context).collect();
-    legend(&mut svg, &legend_layers, &spec.rasters, lay.fx + lay.fw + 18.0, lay.fy, lay.fy + lay.fh);
+    draw_furniture(&mut svg, spec, lay, &pl);
+    match (fur.legend.as_str(), pl.legend, inside) {
+        ("inside", Some(c), Some((lw, lh))) => {
+            let (x, y) = furniture::anchor(lay, c, lw, lh, 10.0);
+            let _ = write!(svg, "<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{lw:.1}\" height=\"{lh:.1}\" rx=\"6\" fill=\"#ffffff\" fill-opacity=\"0.92\" stroke=\"#c3cbd2\" stroke-width=\"0.8\"/>");
+            legend(&mut svg, &legend_layers, &spec.rasters, x + 12.0, y + 2.0, y + lh, fur);
+        }
+        ("right", _, _) => {
+            legend(&mut svg, &legend_layers, &spec.rasters, lay.fx + lay.fw + 18.0, lay.fy, lay.fy + lay.fh, fur);
+        }
+        _ => {}
+    }
     let denom = lay.scale_denominator();
     // footer: credits (trimmed to the page width), then the scale statement
     let max_chars = ((w - 2.0 * MARGIN) / (11.0 * 0.6)) as usize;
@@ -481,16 +524,8 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
 
 /// One map frame: background, rasters, layers, labels, graticule, sheet outlines and the border, drawn
 /// into `lay`'s frame rectangle and clipped to it. Returns (features drawn, labels placed).
-fn draw_frame(svg: &mut String, spec: &MapSpec, rasters: &[MapRaster], lay: &Layout, frames: &[([f64; 4], String)], clip_id: &str) -> (usize, usize) {
-    let all: Vec<&MapLayer> = spec.layers.iter().collect();
-    draw_frame_with(svg, spec, &all, rasters, lay, frames, clip_id)
-}
-
-fn draw_frame_layers(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], rasters: &[MapRaster], lay: &Layout, clip_id: &str) -> (usize, usize) {
-    draw_frame_with(svg, spec, layers, rasters, lay, &[], clip_id)
-}
-
-fn draw_frame_with(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], rasters: &[MapRaster], lay: &Layout, frames: &[([f64; 4], String)], clip_id: &str) -> (usize, usize) {
+#[allow(clippy::too_many_arguments)]
+fn draw_frame_with(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], rasters: &[MapRaster], lay: &Layout, frames: &[([f64; 4], String)], clip_id: &str, obstacles: &[[f64; 4]]) -> (usize, usize) {
     let clip = lay.clip_rect();
     if clip_id != "frame" {
         let _ = write!(svg, "<defs><clipPath id=\"{clip_id}\"><rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\"/></clipPath></defs>", lay.fx, lay.fy, lay.fw, lay.fh);
@@ -507,9 +542,10 @@ fn draw_frame_with(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], raste
     );
     let frame = [lay.fx + 4.0, lay.fy + 4.0, lay.fx + lay.fw - 4.0, lay.fy + lay.fh - 4.0];
     let mut labels = Labeler { boxes: Vec::new(), out: String::new(), count: 0, frame };
-    // keep the scale bar and north arrow corners free of labels
-    labels.obstacle([lay.fx, lay.fy + lay.fh - 64.0, lay.fx + 260.0, lay.fy + lay.fh]);
-    labels.obstacle([lay.fx + lay.fw - 70.0, lay.fy, lay.fx + lay.fw, lay.fy + 90.0]);
+    // keep the furniture (scale bar, north arrow, inset, an inside legend) free of labels
+    for o in obstacles {
+        labels.obstacle(*o);
+    }
     let mut drawn = 0usize;
     let mut point_layers = Vec::new();
     let mut rasters_done = false;
@@ -574,6 +610,20 @@ fn draw_frame_with(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], raste
         lay.fx, lay.fy, lay.fw, lay.fh
     );
     (drawn, labels.count)
+}
+
+/// Inset, north arrow and scale bar in the corners chosen for them.
+fn draw_furniture(svg: &mut String, spec: &MapSpec, lay: &Layout, pl: &furniture::Placement) {
+    let fur = &spec.furniture;
+    if let (Some(c), Some(i)) = (pl.inset, &spec.inset) {
+        furniture::inset(svg, lay, c, &i.land, i.study, i.around);
+    }
+    if let Some(c) = pl.north {
+        furniture::north_arrow(svg, lay, fur, c);
+    }
+    if let Some(c) = pl.scale {
+        furniture::scale_bar(svg, lay, fur, c);
+    }
 }
 
 /// One panel of a multi-panel map page (patchwork-style): a tag, a title, its own frame, rasters and
@@ -649,11 +699,22 @@ pub fn render_panels(spec: &MapSpec, panels: &[Panel], w: f64, h: f64, own_legen
             labels: spec.labels,
             grid: spec.grid,
             frames: Vec::new(),
+            furniture: spec.furniture.clone(),
+            inset: None,
         };
         // draw_frame reads layers from the spec: borrow the panel's subset without copying features
         let lay = &p.layout;
         let shown: Vec<&MapLayer> = spec.layers.iter().filter(keep).chain(p.own.iter()).collect();
-        let (d, l) = draw_frame_layers(&mut svg, &sub, &shown, &p.rasters, lay, &format!("panel{i}"));
+        // one north arrow for the page (first panel), a scale bar in every panel
+        let mut pf = spec.furniture.clone();
+        if i > 0 {
+            pf.north_at = furniture::Place::Off;
+        }
+        pf.inset_at = furniture::Place::Off;
+        pf.legend = "right".into();
+        let pl = furniture::place(&pf, &shown, lay);
+        let obstacles = furniture::obstacles(&pl, lay, None);
+        let (d, l) = draw_frame_with(&mut svg, &sub, &shown, &p.rasters, lay, &[], &format!("panel{i}"), &obstacles);
         drawn += d;
         n_labels += l;
         let _ = write!(
@@ -664,13 +725,11 @@ pub fn render_panels(spec: &MapSpec, panels: &[Panel], w: f64, h: f64, own_legen
             if p.tag.is_empty() { String::new() } else { format!("({})", esc(&p.tag)) },
             esc(&p.title)
         );
-        scale_bar(&mut svg, lay);
-        if i == 0 {
-            north_arrow(&mut svg, lay);
-        }
+        let psub = MapSpec { furniture: pf, ..sub };
+        draw_furniture(&mut svg, &psub, lay, &pl);
         if own_legends {
             let legend_layers: Vec<&MapLayer> = shown.iter().rev().filter(|l| !l.context).copied().collect();
-            legend(&mut svg, &legend_layers, &p.rasters, lay.fx + lay.fw + 14.0, lay.fy - 26.0, lay.fy + lay.fh);
+            legend(&mut svg, &legend_layers, &p.rasters, lay.fx + lay.fw + 14.0, lay.fy - 26.0, lay.fy + lay.fh, &spec.furniture);
         }
         max_denom = max_denom.max(lay.scale_denominator());
     }
@@ -683,7 +742,9 @@ pub fn render_panels(spec: &MapSpec, panels: &[Panel], w: f64, h: f64, own_legen
     if !own_legends {
         let legend_layers: Vec<&MapLayer> = spec.layers.iter().rev().filter(|l| !l.context).collect();
         let x = w - MARGIN - LEGEND_W;
-        legend(&mut svg, &legend_layers, panels.first().map(|p| p.rasters.as_slice()).unwrap_or(&[]), x, HEADER, h - FOOTER);
+        if spec.furniture.legend != "none" {
+            legend(&mut svg, &legend_layers, panels.first().map(|p| p.rasters.as_slice()).unwrap_or(&[]), x, HEADER, h - FOOTER, &spec.furniture);
+        }
     }
     let max_chars = ((w - 2.0 * MARGIN) / (11.0 * 0.6)) as usize;
     let _ = write!(
@@ -958,47 +1019,6 @@ fn graticule(svg: &mut String, lay: &Layout) {
     );
 }
 
-fn north_arrow(svg: &mut String, lay: &Layout) {
-    let (x, y) = (lay.fx + lay.fw - 38.0, lay.fy + 48.0);
-    let _ = write!(
-        svg,
-        "<g transform=\"translate({x:.1} {y:.1})\"><circle r=\"24\" fill=\"#ffffff\" fill-opacity=\"0.85\" stroke=\"#2f3b46\" stroke-width=\"0.8\"/>\
-<path d=\"M0 -17 L8 9 L0 4 Z\" fill=\"#2f3b46\"/><path d=\"M0 -17 L-8 9 L0 4 Z\" fill=\"#ffffff\" stroke=\"#2f3b46\" stroke-width=\"0.8\"/>\
-<text y=\"-27\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"bold\" fill=\"#2f3b46\">N</text></g>"
-    );
-}
-
-fn scale_bar(svg: &mut String, lay: &Layout) {
-    let mpp = lay.meters_per_px();
-    if !mpp.is_finite() || mpp <= 0.0 {
-        return;
-    }
-    let d = nice_floor(mpp * 170.0);
-    let len = d / mpp;
-    let (x, y) = (lay.fx + 16.0, lay.fy + lay.fh - 22.0);
-    let half = len / 2.0;
-    let _ = write!(
-        svg,
-        "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"40\" rx=\"3\" fill=\"#ffffff\" fill-opacity=\"0.85\"/>\
-<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{half:.1}\" height=\"6\" fill=\"#2f3b46\"/>\
-<rect x=\"{:.1}\" y=\"{y:.1}\" width=\"{half:.1}\" height=\"6\" fill=\"#ffffff\" stroke=\"#2f3b46\" stroke-width=\"0.8\"/>\
-<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{len:.1}\" height=\"6\" fill=\"none\" stroke=\"#2f3b46\" stroke-width=\"0.8\"/>\
-<g font-size=\"11\" fill=\"#2f3b46\"><text x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"middle\">0</text>\
-<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\">{}</text><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\">{}</text></g>",
-        x - 10.0,
-        y - 22.0,
-        len + 40.0,
-        x + half,
-        y - 5.0,
-        x + half,
-        y - 5.0,
-        fmt_distance(d / 2.0),
-        x + len,
-        y - 5.0,
-        fmt_distance(d)
-    );
-}
-
 fn swatch(svg: &mut String, kind: GeomKind, x: f64, y: f64, color: &str, role: Option<&str>, opacity: f64) {
     match kind {
         GeomKind::Polygon => {
@@ -1025,26 +1045,47 @@ fn truncate(s: &str, n: usize) -> String {
     if s.chars().count() <= n { s.to_string() } else { format!("{}…", s.chars().take(n - 1).collect::<String>()) }
 }
 
-fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64, y0: f64, max_y: f64) {
-    let shown: Vec<&MapRaster> = rasters.iter().rev().filter(|r| r.legend["type"] != "none").collect();
-    if layers.is_empty() && shown.is_empty() {
-        return;
+/// The legend at (x, y0), down to max_y; returns where it ended. Titles, hidden layers, renamed class
+/// labels and the order come from the furniture's legend edits.
+fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64, y0: f64, max_y: f64, fur: &Furniture) -> f64 {
+    let shown: Vec<&MapRaster> = rasters.iter().rev().filter(|r| r.legend["type"] != "none" && !fur.edit_for(&r.id).1).collect();
+    let mut layers: Vec<&MapLayer> = layers.iter().copied().filter(|l| !fur.edit_for(&l.id).1).collect();
+    if !fur.legend_order.is_empty() {
+        let rank = |id: &str| fur.legend_order.iter().position(|o| o == id || id.ends_with(&format!(".{o}"))).unwrap_or(usize::MAX);
+        layers.sort_by_key(|l| rank(&l.id));
     }
-    let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{:.1}\" font-size=\"17\" font-weight=\"bold\" fill=\"#14212b\">Legend</text>", y0 + 16.0);
-    let mut y = y0 + 44.0;
+    if layers.is_empty() && shown.is_empty() {
+        return y0;
+    }
+    let mut y = y0 + 16.0;
+    if !fur.legend_title.is_empty() {
+        let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"17\" font-weight=\"bold\" fill=\"#14212b\">{}</text>", esc(&fur.legend_title));
+        y += 28.0;
+    } else {
+        y += 4.0;
+    }
     let row = 20.0;
     for l in layers {
+        let (title, _, renames) = fur.edit_for(&l.id);
+        let rename = |t: &str| -> String {
+            for (old, new) in &renames {
+                if let Some(rest) = t.strip_prefix(old.as_str()) {
+                    return format!("{new}{rest}");
+                }
+            }
+            t.to_string()
+        };
         if y > max_y - 30.0 {
             let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"12\" fill=\"#6b7785\">…</text>");
             break;
         }
         let role = device_role(&l.id);
         let op = l.style.get("opacity").and_then(Value::as_f64).unwrap_or(1.0).clamp(0.2, 1.0);
-        let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"13\" font-weight=\"bold\" fill=\"#1b2631\">{}</text>", esc(&truncate(&l.title, 34)));
+        let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"13\" font-weight=\"bold\" fill=\"#1b2631\">{}</text>", esc(&truncate(title.as_deref().unwrap_or(&l.title), 34)));
         y += row;
         let sym = l.style.get("symbology").cloned().unwrap_or(Value::Null);
         let text = |svg: &mut String, y: f64, t: &str| {
-            let _ = write!(svg, "<text x=\"{:.1}\" y=\"{y:.1}\" font-size=\"12\" fill=\"#33414e\">{}</text>", x + 30.0, esc(&truncate(t, 32)));
+            let _ = write!(svg, "<text x=\"{:.1}\" y=\"{y:.1}\" font-size=\"12\" fill=\"#33414e\">{}</text>", x + 30.0, esc(&truncate(&rename(t), 32)));
         };
         if l.fs.feats.len() > 30_000 && l.kind == GeomKind::Point {
             let colors = super::automap::ramp_colors("ylorrd", 5);
@@ -1111,10 +1152,10 @@ fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64,
         }
         y += 10.0;
     }
-    raster_legend(svg, &shown, x, y, max_y);
+    raster_legend(svg, &shown, x, y, max_y)
 }
 
-fn raster_legend(svg: &mut String, rasters: &[&MapRaster], x: f64, mut y: f64, max_y: f64) {
+fn raster_legend(svg: &mut String, rasters: &[&MapRaster], x: f64, mut y: f64, max_y: f64) -> f64 {
     let row = 20.0;
     for (i, r) in rasters.iter().enumerate() {
         if y > max_y - 40.0 {
@@ -1155,6 +1196,7 @@ fn raster_legend(svg: &mut String, rasters: &[&MapRaster], x: f64, mut y: f64, m
         }
         y += 8.0;
     }
+    y
 }
 
 pub fn base64(data: &[u8]) -> String {

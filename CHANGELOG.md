@@ -5,6 +5,15 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added — map styling
+- **Style in Finish my map** (Lazy and Pro): looks (GeoSpaX, Journal, Poster, Classic, Slide), page shape
+  (1:1 … 16:9, portrait, paper), **resolution 150–1200 dpi** written into the PNG, legend beside / inside
+  the map / none with an **editable legend** (titles, hidden layers, renamed classes), scale bars (pill,
+  checker, line, ruler; km, miles or both), north arrows (needle, compass, rose, minimal) and an
+  **overview inset**.
+- **Furniture goes where the data isn't**: legend, inset, north arrow and scale bar take the emptiest
+  corners of the map unless pinned.
+
 ### Added — the lazy path, stage 5
 - **Multi-panel pages, after R.** Finish my map's new **Layout** (Lazy and Pro): *side by side* (each
   layer its own panel, or a single tagged panel), *split by a field* (ggplot2 `facet_wrap`), *panels*
