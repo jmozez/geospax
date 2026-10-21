@@ -107,7 +107,8 @@ function defaultStyle(l: LayerInfo): LayerStyle {
     minzoom: 0,
     maxzoom: 24,
     outline: l.geometry === 'polygon',
-    symbology: { kind: 'single', color: colorFor(l.id) },
+    // the land layer of the sample data takes the theme's land colour
+    symbology: { kind: 'single', color: isLand(l.id) ? css('map-land') || colorFor(l.id) : colorFor(l.id) },
   };
 }
 
@@ -214,9 +215,45 @@ const groupOf_ = (id: string) => project.groups?.find((g) => g.id === project.me
 /** On the map = its own switch and its group's switch are both on. */
 const shownOnMap = (id: string) => !!project.layers[id]?.visible && (groupOf_(id)?.visible ?? true);
 
+// ---------------------------------------------------------------- theme
+// Light (default), dark or the system's; the map reads the same CSS tokens as the panes.
+type Theme = 'light' | 'dark' | 'system';
+const THEME_KEY = 'geospax.theme';
+let theme: Theme = (() => {
+  const q = params.get('theme');
+  if (q === 'light' || q === 'dark' || q === 'system') return q;
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    return t === 'dark' || t === 'system' ? t : 'light';
+  } catch {
+    return 'light';
+  }
+})();
+const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)');
+const effectiveTheme = () => (theme === 'system' ? (systemDark?.matches ? 'dark' : 'light') : theme);
+const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim();
+function paintTheme() {
+  document.documentElement.dataset.theme = effectiveTheme();
+  const b = document.querySelector<HTMLElement>('#theme-switch');
+  if (b) b.textContent = theme === 'light' ? '☀ Light' : theme === 'dark' ? '☾ Dark' : '◐ System';
+}
+function setTheme(t: Theme) {
+  theme = t;
+  try {
+    localStorage.setItem(THEME_KEY, t);
+  } catch {
+    /* this session only */
+  }
+  paintTheme();
+  if (map) applyStyle();
+  workbench?.setStatus(`Theme: ${t === 'system' ? `follows the system (${effectiveTheme()})` : t}`);
+}
+paintTheme();
+systemDark?.addEventListener?.('change', () => theme === 'system' && setTheme('system'));
+
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
-  const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': '#0d2233' } }];
+  const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': css('map-bg') || '#0d2233' } }];
   addBasemap(sources, out);
   for (const id of project.order) {
     const l = layerById(id);
@@ -251,7 +288,7 @@ function buildStyle(): maplibregl.StyleSpecification {
           type: 'line',
           minzoom: Math.max(isLand(id) ? 0 : 13, st.minzoom),
           paint: {
-            'line-color': isLand(id) ? '#5d8a70' : '#0d2233',
+            'line-color': isLand(id) ? css('map-border') : css('map-outline'),
             'line-width': isLand(id) ? 0.6 : 0.5,
             'line-opacity': Math.min(1, st.opacity + 0.15),
           },
@@ -274,7 +311,7 @@ function buildStyle(): maplibregl.StyleSpecification {
           'circle-opacity': st.opacity,
           // device points (photos, waypoints) are few and important: bigger, with a white ring
           'circle-radius': isDeviceLayer(id) ? ['interpolate', ['linear'], ['zoom'], 2, 3, 10, 5, 15, 7] : ['interpolate', ['linear'], ['zoom'], 2, 1.5, 10, 2.5, 15, 4],
-          'circle-stroke-color': isDeviceLayer(id) ? '#ffffff' : '#0d2233',
+          'circle-stroke-color': isDeviceLayer(id) ? '#ffffff' : css('map-outline'),
           'circle-stroke-width': isDeviceLayer(id) ? 1.5 : 0.5,
           'circle-stroke-opacity': st.opacity,
         },
@@ -322,11 +359,11 @@ function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: mapl
   } else if (b === 'offline') {
     for (const f of ['land', 'lakes', 'boundaries']) sources[`basemap:${f}`] = { type: 'geojson', data: basemapUrl(f), tolerance: 0.6 };
     out.push(
-      { id: 'basemap:land', type: 'fill', source: 'basemap:land', paint: { 'fill-color': '#1d3a35' } } as maplibregl.LayerSpecification,
-      { id: 'basemap:lakes', type: 'fill', source: 'basemap:lakes', paint: { 'fill-color': '#0d2233' } } as maplibregl.LayerSpecification,
+      { id: 'basemap:land', type: 'fill', source: 'basemap:land', paint: { 'fill-color': css('map-land') } } as maplibregl.LayerSpecification,
+      { id: 'basemap:lakes', type: 'fill', source: 'basemap:lakes', paint: { 'fill-color': css('map-bg') } } as maplibregl.LayerSpecification,
       {
         id: 'basemap:boundaries', type: 'line', source: 'basemap:boundaries',
-        paint: { 'line-color': '#4f7468', 'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.4, 6, 1], 'line-dasharray': [3, 2] },
+        paint: { 'line-color': css('map-border'), 'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.4, 6, 1], 'line-dasharray': [3, 2] },
       } as maplibregl.LayerSpecification,
     );
   }
@@ -1331,6 +1368,8 @@ async function main() {
   document.addEventListener('geospax:start', () => void start.show());
   document.addEventListener('geospax:browse', () => start.browse());
   document.addEventListener('geospax:finish', () => finish.open());
+  document.querySelector('#theme-switch')?.addEventListener('click', () => setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light'));
+  document.addEventListener('geospax:theme', (e) => setTheme((e as CustomEvent<Theme>).detail));
   // a lazy mapper with nothing of their own on the map yet starts on the start screen
   const own = layers.filter((l) => !/^(natural_earth|synthetic)[._]/.test(l.id));
   if (uiMode === 'lazy' && !own.length && !params.has('fresh') && !params.has('bench')) void start.show();
