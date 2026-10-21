@@ -22,7 +22,7 @@ const lines = [
   'tools:',
 ];
 for (const t of tools) {
-  lines.push(`  - id: ${q(t.id)}`, `    name: ${q(t.name)}`, `    summary: ${q(t.summary)}`, `    group: ${q(t.group)}`, `    icon: ${t.icon}`, '    params:');
+  lines.push(`  - id: ${q(t.id)}`, `    name: ${q(t.name)}`, `    summary: ${q(t.summary)}`, `    group: ${q(t.group)}`, `    icon: ${t.icon}`, ...(t.tab ? [`    tab: ${t.tab}`] : []), '    params:');
   for (const p of t.params) {
     const f = [`name: ${q(p.name)}`, `label: ${q(p.label)}`, `kind: ${p.kind}`];
     if (p.required) f.push('required: true');

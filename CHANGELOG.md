@@ -8,6 +8,15 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — ribbon and online data
+- **Ribbon reorganized**, ArcGIS Pro style: Home · Data · Map · Analysis · Imagery · Modelling · Automate ·
+  View · Help · Plugins. Every group is the same height (large buttons, then small ones three to a
+  column); labels wrap instead of being cut. Plugin tools go on the tab their manifest names (`tab:`),
+  others on Plugins; diagnostics moved to Help.
+- **Online data** (Data tab, Lazy task): WorldClim 2.1 bioclim, monthly and CMIP6 future climate, CHELSA
+  2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries and the Copernicus DEM for
+  the area on the map, no API keys, each with its citation. New recipe step **`data.fetch`**.
+
 ### Added — GSX tools (from GeoSpaX 2.0), phase A
 - **`plugins/gsx`**: 13 tools in the Toolbox: polygon overlay, weighted suitability (WLC), distance
   decay, unprotected priority sites, protection gap, minimum-cost representation (SCP), weighted

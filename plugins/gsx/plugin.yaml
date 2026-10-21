@@ -16,6 +16,7 @@ tools:
     summary: "Intersect, erase (difference) or union two polygon layers; areas in hectares."
     group: "GSX · Landscape"
     icon: layers
+    tab: analyze
     params:
       - { name: "a", label: "Layer A", kind: layer, required: true }
       - { name: "b", label: "Layer B", kind: layer, required: true }
@@ -25,6 +26,7 @@ tools:
     summary: "Weighted linear combination of numeric fields, each rescaled 0–1; optional constraint field forces zero."
     group: "GSX · Planning"
     icon: chart
+    tab: modelling
     params:
       - { name: "layer", label: "Features", kind: layer, required: true }
       - { name: "criteria", label: "Criteria", kind: text, required: true, description: "field:weight, … — add :- when lower is better, e.g. \"forest_pct:3, road_km:1:-\"" }
@@ -34,6 +36,7 @@ tools:
     summary: "Score features by a distance field with exponential decay: 1 at zero distance, 0.5 at the half-life."
     group: "GSX · Planning"
     icon: chart
+    tab: modelling
     params:
       - { name: "layer", label: "Features", kind: layer, required: true }
       - { name: "field", label: "Distance field (m)", kind: field, required: true }
@@ -43,6 +46,7 @@ tools:
     summary: "High-scoring habitat points that fall outside every protected area."
     group: "GSX · Planning"
     icon: pin
+    tab: modelling
     params:
       - { name: "habitat", label: "Habitat points", kind: layer, required: true }
       - { name: "protected", label: "Protected areas", kind: layer, required: true }
@@ -53,6 +57,7 @@ tools:
     summary: "How much of a habitat or range lies inside protected areas, and the unprotected gap, in hectares."
     group: "GSX · Planning"
     icon: globe
+    tab: modelling
     params:
       - { name: "habitat", label: "Habitat / range", kind: layer, required: true }
       - { name: "protected", label: "Protected areas", kind: layer, required: true }
@@ -62,6 +67,7 @@ tools:
     summary: "Cheapest set of planning units that meets a target for each feature (exact for ≤ 28 units, greedy above)."
     group: "GSX · Planning"
     icon: grid
+    tab: modelling
     params:
       - { name: "units", label: "Planning units", kind: layer, required: true }
       - { name: "cost", label: "Cost field", kind: field, required: true }
@@ -71,6 +77,7 @@ tools:
     summary: "Hexagon or square grid scored by weighted counts, density or presence of up to three layers (descriptive, not Gi*)."
     group: "GSX · Planning"
     icon: grid
+    tab: modelling
     params:
       - { name: "layer", label: "Layer 1", kind: layer, required: true }
       - { name: "weight", label: "Weight 1", kind: number, default: 1 }
@@ -86,6 +93,7 @@ tools:
     summary: "FRAGSTATS-style metrics (NP, CA, LPI, TE, ED, MSI, core area, CAI, ENN) and core-area polygons."
     group: "GSX · Landscape"
     icon: layers
+    tab: analyze
     params:
       - { name: "patches", label: "Patches", kind: layer, required: true }
       - { name: "edge_m", label: "Core edge depth (m)", kind: number, default: 100 }
@@ -96,6 +104,7 @@ tools:
     summary: "Links patches closer than a threshold distance and reports the connected components."
     group: "GSX · Landscape"
     icon: hotspot
+    tab: analyze
     params:
       - { name: "patches", label: "Patches", kind: layer, required: true }
       - { name: "threshold_m", label: "Link threshold (m)", kind: number, required: true, default: 500 }
@@ -104,6 +113,7 @@ tools:
     summary: "Compares two polygon layers of the same thing (forest, wetland, land cover) and reports loss, gain and the annual rate."
     group: "GSX · Landscape"
     icon: clock
+    tab: analyze
     params:
       - { name: "t1", label: "Earlier extent", kind: layer, required: true }
       - { name: "t2", label: "Later extent", kind: layer, required: true }
@@ -115,6 +125,7 @@ tools:
     summary: "Density-based clusters of up to 2,000 points (haversine distance); noise stays as cluster −1."
     group: "GSX · Species & patterns"
     icon: hotspot
+    tab: analyze
     params:
       - { name: "points", label: "Points", kind: layer, required: true }
       - { name: "min_points", label: "Minimum points", kind: number, default: 4 }
@@ -125,6 +136,7 @@ tools:
     summary: "Nearest-neighbour ratio R and z-score: clustered, random-like or dispersed."
     group: "GSX · Species & patterns"
     icon: hotspot
+    tab: analyze
     params:
       - { name: "points", label: "Points", kind: layer, required: true }
   - id: "diversity"
@@ -132,6 +144,7 @@ tools:
     summary: "Species richness, Shannon H′, Simpson and evenness of an occurrence layer, overall and per area."
     group: "GSX · Species & patterns"
     icon: chart
+    tab: analyze
     params:
       - { name: "occurrences", label: "Occurrences", kind: layer, required: true }
       - { name: "species", label: "Species field", kind: field, required: true }

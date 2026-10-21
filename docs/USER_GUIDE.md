@@ -155,11 +155,35 @@ calls the recipes use.
 default) changes the ribbon and the layer list together:
 
 - **Lazy: the task bar.** The ribbon becomes one slim row: a **What do you want to do?** box (type anything:
-  "hot spots", "export", a layer name), four tasks in plain words (**Add data**, **Make it look good**,
-  **Find patterns**, **Finish the map**) and **Next for <layer>**: the analyses that fit the layer you
-  selected, one click to run them on it.
-- **Pro: the full ribbon** (Home, Data, Style, Analyze, View, Automate, Help) plus a contextual **Layer**
-  tab while a layer is selected: zoom, attribute table, symbology, AutoMap and the same next steps.
+  "hot spots", "export", a layer name), tasks in plain words (**Add data**, **Online data**, **Make it look
+  good**, **Find patterns**, **All tools**, **Finish my map**) and **Next for <layer>**: the analyses that
+  fit the layer you selected, one click to run them on it.
+- **Pro: the full ribbon**, in the order you work, plus a contextual **Layer** tab while a layer is
+  selected (zoom, attribute table, symbology, AutoMap and the same next steps):
+
+  | Tab | Groups |
+  | --- | --- |
+  | **Home** | Project · Layers · Selection · Map (Finish my map, export) |
+  | **Data** | Add data · **Online data** (climate, future climate, soil, species, boundaries, elevation) · Sources |
+  | **Map** | Symbology · Fields |
+  | **Analysis** | Recipes · Toolbox · Spatial statistics · GeoLibre tools · GSX landscape and species tools |
+  | **Imagery** | Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools |
+  | **Modelling** | Interpolation (kriging, kriging in R) · GSX planning (suitability, gaps, representation …) |
+  | **Automate** | Recipes · Runs · Scripts |
+  | **View** | Navigate · Theme · Basemap · Windows |
+  | **Help** | Docs · About · Diagnostics |
+  | **Plugins** | Plugin tools that name no tab |
+
+  Every group has the same height: its main commands are large buttons, the others small buttons stacked
+  three to a column, as in ArcGIS Pro. A plugin tool appears on the tab its manifest names
+  ([PLUGINS.md](PLUGINS.md)).
+
+**Online data** (Data tab, or the Lazy task) gets free data for the area on the map, with no account:
+WorldClim 2.1 bioclim and monthly climate, WorldClim CMIP6 future climate (12 models, four SSPs, four
+periods), CHELSA 2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries and the
+Copernicus DEM. Only the area is downloaded (climate keeps the provider's own grid), each result becomes a
+layer, and its citation goes into the run's methods and report. It is a recipe step, `data.fetch`, so a
+recipe can fetch data on a schedule too ([AUTOMATION.md](AUTOMATION.md)).
 
 The side and bottom panes follow it too:
 

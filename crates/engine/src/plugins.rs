@@ -71,6 +71,9 @@ pub struct ToolSpec {
     /// Icon name for the ribbon (see web/src/commands.ts ICONS).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// Ribbon tab for the tool: home, data, style, analyze, imagery, modelling … (default: Plugins).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab: Option<String>,
 }
 
 /// A ribbon button contributed by a plugin (RustGIS/GeoLibre/ArcGIS declare these).
@@ -232,6 +235,7 @@ impl JsonTool {
                 .collect(),
             recipe: None,
             icon: None,
+            tab: None,
         }
     }
 }
@@ -620,6 +624,7 @@ fn qgis_tools(provider: &str) -> Result<Vec<ToolSpec>, String> {
                         params: vec![],
                         recipe: None,
                         icon: Some("grid".to_string()),
+                        tab: Some("analyze".to_string()),
                     });
                 }
             }

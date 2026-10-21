@@ -148,6 +148,10 @@ and expects **JSON on stdout**:
 { "ok": true, "message": "report for field_samples.geojson", "outputs": ["…/out.geojson"] }
 ```
 
+A tool can name its ribbon tab with **`tab:`** (`home`, `data`, `style`, `analyze`, `imagery`,
+`modelling`, `automate`, `view`, `help`); tools that name none appear on the **Plugins** tab, grouped by
+their `group`.
+
 A plugin that reads GeoJSON sets **`geojson: true`** in `plugin.yaml`: every layer named by a `layer`
 parameter is then written to the workdir as GeoJSON, whatever its source format, and passed in
 **`layer_geojson`** (`{"layer id": "/tmp/…/gsx-layer.geojson"}`).
