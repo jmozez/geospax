@@ -956,6 +956,7 @@ impl Plugins {
             engine.layers().iter().map(|l| (l.info.id.clone(), serde_json::json!(l.info.source))).collect();
         let mut as_geojson = serde_json::Map::new();
         if m.geojson {
+            fs::create_dir_all(workdir()).map_err(|e| format!("{}: {e}", workdir().display()))?;
             for ps in tool.params.iter().filter(|ps| ps.kind == "layer") {
                 let Some(id) = params.get(&ps.name).and_then(|v| v.as_str()) else { continue };
                 let Some(l) = engine.layer(id) else { continue };
@@ -964,7 +965,7 @@ impl Plugins {
                 }
                 let fs = crate::automation::features::read_layer(engine, &l, None, None, 2_000_000)?;
                 let safe: String = id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' }).collect();
-                let path = workdir().join(format!("{}-{safe}.geojson", p.id));
+                let path = workdir().join(format!("{}-{}.geojson", p.id, safe.trim_end_matches(".geojson").trim_end_matches(".json")));
                 crate::automation::features::write_features(&path, "GeoJSON", id, &fs)?;
                 as_geojson.insert(id.to_string(), serde_json::json!(path));
             }

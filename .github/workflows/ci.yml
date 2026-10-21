@@ -41,6 +41,9 @@ jobs:
       - name: Web UI (type check + build)
         working-directory: web
         run: npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
+      - name: GSX plugin (GeoSpaX 2.0 analysis tests; bundle and manifest match the source)
+        working-directory: plugins/gsx
+        run: npm ci --no-audit --no-fund && npx tsc -p . && npm test && npm run build && node gen-manifest.mjs && git diff --exit-code -- run.mjs plugin.yaml
       - name: Engine unit tests
         run: . /opt/rust-env.sh && cargo test --release -p geospax-engine
       - name: Release build (server + desktop)
