@@ -23,7 +23,7 @@ page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && pr
 page.on('pageerror', (e) => problems.push(`[pageerror] ${e.message}`));
 
 const settled = () =>
-  page.waitForFunction(() => window.map && window.map.loaded() && window.map.areTilesLoaded(), null, { timeout: 120_000, polling: 500 });
+  page.waitForFunction(() => typeof window.map?.loaded === 'function' && window.map.loaded() && window.map.areTilesLoaded(), null, { timeout: 120_000, polling: 500 });
 
 async function shot(name, hash) {
   await page.goto(`${base}/?fresh#view=${hash}`);

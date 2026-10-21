@@ -41,6 +41,7 @@ strip --strip-unneeded -o "$P/usr/bin/geospax-server" target/release/geospax-ser
 chmod 755 "$P/usr/bin/"*
 cp -r web/dist "$P/usr/share/geospax/web"
 cp -r recipes "$P/usr/share/geospax/recipes"        # examples to copy and edit (the gallery is built in)
+cp -r plugins "$P/usr/share/geospax/plugins"        # bundled plugins: GeoLibre tools (needs nodejs), examples
 for s in 32x32 64x64 128x128; do
   install -Dm644 "apps/desktop/src-tauri/icons/$s.png" "$P/usr/share/icons/hicolor/$s/apps/geospax.png"
 done
@@ -98,7 +99,7 @@ Installed-Size: $SIZE
 Section: science
 Priority: optional
 Depends: $DEPS, fonts-dejavu-core
-Recommends: python3
+Recommends: python3, nodejs
 Suggests: r-base-core, r-cran-sf, grass-core, saga, mosquitto, gdal-bin
 Description: open-source GIS where every map is a re-runnable recipe
  GeoSpaX turns data into finished maps without a human in the loop. Plug in a

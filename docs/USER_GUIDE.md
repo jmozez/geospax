@@ -35,6 +35,15 @@ The `.deb` and the Windows installer both contain both editions (on Windows: `ge
 
 ## 2. Your first map: four lazy ways
 
+**Opening the app is already lazy.** Every layer GeoSpaX sees for the first time is styled by AutoMap,
+the same engine the recipes use: it picks the field that matters (never an ID), the classification and a
+colour-blind-safe colour scheme, and the Symbology pane says why ("✨ Styled automatically …"). Change
+anything and the style is yours; **✨ Style automatically** brings AutoMap back. Layers too dense to draw
+zoomed out get their overview pyramid built in the background, one at a time, without a click. The map
+opens on your data over an offline world basemap (Natural Earth land, lakes and borders); **View →
+Basemap** switches to OpenStreetMap (online) or none. Add `?auto=0` or `?autooverviews=0` to the address
+to turn either automation off.
+
 **a) Drop files into `~/GeoSpaX/Inbox`.** Photos, GPX/KML/NMEA tracks, drone logs and sensor logs dropped here
 are mapped by the matching recipe within about 5 seconds, with no switches to turn on:
 
@@ -72,6 +81,41 @@ report.
 GeoSpaX opens like a desktop GIS: a **ribbon** on top, **panes** docked around the map, and a **status bar**
 underneath. Nothing is hidden behind a menu you have to hunt for — and every button still runs the same engine
 calls the recipes use.
+
+**Lazy or Pro: GeoSpaX fits you.** One switch in the title bar (remembered in your browser; Lazy is the
+default) changes the ribbon and the layer list together:
+
+- **Lazy: the task bar.** The ribbon becomes one slim row: a **What do you want to do?** box (type anything:
+  "hot spots", "export", a layer name), four tasks in plain words (**Add data**, **Make it look good**,
+  **Find patterns**, **Finish the map**) and **Next for <layer>**: the analyses that fit the layer you
+  selected, one click to run them on it.
+- **Pro: the full ribbon** (Home, Data, Style, Analyze, View, Automate, Help) plus a contextual **Layer**
+  tab while a layer is selected: zoom, attribute table, symbology, AutoMap and the same next steps.
+
+The side and bottom panes follow it too:
+
+- **Lazy, right: the Inspector.** The selected layer as a short story: what it shows (with a bar per class
+  and its count), *why* it looks like that, **Colour it by** (one chip per useful column, plus *Let GeoSpaX
+  choose* and *One colour*), a see-through slider, **Do something with it** (the analyses that fit, zoom,
+  see the rows) and **Where it came from** (file, format, extent, columns).
+- **Lazy, bottom: Activity.** *Ideas for your data* (the analyses that fit the layers on the map, one click
+  each) and *What happened* (every run, including the ones devices start by themselves, with **Open
+  report**, then the latest notes).
+- **Pro** keeps Symbology, Attributes, Rasters, Devices on the right and Automate, Plugins, History, Log at
+  the bottom.
+
+The layer list follows the same switch:
+
+| | Lazy: layer cards | Pro: layer tree |
+|---|---|---|
+| Name | Friendly ("Air quality samples") | File name (`air_quality_samples.geojson`) |
+| What it shows | One sentence from the data: "Coloured by PM2.5 against the WHO guideline: 88% of 1,500 readings are above 15." | Geometry · CRS · zoom range · classification on one line |
+| Legend | A bar whose segments are as wide as their share of the features | Classes with counts |
+| Status | Ready · Styled for you · Preparing zoomed-out view (with progress) · Hidden | Compact badges (pyramid %, auto) |
+| Next step | Buttons for the recipes that fit this layer (Make a surface, Hot spots, Hexagon map), run on *this* layer | Ribbon and palette |
+| Arranging | Grouped by origin: from your devices, your data, recipe results, reference, background | Drag rows to reorder, inline opacity, filter box |
+
+Both show the same project: switching never changes the map.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -117,6 +161,31 @@ calls the recipes use.
 
 Pane sizes, which tab is open and which panes are collapsed are remembered per browser/app.
 
+### The Toolbox: every tool in one place
+
+The **Toolbox** tab (right pane, both modes; **All tools** in the Lazy task bar, **Analyze → Toolbox** in
+Pro) lists every tool GeoSpaX can run, with one search box:
+
+- **Ready-made analyses**: the recipes. A form, then **▶ Run**: the result joins the map, with a laid-out
+  map and a report under Activity / History. They come first in search results.
+- **Building blocks**: the engine's 36 recipe steps. Each shows the tools it stands in for in ArcGIS Pro,
+  QGIS, GRASS, SAGA and others (*≈ ArcGIS Buffer, QGIS Buffer, GRASS v.buffer…*), so typing the name you
+  know finds the GeoSpaX way, and which ready-made analyses use it.
+- **GeoLibre tools**: 1,062 raster, vector, LiDAR, hydrology, terrain and conversion tools (below).
+- **Plugin tools** from GeoSpaX, RustGIS, QGIS and ArcGIS Pro plugins, each with a badge saying where it
+  comes from.
+
+Recently used tools stay at the top. A tool's page shows what it does and its parameters; **Open the
+tool…** opens its form. Whatever a tool writes is added to the map.
+
+### The layer tree (Pro)
+
+Pro mode's Contents is a tree, as in ArcGIS Pro: **Map** ▸ group layers ▸ layers ▸ legend classes, then the
+basemap. **＋ Group** puts the selected layer in a new group; drag a layer onto a group to add it, onto
+**Map** to take it out, onto another layer to take its place. A group's switch hides all its layers
+without changing their own switches; the twisty (▾/▸) folds a layer's legend; ✎ renames a group
+(or double-click its name) and ⊟ ungroups it, keeping the layers. Groups are saved in the project.
+
 ## 2c. Plugins: tools from five ecosystems
 
 Open the **Plugins** tab (bottom dock). Every plugin is a folder with a manifest, and GeoSpaX reads
@@ -129,6 +198,13 @@ five formats, so a tool written for another GIS shows up here:
 | GeoLibre | `plugin.json`, WASM tool bundles | its tools (WASI); its React UI cannot run here |
 | QGIS | `metadata.txt` | its **processing algorithms** through `qgis_process`; its PyQt UI cannot run here |
 | ArcGIS Pro (`.esriAddInX`) | `Config.daml` (+ `Toolboxes/*.pyt`) | its **Python toolbox** tools through arcpy; the .NET assembly cannot run here |
+
+**GeoLibre tools come with GeoSpaX.** The `geolibre-tools` plugin brings GeoLibre's whole tool runner
+(geolibre-wasm, built on whitebox_next_gen): 1,062 tools, run locally on WebAssembly. They need
+[Node.js](https://nodejs.org) 18 or newer; the runner (about 9 MB) is downloaded once on first use and
+checked against its published checksum. A vector parameter is a layer on the map; raster, LiDAR and
+table parameters take a file path; results are added to the map. Offline machines: see
+`plugins/geolibre-tools/README.md`.
 
 **Removing one:** **Uninstall** on the card (press it twice). Plugins that live in a folder you
 started the server with (`--plugins DIR`) are not deletable from here — the card says "external

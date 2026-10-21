@@ -51,6 +51,7 @@ COPY --from=server /geospax-server /usr/bin/geospax-server
 # /usr/share/geospax/web is where an installed geospax-server looks for the UI
 COPY --from=web /src/web/dist /usr/share/geospax/web
 COPY recipes /usr/share/geospax/recipes
+COPY plugins /usr/share/geospax/plugins
 RUN useradd --create-home --uid 1000 geospax && mkdir -p /data /state /inbox && chown geospax /data /state /inbox
 USER 1000:1000
 VOLUME ["/state"]

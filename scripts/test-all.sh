@@ -49,6 +49,7 @@ if [ -d "$PW" ]; then
   run "web UI: devices + sensors (import, phone GPS, live sensor)" env PW="$PW" node scripts/test-web-devices.mjs "$URL" "$OUT"
   run "web UI: automation (run, map, report, auto, save recipe)" env PW="$PW" node scripts/test-web-automation.mjs "$URL" "$OUT"
   run "web UI: workbench (ribbon, docks, attributes, palette)" env PW="$PW" node scripts/test-web-workbench.mjs "$URL" "$OUT"
+  run "web UI: every control in Lazy and Pro (ribbon, task bar, tree, cards, Inspector, Toolbox)" env PW="$PW" node scripts/test-web-controls.mjs "$URL" "$OUT"
   run "phone link (QR, HTTPS, send, camera, live track, map on the phone)" env PW="$PW" PORT="$((PORT + 21))" \
     node scripts/test-phone-link.mjs target/release/geospax-server "$SAMPLES" "$OUT"
 else

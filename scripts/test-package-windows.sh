@@ -85,7 +85,7 @@ for f in geospax-server.exe WebView2Loader.dll gdal.dll share/proj/proj.db share
   [ -f "$INST/$f" ] || { echo "      missing $f"; MISSING=1; }
 done
 check "${MISSING:-0}" "install folder has the server, GDAL/PROJ data, fonts, web UI, recipes, licenses, uninstaller"
-SM="$WINEPREFIX/drive_c/users/$USER/AppData/Roaming/Microsoft/Windows/Start Menu/Programs"
+SM="$WINEPREFIX/drive_c/users/${USER:-$(id -un)}/AppData/Roaming/Microsoft/Windows/Start Menu/Programs"
 check "$([ -n "$(find "$SM" -iname 'GeoSpaX.lnk' | head -1)" ] && [ -f "$SM/GeoSpaX Web Server.lnk" ] && echo 0 || echo 1)" \
   "Start menu: GeoSpaX + GeoSpaX Web Server"
 echo "      $(du -sh "$INST" | cut -f1) installed, $(find "$INST" -maxdepth 1 -name '*.dll' | wc -l) DLLs"
@@ -186,6 +186,8 @@ if [ -n "$MOSQ" ] && command -v openssl >/dev/null; then
     -extfile "$T/server.ext" 2>/dev/null
   printf 'allow_anonymous true\nlistener %s 127.0.0.1\nlistener %s 127.0.0.1\ncafile %s\ncertfile %s\nkeyfile %s\n' \
     "$((PORT + 3))" "$((PORT + 2))" "$T/ca.pem" "$T/server.pem" "$T/server.key" >"$T/mosquitto.conf"
+  # started as root (CI containers), mosquitto drops to its own user, which must reach the certificates
+  chmod a+rx "$W" "$T" && chmod a+r "$T"/*
   "$MOSQ" -c "$T/mosquitto.conf" >"$W/run/mosquitto.txt" 2>&1 &
   BROKER_PID=$!
   MQTT_ARGS=(--mqtt "mqtts://127.0.0.1:$((PORT + 2))/v3/%2B/devices/%2B/up?ca=$(winpath "$T/ca.pem")")

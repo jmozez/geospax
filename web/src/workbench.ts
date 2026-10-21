@@ -61,6 +61,12 @@ export interface WorkbenchHost {
   openAttributes: (id: string) => void;
   plugins: () => PluginsPane | null;
   layersWithFields: () => { id: string; name: string; fields?: { name: string; kind: string }[] }[];
+  /** Lazy: one-row task bar; Pro: the full ribbon with a contextual Layer tab. */
+  mode: () => 'lazy' | 'pro';
+  /** Friendly name of a layer, as the layer cards show it. */
+  layerName: (id: string) => string;
+  /** Analyses that fit this layer, best first (the same as its card's buttons). */
+  nextSteps: (id: string) => { label: string; run: () => void }[];
 }
 
 interface RunRow {
@@ -118,6 +124,18 @@ export class Workbench {
       void this.loadRunsSilently();
     });
     document.addEventListener('geospax:plugins-changed', () => this.buildRibbon());
+    // the mode and the selected layer decide what the ribbon offers
+    document.addEventListener('geospax:mode', () => {
+      this.buildRibbon();
+      this.applyModeTabs();
+    });
+    document.addEventListener('geospax:active', () => {
+      this.buildRibbon();
+      this.renderActivity();
+    });
+    document.addEventListener('geospax:reload-views', () => this.renderActivity());
+    this.applyModeTabs();
+    this.renderActivity();
   }
 
   /** The command host every ribbon button sees. */
@@ -176,10 +194,19 @@ export class Workbench {
     const bodyEl = document.querySelector<HTMLElement>('#ribbon-body');
     if (!tabsEl || !bodyEl) return;
     const pinned = this.layout.ribbonPinned;
-    tabsEl.innerHTML =
-      TABS.map(
+    const lazy = this.host.mode() === 'lazy';
+    document.querySelector<HTMLElement>('#ribbon')?.classList.toggle('lazy', lazy);
+    const active = this.host.activeId();
+    if (this.layout.ribbon === 'layer' && !active) this.layout.ribbon = 'home';
+    // contextual tab, coloured like Pro's: only while a layer is selected
+    const ctx = active
+      ? `<button class="rb-ctx${this.layout.ribbon === 'layer' ? ' on' : ''}" data-tab="layer" title="Tools for the selected layer"><span>Layer</span> ${esc(this.host.layerName(active))}</button>`
+      : '';
+    tabsEl.innerHTML = lazy
+      ? ''
+      : TABS.map(
         (t) => `<button class="rb-tab${t.id === this.layout.ribbon ? ' on' : ''}" data-tab="${t.id}">${esc(t.label)}</button>`,
-      ).join('') +
+      ).join('') + ctx +
       `<button class="rb-pin${pinned ? ' on' : ''}" data-ribbon-pin title="${
         pinned ? 'Ribbon is pinned open — click to auto-hide it (Ctrl+F1)' : 'Ribbon is hidden — it opens when you click a tab (Ctrl+F1)'
       }"><span class="rb-pin-ico">${icon('pin', 13)}</span><span class="rb-pin-txt">${pinned ? 'Pin' : 'Auto-hide'}</span></button>`;
@@ -229,10 +256,67 @@ export class Workbench {
         if (p && tl) this.host.plugins()?.openTool(p, tl);
         return;
       }
+      const tbx = t.closest<HTMLElement>('[data-toolbox]')?.dataset.toolbox;
+      if (tbx) {
+        this.showTab('right', 'toolbox');
+        document.dispatchEvent(new CustomEvent('geospax:toolbox-search', { detail: tbx }));
+        return;
+      }
+      const next = t.closest<HTMLElement>('[data-next]');
+      if (next) {
+        this.nextList[Number(next.dataset.next)]?.run();
+        this.showTab('bottom', 'automate');
+        return;
+      }
       const b = t.closest<HTMLElement>('[data-cmd]');
       if (b) void this.run(b.dataset.cmd!);
     };
-    void this.renderRibbonBody(bodyEl);
+    void (lazy ? this.renderTaskBar(bodyEl) : this.renderRibbonBody(bodyEl));
+  }
+
+  private nextList: { label: string; run: () => void }[] = [];
+
+  /** "Next step" buttons: the analyses that fit the selected layer. */
+  private nextHtml(cls: string): string {
+    const id = this.host.activeId();
+    this.nextList = id ? this.host.nextSteps(id) : [];
+    if (!id || !this.nextList.length) return '';
+    return this.nextList
+      .map((n, i) => `<button class="${cls}" data-next="${i}" title="Run on ${esc(this.host.layerName(id))}">${icon('play', 12)} ${esc(n.label)}</button>`)
+      .join('');
+  }
+
+  /**
+   * Lazy mode: the ribbon becomes one row of tasks in plain words, a "What do you want to do?" box
+   * (the command palette) and the next steps for the selected layer. Every button is an ordinary
+   * command, so Pro mode, the palette and scripts reach the same things.
+   */
+  private async renderTaskBar(bodyEl: HTMLElement) {
+    bodyEl.hidden = false;
+    document.querySelector<HTMLElement>('#ribbon')?.classList.remove('auto');
+    requestAnimationFrame(() => this.host.map.resize());
+    try {
+      if (!this.recipes.length) this.recipes = (await this.host.backend.json<{ recipes: RecipeInfo[] }>('api/recipes')).recipes;
+    } catch { /* engine offline: the menu stays empty */ }
+    const task = (attr: string, ico: string, title: string, sub: string) =>
+      `<button class="tk-task" ${attr}><span class="tk-ico">${icon(ico, 20)}</span><span class="tk-txt"><b>${esc(title)}</b><small>${esc(sub)}</small></span></button>`;
+    const id = this.host.activeId();
+    const next = this.nextHtml('tk-next-btn');
+    bodyEl.innerHTML = `<div class="tk-bar">
+      <button class="tk-ask" data-cmd="view.palette">${icon('search', 16)}<span>What do you want to do?</span><kbd>Ctrl K</kbd></button>
+      <div class="tk-tasks">
+        ${task('data-cmd="data.devices"', 'phone', 'Add data', 'Phone, GPS, drone, files')}
+        ${task('data-cmd="style.autoAll"', 'wand', 'Make it look good', 'Style every layer for you')}
+        ${task('data-menu="recipes"', 'hotspot', 'Find patterns', `${this.recipes.length} ready-made analyses`)}
+        ${task('data-cmd="analyze.toolbox"', 'search', 'All tools', 'Search every tool by name')}
+        ${task('data-cmd="home.exportPng"', 'download', 'Finish the map', 'Save this view as a picture')}
+      </div>
+      ${
+        next
+          ? `<div class="tk-next"><span class="tk-next-h">Next for <b>${esc(this.host.layerName(id!))}</b></span>${next}</div>`
+          : `<div class="tk-next empty"><span class="tk-next-h">Select a layer to see what you can do with it</span></div>`
+      }
+    </div>`;
   }
 
   private ribbonVisible(): boolean {
@@ -265,6 +349,11 @@ export class Workbench {
     const parts: string[] = [];
     for (const g of groups) {
       parts.push(`<div class="rb-group"><div class="rb-items">${g.items.map((c) => commandHtml(c)).join('')}</div><div class="rb-title">${esc(g.group)}</div></div>`);
+    }
+    // contextual Layer tab: the analyses that fit the selected layer, run on it
+    if (this.layout.ribbon === 'layer') {
+      const next = this.nextHtml('rb-next');
+      if (next) parts.push(`<div class="rb-group"><div class="rb-items next">${next}</div><div class="rb-title">Next steps for this layer</div></div>`);
     }
     // Analyze: recipes straight from the engine — collapsed to one dropdown button by
     // default (Pro collapses a gallery the same way) so the ribbon stays one row tall.
@@ -305,6 +394,14 @@ export class Workbench {
     }
     // Plugin tools, one group per plugin (docs/PLUGINS.md).
     for (const p of this.pluginTools()) {
+      // a whole tool library (GeoLibre's 1,000+) is one button that opens the Toolbox on it
+      if (p.tools.length > 40) {
+        parts.push(`<div class="rb-group" data-group="plugin:${esc(p.id)}"><div class="rb-items">
+          <button class="rb-btn big" data-toolbox="${esc(p.name)}" title="Search the ${p.tools.length.toLocaleString('en-US')} tools of ${esc(p.name)} in the Toolbox">
+            <span class="rb-ico">${icon('grid', 20)}</span><span class="rb-label">${esc(p.name)}<br><small>${p.tools.length.toLocaleString('en-US')} tools</small></span></button>
+          </div><div class="rb-title">${esc(p.name)} <span class="dim">plugin</span></div></div>`);
+        continue;
+      }
       const tools = p.tools.slice(0, 12);
       const inline = tools
         .map(
@@ -643,7 +740,85 @@ export class Workbench {
     } catch { /* transient */ }
   }
 
+  /**
+   * Each mode has its own panes: Lazy shows the Inspector (right) and Activity (bottom); Pro the
+   * Symbology / Attributes / Rasters / Devices and Automate / Plugins / History / Log tabs. Moving to
+   * a mode opens its pane if the current one belongs to the other mode.
+   */
+  private applyModeTabs() {
+    const lazy = this.host.mode() === 'lazy';
+    const right = this.layout.tabs.right;
+    const bottom = this.layout.tabs.bottom;
+    if (lazy) {
+      if (this.layout.tabs.left === 'project') this.layout.tabs.left = 'contents';
+      if (!['inspector', 'toolbox', 'devices', 'attributes'].includes(right)) this.layout.tabs.right = 'inspector';
+      if (bottom !== 'activity') this.layout.tabs.bottom = 'activity';
+    } else {
+      if (right === 'inspector') this.layout.tabs.right = 'symbology';
+      if (bottom === 'activity') this.layout.tabs.bottom = 'automate';
+    }
+    this.applyLayout();
+  }
+
+  /**
+   * Lazy mode's bottom pane: what GeoSpaX suggests for the data on the map, and what has happened
+   * (recipe runs with their reports, then the latest notes), in words rather than tabs of logs.
+   */
+  renderActivity() {
+    const el = document.querySelector<HTMLElement>('#activity');
+    if (!el) return;
+    const ideas: { label: string; layer: string; run: () => void }[] = [];
+    for (const l of this.host.layers()) {
+      const first = this.host.nextSteps(l.id)[0];
+      if (first) ideas.push({ label: first.label, layer: this.host.layerName(l.id), run: first.run });
+      if (ideas.length >= 4) break;
+    }
+    this.activityIdeas = ideas;
+    const st: Record<string, [string, string]> = {
+      done: ['✓', 'Finished'], failed: ['!', 'Failed'], running: ['◌', 'Running'], queued: ['◌', 'Waiting'], cancelled: ['×', 'Stopped'],
+    };
+    const runs = this.runs.slice(0, 8).map((r) => {
+      const [ico, word] = st[r.status] ?? ['•', r.status];
+      return `<div class="act-item ${esc(r.status)}"><span class="act-ico">${ico}</span>
+        <span class="act-txt"><b>${esc(r.title || r.recipe)}</b><small>${esc(word)}${r.trigger?.text ? ` · ${esc(r.trigger.text)}` : ''} · ${(r.elapsed_ms / 1000).toFixed(1)} s</small></span>
+        ${r.status === 'done' ? `<button data-act-open="${esc(r.id)}">Open report</button>` : ''}</div>`;
+    });
+    const notes = [...this.logs].reverse().slice(0, 5).map((l) => `<div class="act-note ${l.level}"><span>${esc(l.t)}</span>${esc(l.text)}</div>`);
+    el.innerHTML = `<div class="act">
+      <div class="act-col">
+        <h3>Ideas for your data</h3>
+        ${
+          ideas.length
+            ? ideas.map((x, i) => `<button class="act-idea" data-act-idea="${i}"><span class="act-idea-ico">▶</span><span><b>${esc(x.label)}</b><small>on ${esc(x.layer)}</small></span></button>`).join('')
+            : `<p class="act-empty">Add points (a phone, a GPS, a sensor log or a file) and GeoSpaX suggests what to do with them.</p>`
+        }
+        <button class="act-more" data-cmd-act="analyze.toolbox">All tools in the Toolbox →</button>
+      </div>
+      <div class="act-col">
+        <h3>What happened</h3>
+        ${runs.join('') || `<p class="act-empty">Nothing yet. Every analysis you run (or that runs by itself when a device is plugged in) appears here with its report.</p>`}
+        ${notes.length ? `<div class="act-notes">${notes.join('')}</div>` : ''}
+      </div>
+    </div>`;
+    el.onclick = (e) => {
+      const t = e.target as HTMLElement;
+      const idea = t.closest<HTMLElement>('[data-act-idea]');
+      if (idea) {
+        this.activityIdeas[Number(idea.dataset.actIdea)]?.run();
+        this.setStatus('Running…');
+        return;
+      }
+      const open = t.closest<HTMLElement>('[data-act-open]')?.dataset.actOpen;
+      if (open) return this.host.openRun(open);
+      const cmd = t.closest<HTMLElement>('[data-cmd-act]')?.dataset.cmdAct;
+      if (cmd) void this.run(cmd);
+    };
+  }
+
+  private activityIdeas: { run: () => void }[] = [];
+
   renderHistory() {
+    this.renderActivity();
     const el = document.querySelector<HTMLElement>('#history');
     if (!el) return;
     if (!this.runs.length) {
@@ -674,6 +849,7 @@ export class Workbench {
     this.logs.push({ t, level, text: line });
     if (this.logs.length > 300) this.logs.shift();
     this.renderLog();
+    this.renderActivity();
   }
 
   renderLog() {
