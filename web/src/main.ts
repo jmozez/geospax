@@ -255,7 +255,7 @@ systemDark?.addEventListener?.('change', () => theme === 'system' && setTheme('s
 
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
-  const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': css('map-bg') || '#0d2233' } }];
+  const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': css('map-bg') || '#0b0b0b' } }];
   addBasemap(sources, out);
   for (const id of project.order) {
     const l = layerById(id);
