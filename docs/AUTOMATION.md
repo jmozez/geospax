@@ -251,10 +251,11 @@ decisions" table and the UI.
 
 | | Python | R |
 |---|---|---|
-| Inputs | Variables named after `inputs` (GeoDataFrame if geopandas is installed, else a GeoJSON dict); `inputs[name]` is the GeoJSON path; `params` dict | Variables named after `inputs` (sf object if sf is installed, else the path); `params` list |
+| Inputs | Variables named after `inputs` (GeoDataFrame if geopandas is installed, else a GeoJSON dict); `inputs[name]` is the GeoJSON path; `params` dict | Variables named after `inputs`: layers as sf objects (the path if sf is missing), rasters as terra SpatRasters; `params` list |
 | Layers out | `save(name, obj)` (GeoDataFrame, FeatureCollection dict or list of features) or `OUTPUTS = {name: obj}` | Return a named list of sf objects (or call `save_layer(name, obj)`) |
+| Rasters, figures, tables out | GeoTIFF, PNG/PDF/SVG and CSV files written to `outputs_dir` | Return SpatRasters (rasters), ggplot/tmap objects (figures) and data frames (tables) in the list, or call `save_figure(name, plot)` / `save_table(name, df)` ([R.md](R.md)) |
 | Numbers out | `result(key=value)` or `RESULT = {...}` | `result(key = value)` |
-| Interpreter | `python3`/`python` on PATH or `GEOSPAX_PYTHON` (Windows: `python`, then the `py` launcher) | `Rscript` on PATH or `GEOSPAX_RSCRIPT` (Windows: also `Program Files\R\R-*\bin`, newest first) |
+| Interpreter | `python3`/`python` on PATH or `GEOSPAX_PYTHON` (Windows: `python`, then the `py` launcher) | `Rscript` on PATH or `GEOSPAX_RSCRIPT` (Windows: also `Program Files\R\R-*\bin` and `%LOCALAPPDATA%\Programs\R`, newest first; macOS: also the CRAN framework and Homebrew). Packages GeoSpaX installs (R › R setup) are in `<state>/r-library`, searched first |
 
 **How a code step runs:**
 - **Isolation:**
@@ -264,8 +265,12 @@ decisions" table and the UI.
 - **Data exchange** goes through files: GeoJSON in, GeoJSON or GeoPackage out. A crashing script cannot take the app down, and GPL code stays out of process.
 - **Results:** returned layers become `<recipe>.<name>` and appear on the map. A non-zero exit fails the step with the last lines of stderr.
 
+The **R tab** runs R steps from a console with templates for tmap, ggplot2, rayshader, terra,
+biomod2, MaxEnt, tidymodels, dbplyr and rgee, and **R setup** installs R and package kits
+([R.md](R.md)).
+
 Planned:
-- environment management (Python via `uv`/`pixi`, R via `rig`/`renv`, with packages installed on first use after consent);
+- Python environment management (`uv`/`pixi`);
 - Arrow/GeoParquet and COG exchange;
 - "Show me the code" (built-in steps exported as equivalent R or Python);
 - webR and Pyodide for light steps in the web edition.

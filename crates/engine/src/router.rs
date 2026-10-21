@@ -220,6 +220,22 @@ impl Engine {
                 (None, _) => ApiResponse::error(404, format!("unknown raster '{id}'")),
                 _ => ApiResponse::error(400, "style must be a JSON object"),
             },
+            // R (docs/R.md): is R there, which packages, and install what is missing
+            ("GET", ["api", "r"]) => ApiResponse::json(200, &crate::rsetup::status()),
+            ("POST", ["api", "r", "install"]) => {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let list = |k: &str| body.get(k).and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect::<Vec<_>>()).unwrap_or_default();
+                let mut kits = list("kits");
+                kits.extend(list("packages"));
+                if kits.is_empty() {
+                    kits = crate::rsetup::DEFAULT_KITS.iter().map(|s| s.to_string()).collect();
+                }
+                let with_r = body.get("r").and_then(|v| v.as_bool()).unwrap_or(true);
+                match crate::rsetup::start_install(self, with_r, crate::rsetup::packages_of(&kits)) {
+                    Ok(job) => ApiResponse::json(202, &job.json()),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            },
             // Plugins (docs/PLUGINS.md): tools and ribbon commands from GeoSpaX, RustGIS,
             // GeoLibre, QGIS and ArcGIS Pro packages.
             ("GET", ["api", "plugins"]) => ApiResponse::json(200, &json!({

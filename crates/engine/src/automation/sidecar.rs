@@ -34,6 +34,12 @@ pub struct ScriptRun {
     pub version: String,
     /// (name, file) of every layer the code produced
     pub layers: Vec<(String, PathBuf)>,
+    /// (name, GeoTIFF) of every raster (terra SpatRaster, raster, rasterio …)
+    pub rasters: Vec<(String, PathBuf)>,
+    /// (name, PNG/PDF/SVG) of every figure (ggplot2, tmap, rayshader, base graphics, matplotlib …)
+    pub figures: Vec<(String, PathBuf)>,
+    /// (name, CSV) of every table (a data frame without geometry)
+    pub tables: Vec<(String, PathBuf)>,
     pub result: Map<String, Value>,
     pub stdout: String,
     pub stderr: String,
@@ -45,7 +51,7 @@ pub fn find(lang: Lang) -> Option<(String, String)> {
     let (env, candidates): (&str, &[&str]) = match lang {
         // Windows: "python3" is usually the Microsoft Store stub, "py" is the python.org launcher
         Lang::Python => ("GEOSPAX_PYTHON", if cfg!(windows) { &["python", "py", "python3"] } else { &["python3", "python"] }),
-        Lang::R => ("GEOSPAX_RSCRIPT", &["Rscript"]),
+        Lang::R => ("GEOSPAX_RSCRIPT", &["Rscript", "/usr/local/bin/Rscript", "/opt/homebrew/bin/Rscript", "/Library/Frameworks/R.framework/Resources/bin/Rscript"]),
     };
     let mut list: Vec<String> = std::env::var(env).ok().into_iter().collect();
     list.extend(candidates.iter().map(|s| s.to_string()));
@@ -87,10 +93,22 @@ fn windows_r_installs() -> Vec<String> {
     found
 }
 
+static R_LIBRARY: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// GeoSpaX's own R package library (`<state>/r-library`): packages GeoSpaX installs go here, so
+/// the user's R setup is never changed. R steps search it first.
+pub fn set_r_library(dir: PathBuf) {
+    let _ = R_LIBRARY.set(dir);
+}
+
+pub fn r_library() -> Option<&'static PathBuf> {
+    R_LIBRARY.get()
+}
+
 pub fn install_hint(lang: Lang) -> &'static str {
     match lang {
         Lang::Python => "install Python 3 (https://www.python.org) or set GEOSPAX_PYTHON",
-        Lang::R => "install R (https://cran.r-project.org; Debian/Ubuntu: apt install r-base-core r-cran-sf r-cran-gstat) or set GEOSPAX_RSCRIPT",
+        Lang::R => "open R › R setup to install it (or install R from https://cran.r-project.org, or set GEOSPAX_RSCRIPT)",
     }
 }
 
@@ -196,6 +214,8 @@ fn r_wrapper(code: &str, inputs: &[(String, PathBuf)], params: &Value, packages:
     let packages_r: Vec<String> = packages.iter().map(|p| r_str(p)).collect();
     format!(
         r#"# GeoSpaX R step (generated). Your code is between the markers below.
+.lib <- Sys.getenv("GEOSPAX_R_LIBRARY")
+if (nzchar(.lib) && dir.exists(.lib)) .libPaths(c(.lib, .libPaths()))
 inputs <- list({inputs})
 params <- {params}
 outputs_dir <- {outputs}
@@ -203,13 +223,40 @@ outputs_dir <- {outputs}
 if (length(.missing) > 0) stop(paste0("missing R packages: ", paste(.missing, collapse = ", "),
   "  (install with: install.packages(c(", paste0('"', .missing, '"', collapse = ", "), ")))"), call. = FALSE)
 .has_sf <- requireNamespace("sf", quietly = TRUE)
-for (.n in names(inputs)) assign(.n, if (.has_sf) sf::st_read(inputs[[.n]], quiet = TRUE) else inputs[[.n]])
+.is_raster <- function(p) grepl("\\.(tif|tiff|vrt|nc|img|asc|jp2)$", tolower(p))
+for (.n in names(inputs)) assign(.n, if (.is_raster(inputs[[.n]]) && requireNamespace("terra", quietly = TRUE)) terra::rast(inputs[[.n]])
+  else if (.has_sf) sf::st_read(inputs[[.n]], quiet = TRUE) else inputs[[.n]])
+figure_path <- function(name, ext = "png") file.path(outputs_dir, paste0(name, ".", ext))
+# A figure at print size: a ggplot, a tmap, or a function that draws (base graphics, terra::plot …).
+# rayshader: rayshader::render_snapshot(figure_path("relief")) or save_figure("relief", function() plot_map(hillshade)).
+save_figure <- function(name, plot, width = 180, height = 120, units = "mm", dpi = 300, formats = c("png", "pdf")) {{
+  inch <- c(mm = 1 / 25.4, cm = 1 / 2.54, `in` = 1)[[units]]
+  for (.f in formats) {{
+    path <- figure_path(name, .f)
+    if (inherits(plot, "ggplot")) ggplot2::ggsave(path, plot, width = width, height = height, units = units, dpi = dpi)
+    else if (inherits(plot, "tmap")) tmap::tmap_save(plot, path, width = width, height = height, units = units, dpi = dpi)
+    else if (is.function(plot)) {{
+      if (.f == "pdf") grDevices::pdf(path, width = width * inch, height = height * inch)
+      else if (.f == "svg") grDevices::svg(path, width = width * inch, height = height * inch)
+      else grDevices::png(path, width = width, height = height, units = units, res = dpi)
+      tryCatch(plot(), finally = grDevices::dev.off())
+    }} else stop(paste("cannot save", name, "as a figure: expected a ggplot, a tmap or a function that draws"))
+  }}
+  invisible(path)
+}}
+save_table <- function(name, obj) utils::write.csv(as.data.frame(obj), file.path(outputs_dir, paste0(name, ".csv")), row.names = FALSE)
 save_layer <- function(name, obj) {{
-  if (inherits(obj, "sf") || inherits(obj, "sfc")) {{
+  if (inherits(obj, "SpatRaster")) {{
+    terra::writeRaster(obj, file.path(outputs_dir, paste0(name, ".tif")), overwrite = TRUE)
+  }} else if (inherits(obj, c("RasterLayer", "RasterStack", "RasterBrick"))) {{
+    raster::writeRaster(obj, file.path(outputs_dir, paste0(name, ".tif")), overwrite = TRUE)
+  }} else if (inherits(obj, c("ggplot", "tmap"))) {{
+    save_figure(name, obj)
+  }} else if (inherits(obj, "sf") || inherits(obj, "sfc")) {{
     sf::st_write(obj, file.path(outputs_dir, paste0(name, ".gpkg")), quiet = TRUE, delete_dsn = TRUE)
-  }} else if (is.data.frame(obj)) {{
-    utils::write.csv(obj, file.path(outputs_dir, paste0(name, ".csv")), row.names = FALSE)
-  }} else stop(paste("cannot save", name, "as a layer: expected an sf object or a data.frame"))
+  }} else if (is.data.frame(obj) || is.matrix(obj)) {{
+    save_table(name, obj)
+  }} else stop(paste("cannot save", name, ": expected an sf object, a SpatRaster, a ggplot or tmap, or a data frame"))
 }}
 .result <- list()
 result <- function(...) {{
@@ -222,7 +269,7 @@ result <- function(...) {{
 {code}
 # ---- end of your code ----
 }})
-if (inherits(.out, "sf")) save_layer("result", .out) else if (is.list(.out) && !is.null(names(.out)) && !is.data.frame(.out)) {{
+if (inherits(.out, c("sf", "SpatRaster", "ggplot", "tmap"))) save_layer("result", .out) else if (is.list(.out) && !is.null(names(.out)) && !is.data.frame(.out)) {{
   for (.n in names(.out)) if (!is.null(.out[[.n]])) save_layer(.n, .out[[.n]])
 }}
 "#,
@@ -259,6 +306,9 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
             c.env(k, v);
         }
     }
+    if let Some(lib) = r_library() {
+        c.env("GEOSPAX_R_LIBRARY", lib);
+    }
     c.env("PYTHONIOENCODING", "utf-8").env("PYTHONDONTWRITEBYTECODE", "1").env("GEOSPAX_STEP", "1");
     let t0 = Instant::now();
     let mut child = c.spawn().map_err(|e| format!("could not start {cmd}: {e}"))?;
@@ -287,6 +337,7 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
         return Err(format!("{} exited with {}: {}", lang.name(), status.code().map(|c| c.to_string()).unwrap_or_else(|| "a signal".into()), if tail.is_empty() { "no error output".into() } else { tail }));
     }
     let mut layers = Vec::new();
+    let (mut rasters, mut figures, mut tables) = (Vec::new(), Vec::new(), Vec::new());
     let mut result = Map::new();
     let mut entries: Vec<PathBuf> = std::fs::read_dir(&outputs).map_err(|e| e.to_string())?.flatten().map(|e| e.path()).collect();
     entries.sort();
@@ -294,6 +345,9 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
         let name = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
         match p.extension().and_then(|e| e.to_str()).unwrap_or("") {
             "geojson" | "gpkg" | "fgb" | "shp" | "kml" => layers.push((name, p)),
+            "tif" | "tiff" => rasters.push((name, p)),
+            "png" | "pdf" | "svg" => figures.push((name, p)),
+            "csv" => tables.push((name, p)),
             "json" if name == "result" => {
                 if let Ok(Value::Object(m)) = serde_json::from_slice::<Value>(&std::fs::read(&p).unwrap_or_default()) {
                     result.extend(m);
@@ -311,7 +365,7 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
             _ => {}
         }
     }
-    Ok(ScriptRun { interpreter: cmd, version, layers, result, stdout, stderr, ms })
+    Ok(ScriptRun { interpreter: cmd, version, layers, rasters, figures, tables, result, stdout, stderr, ms })
 }
 
 #[cfg(test)]
@@ -341,6 +395,34 @@ mod tests {
         assert!(e.contains("boom"), "{e}");
         let e = run(Lang::Python, "pass", &[], &json!({}), &["surely_not_a_module_xyz".into()], &dir, Duration::from_secs(60), &AtomicBool::new(false)).err().unwrap();
         assert!(e.contains("pip install"), "{e}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn r_step_returns_rasters_figures_tables() {
+        let Some(_) = find(Lang::R) else { return };
+        let probe = crate::command(&find(Lang::R).unwrap().0).args(["-e", "stopifnot(requireNamespace('terra', quietly = TRUE), requireNamespace('ggplot2', quietly = TRUE))"]).output();
+        if !probe.map(|o| o.status.success()).unwrap_or(false) {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("geospax-sidecar-r-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let code = r#"
+r <- terra::rast(nrows = 10, ncols = 12, xmin = 144, xmax = 145, ymin = -6, ymax = -5, crs = "EPSG:4326")
+terra::values(r) <- seq_len(terra::ncell(r))
+df <- data.frame(name = c("a", "b, c"), value = c(1.5, NA))
+p <- ggplot2::ggplot(df, ggplot2::aes(name, value)) + ggplot2::geom_col()
+save_figure("bars", p, width = 80, height = 60, formats = "png")
+save_figure("base", function() terra::plot(r), formats = c("png", "pdf"))
+result(cells = terra::ncell(r))
+list(surface = r, summary = df)
+"#;
+        let run = run(Lang::R, code, &[], &json!({}), &["terra".into(), "ggplot2".into()], &dir, Duration::from_secs(120), &AtomicBool::new(false)).unwrap();
+        assert_eq!(run.rasters.len(), 1, "{}", run.stderr);
+        assert_eq!(run.tables.len(), 1);
+        assert_eq!(run.figures.len(), 3, "{:?}", run.figures);
+        assert_eq!(run.result["cells"], json!(120));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
