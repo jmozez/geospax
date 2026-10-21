@@ -125,3 +125,12 @@ SOFTWARE.
 You may copy, modify and redistribute it under MIT or Apache-2.0. If you carry
 the workbench forward, keep this file (or an equivalent NOTICE) with the
 attributions in sections 2–4 intact.
+
+
+## GSX tools (plugins/gsx)
+
+The analysis code and tests come from **GeoSpaX 2.0** (`@geospax/analysis`, https://github.com/jm0535/GeoSpaX)
+and **GeoSpaX 1.4.2** (https://github.com/jm0535/map-kit), © J. Moses, MIT License. The built
+`plugins/gsx/run.mjs` bundles **Turf** (© Morgan Herlocker and contributors, MIT) and **proj4js**
+(© Mike Adair, Richard Greenwood, Didier Richard, Stephen Irons, Olivier Terral, Calvin Metcalf and contributors, MIT).
+The GeoSpaX logo is the GeoSpaX 2.0 logo.

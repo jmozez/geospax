@@ -62,6 +62,12 @@ the API; the first-use download verified and byte-identical to the npm package.
 
 ---
 
+## 1b. GSX tools (bundled)
+
+`plugins/gsx` brings the conservation, biodiversity and environmental tools of GeoSpaX 2.0 and 1.4.2
+into GeoSpaX 3 as one Node plugin: suitability, protection gaps, minimum-cost representation,
+fragmentation, connectivity, change, clusters and diversity. See [GSX.md](GSX.md).
+
 ## 2. Plugin folders
 
 ```
@@ -141,6 +147,13 @@ and expects **JSON on stdout**:
 ```json
 { "ok": true, "message": "report for field_samples.geojson", "outputs": ["…/out.geojson"] }
 ```
+
+A plugin that reads GeoJSON sets **`geojson: true`** in `plugin.yaml`: every layer named by a `layer`
+parameter is then written to the workdir as GeoJSON, whatever its source format, and passed in
+**`layer_geojson`** (`{"layer id": "/tmp/…/gsx-layer.geojson"}`).
+
+The answer may also carry **`table`** (`[["label", value], …]`) and **`notes`** (strings): the tool's
+dialog shows them under the form, so a tool can report numbers without making a layer.
 
 Files listed in **`outputs`** are added to the map: GeoTIFFs as rasters, anything GDAL reads as vector
 layers. The reply to `POST …/run` names them in `"added"`, and the app styles them (AutoMap) and zooms to
