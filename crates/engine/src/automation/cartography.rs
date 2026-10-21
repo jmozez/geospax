@@ -480,11 +480,7 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
     let legend_layers: Vec<&MapLayer> = spec.layers.iter().rev().filter(|l| !l.context).collect();
     let pl = furniture::place(fur, &all, lay);
     // an inside legend: measured first, then drawn on a panel in its corner
-    let inside = (fur.legend == "inside").then(|| {
-        let mut tmp = String::new();
-        let end = legend(&mut tmp, &legend_layers, &spec.rasters, 0.0, 0.0, lay.fh * 0.85, fur);
-        (LEGEND_W + 40.0, end + 4.0)
-    });
+    let inside = (fur.legend == "inside").then(|| inside_legend_size(&legend_layers, &spec.rasters, lay, fur));
     let obstacles = furniture::obstacles(&pl, lay, inside);
     let (drawn, n_labels) = draw_frame_with(&mut svg, spec, &all, &spec.rasters, lay, &spec.frames, "frame", &obstacles);
     // title block
@@ -497,11 +493,7 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
     );
     draw_furniture(&mut svg, spec, lay, &pl);
     match (fur.legend.as_str(), pl.legend, inside) {
-        ("inside", Some(c), Some((lw, lh))) => {
-            let (x, y) = furniture::anchor(lay, c, lw, lh, 10.0);
-            let _ = write!(svg, "<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{lw:.1}\" height=\"{lh:.1}\" rx=\"6\" fill=\"#ffffff\" fill-opacity=\"0.92\" stroke=\"#c3cbd2\" stroke-width=\"0.8\"/>");
-            legend(&mut svg, &legend_layers, &spec.rasters, x + 12.0, y + 2.0, y + lh, fur);
-        }
+        ("inside", Some(c), Some(size)) => inside_legend(&mut svg, &legend_layers, &spec.rasters, lay, c, size, fur),
         ("right", _, _) => {
             legend(&mut svg, &legend_layers, &spec.rasters, lay.fx + lay.fw + 18.0, lay.fy, lay.fy + lay.fh, fur);
         }
@@ -612,6 +604,20 @@ fn draw_frame_with(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], raste
     (drawn, labels.count)
 }
 
+/// Size of a legend drawn inside the map (measured by drawing it once off the page).
+fn inside_legend_size(layers: &[&MapLayer], rasters: &[MapRaster], lay: &Layout, fur: &Furniture) -> (f64, f64) {
+    let mut tmp = String::new();
+    let end = legend(&mut tmp, layers, rasters, 0.0, 0.0, lay.fh * 0.85, fur);
+    (LEGEND_W + 40.0, end + 4.0)
+}
+
+/// A legend on a card in a corner of the map.
+fn inside_legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], lay: &Layout, c: furniture::Corner, (lw, lh): (f64, f64), fur: &Furniture) {
+    let (x, y) = furniture::anchor(lay, c, lw, lh, 10.0);
+    let _ = write!(svg, "<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{lw:.1}\" height=\"{lh:.1}\" rx=\"6\" fill=\"#ffffff\" fill-opacity=\"0.92\" stroke=\"#c3cbd2\" stroke-width=\"0.8\"/>");
+    legend(svg, layers, rasters, x + 12.0, y + 2.0, y + lh, fur);
+}
+
 /// Inset, north arrow and scale bar in the corners chosen for them.
 fn draw_furniture(svg: &mut String, spec: &MapSpec, lay: &Layout, pl: &furniture::Placement) {
     let fur = &spec.furniture;
@@ -644,9 +650,9 @@ const PANEL_LEGEND_W: f64 = LEGEND_W;
 
 /// Page size and each panel's frame rectangle for `n` extents in a grid, like R patchwork's
 /// `wrap_plots(ncol = …)`: equal cells in rows, each frame shaped like its extent so a panel shows
-/// exactly its area. `own_legends` gives each cell room for its own legend; otherwise one legend is
-/// collected on the right of the page (`guides = "collect"`).
-pub fn panel_grid(extents: &[[f64; 4]], ncol: Option<usize>, own_legends: bool) -> (f64, f64, Vec<[f64; 4]>) {
+/// exactly its area. `own_legends` gives each cell room for its own legend; `page_legend` keeps a
+/// column on the right of the page for one collected legend (`guides = "collect"`).
+pub fn panel_grid(extents: &[[f64; 4]], ncol: Option<usize>, own_legends: bool, page_legend: bool) -> (f64, f64, Vec<[f64; 4]>) {
     let n = extents.len().max(1);
     let aspect = |e: &[f64; 4]| {
         let (a, b) = (merc(e[0], e[1]), merc(e[2], e[3]));
@@ -667,7 +673,7 @@ pub fn panel_grid(extents: &[[f64; 4]], ncol: Option<usize>, own_legends: bool) 
     let fh = (fw * a).clamp(260.0, 1200.0);
     let cell_w = fw + if own_legends { 14.0 + PANEL_LEGEND_W } else { 0.0 };
     let cell_h = PANEL_TITLE + fh;
-    let w = 2.0 * MARGIN + ncol as f64 * cell_w + (ncol - 1) as f64 * GUTTER + if own_legends { 0.0 } else { 18.0 + LEGEND_W };
+    let w = 2.0 * MARGIN + ncol as f64 * cell_w + (ncol - 1) as f64 * GUTTER + if page_legend { 18.0 + LEGEND_W } else { 0.0 };
     let h = HEADER + nrow as f64 * cell_h + (nrow - 1) as f64 * GUTTER + FOOTER + 8.0;
     let rects = (0..n)
         .map(|i| {
@@ -705,15 +711,19 @@ pub fn render_panels(spec: &MapSpec, panels: &[Panel], w: f64, h: f64, own_legen
         // draw_frame reads layers from the spec: borrow the panel's subset without copying features
         let lay = &p.layout;
         let shown: Vec<&MapLayer> = spec.layers.iter().filter(keep).chain(p.own.iter()).collect();
-        // one north arrow for the page (first panel), a scale bar in every panel
+        // one north arrow and one inset for the page (first panel), a scale bar in every panel; an
+        // inside legend in every panel (own legends) or once, in the first panel (shared legend)
         let mut pf = spec.furniture.clone();
         if i > 0 {
             pf.north_at = furniture::Place::Off;
+            pf.inset_at = furniture::Place::Off;
         }
-        pf.inset_at = furniture::Place::Off;
-        pf.legend = "right".into();
+        let inside = spec.furniture.legend == "inside" && (own_legends || i == 0);
+        pf.legend = if inside { "inside".into() } else { "right".into() };
+        let legend_layers: Vec<&MapLayer> = if own_legends { shown.iter().rev().filter(|l| !l.context).copied().collect() } else { spec.layers.iter().rev().filter(|l| !l.context).collect() };
+        let lsize = inside.then(|| inside_legend_size(&legend_layers, &p.rasters, lay, &pf));
         let pl = furniture::place(&pf, &shown, lay);
-        let obstacles = furniture::obstacles(&pl, lay, None);
+        let obstacles = furniture::obstacles(&pl, lay, lsize);
         let (d, l) = draw_frame_with(&mut svg, &sub, &shown, &p.rasters, lay, &[], &format!("panel{i}"), &obstacles);
         drawn += d;
         n_labels += l;
@@ -725,11 +735,16 @@ pub fn render_panels(spec: &MapSpec, panels: &[Panel], w: f64, h: f64, own_legen
             if p.tag.is_empty() { String::new() } else { format!("({})", esc(&p.tag)) },
             esc(&p.title)
         );
-        let psub = MapSpec { furniture: pf, ..sub };
+        // the inset shows this panel's area
+        let inset = if i == 0 { spec.inset.as_ref().map(|x| Inset { land: x.land.clone(), study: lay.view(), around: x.around }) } else { None };
+        let psub = MapSpec { furniture: pf, inset, ..sub };
         draw_furniture(&mut svg, &psub, lay, &pl);
-        if own_legends {
-            let legend_layers: Vec<&MapLayer> = shown.iter().rev().filter(|l| !l.context).copied().collect();
-            legend(&mut svg, &legend_layers, &p.rasters, lay.fx + lay.fw + 14.0, lay.fy - 26.0, lay.fy + lay.fh, &spec.furniture);
+        match (pl.legend, lsize) {
+            (Some(c), Some(size)) => inside_legend(&mut svg, &legend_layers, &p.rasters, lay, c, size, &psub.furniture),
+            _ if own_legends && spec.furniture.legend == "right" => {
+                legend(&mut svg, &legend_layers, &p.rasters, lay.fx + lay.fw + 14.0, lay.fy - 26.0, lay.fy + lay.fh, &spec.furniture);
+            }
+            _ => {}
         }
         max_denom = max_denom.max(lay.scale_denominator());
     }
@@ -742,7 +757,7 @@ pub fn render_panels(spec: &MapSpec, panels: &[Panel], w: f64, h: f64, own_legen
     if !own_legends {
         let legend_layers: Vec<&MapLayer> = spec.layers.iter().rev().filter(|l| !l.context).collect();
         let x = w - MARGIN - LEGEND_W;
-        if spec.furniture.legend != "none" {
+        if spec.furniture.legend == "right" {
             legend(&mut svg, &legend_layers, panels.first().map(|p| p.rasters.as_slice()).unwrap_or(&[]), x, HEADER, h - FOOTER, &spec.furniture);
         }
     }
