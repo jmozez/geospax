@@ -139,9 +139,10 @@ export class AutomatePane {
     this.render();
   }
 
-  async run(id: string) {
+  async run(id: string, inputs?: Record<string, unknown>) {
     try {
-      const run = await this.backend.json<RunInfo>(`api/recipes/${id}/run`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });
+      const body = JSON.stringify(inputs ? { inputs } : {});
+      const run = await this.backend.json<RunInfo>(`api/recipes/${id}/run`, { method: 'POST', body, headers: { 'content-type': 'application/json' } });
       document.body.dataset.recipeRun = 'running';
       await this.follow(run.id, run);
     } catch (e) {

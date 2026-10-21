@@ -82,6 +82,20 @@ GeoSpaX opens like a desktop GIS: a **ribbon** on top, **panes** docked around t
 underneath. Nothing is hidden behind a menu you have to hunt for — and every button still runs the same engine
 calls the recipes use.
 
+**Lazy or Pro: the layer list fits you.** A switch at the top of **Contents** picks how layers are shown
+(remembered in your browser; Lazy is the default):
+
+| | Lazy: layer cards | Pro: layer tree |
+|---|---|---|
+| Name | Friendly ("Air quality samples") | File name (`air_quality_samples.geojson`) |
+| What it shows | One sentence from the data: "Coloured by PM2.5 against the WHO guideline: 88% of 1,500 readings are above 15." | Geometry · CRS · zoom range · classification on one line |
+| Legend | A bar whose segments are as wide as their share of the features | Classes with counts |
+| Status | Ready · Styled for you · Preparing zoomed-out view (with progress) · Hidden | Compact badges (pyramid %, auto) |
+| Next step | Buttons for the recipes that fit this layer (Make a surface, Hot spots, Hexagon map), run on *this* layer | Ribbon and palette |
+| Arranging | Grouped by origin: from your devices, your data, recipe results, reference, background | Drag rows to reorder, inline opacity, filter box |
+
+Both show the same project: switching never changes the map.
+
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ GeoSpaX   ⤓ ⟳ ⤢ ⌘                          Ctrl+K for any command    │  title bar

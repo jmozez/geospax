@@ -14,6 +14,7 @@ import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
+import { GROUP_TITLE, actionsFor, groupOf, lazyCard, modeSwitch, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
   fmtNum,
@@ -321,6 +322,7 @@ function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: mapl
 function setBasemap(b: Basemap) {
   project.basemap = b;
   applyStyle();
+  renderContents();
   saveProject();
   workbench?.setStatus(b === 'offline' ? 'Basemap: Natural Earth (offline)' : b === 'osm' ? 'Basemap: OpenStreetMap (online)' : 'Basemap off');
 }
@@ -380,45 +382,87 @@ async function autostyleNew(ids: string[]) {
 }
 
 // ---------------------------------------------------------------- Contents
+// Lazy mode: layer cards; Pro mode: a dense layer tree (web/src/layercards.ts). Remembered per browser;
+// the UI tests (?fresh, ?bench) get the Pro tree unless ?mode= says otherwise.
+const MODE_KEY = 'geospax.mode';
+let uiMode: UiMode = (() => {
+  const q = params.get('mode');
+  if (q === 'lazy' || q === 'pro') return q;
+  if (params.has('fresh') || params.has('bench')) return 'pro';
+  try {
+    return localStorage.getItem(MODE_KEY) === 'pro' ? 'pro' : 'lazy';
+  } catch {
+    return 'lazy';
+  }
+})();
+let layerFilter = '';
+let recipeIds = new Set<string>();
+
+function setMode(m: UiMode) {
+  uiMode = m;
+  document.body.dataset.mode = m;
+  try {
+    localStorage.setItem(MODE_KEY, m);
+  } catch {
+    /* private window: the choice lasts this session */
+  }
+  renderContents();
+  workbench?.setStatus(m === 'lazy' ? 'Lazy mode: layers explain themselves' : 'Pro mode: every setting at hand');
+}
+
 function renderContents() {
   const el = $('#contents');
-  el.innerHTML = '';
+  document.body.dataset.mode = uiMode;
   // ArcGIS convention: top of the list draws on top (= end of the draw order)
-  const list = [...project.order].reverse();
-  list.forEach((id, i) => {
-    const l = layerById(id);
-    if (!l) return;
+  const list = [...project.order].reverse().filter((id) => layerById(id));
+  const row = (id: string, i: number) => {
+    const l = layerById(id)!;
     const st = project.layers[id];
-    const job = jobs.get(id) ?? l.overview_job ?? undefined;
-    const running = job && (job.status === 'queued' || job.status === 'running');
-    const items = legendItems(st.symbology);
-    const row = document.createElement('div');
-    row.className = 'layer' + (panel?.current === id ? ' selected' : '');
-    row.dataset.id = id;
-    row.innerHTML = `
-      <input type="checkbox" ${st.visible ? 'checked' : ''} aria-label="Toggle ${esc(id)}" />
-      <span class="swatch ${l.geometry}" style="--c:${esc(primaryColor(st.symbology))}"></span>
-      <span class="meta"><b class="name" title="Open symbology">${esc(id)}</b>
-        <small>${l.geometry} · ${fmt(l.feature_count)} features · z${l.minzoom}–${l.maxzoom} · ${esc(l.driver)}</small>
-        ${l.overview ? `<small class="badge ok">pyramid z0–${l.overview.max_zoom} · ${(l.overview.bytes / 1e6).toFixed(1)} MB</small>` : ''}
-        ${running ? `<small class="badge busy">preparing zoomed-out view ${(job!.progress * 100).toFixed(0)}%</small>` : ''}
-        ${!l.overview && !running && l.overview_suggested != null ? (autoOverviewsOn() ? `<small class="badge busy">zoomed-out view queued</small>` : `<small class="badge warn">live from z${l.live_minzoom} · overviews suggested</small>`) : ''}
-      </span>
-      <span class="tools">
-        <button data-act="up" title="Move up" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>▲</button>
-        <button data-act="down" title="Move down" aria-label="Move down" ${i === list.length - 1 ? 'disabled' : ''}>▼</button>
-        <button data-act="props" title="Symbology" aria-label="Symbology">⚙</button>
-      </span>
-      ${
-        items.length
-          ? `<div class="legend"><small>${esc(st.symbology.kind === 'single' ? '' : (st.symbology as { field: string }).field)}</small>${items
-              .slice(0, 10)
-              .map((it) => `<div><i style="background:${esc(it.color)}"></i>${esc(it.label)}</div>`)
-              .join('')}${items.length > 10 ? `<div class="more">… ${items.length - 10} more</div>` : ''}</div>`
-          : ''
-      }`;
-    el.appendChild(row);
-  });
+    const state = {
+      layer: l,
+      style: st,
+      job: jobs.get(id) ?? l.overview_job ?? undefined,
+      selected: panel?.current === id,
+      first: i === 0,
+      last: i === list.length - 1,
+      actions: actionsFor(l, st.symbology, recipeIds),
+      autoOverviews: autoOverviewsOn(),
+    };
+    return uiMode === 'lazy' ? lazyCard(state) : proRow(state);
+  };
+  let body = '';
+  if (uiMode === 'lazy') {
+    // cards grouped by where the data came from; the draw order is kept inside each group
+    const groups = new Map<Group, string[]>();
+    list.forEach((id, i) => {
+      const g = groupOf(layerById(id)!, isDeviceLayer);
+      groups.set(g, [...(groups.get(g) ?? []), row(id, i)]);
+    });
+    for (const g of ['devices', 'data', 'results', 'reference'] as Group[]) {
+      const rows = groups.get(g);
+      if (rows) body += `<div class="lc-group"><span>${GROUP_TITLE[g]}</span><span>${rows.length}</span></div>${rows.join('')}`;
+    }
+    const b = basemap();
+    body += `<div class="lc-group"><span>Background</span></div>
+      <div class="card basemap" style="--c:#4f7468"><div class="lc-top"><span class="lc-glyph">🌍</span>
+      <span class="lc-title"><b>${b === 'osm' ? 'Streets (OpenStreetMap)' : b === 'none' ? 'No background' : 'World map'}</b>
+      <small>${b === 'osm' ? 'online' : b === 'none' ? 'plain colour' : 'offline · Natural Earth'}</small></span>
+      <button data-basemap="${b === 'offline' ? 'osm' : 'offline'}" class="lc-switch">${b === 'offline' ? 'Streets' : 'World'}</button></div></div>`;
+  } else {
+    const f = layerFilter.toLowerCase();
+    const total = list.reduce((a, id) => a + (layerById(id)?.feature_count ?? 0), 0);
+    body = `<div class="pr-tool"><input type="search" class="pr-filter" placeholder="Filter layers…" value="${layerFilter.replace(/"/g, '&quot;')}" aria-label="Filter layers" />
+      <span>${list.length} layers · ${total.toLocaleString('en-US')} features</span></div>`;
+    body += list.map((id, i) => (!f || id.toLowerCase().includes(f) ? row(id, i) : '')).join('');
+  }
+  // keep the filter box focused while typing
+  const focused = document.activeElement?.classList.contains('pr-filter');
+  el.innerHTML = modeSwitch(uiMode) + body;
+  if (focused) {
+    const fi = el.querySelector<HTMLInputElement>('.pr-filter');
+    fi?.focus();
+    fi?.setSelectionRange(fi.value.length, fi.value.length);
+  }
 }
 
 function setLayerStyle(id: string, st: LayerStyle) {
@@ -446,19 +490,58 @@ function wireContents() {
   el.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
-    if (!id || t.type !== 'checkbox') return;
-    setLayerStyle(id, { ...project.layers[id], visible: t.checked });
+    if (!id) return;
+    if (t.type === 'checkbox') setLayerStyle(id, { ...project.layers[id], visible: t.checked });
+    else if (t.dataset.act === 'opacity') setLayerStyle(id, { ...project.layers[id], opacity: Number(t.value) / 100 });
+  });
+  el.addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement;
+    if (t.classList.contains('pr-filter')) {
+      layerFilter = t.value;
+      renderContents();
+    }
   });
   el.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
+    const mode = t.closest<HTMLElement>('.lc-mode [data-mode]')?.dataset.mode as UiMode | undefined;
+    if (mode) return setMode(mode);
+    const bm = t.closest<HTMLElement>('[data-basemap]')?.dataset.basemap;
+    if (bm) return setBasemap(bm as Basemap);
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
     if (!id) return;
-    const act = t.closest<HTMLElement>('[data-act]')?.dataset.act;
+    const actEl = t.closest<HTMLElement>('[data-act]');
+    const act = actEl?.dataset.act;
     if (act === 'up' || act === 'down') moveLayer(id, act);
-    else if (act === 'props' || t.classList.contains('name')) {
+    else if (act === 'zoom') fitLayer(id);
+    else if (act === 'recipe' && actEl?.dataset.recipe) void automatePane?.run(actEl.dataset.recipe, { layer: id });
+    else if (act === 'props' || t.classList.contains('name') || t.closest('.name')) {
       panel.open(id);
+      workbench?.showTab('right', 'symbology');
       renderContents();
     }
+  });
+  // Pro tree: drag a row onto another to put it there (Pro's Contents drag-and-drop)
+  let dragId: string | null = null;
+  el.addEventListener('dragstart', (e) => {
+    dragId = (e.target as HTMLElement).closest<HTMLElement>('.layer.pro')?.dataset.id ?? null;
+    if (dragId) e.dataTransfer?.setData('text/plain', dragId);
+  });
+  el.addEventListener('dragover', (e) => {
+    if (dragId && (e.target as HTMLElement).closest('.layer.pro')) e.preventDefault();
+  });
+  el.addEventListener('drop', (e) => {
+    const to = (e.target as HTMLElement).closest<HTMLElement>('.layer.pro')?.dataset.id;
+    e.preventDefault();
+    if (!dragId || !to || to === dragId) return;
+    const o = project.order.filter((x) => x !== dragId);
+    // dropped on a row = takes that row's place in the list (list is top-first, order is bottom-first)
+    const at = o.indexOf(to);
+    o.splice(project.order.indexOf(dragId) > project.order.indexOf(to) ? at : at + 1, 0, dragId);
+    project.order = o;
+    dragId = null;
+    applyStyle();
+    renderContents();
+    saveProject();
   });
 }
 
@@ -756,6 +839,13 @@ async function main() {
   });
   wireContents();
   renderContents();
+  backend
+    .json<{ recipes: { id: string }[] }>('api/recipes')
+    .then((r) => {
+      recipeIds = new Set(r.recipes.map((x) => x.id));
+      renderContents();
+    })
+    .catch(() => {});
   startHud();
   // resume polling jobs started in another session/window
   for (const l of layers) if (l.overview_job) pollJob(l.id, l.overview_job.id);
