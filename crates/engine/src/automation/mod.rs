@@ -541,6 +541,36 @@ impl Automation {
         Ok(run)
     }
 
+    /// A quick look at a finished map before making it (Finish my map's preview): `style.apply` with
+    /// `styles`, then `export.map` with `map` at low resolution, PNG only, in a temporary folder.
+    /// Nothing is added to the run history.
+    pub fn preview_map(&self, engine: &Arc<Engine>, body: &Value) -> Result<Vec<u8>, String> {
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = engine.state_dir.join("preview").join(format!("{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let cancel = std::sync::atomic::AtomicBool::new(false);
+        let (trigger, inputs) = (json!({ "kind": "preview" }), Map::new());
+        let mut sc = steps::StepCtx::new(engine, "finished-map", "Preview", "", "preview", &dir, &cancel, &trigger, &inputs);
+        let result = (|| {
+            if let Some(st) = body.get("styles").filter(|v| v.is_object()) {
+                sc.step_id = "style".into();
+                steps::execute(&mut sc, "style.apply", &json!({ "styles": st, "save": false }))?;
+            }
+            let mut p = body.get("map").cloned().unwrap_or_else(|| json!({}));
+            let o = p.as_object_mut().ok_or("map: expected the export.map parameters")?;
+            o.insert("format".into(), json!(["png"]));
+            o.insert("name".into(), json!("preview"));
+            o.insert("dpi".into(), json!(body.get("dpi").and_then(Value::as_f64).unwrap_or(60.0).clamp(36.0, 150.0)));
+            o.remove("to");
+            sc.step_id = "map".into();
+            steps::execute(&mut sc, "export.map", &p)?;
+            std::fs::read(dir.join("preview.png")).map_err(|e| e.to_string())
+        })();
+        let _ = std::fs::remove_dir_all(&dir);
+        result
+    }
+
     /// Run in the calling thread (CLI). `progress` sees each finished step.
     pub fn run_blocking(&self, engine: &Arc<Engine>, id: &str, given: Map<String, Value>, trigger: Value, progress: &dyn Fn(&StepRecord, usize, usize)) -> Result<Arc<Run>, String> {
         let recipe = self.recipe(id).ok_or_else(|| format!("unknown recipe '{id}'"))?;
@@ -563,39 +593,7 @@ impl Automation {
             "datetime": now.to_rfc3339(), "dir": run.dir,
         });
         let mut outs: HashMap<String, Value> = HashMap::new();
-        let mut sc = steps::StepCtx {
-            engine,
-            recipe_id: &recipe.id,
-            recipe_title: &recipe.title,
-            recipe_text: &recipe.text,
-            run_id: &run.id,
-            dir: &run.dir,
-            cancel: &run.job.cancel,
-            trigger: &run.trigger,
-            inputs: &run.inputs,
-            step_id: String::new(),
-            styles: HashMap::new(),
-            names: HashMap::new(),
-            page: Map::new(),
-            touched: Vec::new(),
-            maps: Vec::new(),
-            methods: Vec::new(),
-            records: Vec::new(),
-            artifacts: Vec::new(),
-            extent: None,
-            device: None,
-            import_summary: None,
-            cards: Vec::new(),
-            hints: HashMap::new(),
-            rasters: Vec::new(),
-            scenes: Vec::new(),
-            aoi: None,
-            cloud_sample: None,
-            cloud_total: 0,
-            views: Vec::new(),
-            charts: Vec::new(),
-            figures: Vec::new(),
-        };
+        let mut sc = steps::StepCtx::new(engine, &recipe.id, &recipe.title, &recipe.text, &run.id, &run.dir, &run.job.cancel, &run.trigger, &run.inputs);
         let total = order.len();
         let mut failure: Option<String> = None;
         for (n, &i) in order.iter().enumerate() {

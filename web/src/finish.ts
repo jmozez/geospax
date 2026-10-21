@@ -76,32 +76,79 @@ export function pageSize(v: string): string {
   return r >= 1 ? `1800x${Math.round(1800 / r)}` : `${Math.round(1800 * r)}x1800`;
 }
 
-/** The furniture fields as export.map parameters (", key: value" …); legend edits from the table. */
-function furniture(f: FormData, form: HTMLFormElement): string {
-  const out: string[] = [];
+/** Numbers as the engine's legend writes them (cartography::fmt_num), so renames match. */
+export function fmtNum(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1000) return Math.round(v).toLocaleString('en-US');
+  const s = v.toFixed(a >= 100 ? 0 : a >= 10 ? 1 : a >= 1 ? 2 : 3);
+  return s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s;
+}
+
+/** The class labels a layer's legend shows (before counts and notes): what can be renamed. */
+export function classLabels(st: LayerStyle | undefined): string[] {
+  const sym = st?.symbology;
+  if (!sym) return [];
+  if (sym.kind === 'unique') return sym.classes.map((c) => String(c.value));
+  if (sym.kind === 'graduated') {
+    let lo = sym.min;
+    return sym.breaks.map((b) => {
+      const t = `${fmtNum(lo)} – ${fmtNum(b)}`;
+      lo = b;
+      return t;
+    });
+  }
+  return [];
+}
+
+/** The furniture fields as export.map parameters; legend edits and order from the legend editor. */
+function furniture(f: FormData, form: HTMLFormElement): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
   for (const k of ['dpi', 'legend', 'legend_at', 'legend_title', 'scale_bar', 'units', 'scale_bar_at', 'north_arrow', 'north_arrow_at', 'inset']) {
     const v = f.get(k);
-    if (v == null) continue;
-    out.push(`${k}: ${k === 'dpi' ? Number(v) : JSON.stringify(String(v))}`);
+    if (v != null) out[k] = k === 'dpi' ? Number(v) : String(v);
   }
   const edit: Record<string, { title?: string; hide?: boolean; labels?: Record<string, string> }> = {};
-  form.querySelectorAll<HTMLTableRowElement>('tr[data-layer]').forEach((tr) => {
-    const id = tr.dataset.layer!;
+  const order: string[] = [];
+  form.querySelectorAll<HTMLElement>('[data-layer]').forEach((row) => {
+    const id = row.dataset.layer!;
+    order.push(id);
     const e: { title?: string; hide?: boolean; labels?: Record<string, string> } = {};
-    if (!tr.querySelector<HTMLInputElement>('[name=lg-show]')!.checked) e.hide = true;
-    const t = tr.querySelector<HTMLInputElement>('[name=lg-title]')!.value.trim();
+    if (!row.querySelector<HTMLInputElement>('[name=lg-show]')!.checked) e.hide = true;
+    const t = row.querySelector<HTMLInputElement>('[name=lg-title]')!.value.trim();
     if (t) e.title = t;
-    const pairs = tr.querySelector<HTMLInputElement>('[name=lg-labels]')!.value.split(';').map((x) => x.split('=').map((y) => y.trim()));
-    const labels = Object.fromEntries(pairs.filter((p) => p.length === 2 && p[0] && p[1]));
+    const labels: Record<string, string> = {};
+    row.querySelectorAll<HTMLInputElement>('input[data-class]').forEach((i) => {
+      if (i.value.trim() && i.value.trim() !== i.dataset.class) labels[i.dataset.class!] = i.value.trim();
+    });
     if (Object.keys(labels).length) e.labels = labels;
     if (Object.keys(e).length) edit[id] = e;
   });
-  if (Object.keys(edit).length) out.push(`legend_edit: ${JSON.stringify(edit)}`);
-  return out.length ? `, ${out.join(', ')}` : '';
+  if (Object.keys(edit).length) out.legend_edit = edit;
+  if (order.length) out.legend_order = order;
+  return out;
+}
+
+interface MapStepDef {
+  id: string;
+  use: string;
+  needs: string[];
+  with: Record<string, unknown>;
+}
+
+interface Plan {
+  title: string;
+  formats: string[];
+  report: boolean;
+  steps: MapStepDef[];
+  outputs: string[];
+  what: string;
+  pages?: number;
 }
 
 export class FinishMap {
   private el: HTMLElement;
+  private previewSeq = 0;
+  private previewTimer = 0;
 
   constructor(private host: FinishHost) {
     this.el = document.createElement('div');
@@ -162,12 +209,24 @@ export class FinishMap {
     // Style: one-click looks (what Lazy sees first) and every piece of map furniture (Pro sees all)
     const corners = (name: string, auto: string) =>
       `<select name="${name}"><option value="auto">${auto}</option><option value="tl">Top left</option><option value="tr">Top right</option><option value="bl">Bottom left</option><option value="br">Bottom right</option></select>`;
+    const styleOf = new Map(this.host.visible().map((l) => [l.id, l.style]));
     const legendRows = layers
-      .map(
-        (id) => `<tr data-layer="${esc(id)}"><td><input type="checkbox" name="lg-show" checked aria-label="Show ${esc(id)} in the legend" /></td>
-          <td><input name="lg-title" placeholder="${esc(id.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '))}" aria-label="Legend title for ${esc(id)}" /></td>
-          <td><input name="lg-labels" placeholder="old = new; …" aria-label="Rename classes of ${esc(id)}" /></td></tr>`,
-      )
+      .map((id) => {
+        const classes = classLabels(styleOf.get(id));
+        return `<div class="lg-row" data-layer="${esc(id)}" draggable="true">
+          <span class="lg-grip" title="Drag to reorder" aria-hidden="true">⋮⋮</span>
+          <input type="checkbox" name="lg-show" checked aria-label="Show ${esc(id)} in the legend" />
+          <input name="lg-title" placeholder="${esc(id.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '))}" aria-label="Legend title for ${esc(id)}" />
+          <span class="lg-move"><button type="button" data-lg="up" aria-label="Move up">▲</button><button type="button" data-lg="down" aria-label="Move down">▼</button></span>
+          ${
+            classes.length
+              ? `<details class="lg-classes"><summary>${classes.length} classes</summary>${classes
+                  .map((c) => `<label><span>${esc(c)}</span><input data-class="${esc(c)}" value="${esc(c)}" aria-label="New name for ${esc(c)}" /></label>`)
+                  .join('')}</details>`
+              : ''
+          }
+        </div>`;
+      })
       .join('');
     const styleBox = `<fieldset class="fin-style"><legend>Style</legend>
       <div class="fin-looks" role="radiogroup" aria-label="Look">
@@ -192,8 +251,8 @@ export class FinishMap {
           <label><span>Overview inset</span><select name="inset"><option value="none">None</option><option value="auto">Where the data isn’t</option><option value="tl">Top left</option><option value="tr">Top right</option><option value="bl">Bottom left</option><option value="br">Bottom right</option></select></label>
         </div>
         <details class="fin-legend-edit"><summary>Edit the legend</summary>
-          <table><thead><tr><th>Show</th><th>Title</th><th>Rename classes</th></tr></thead><tbody>${legendRows}</tbody></table>
-          <small class="dim">Rename classes as <code>old = new</code>, separated by <code>;</code> (e.g. <code>0.2 – 15 = ≤ 15</code>). The legend lists layers top first, as on the map.</small>
+          <div class="lg-list">${legendRows}</div>
+          <small class="dim">Untick to hide a layer, type a new title, rename its classes, and drag (or ▲▼) to change the order.</small>
         </details>
       </details>
     </fieldset>`;
@@ -210,13 +269,14 @@ export class FinishMap {
         <label class="ck"><input type="checkbox" name="report" checked /> One-page report</label></fieldset>`;
     this.el.innerHTML = `<form class="sheet fin">
       <header><b>Finish my map</b><button type="button" data-close aria-label="Close">✕</button></header>
+      <div class="fin-cols"><figure class="fin-preview" aria-live="polite"><img alt="Preview of the finished map" /><figcaption>Preview…</figcaption></figure>
       <div class="body">
         <p class="fin-lead">The ${this.host.visible().length} layer${this.host.visible().length > 1 ? 's' : ''} on the map, styled as you see them, laid out with a legend, scale bar, north arrow and credits.</p>
         <label><span>Title</span><input name="title" value="${esc(this.host.suggestTitle())}" required /></label>
         ${layout}
         ${styleBox}
         ${lazy ? `<details><summary>More options</summary>${more}</details>` : more}
-      </div>
+      </div></div>
       <footer><span class="dim" id="finish-msg"></span><button type="button" data-close>Cancel</button><button class="primary" type="submit">Make the map</button></footer>
     </form>`;
     this.el.hidden = false;
@@ -254,6 +314,36 @@ export class FinishMap {
       if (v === 'facet' && this.el.querySelector<HTMLSelectElement>('select[name=facet]')!.options.length <= 1) void this.firstFacetLayer(fl, layers);
     };
     this.el.querySelectorAll('input[name=layout]').forEach((r) => r.addEventListener('change', show));
+    // legend order: drag a row, or ▲▼
+    const list = this.el.querySelector<HTMLElement>('.lg-list');
+    let dragged: HTMLElement | null = null;
+    list?.addEventListener('dragstart', (e) => (dragged = (e.target as HTMLElement).closest('.lg-row')));
+    list?.addEventListener('dragover', (e) => {
+      const over = (e.target as HTMLElement).closest<HTMLElement>('.lg-row');
+      if (!dragged || !over || over === dragged) return;
+      e.preventDefault();
+      const after = e.clientY > over.getBoundingClientRect().top + over.offsetHeight / 2;
+      over.parentElement!.insertBefore(dragged, after ? over.nextSibling : over);
+    });
+    list?.addEventListener('dragend', () => {
+      dragged = null;
+      this.schedulePreview(form);
+    });
+    list?.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-lg]');
+      const row = b?.closest<HTMLElement>('.lg-row');
+      if (!b || !row) return;
+      if (b.dataset.lg === 'up' && row.previousElementSibling) row.parentElement!.insertBefore(row, row.previousElementSibling);
+      if (b.dataset.lg === 'down' && row.nextElementSibling) row.parentElement!.insertBefore(row.nextElementSibling, row);
+      this.schedulePreview(form);
+    });
+    // the preview follows every change
+    const form = this.el.querySelector<HTMLFormElement>('form')!;
+    form.addEventListener('change', () => this.schedulePreview(form));
+    form.addEventListener('input', (e) => {
+      if ((e.target as HTMLElement).matches('input[type=text], input:not([type]), input[name=title]')) this.schedulePreview(form, 900);
+    });
+    void this.preview(form);
     // a look fills in the furniture fields
     this.el.querySelectorAll<HTMLInputElement>('input[name=look]').forEach((r) =>
       r.addEventListener('change', () => {
@@ -340,7 +430,8 @@ export class FinishMap {
     this.el.hidden = true;
   }
 
-  private async make(form: HTMLFormElement) {
+  /** What Finish my map will make, from the form: the export steps and their parameters. */
+  private async plan(form: HTMLFormElement): Promise<Plan | string> {
     const f = new FormData(form);
     const layers = this.host.visible();
     const title = String(f.get('title') || 'My map').trim();
@@ -353,93 +444,68 @@ export class FinishMap {
     const view = round(this.host.view());
     const clipped: Bbox = [Math.max(view[0], -180), Math.max(view[1], -85), Math.min(view[2], 180), Math.min(view[3], 85)];
     const ids = layers.map((l) => l.id);
-    const styles = Object.fromEntries(layers.map((l) => [l.id, l.style]));
     const name = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'map';
-    const msg = this.el.querySelector<HTMLElement>('#finish-msg');
     let pages: Page[] | null;
     try {
       pages = await this.pages(f, area === 'view' ? clipped : null);
     } catch (err) {
-      if (msg) msg.textContent = String((err as Error).message ?? err);
-      return;
+      return String((err as Error).message ?? err);
     }
-    if (pages && !pages.length) {
-      if (msg) msg.textContent = 'No pages: that layer has no features with a location';
-      return;
-    }
-    const furn = furniture(f, form);
+    if (pages && !pages.length) return 'No pages: that layer has no features with a location';
+    const base = { layers: ids, title, size: pageSize(String(f.get('size') ?? 'auto')), format: formats, ...furniture(f, form) };
     // one export.map step per page; the first keeps the id "map" so the report shows it
-    const mapStep = (id: string, extent: string, sub: string, file: string) => [
-      `  - id: ${id}`,
-      '    use: export.map',
-      '    needs: [open, style]',
-      `    with: { layers: ${JSON.stringify(ids)}, title: ${JSON.stringify(title)}, subtitle: ${JSON.stringify(sub)}, size: ${JSON.stringify(pageSize(String(f.get('size') ?? 'auto')))}, format: ${JSON.stringify(formats)}, extent: ${extent}, name: ${JSON.stringify(file)}${furn} }`,
-    ];
+    const mapStep = (id: string, extent: unknown, sub: string, file: string, extra: Record<string, unknown> = {}): MapStepDef => ({
+      id,
+      use: 'export.map',
+      needs: ['open', 'style'],
+      with: { ...base, subtitle: sub, extent, name: file, ...extra },
+    });
     const layout = String(f.get('layout') ?? 'one');
-    const panelOpts = () =>
-      [
-        f.get('ncol') ? `ncol: ${Number(f.get('ncol'))}` : '',
-        `legends: ${JSON.stringify(String(f.get('legends') ?? 'auto'))}`,
-        `tags: ${JSON.stringify(String(f.get('tags') ?? 'a'))}`,
-      ]
-        .filter(Boolean)
-        .join(', ');
-    const onePage = (extra: string, ext: string) => mapStep('map', ext, subtitle, name).map((l, i, a) => (i === a.length - 1 ? l.replace(/ }$/, `, ${extra} }`) : l));
-    const ext = area === 'view' ? JSON.stringify(clipped) : 'auto';
-    if (layout === 'facet' && !f.get('facet')) {
-      if (msg) msg.textContent = 'Pick a field to split by';
-      return;
-    }
+    const panelOpts = { ...(f.get('ncol') ? { ncol: Number(f.get('ncol')) } : {}), legends: String(f.get('legends') ?? 'auto'), tags: String(f.get('tags') ?? 'a') };
+    const ext = area === 'view' ? clipped : 'auto';
+    const report = has('report');
+    if (layout === 'facet' && !f.get('facet')) return 'Pick a field to split by';
     if (layout === 'side' || layout === 'facet' || layout === 'panels') {
       const extra =
         layout === 'side'
-          ? `panels: ${JSON.stringify([...ids].reverse().map((id) => ({ title: id.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '), layers: [id] })))}, ${panelOpts()}`
+          ? { panels: [...ids].reverse().map((id) => ({ title: id.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '), layers: [id] })), ...panelOpts }
           : layout === 'facet'
-            ? `facet: ${JSON.stringify(String(f.get('facet')))}, facet_layer: ${JSON.stringify(String(f.get('facet_layer')))}, ${panelOpts()}`
-            : `panels: ${JSON.stringify(pages!.map((p) => ({ extent: round(p.extent), title: p.label })))}, ${panelOpts()}`;
-      return this.submit(form, f, title, layers, formats, has, onePage(extra, ext), ['map'], `a ${layout === 'facet' ? 'faceted' : 'multi-panel'} page`);
+            ? { facet: String(f.get('facet')), facet_layer: String(f.get('facet_layer')), ...panelOpts }
+            : { panels: pages!.map((p) => ({ extent: round(p.extent), title: p.label })), ...panelOpts };
+      return { title, formats, report, steps: [mapStep('map', ext, subtitle, name, extra)], outputs: ['map'], what: `a ${layout === 'facet' ? 'faceted' : 'multi-panel'} page` };
     }
-    const n = pages?.length ?? 1;
+    if (!pages) return { title, formats, report, steps: [mapStep('map', ext, subtitle, name)], outputs: ['map'], what: 'one map' };
     // a series opens with an index page (every sheet outlined and labelled) and ends bound into one PDF
-    const stepIds = pages ? ['map', ...pages.map((_, i) => `page${i + 1}`)] : ['map'];
-    const frames = pages ? JSON.stringify(pages.map((p) => ({ extent: round(p.extent), label: p.label }))) : '';
-    const all = pages ? round(pages.reduce<Bbox>((a, p) => [Math.min(a[0], p.extent[0]), Math.min(a[1], p.extent[1]), Math.max(a[2], p.extent[2]), Math.max(a[3], p.extent[3])], pages[0].extent)) : null;
-    const maps = pages
-      ? [
-          ...mapStep('map', JSON.stringify(all), `Index of ${n} pages · ${subtitle}`, `${name}-00-index`).map((l, i, a) => (i === a.length - 1 ? l.replace(/ }$/, `, frames: ${frames} }`) : l)),
-          ...pages.flatMap((p, i) => mapStep(stepIds[i + 1], JSON.stringify(round(p.extent)), `${p.label} · page ${i + 1} of ${n} · ${subtitle}`, `${name}-${String(i + 1).padStart(2, '0')}`).map((l, k, a) => (k === a.length - 1 ? l.replace(/ }$/, ', exact: true }') : l))),
-          '  - id: series',
-          '    use: export.series',
-          `    needs: [${stepIds.join(', ')}]`,
-          `    with: { name: ${JSON.stringify(`${name}-series`)} }`,
-        ]
-      : mapStep('map', area === 'view' ? JSON.stringify(clipped) : 'auto', subtitle, name);
-    if (pages) stepIds.push('series');
-    return this.submit(form, f, title, layers, formats, has, maps, stepIds, pages ? `a ${n}-page map series` : 'one map', pages?.length);
+    const n = pages.length;
+    const all = round(pages.reduce<Bbox>((a, p) => [Math.min(a[0], p.extent[0]), Math.min(a[1], p.extent[1]), Math.max(a[2], p.extent[2]), Math.max(a[3], p.extent[3])], pages[0].extent));
+    const steps = [
+      mapStep('map', all, `Index of ${n} pages · ${subtitle}`, `${name}-00-index`, { frames: pages.map((p) => ({ extent: round(p.extent), label: p.label })) }),
+      ...pages.map((p, i) => mapStep(`page${i + 1}`, round(p.extent), `${p.label} · page ${i + 1} of ${n} · ${subtitle}`, `${name}-${String(i + 1).padStart(2, '0')}`, { exact: true })),
+    ];
+    const ids2 = steps.map((x) => x.id);
+    steps.push({ id: 'series', use: 'export.series', needs: ids2, with: { name: `${name}-series` } });
+    return { title, formats, report, steps, outputs: [...ids2, 'series'], what: `a ${n}-page map series`, pages: n };
   }
 
-  private async submit(
-    _form: HTMLFormElement,
-    _f: FormData,
-    title: string,
-    layers: { id: string; style: LayerStyle }[],
-    formats: string[],
-    has: (k: string) => boolean,
-    maps: string[],
-    stepIds: string[],
-    what: string,
-    nPages?: number,
-  ) {
+  private async make(form: HTMLFormElement) {
     const msg = this.el.querySelector<HTMLElement>('#finish-msg');
+    const plan = await this.plan(form);
+    if (typeof plan === 'string') {
+      if (msg) msg.textContent = plan;
+      return;
+    }
+    const layers = this.host.visible();
     const ids = layers.map((l) => l.id);
     const styles = Object.fromEntries(layers.map((l) => [l.id, l.style]));
+    const { title, formats, report, what } = plan;
     // JSON is valid YAML: values are written as JSON so titles with ':' or quotes stay intact
+    const step = (s: MapStepDef) => [`  - id: ${s.id}`, `    use: ${s.use}`, `    needs: [${s.needs.join(', ')}]`, `    with: ${JSON.stringify(s.with)}`];
     const yaml = [
       `# Made by "Finish my map" on ${new Date().toLocaleString()}; replaced the next time you finish a map.`,
       `recipe: ${FINISH_RECIPE}`,
       'version: 1',
       `title: ${JSON.stringify(title)}`,
-      `description: ${JSON.stringify(`${layers.length} layer(s) as styled on the map, laid out as ${what} (${formats.join(', ').toUpperCase()})${has('report') ? ' with a report' : ''}.`)}`,
+      `description: ${JSON.stringify(`${layers.length} layer(s) as styled on the map, laid out as ${what} (${formats.join(', ').toUpperCase()})${report ? ' with a report' : ''}.`)}`,
       'steps:',
       '  - id: open',
       '    use: io.open',
@@ -447,19 +513,55 @@ export class FinishMap {
       '  - id: style',
       '    use: style.apply',
       `    with: { styles: ${JSON.stringify(styles)}, save: false }`,
-      ...maps,
-      ...(has('report') ? ['  - id: report', '    use: export.report', `    needs: [${stepIds.join(', ')}]`, `    with: { title: ${JSON.stringify(title)} }`] : []),
-      `outputs: [${[...stepIds, ...(has('report') ? ['report'] : [])].join(', ')}]`,
+      ...plan.steps.flatMap(step),
+      ...(report ? ['  - id: report', '    use: export.report', `    needs: [${plan.outputs.join(', ')}]`, `    with: { title: ${JSON.stringify(title)} }`] : []),
+      `outputs: [${[...plan.outputs, ...(report ? ['report'] : [])].join(', ')}]`,
       '',
     ].join('\n');
     try {
       if (msg) msg.textContent = 'Laying out…';
       await this.host.backend.json('api/recipes', { method: 'POST', body: yaml, headers: { 'content-type': 'text/yaml' } });
       this.close();
-      this.host.setStatus(`Finishing “${title}”${nPages ? ` (${nPages} pages)` : ''}: ${what}, legend, scale bar, ${formats.join(' + ').toUpperCase()}${has('report') ? ' and the report' : ''}…`, 15000);
+      this.host.setStatus(`Finishing “${title}”${plan.pages ? ` (${plan.pages} pages)` : ''}: ${what}, legend, scale bar, ${formats.join(' + ').toUpperCase()}${report ? ' and the report' : ''}…`, 15000);
       await this.host.run(FINISH_RECIPE);
     } catch (err) {
       if (msg) msg.textContent = String((err as Error).message ?? err);
+    }
+  }
+
+  private schedulePreview(form: HTMLFormElement, ms = 350) {
+    clearTimeout(this.previewTimer);
+    this.previewTimer = window.setTimeout(() => void this.preview(form), ms);
+  }
+
+  /** Redraw the preview: the first page as it will be made, small and quick. Newer requests win. */
+  private async preview(form: HTMLFormElement) {
+    const box = this.el.querySelector<HTMLElement>('.fin-preview');
+    if (!box) return;
+    const seq = ++this.previewSeq;
+    box.classList.add('busy');
+    const plan = await this.plan(form);
+    if (seq !== this.previewSeq) return;
+    if (typeof plan === 'string') {
+      box.classList.remove('busy');
+      box.querySelector('figcaption')!.textContent = plan;
+      return;
+    }
+    const first = plan.steps[0];
+    const styles = Object.fromEntries(this.host.visible().map((l) => [l.id, l.style]));
+    try {
+      const r = await fetch(this.host.backend.url('api/preview/map'), { method: 'POST', body: JSON.stringify({ styles, map: first.with, dpi: 48 }), headers: { 'content-type': 'application/json' } });
+      if (seq !== this.previewSeq) return;
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? r.statusText);
+      const url = URL.createObjectURL(await r.blob());
+      const img = box.querySelector('img')!;
+      if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+      img.src = url;
+      box.querySelector('figcaption')!.textContent = plan.pages ? `Index page of ${plan.pages} (preview)` : 'Preview';
+    } catch (err) {
+      box.querySelector('figcaption')!.textContent = `No preview: ${String((err as Error).message ?? err)}`;
+    } finally {
+      if (seq === this.previewSeq) box.classList.remove('busy');
     }
   }
 }

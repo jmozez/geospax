@@ -130,7 +130,7 @@ await page.click('.fin-looks label:has(input[value=journal])');
 ok('a look fills in the furniture', (await page.locator('select[name=dpi]').inputValue()) === '300' && (await page.locator('select[name=legend]').inputValue()) === 'inside');
 await page.evaluate(() => document.querySelectorAll('#finish details').forEach((d) => (d.open = true)));
 await page.selectOption('select[name=inset]', 'auto');
-await page.locator('tr[data-layer] input[name=lg-title]').first().fill('My renamed layer');
+await page.locator('.lg-row input[name=lg-title]').first().fill('My renamed layer');
 await page.fill('input[name=title]', 'Journal test');
 {
   const r = await runOf('journal');
@@ -141,6 +141,30 @@ await page.fill('input[name=title]', 'Journal test');
   ok('the Journal look makes a 300 dpi PNG', ppm === 11811, `${r?.status} ${r?.error ?? ''} ppm=${ppm}`);
   const svg = r?.status === 'done' ? await (await page.request.get(`${base}/api/runs/${r.id}/files/journal-test.svg`)).text() : '';
   ok('with the inset and the renamed legend title', svg.includes('class="inset"') && svg.includes('My renamed layer'));
+}
+
+// Live preview, legend editor: rename a class, move a layer to the top of the legend
+await openFinish();
+await page.waitForFunction(() => document.querySelector('.fin-preview img')?.src.startsWith('blob:'), null, { timeout: 30000 }).catch(() => {});
+ok('the dialog shows a live preview', await page.evaluate(() => document.querySelector('.fin-preview img')?.src.startsWith('blob:') && document.querySelector('.fin-preview img').naturalWidth > 100));
+const before0 = await page.evaluate(() => document.querySelector('.fin-preview img').src);
+await page.click('.fin-looks label:has(input[value=poster])');
+await page.waitForFunction((b) => document.querySelector('.fin-preview img').src !== b, before0, { timeout: 30000 }).catch(() => {});
+ok('the preview follows a change of look', await page.evaluate((b) => document.querySelector('.fin-preview img').src !== b, before0));
+await page.evaluate(() => document.querySelectorAll('#finish details').forEach((d) => (d.open = true)));
+const cls = page.locator('.lg-row input[data-class]').first();
+const oldLabel = await cls.getAttribute('data-class');
+await cls.fill('Renamed class');
+const lastRow = page.locator('.lg-row').last();
+const lastId = await lastRow.getAttribute('data-layer');
+for (let k = 0; k < 8; k++) await page.locator(`.lg-row[data-layer="${lastId}"] [data-lg=up]`).click().catch(() => {});
+ok('▲ moves a layer to the top of the legend', (await page.locator('.lg-row').first().getAttribute('data-layer')) === lastId);
+await page.fill('input[name=title]', 'Legend test');
+{
+  const r = await runOf('legend');
+  const svg = r?.status === 'done' ? await (await page.request.get(`${base}/api/runs/${r.id}/files/legend-test.svg`)).text() : '';
+  // other layers may share the old class, so only the new name is checked
+  ok('the renamed class is on the map', svg.includes('Renamed class'), `${r?.status} ${r?.error ?? ''} (${oldLabel})`);
 }
 
 // Lazy mode has the same layouts in view (not hidden under More options)

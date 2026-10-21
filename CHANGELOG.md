@@ -5,6 +5,13 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added — preview and legend editor
+- **Live preview in Finish my map**: the first page, redrawn as options change (`POST /api/preview/map`,
+  no run recorded).
+- **Legend editor** lists each layer's classes to rename, hides or retitles layers, and reorders them by
+  drag or ▲▼ (`legend_order`).
+- **Multi-panel pages** take the inside legend (per panel or once) and the overview inset.
+
 ### Added — map styling
 - **Style in Finish my map** (Lazy and Pro): looks (GeoSpaX, Journal, Poster, Classic, Slide), page shape
   (1:1 … 16:9, portrait, paper), **resolution 150–1200 dpi** written into the PNG, legend beside / inside
