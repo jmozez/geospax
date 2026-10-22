@@ -29,4 +29,4 @@ Upgrading GeoLibre: change `VERSION` and `INTEGRITY` in `runtime.mjs` (the `dist
 `https://registry.npmjs.org/geolibre-wasm/<version>`), then run `node gen.mjs`.
 
 The tools are MIT-licensed (GeoLibre, geolibre-rust, whitebox_next_gen); this plugin is
-Apache-2.0 OR MIT like GeoSpaX.
+MIT like GeoSpaX.

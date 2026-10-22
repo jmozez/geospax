@@ -73,8 +73,7 @@ cp -p recipes/*.yaml "$STAGE/recipes/"
 mkdir -p "$STAGE/samples" && cp -r samples/. "$STAGE/samples/"   # sample data (Data › Sample data)
 mkdir -p "$STAGE/plugins" && tar -C plugins --exclude=node_modules --exclude=src --exclude=tests -cf - . | tar -C "$STAGE/plugins" -xf -   # bundled plugins (GeoLibre tools run on Node.js when it is installed)
 cp -p docs/USER_GUIDE.md "$STAGE/docs/"
-cp -p LICENSE-MIT "$STAGE/LICENSE-MIT.txt"
-cp -p LICENSE-APACHE "$STAGE/LICENSE-APACHE.txt"
+cp -p LICENSE "$STAGE/LICENSE.txt"
 cp -p packaging/windows/geospax-web.cmd packaging/windows/README.txt "$STAGE/"
 cp -p /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf "$STAGE/fonts/"
 cp -rp "$GDAL_WIN/third-party-licenses/." "$STAGE/third-party-licenses/"
