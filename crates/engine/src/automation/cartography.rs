@@ -5,7 +5,7 @@
 //! features that share a colour share one SVG path, so a page stays small even for big layers.
 
 use super::automap::{device_role, Colorer, NULL_COLOR};
-use super::features::FeatureSet;
+use super::features::{FeatureSet, Val};
 use super::furniture;
 pub use super::furniture::Furniture;
 use crate::catalog::GeomKind;
@@ -412,8 +412,220 @@ fn path_of(pts: &[[f64; 2]], close: bool, d: &mut String) {
     }
 }
 
+// ------------------------------------------------------------------ symbols (web/src/symbols.ts)
+
+/// Map export units per style pixel: exports are drawn at 150 dpi, the app at 96 css px per inch.
+const PX: f64 = 1.25;
+
+/// A point symbol's outline in a 24 × 24 box, centre (12, 12): the same paths as the app's.
+fn shape_path(shape: &str) -> &'static str {
+    match shape {
+        "square" => "M4 4h16v16H4z",
+        "triangle" => "M12 2.5 22 20.5H2z",
+        "diamond" => "M12 1.5 22.5 12 12 22.5 1.5 12z",
+        "star" => "M12 1.5l3.1 6.6 7.2.9-5.3 5 1.4 7.2L12 17.6l-6.4 3.6L7 14l-5.3-5 7.2-.9z",
+        "cross" => "M9 2h6v7h7v6h-7v7H9v-7H2V9h7z",
+        "x" => "M5.6 1.4 12 7.8l6.4-6.4 4.2 4.2-6.4 6.4 6.4 6.4-4.2 4.2-6.4-6.4-6.4 6.4-4.2-4.2 6.4-6.4-6.4-6.4z",
+        "pin" => "M12 1.5a7.5 7.5 0 0 0-7.5 7.5c0 5.6 7.5 13.5 7.5 13.5s7.5-7.9 7.5-13.5A7.5 7.5 0 0 0 12 1.5z",
+        _ => "M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z",
+    }
+}
+
+/// Dash pattern in multiples of the line width (as MapLibre's line-dasharray).
+fn dash_array(d: &str) -> Option<&'static [f64]> {
+    match d {
+        "dashed" => Some(&[4.0, 2.0]),
+        "dotted" => Some(&[0.5, 2.0]),
+        "dashdot" => Some(&[4.0, 2.0, 0.5, 2.0]),
+        "longdash" => Some(&[8.0, 3.0]),
+        _ => None,
+    }
+}
+
+/// SVG stroke-dasharray for a dash at a width (empty for solid).
+fn dash_attr(d: &str, width: f64) -> String {
+    dash_array(d).map(|a| format!(" stroke-dasharray=\"{}\"", a.iter().map(|v| format!("{:.2}", (v * width).max(0.5))).collect::<Vec<_>>().join(" "))).unwrap_or_default()
+}
+
+fn num(v: &Value, k: &str, d: f64) -> f64 {
+    v.get(k).and_then(Value::as_f64).unwrap_or(d)
+}
+
+fn txt<'a>(v: &'a Value, k: &str, d: &'a str) -> &'a str {
+    v.get(k).and_then(Value::as_str).unwrap_or(d)
+}
+
+/// Size (style px) of a point symbol for a feature: fixed, or area-proportional to a field.
+fn point_size(pt: &Value, props: &[Val], fs: &FeatureSet) -> f64 {
+    let size = num(pt, "size", 7.0);
+    let sb = &pt["sizeBy"];
+    let Some(fi) = sb["field"].as_str().and_then(|f| fs.field(f)) else { return size };
+    let (lo, hi, a, b) = (num(sb, "min", 0.0), num(sb, "max", 1.0), num(sb, "minSize", 4.0), num(sb, "maxSize", 28.0));
+    if hi <= lo {
+        return size;
+    }
+    let v = props[fi].as_f64().unwrap_or(lo);
+    let t = ((v - lo).max(0.0).sqrt() / (hi - lo).sqrt()).clamp(0.0, 1.0);
+    a + (b - a) * t
+}
+
+/// One point symbol at p (centre; a pin stands on it) of `size` style px.
+fn symbol_at(out: &mut String, shape: &str, p: [f64; 2], size: f64, rotation: f64, stroke_w: f64) {
+    let k = size * PX / 24.0;
+    let (ox, oy) = if shape == "pin" { (p[0] - 12.0 * k, p[1] - 22.5 * k) } else { (p[0] - 12.0 * k, p[1] - 12.0 * k) };
+    let rot = if rotation != 0.0 { format!(" rotate({rotation:.0} 12 12)") } else { String::new() };
+    let sw = if stroke_w > 0.0 { format!(" stroke-width=\"{:.2}\"", stroke_w * PX / k) } else { String::new() };
+    let _ = write!(out, "<path d=\"{}\" transform=\"translate({ox:.1} {oy:.1}) scale({k:.3}){rot}\"{sw}/>", shape_path(shape));
+}
+
 fn circle_path(c: [f64; 2], r: f64, d: &mut String) {
     let _ = write!(d, "M{:.1} {:.1}a{r} {r} 0 1 0 {:.1} 0a{r} {r} 0 1 0 {:.1} 0", c[0] - r, c[1], 2.0 * r, -2.0 * r);
+}
+
+/// Labels as set in the app (web/src/symbols.ts LabelStyle): field, font, size, colour, halo, case,
+/// wrapping, and placement (around points, at polygon centres, along lines).
+fn styled_labels(out: &mut String, l: &MapLayer, lb: &Value, lay: &Layout, clip: [f64; 4], labels: &mut Labeler) {
+    let Some(fi) = lb["field"].as_str().and_then(|f| l.fs.field(f)) else { return };
+    let size = num(lb, "size", 12.0) * PX;
+    let font = txt(lb, "font", "regular");
+    let (bold, italic) = (font.starts_with("bold"), font.ends_with("italic"));
+    let spacing = num(lb, "letterSpacing", 0.0) * size;
+    let halo = num(lb, "haloWidth", 1.5) * PX;
+    let overlap = lb["overlap"].as_bool().unwrap_or(false);
+    let wrap = num(lb, "wrap", 10.0);
+    let anchor = txt(lb, "anchor", "top");
+    let off = lb["offset"].as_array().map(|a| [a.first().and_then(Value::as_f64).unwrap_or(0.0), a.get(1).and_then(Value::as_f64).unwrap_or(0.0)]).unwrap_or([0.0, 0.0]);
+    let along = l.kind == GeomKind::Line && txt(lb, "placement", "line") != "point";
+    let style = format!(
+        "font-size=\"{size:.1}\"{}{} fill=\"{}\" stroke=\"{}\" stroke-width=\"{:.2}\" stroke-linejoin=\"round\" paint-order=\"stroke\"{}",
+        if bold { " font-weight=\"bold\"" } else { "" },
+        if italic { " font-style=\"italic\"" } else { "" },
+        esc(txt(lb, "color", "#1b2631")),
+        esc(txt(lb, "haloColor", "#ffffff")),
+        halo * 2.0,
+        if spacing > 0.0 { format!(" letter-spacing=\"{spacing:.2}\"") } else { String::new() }
+    );
+    let char_w = size * if bold { 0.66 } else { 0.6 } + spacing;
+    // symbols push their labels out by their own radius
+    let gap = match l.kind {
+        GeomKind::Polygon => 0.0,
+        GeomKind::Line => size * 0.3,
+        _ => 0.0,
+    };
+    let mut placed = 0;
+    for (i, f) in l.fs.feats.iter().enumerate() {
+        if placed >= 2000 {
+            break;
+        }
+        let raw = l.fs.feats[i].props[fi].text();
+        let t = match txt(lb, "transform", "none") {
+            "uppercase" => raw.to_uppercase(),
+            "lowercase" => raw.to_lowercase(),
+            _ => raw,
+        };
+        let t = t.trim();
+        if t.is_empty() {
+            continue;
+        }
+        if along {
+            // the longest visible part of the line, left to right so the text reads upright
+            let Geom::Lines(ls) = &f.geom else { continue };
+            let mut best: Vec<[f64; 2]> = Vec::new();
+            let mut best_len = 0.0;
+            for line in ls {
+                let px: Vec<[f64; 2]> = line.iter().map(|c| lay.px(*c)).collect();
+                for part in clip_line(&px, clip) {
+                    let len: f64 = part.windows(2).map(|w| ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt()).sum();
+                    if len > best_len {
+                        best_len = len;
+                        best = part;
+                    }
+                }
+            }
+            let tw = t.chars().count() as f64 * char_w;
+            if best.len() < 2 || tw > best_len * 0.9 {
+                continue;
+            }
+            if best[best.len() - 1][0] < best[0][0] {
+                best.reverse();
+            }
+            // collision on the box around the line's middle
+            let mut acc = 0.0;
+            let mut mid = best[0];
+            for w in best.windows(2) {
+                let seg = ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt();
+                if acc + seg >= best_len / 2.0 {
+                    let k = (best_len / 2.0 - acc) / seg.max(1e-9);
+                    mid = [w[0][0] + (w[1][0] - w[0][0]) * k, w[0][1] + (w[1][1] - w[0][1]) * k];
+                    break;
+                }
+                acc += seg;
+            }
+            let b = [mid[0] - tw / 2.0, mid[1] - size, mid[0] + tw / 2.0, mid[1] + size * 0.4];
+            if !labels.claim(b, overlap) {
+                continue;
+            }
+            let id = format!("lp{}", labels.count);
+            let mut d = String::new();
+            path_of(&best, false, &mut d);
+            let dy = off[1] * size;
+            let _ = write!(out, "<defs><path id=\"{id}\" d=\"{d}\"/></defs><text {style}{}><textPath href=\"#{id}\" startOffset=\"50%\" text-anchor=\"middle\">{}</textPath></text>", if dy != 0.0 { format!(" dy=\"{dy:.1}\"") } else { " dy=\"0.35em\"".to_string() }, esc(t));
+            placed += 1;
+            continue;
+        }
+        let Some(c) = (match &f.geom {
+            Geom::Points(p) => p.first().copied(),
+            g => super::features::anchor(g),
+        }) else {
+            continue;
+        };
+        let p = lay.px(c);
+        if p[0] < clip[0] || p[1] < clip[1] || p[0] > clip[2] || p[1] > clip[3] {
+            continue;
+        }
+        // a point's label clears its own symbol, whatever size the field gave it
+        let gap = if matches!(l.kind, GeomKind::Point | GeomKind::Unknown) {
+            l.style.get("point").filter(|v| v.is_object()).map(|pt| point_size(pt, &f.props, &l.fs) * PX / 2.0).unwrap_or(5.0) + size * 0.25
+        } else {
+            gap
+        };
+        // wrap after `wrap` ems, at spaces
+        let max_chars = if wrap > 0.0 { ((wrap * size) / char_w).floor().max(4.0) as usize } else { usize::MAX };
+        let mut lines: Vec<String> = Vec::new();
+        for word in t.split_whitespace() {
+            match lines.last_mut() {
+                Some(last) if last.chars().count() + 1 + word.chars().count() <= max_chars => {
+                    last.push(' ');
+                    last.push_str(word);
+                }
+                _ => lines.push(word.to_string()),
+            }
+        }
+        let tw = lines.iter().map(|s| s.chars().count()).max().unwrap_or(0) as f64 * char_w;
+        let lh = size * 1.2;
+        let th = lh * lines.len() as f64;
+        // "top" puts the label above the point, "left" to its left …
+        let (mut x0, mut y0) = (p[0] - tw / 2.0, p[1] - th / 2.0);
+        if anchor.contains("left") {
+            x0 = p[0] - gap - tw;
+        } else if anchor.contains("right") {
+            x0 = p[0] + gap;
+        }
+        if anchor.starts_with("top") {
+            y0 = p[1] - gap - th;
+        } else if anchor.starts_with("bottom") {
+            y0 = p[1] + gap;
+        }
+        x0 += off[0] * size;
+        y0 += off[1] * size;
+        if !labels.claim([x0, y0, x0 + tw, y0 + th], overlap) {
+            continue;
+        }
+        let tx = x0 + tw / 2.0;
+        let spans: String = lines.iter().enumerate().map(|(k, s)| format!("<tspan x=\"{tx:.1}\" y=\"{:.1}\">{}</tspan>", y0 + size * 0.82 + lh * k as f64, esc(s))).collect();
+        let _ = write!(out, "<text {style} text-anchor=\"middle\">{spans}</text>");
+        placed += 1;
+    }
 }
 
 struct Labeler {
@@ -424,6 +636,19 @@ struct Labeler {
 }
 
 impl Labeler {
+    /// Take a box for a label: inside the frame and clear of the others (unless overlap is allowed).
+    fn claim(&mut self, b: [f64; 4], overlap: bool) -> bool {
+        if b[0] < self.frame[0] || b[1] < self.frame[1] || b[2] > self.frame[2] || b[3] > self.frame[3] {
+            return false;
+        }
+        if !overlap && self.boxes.iter().any(|o| b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]) {
+            return false;
+        }
+        self.boxes.push(b);
+        self.count += 1;
+        true
+    }
+
     fn obstacle(&mut self, b: [f64; 4]) {
         if self.boxes.len() < 4000 {
             self.boxes.push(b);
@@ -551,9 +776,19 @@ fn draw_frame_with(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], raste
     if !rasters_done {
         draw_rasters(svg, rasters, lay);
     }
-    // labels for point layers go last so every label sits above every symbol
+    // labels go last so every label sits above every symbol
     if spec.labels {
+        let mut styled = String::new();
+        for &l in layers {
+            if let Some(lb) = l.style.get("labels").filter(|v| !l.context && v["on"].as_bool() == Some(true)) {
+                styled_labels(&mut styled, l, lb, lay, clip, &mut labels);
+            }
+        }
         for (l, pts) in point_layers {
+            // a layer whose labels were set (on or off) in the app keeps them as set
+            if l.style.get("labels").is_some_and(Value::is_object) {
+                continue;
+            }
             // photo file names say nothing on a map; waypoint and site names do
             if device_role(&l.id) == Some("photos") {
                 continue;
@@ -576,6 +811,7 @@ fn draw_frame_with(svg: &mut String, spec: &MapSpec, layers: &[&MapLayer], raste
                 labels.out
             );
         }
+        svg.push_str(&styled);
     }
     if spec.grid {
         graticule(svg, lay);
@@ -840,6 +1076,22 @@ fn draw_layer<'a>(
                 let d = &b.paths[key];
                 if l.context {
                     let _ = write!(svg, "<path d=\"{d}\" fill=\"{cf}\" fill-rule=\"evenodd\" stroke=\"{cs}\" stroke-width=\"{cw}\"/>");
+                } else if let Some(fl) = l.style.get("fill").filter(|v| v.is_object()) {
+                    // the symbol set in the app: fill on or off, outline colour, width and dash
+                    let filled = fl.get("fill").and_then(Value::as_bool).unwrap_or(true);
+                    let sw = num(fl, "strokeWidth", 0.7) * PX;
+                    let sc = txt(fl, "strokeColor", "#ffffff");
+                    // a hollow polygon with the default white outline is drawn in its class colour
+                    let sc = if !filled && sc == "#ffffff" { key.as_str() } else { sc };
+                    let fill = if filled { format!("fill=\"{key}\" fill-opacity=\"{opacity:.2}\"") } else { "fill=\"none\"".to_string() };
+                    let stroke = if sw > 0.0 {
+                        format!("stroke=\"{sc}\" stroke-width=\"{sw:.2}\" stroke-opacity=\"{:.2}\" stroke-linejoin=\"round\"{}", (opacity + 0.15).min(1.0), dash_attr(txt(fl, "strokeDash", "solid"), sw))
+                    } else if filled {
+                        format!("stroke=\"{key}\" stroke-width=\"0.6\" stroke-opacity=\"{opacity:.2}\"")
+                    } else {
+                        String::new()
+                    };
+                    let _ = write!(svg, "<path d=\"{d}\" {fill} fill-rule=\"evenodd\" {stroke}/>");
                 } else {
                     // no outline: a hairline in the fill colour hides anti-aliasing seams between cells
                     let stroke = if outline {
@@ -901,6 +1153,15 @@ fn draw_layer<'a>(
                 let d = &b.paths[key];
                 if l.context {
                     let _ = write!(svg, "<path d=\"{d}\" fill=\"none\" stroke=\"{cs}\" stroke-width=\"{cw}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>");
+                } else if let Some(ln) = l.style.get("line").filter(|v| v.is_object()) {
+                    // the symbol set in the app: width, dash, ends, corners and an optional casing
+                    let w = num(ln, "width", 1.6) * PX;
+                    let (cap, join) = (txt(ln, "cap", "round"), txt(ln, "join", "round"));
+                    let casing = num(ln, "casingWidth", 0.0) * PX;
+                    if casing > 0.0 {
+                        let _ = write!(svg, "<path d=\"{d}\" fill=\"none\" stroke=\"{}\" stroke-opacity=\"{opacity:.2}\" stroke-width=\"{:.2}\" stroke-linecap=\"{cap}\" stroke-linejoin=\"{join}\"/>", txt(ln, "casingColor", "#ffffff"), w + 2.0 * casing);
+                    }
+                    let _ = write!(svg, "<path d=\"{d}\" fill=\"none\" stroke=\"{key}\" stroke-opacity=\"{opacity:.2}\" stroke-width=\"{w:.2}\" stroke-linecap=\"{cap}\" stroke-linejoin=\"{join}\"{}/>", dash_attr(txt(ln, "dash", "solid"), w));
                 } else {
                     let _ = write!(
                         svg,
@@ -918,6 +1179,56 @@ fn draw_layer<'a>(
             }
             // a dense classed layer: every k-th feature, so the classes stay readable
             let every = if n > DENSITY_POINTS { n.div_ceil(DENSITY_POINTS) } else { 1 };
+            if let Some(pt) = l.style.get("point").filter(|v| v.is_object()) {
+                // the symbol set in the app: shape, size (or size by a field), outline, rotation
+                let shape = txt(pt, "shape", "circle");
+                let (sc, sw, rot) = (txt(pt, "strokeColor", "#ffffff"), num(pt, "strokeWidth", 1.0), num(pt, "rotation", 0.0));
+                let mut order: Vec<(usize, f64)> = l.fs.feats.iter().enumerate().filter(|(i, _)| i % every == 0).map(|(i, f)| (i, point_size(pt, &f.props, &l.fs))).collect();
+                // big symbols first, so small ones stay visible on top
+                order.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                let mut groups: Vec<(String, String)> = Vec::new();
+                let mut pts = Vec::new();
+                for (i, size) in order {
+                    let f = &l.fs.feats[i];
+                    let coords: Vec<[f64; 2]> = match &f.geom {
+                        Geom::Points(p) => p.clone(),
+                        g => super::features::anchor(g).into_iter().collect(),
+                    };
+                    let color = color_of(i);
+                    let gi = match groups.iter().position(|(c, _)| *c == color) {
+                        Some(k) => k,
+                        None => {
+                            groups.push((color.clone(), String::new()));
+                            groups.len() - 1
+                        }
+                    };
+                    for c in coords {
+                        let p = lay.px(c);
+                        if p[0] < clip[0] || p[1] < clip[1] || p[0] > clip[2] || p[1] > clip[3] {
+                            continue;
+                        }
+                        let r = size * PX / 2.0;
+                        if shape == "circle" {
+                            let mut d = String::new();
+                            circle_path(p, r, &mut d);
+                            let _ = write!(groups[gi].1, "<path d=\"{d}\"/>");
+                        } else {
+                            symbol_at(&mut groups[gi].1, shape, p, size, rot, sw);
+                        }
+                        labels.obstacle([p[0] - r, p[1] - r, p[0] + r, p[1] + r]);
+                        pts.push((i, p));
+                        drawn += 1;
+                    }
+                }
+                let stroke = if sw > 0.0 { format!(" stroke=\"{sc}\" stroke-width=\"{:.2}\" stroke-linejoin=\"round\" paint-order=\"stroke\"", sw * PX) } else { String::new() };
+                for (color, body) in &groups {
+                    if !body.is_empty() {
+                        let _ = write!(svg, "<g fill=\"{color}\" fill-opacity=\"{opacity:.2}\"{stroke}>{body}</g>");
+                    }
+                }
+                point_layers.push((l, pts));
+                return drawn;
+            }
             let device = role.is_some();
             let (r, stroke_w) = if device { (5.5, 1.6) } else if n > 3000 { (1.6, 0.0) } else if n > 500 { (2.6, 0.5) } else { (4.0, 0.9) };
             let dir_idx = if role == Some("photos") { l.fs.field("direction") } else { None };
@@ -1048,12 +1359,30 @@ fn graticule(svg: &mut String, lay: &Layout) {
     );
 }
 
-fn swatch(svg: &mut String, kind: GeomKind, x: f64, y: f64, color: &str, role: Option<&str>, opacity: f64) {
+fn swatch(svg: &mut String, kind: GeomKind, x: f64, y: f64, color: &str, role: Option<&str>, opacity: f64, st: &Value) {
     match kind {
         GeomKind::Polygon => {
+            if let Some(fl) = st.get("fill").filter(|v| v.is_object()) {
+                let filled = fl.get("fill").and_then(Value::as_bool).unwrap_or(true);
+                let sw = (num(fl, "strokeWidth", 0.7) * PX).min(3.0);
+                let sc = txt(fl, "strokeColor", "#ffffff");
+                let sc = if !filled && sc == "#ffffff" { color } else if sc == "#ffffff" { "#56636e" } else { sc };
+                let fill = if filled { format!("fill=\"{color}\" fill-opacity=\"{opacity:.2}\"") } else { "fill=\"none\"".into() };
+                let _ = write!(svg, "<rect x=\"{x:.1}\" y=\"{:.1}\" width=\"20\" height=\"13\" {fill} stroke=\"{sc}\" stroke-width=\"{:.2}\"{}/>", y - 10.0, sw.max(0.6), dash_attr(txt(fl, "strokeDash", "solid"), sw.max(0.6)));
+                return;
+            }
             let _ = write!(svg, "<rect x=\"{x:.1}\" y=\"{:.1}\" width=\"20\" height=\"13\" fill=\"{color}\" fill-opacity=\"{opacity:.2}\" stroke=\"#56636e\" stroke-width=\"0.6\"/>", y - 10.0);
         }
         GeomKind::Line => {
+            if let Some(ln) = st.get("line").filter(|v| v.is_object()) {
+                let w = (num(ln, "width", 1.6) * PX).clamp(1.0, 6.0);
+                let casing = num(ln, "casingWidth", 0.0) * PX;
+                if casing > 0.0 {
+                    let _ = write!(svg, "<path d=\"M{x:.1} {:.1}h20\" stroke=\"{}\" stroke-width=\"{:.1}\" stroke-linecap=\"{}\"/>", y - 4.0, txt(ln, "casingColor", "#ffffff"), w + 2.0 * casing, txt(ln, "cap", "round"));
+                }
+                let _ = write!(svg, "<path d=\"M{x:.1} {:.1}h20\" stroke=\"{color}\" stroke-width=\"{w:.1}\" stroke-linecap=\"{}\"{}/>", y - 4.0, txt(ln, "cap", "round"), dash_attr(txt(ln, "dash", "solid"), w));
+                return;
+            }
             let w = if role == Some("tracks") { 3.0 } else { 2.0 };
             let _ = write!(
                 svg,
@@ -1064,6 +1393,18 @@ fn swatch(svg: &mut String, kind: GeomKind, x: f64, y: f64, color: &str, role: O
             );
         }
         _ => {
+            if let Some(pt) = st.get("point").filter(|v| v.is_object()) {
+                let shape = txt(pt, "shape", "circle");
+                // the legend shows one mid-size symbol
+                let size = num(pt, "size", 7.0).clamp(6.0, 11.0);
+                let sw = num(pt, "strokeWidth", 1.0);
+                let sc = txt(pt, "strokeColor", "#ffffff");
+                let sc = if sc == "#ffffff" { "#56636e" } else { sc };
+                let _ = write!(svg, "<g fill=\"{color}\" stroke=\"{sc}\">");
+                symbol_at(svg, shape, [x + 10.0, y - 4.0], size, num(pt, "rotation", 0.0), sw.max(0.6));
+                svg.push_str("</g>");
+                return;
+            }
             let stroke = if role.is_some() { "#56636e" } else { "#1d2731" };
             let _ = write!(svg, "<circle cx=\"{:.1}\" cy=\"{:.1}\" r=\"5.5\" fill=\"{color}\" stroke=\"{stroke}\" stroke-width=\"0.9\"/>", x + 10.0, y - 4.0);
         }
@@ -1140,13 +1481,13 @@ fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64,
                     if y > max_y - 12.0 {
                         break;
                     }
-                    swatch(svg, l.kind, x, y, c["color"].as_str().unwrap_or(NULL_COLOR), role, op);
+                    swatch(svg, l.kind, x, y, c["color"].as_str().unwrap_or(NULL_COLOR), role, op, &l.style);
                     text(svg, y, &format!("{}  ({})", super::recipe::value_text(&c["value"]), c["count"]));
                     y += row;
                 }
                 let others = sym["othersCount"].as_u64().unwrap_or(0);
                 if others > 0 {
-                    swatch(svg, l.kind, x, y, sym["other"].as_str().unwrap_or("#9aa5b1"), role, op);
+                    swatch(svg, l.kind, x, y, sym["other"].as_str().unwrap_or("#9aa5b1"), role, op, &l.style);
                     text(svg, y, &format!("other  ({others})"));
                     y += row;
                 }
@@ -1170,7 +1511,7 @@ fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64,
                     if y > max_y - 12.0 {
                         break;
                     }
-                    swatch(svg, l.kind, x, y, colors.get(i).copied().unwrap_or(NULL_COLOR), role, op);
+                    swatch(svg, l.kind, x, y, colors.get(i).copied().unwrap_or(NULL_COLOR), role, op, &l.style);
                     let count = counts.get(i).map(|c| format!("  ({c})")).unwrap_or_default();
                     let note = labels.get(i).map(|n| format!(" · {n}")).unwrap_or_default();
                     text(svg, y, &format!("{} – {}{note}{count}", fmt_num(lo), fmt_num(*b)));
@@ -1180,7 +1521,7 @@ fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64,
             }
             _ => {
                 let color = sym.get("color").and_then(Value::as_str).unwrap_or("#9aa5b1");
-                swatch(svg, l.kind, x, y, color, role, op);
+                swatch(svg, l.kind, x, y, color, role, op, &l.style);
                 text(svg, y, &l.legend_note);
                 y += row;
             }
@@ -1293,6 +1634,11 @@ pub(crate) fn fonts() -> std::sync::Arc<resvg::usvg::fontdb::Database> {
             // Windows edition / portable ZIP: DejaVu Sans ships in <exe dir>\fonts so maps look the same everywhere
             if let Some(dir) = crate::exe_dir() {
                 db.load_fonts_dir(dir.join("fonts"));
+            }
+            // italic labels: the oblique styles are often not installed (Debian's fonts-dejavu-core has
+            // none), so they are built in (DejaVu licence: crates/engine/fonts/LICENSE-DejaVu.txt)
+            for data in [&include_bytes!("../../fonts/DejaVuSans-Oblique.ttf")[..], &include_bytes!("../../fonts/DejaVuSans-BoldOblique.ttf")[..]] {
+                db.load_font_data(data.to_vec());
             }
             db.set_sans_serif_family("DejaVu Sans");
             Arc::new(db)

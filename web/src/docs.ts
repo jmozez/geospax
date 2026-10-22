@@ -164,7 +164,7 @@ export class DocsViewer {
     }
   }
 
-  /** Help › About GeoSpaX. */
+  /** Help › About GeoSpaX: logo, version, a check for updates (GitHub releases) and links. */
   async about(edition: string) {
     let version = '';
     try {
@@ -173,21 +173,71 @@ export class DocsViewer {
       /* offline: show the rest */
     }
     this.history = ['about'];
+    const repo = 'https://github.com/jmozez/geospax';
+    const link = (href: string, label: string, sub: string) =>
+      `<a class="about-link" href="${href}" target="_blank" rel="noopener"><b>${esc(label)}</b><small>${esc(sub)}</small><span aria-hidden="true">↗</span></a>`;
+    const doc = (key: string, label: string, sub: string) =>
+      `<a class="about-link" href="#" data-doc="${key}"><b>${esc(label)}</b><small>${esc(sub)}</small><span aria-hidden="true">›</span></a>`;
     this.show(
       'About GeoSpaX',
       `<div class="about">
         <img src="geospax-logo.png" alt="GeoSpaX logo" class="about-logo" onerror="this.remove()">
-        <h2>GeoSpaX${version ? ` <span class="muted">${esc(version)}</span>` : ''}</h2>
+        <h2>GeoSpaX</h2>
         <p>Spatial analysis and automatic mapping: data in, a finished map and report out. Desktop, web and phone, from one engine (Rust, GDAL).</p>
-        <table class="about-table">
-          <tr><th>Edition</th><td>${esc(edition || 'web')}</td></tr>
-          <tr><th>Author</th><td>J. Moses</td></tr>
-          <tr><th>Licence</th><td>MIT</td></tr>
-          <tr><th>Source</th><td><a href="https://github.com/jmozez/geospax" target="_blank" rel="noopener">github.com/jmozez/geospax</a></td></tr>
-          <tr><th>Earlier versions</th><td>GeoSpaX 2.0 (<a href="https://github.com/jm0535/GeoSpaX" target="_blank" rel="noopener">jm0535/GeoSpaX</a>) and 1.4.2 (<a href="https://github.com/jm0535/map-kit" target="_blank" rel="noopener">jm0535/map-kit</a>)</td></tr>
-        </table>
-        <p class="about-links"><a href="#" data-doc="USER_GUIDE">User guide</a> · <a href="#" data-doc="CHANGELOG">What's new</a> · <a href="#" data-doc="THIRD_PARTY_NOTICES">Credits and licences</a> · <a href="#" data-doc="SECURITY">Security</a></p>
+        <div class="about-card">
+          <div class="about-row"><span>Version</span><code>${esc(version || 'unknown')}</code></div>
+          <div class="about-row"><span>Edition</span><code>${esc(edition || 'web')}</code></div>
+          <div class="about-row"><button type="button" class="about-check">Check for updates</button><span class="about-update" aria-live="polite"></span></div>
+        </div>
+        <h3 class="about-h">General</h3>
+        <div class="about-card links">
+          ${link(repo, 'Home page', 'github.com/jmozez/geospax')}
+          ${link(`${repo}/releases`, 'Downloads', 'All releases and installers')}
+          ${link(`${repo}/issues`, 'Report a problem', 'Bugs and ideas on GitHub')}
+          ${doc('USER_GUIDE', 'User guide', 'How to use every part of the program')}
+          ${doc('CHANGELOG', "What's new", 'Changes in each version')}
+          ${doc('THIRD_PARTY_NOTICES', 'Credits and licences', 'Open-source parts and data sources')}
+        </div>
+        <p class="about-foot">© J. Moses · MIT licence · earlier versions: GeoSpaX 2.0 (<a href="https://github.com/jm0535/GeoSpaX" target="_blank" rel="noopener">jm0535/GeoSpaX</a>) and 1.4.2 (<a href="https://github.com/jm0535/map-kit" target="_blank" rel="noopener">jm0535/map-kit</a>)</p>
       </div>`,
     );
+    const btn = document.querySelector<HTMLButtonElement>('.about-check');
+    const out = document.querySelector<HTMLElement>('.about-update');
+    btn?.addEventListener('click', async () => {
+      if (!out) return;
+      btn.disabled = true;
+      out.className = 'about-update';
+      out.textContent = 'Checking…';
+      try {
+        const res = await fetch('https://api.github.com/repos/jmozez/geospax/releases/latest', { headers: { accept: 'application/vnd.github+json' } });
+        if (res.status === 404) {
+          out.innerHTML = `No release published yet · <a href="${repo}/releases" target="_blank" rel="noopener">Downloads</a>`;
+          return;
+        }
+        if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+        const r = (await res.json()) as { tag_name: string; html_url: string; body?: string };
+        const latest = r.tag_name.replace(/^v/, '');
+        if (!version || newer(latest, version)) {
+          out.className = 'about-update new';
+          out.innerHTML = `Update available: <b>${esc(latest)}</b> · <a href="${esc(r.html_url)}" target="_blank" rel="noopener">Download</a>${r.body ? `<details><summary>Release notes</summary><div class="doc">${renderMarkdown(r.body)}</div></details>` : ''}`;
+        } else {
+          out.className = 'about-update ok';
+          out.textContent = `You have the latest version (${version})`;
+        }
+      } catch (e) {
+        out.className = 'about-update err';
+        out.innerHTML = `Could not check (${esc(String((e as Error).message ?? e))}) · <a href="${repo}/releases" target="_blank" rel="noopener">Open the downloads page</a>`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
   }
+}
+
+/** Is version a newer than b? (1.2.10 > 1.2.9; a pre-release such as 3.0.0-rc1 is older than 3.0.0) */
+export function newer(a: string, b: string): boolean {
+  const parse = (v: string) => { const [core, pre] = v.replace(/^v/, '').split('-'); return { n: core.split('.').map((x) => parseInt(x, 10) || 0), pre }; };
+  const x = parse(a), y = parse(b);
+  for (let i = 0; i < 3; i++) if ((x.n[i] ?? 0) !== (y.n[i] ?? 0)) return (x.n[i] ?? 0) > (y.n[i] ?? 0);
+  return !x.pre && !!y.pre;
 }

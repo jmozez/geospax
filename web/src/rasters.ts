@@ -33,7 +33,10 @@ export interface RasterInfo {
   crs: string;
   description: string;
   why: string;
-  style: { opacity?: number; kind?: string };
+  style: { opacity?: number; kind?: string; resampling?: string; [k: string]: unknown };
+  bands?: number;
+  units?: string;
+  stats?: { min: number; max: number; mean: number; std: number; p2: number; p98: number }[];
   legend: RasterLegend;
   overlay: { url: string; coordinates: [number, number][] };
 }
@@ -55,7 +58,7 @@ export class RasterPane {
   constructor(
     private el: HTMLElement,
     private backend: Backend,
-    private hooks: { restyle: () => void; fit: (b: [number, number, number, number]) => void; changed?: () => void },
+    private hooks: { restyle: () => void; fit: (b: [number, number, number, number]) => void; changed?: () => void; style?: (r: RasterInfo) => void },
   ) {
     try {
       this.state = JSON.parse(localStorage.getItem(KEY) ?? '{}');
@@ -84,6 +87,7 @@ export class RasterPane {
       const id = t.closest<HTMLElement>('.raster')?.dataset.id;
       const r = this.rasters.find((x) => x.id === id);
       if (r && t.dataset.act === 'fit') this.hooks.fit(r.bounds);
+      if (r && t.dataset.act === 'style') this.hooks.style?.(r);
     });
   }
 
@@ -119,6 +123,19 @@ export class RasterPane {
     this.render();
     this.hooks.restyle();
   }
+  /** The engine restyled a raster (Symbology): new legend and overlay URL. */
+  replace(info: RasterInfo) {
+    const i = this.rasters.findIndex((r) => r.id === info.id);
+    if (i < 0) return;
+    this.rasters[i] = info;
+    this.render();
+    this.hooks.changed?.();
+    this.hooks.restyle();
+  }
+  private resampling(r: RasterInfo): 'nearest' | 'linear' {
+    const s = r.style.resampling;
+    return s === 'nearest' || (s !== 'bilinear' && (r.kind === 'classes' || r.style.kind === 'classes')) ? 'nearest' : 'linear';
+  }
   legendHtml(id: string): string {
     const r = this.byId(id);
     return r ? this.legend(r.legend) : '';
@@ -135,7 +152,7 @@ export class RasterPane {
         id: sid,
         type: 'raster',
         source: sid,
-        paint: { 'raster-opacity': this.st(id).opacity, 'raster-fade-duration': 0, 'raster-resampling': r.kind === 'classes' ? 'nearest' : 'linear' },
+        paint: { 'raster-opacity': this.st(id).opacity, 'raster-fade-duration': 0, 'raster-resampling': this.resampling(r) },
       } as maplibregl.LayerSpecification,
     };
   }
@@ -201,7 +218,7 @@ export class RasterPane {
         id: sid,
         type: 'raster',
         source: sid,
-        paint: { 'raster-opacity': s.opacity, 'raster-fade-duration': 0, 'raster-resampling': r.kind === 'classes' ? 'nearest' : 'linear' },
+        paint: { 'raster-opacity': s.opacity, 'raster-fade-duration': 0, 'raster-resampling': this.resampling(r) },
       });
     }
     return { sources, layers };
@@ -232,7 +249,7 @@ export class RasterPane {
         const s = this.st(r.id);
         return `<div class="raster" data-id="${esc(r.id)}" data-kind="${esc(r.kind)}">
   <label><input type="checkbox" data-act="visible" ${s.visible ? 'checked' : ''}> <span class="name" title="${esc(r.description || r.why)}">${esc(r.title)}</span></label>
-  <span class="tag">${esc(r.kind)}</span><button class="fit" data-act="fit" title="Zoom to">⤢</button>
+  <span class="tag">${esc(r.kind)}</span><button class="fit" data-act="fit" title="Zoom to">⤢</button><button class="fit" data-act="style" title="Symbology" aria-label="Symbology">⚙</button>
   ${s.visible ? `<input type="range" data-act="opacity" min="10" max="100" value="${Math.round(s.opacity * 100)}" title="Opacity">${this.legend(r.legend)}` : ''}
   <div class="meta">${r.width}×${r.height} px · ${r.pixel_m} m · ${esc(r.crs)}</div>
 </div>`;
