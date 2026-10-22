@@ -40,6 +40,7 @@ import {
   type LayerStyle,
   type Project,
 } from './symbology';
+import { GLYPHS, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
 import './style.css';
 
 maplibregl.setWorkerUrl(workerUrl);
@@ -108,9 +109,9 @@ let automatePane: AutomatePane | null = null;
 let attributesPane: AttributesPane | null = null;
 /** Editing and selection (web/src/editing.ts) */
 let editor: Editor | null = null;
-/** View › Projection: 'mercator' or 'globe' (remembered in this browser) */
+/** View › Projection: 'globe' (the start, as GeoLibre) or 'mercator' (remembered in this browser) */
 let mapProjection: 'mercator' | 'globe' = (() => {
-  try { return localStorage.getItem('geospax.projection') === 'globe' ? 'globe' : 'mercator'; } catch { return 'mercator'; }
+  try { return localStorage.getItem('geospax.projection') === 'mercator' ? 'mercator' : 'globe'; } catch { return 'globe'; }
 })();
 /** Bumped after each edit to a layer, so the map fetches its tiles again */
 const tileRev: Record<string, number> = {};
@@ -291,6 +292,7 @@ systemDark?.addEventListener?.('change', () => theme === 'system' && setTheme('s
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
   const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': css('map-bg') || '#0b0b0b' } }];
+  const labelLayers: maplibregl.LayerSpecification[] = [];
   addBasemap(sources, out);
   for (const id of project.order) {
     if (id.startsWith('r:')) {
@@ -307,8 +309,9 @@ function buildStyle(): maplibregl.StyleSpecification {
     // a switched-off group hides its layers without touching their own switches
     const st = { ...project.layers[id], visible: shownOnMap(id) };
     const [w, s, e, n] = l.bounds;
-    const fld = symbologyField(st.symbology);
-    const fields = fld && !l.tile_fields.includes(fld) ? [...l.tile_fields, fld] : undefined;
+    // the attributes the colours, sizes and labels need, beyond the layer's tile fields
+    const need = [symbologyField(st.symbology), ...symbolFields(st)].filter((f): f is string => !!f && !l.tile_fields.includes(f));
+    const fields = need.length ? [...l.tile_fields, ...new Set(need)] : undefined;
     let url = backend.tileUrl(id, fields);
     // cache-bust the client tile cache when a pyramid is (re)built
     if (l.overview) url += `${url.includes('?') ? '&' : '?'}ov=${l.overview.built_at}`;
@@ -326,44 +329,10 @@ function buildStyle(): maplibregl.StyleSpecification {
     const base = { source: id, 'source-layer': id, layout: { visibility: vis }, ...zoom } as const;
     // ?heatmap=0 is a debug switch (WebKitGTK partial-render investigation)
     if (l.overview && new URLSearchParams(location.search).get('heatmap') !== '0') out.push(heatmapLayer(l, st));
-    if (l.geometry === 'polygon') {
-      out.push({ ...base, id: `${id}#fill`, type: 'fill', paint: { 'fill-color': color, 'fill-opacity': st.opacity } } as maplibregl.LayerSpecification);
-      if (st.outline) {
-        out.push({
-          ...base,
-          id: `${id}#line`,
-          type: 'line',
-          minzoom: Math.max(isLand(id) ? 0 : 13, st.minzoom),
-          paint: {
-            'line-color': isLand(id) ? css('map-border') : css('map-outline'),
-            'line-width': isLand(id) ? 0.6 : 0.5,
-            'line-opacity': Math.min(1, st.opacity + 0.15),
-          },
-        } as maplibregl.LayerSpecification);
-      }
-    } else if (l.geometry === 'line') {
-      out.push({
-        ...base,
-        id: `${id}#line`,
-        type: 'line',
-        paint: { 'line-color': color, 'line-opacity': st.opacity, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.4, 10, 1.6, 14, 3] },
-      } as maplibregl.LayerSpecification);
-    } else {
-      out.push({
-        ...base,
-        id: `${id}#circle`,
-        type: 'circle',
-        paint: {
-          'circle-color': color,
-          'circle-opacity': st.opacity,
-          // device points (photos, waypoints) are few and important: bigger, with a white ring
-          'circle-radius': isDeviceLayer(id) ? ['interpolate', ['linear'], ['zoom'], 2, 3, 10, 5, 15, 7] : ['interpolate', ['linear'], ['zoom'], 2, 1.5, 10, 2.5, 15, 4],
-          'circle-stroke-color': isDeviceLayer(id) ? '#ffffff' : css('map-outline'),
-          'circle-stroke-width': isDeviceLayer(id) ? 1.5 : 0.5,
-          'circle-stroke-opacity': st.opacity,
-        },
-      } as maplibregl.LayerSpecification);
-    }
+    // points, lines and polygons as their symbols say (symbols.ts); labels go on top of everything
+    out.push(...symbolLayers({ id, geometry: l.geometry, st, color, base, outlineColor: isLand(id) ? css('map-border') : css('map-outline'), device: isDeviceLayer(id), land: isLand(id) }));
+    const lab = labelLayer(id, l.geometry, st, base);
+    if (lab) labelLayers.push(lab);
     // the selection, drawn over the layer (ids are feature ids in the tiles)
     const sel = editor?.selected(id) ?? [];
     if (sel.length && st.visible) {
@@ -392,7 +361,8 @@ function buildStyle(): maplibregl.StyleSpecification {
     for (const l of cur?.layers ?? []) if (l.id.startsWith('td-')) out.push(l);
   } catch { /* first style: the map is not ready yet */ }
   // View › Projection (MapLibre's own projections: Web Mercator or a globe)
-  return { version: 8, sources, layers: out, projection: { type: mapProjection } };
+  out.push(...labelLayers);
+  return { version: 8, glyphs: new URL('fonts/', location.href).href + GLYPHS.slice('fonts/'.length), sources, layers: out, projection: { type: mapProjection } };
 }
 
 // ---------------------------------------------------------------- basemap
@@ -484,7 +454,7 @@ function fitLayer(id: string) {
 }
 
 /** Fit every visible layer — Pro's "Full extent". */
-function fitAll() {
+function fitAll(duration = 450) {
   let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
   for (const id of project.order) {
     const l = layerById(id);
@@ -493,7 +463,7 @@ function fitAll() {
     maxx = Math.max(maxx, l.bounds[2]); maxy = Math.max(maxy, l.bounds[3]);
   }
   if (!Number.isFinite(minx)) return;
-  map.fitBounds([[minx, miny], [maxx, maxy]], { padding: 60, maxZoom: 17, duration: 450 });
+  map.fitBounds([[minx, miny], [maxx, maxy]], { padding: 60, maxZoom: 17, duration });
 }
 
 /** Let the engine choose a style for one layer (AutoMap). */
@@ -723,14 +693,14 @@ function rasterRow(id: string, first: boolean, last: boolean, depth = 0): string
     <button class="pr-tw" data-act="twisty" aria-label="${open ? 'Collapse' : 'Expand'} legend">${open ? '▾' : '▸'}</button>
     <input type="checkbox" ${on ? 'checked' : ''} aria-label="Toggle ${e(r.title)}" />
     <span class="swatch raster" aria-hidden="true"></span>
-    <b class="name" title="${e(r.description || r.why || 'Style in the Rasters pane')}">${e(r.title)}</b>
+    <b class="name" title="${e(r.description || r.why || 'Symbology')}">${e(r.title)}</b>
     <span class="pr-n">${e(r.kind)}</span>
     <input class="pr-op" type="range" min="0" max="100" step="5" value="${op}" data-act="opacity" title="Opacity ${op}%" aria-label="Opacity" />
     <span class="tools">
       <button data-act="up" title="Move up" aria-label="Move up" ${first ? 'disabled' : ''}>▲</button>
       <button data-act="down" title="Move down" aria-label="Move down" ${last ? 'disabled' : ''}>▼</button>
       <button data-act="zoom" title="Zoom to" aria-label="Zoom to">⤢</button>
-      <button data-act="props" title="Style in the Rasters pane" aria-label="Style">⚙</button>
+      <button data-act="props" title="Symbology" aria-label="Symbology">⚙</button>
     </span>
     <small class="pr-sub">raster · ${e(r.kind)} · ${r.width}×${r.height} px · ${r.pixel_m} m · ${e(r.crs)}</small>
     ${legend ? `<div class="legend rlegend">${legend}</div>` : ''}
@@ -758,6 +728,19 @@ function onRastersChanged() {
   renderContents();
 }
 
+/** Symbology for a raster (web/src/rasterstyle.ts): renderer, band, ramp, stretch, classes, RGB, opacity. */
+async function rasterStyle(rid: string) {
+  const r = rasterPane?.byId(rid);
+  if (!r) return;
+  const { openRasterStyle } = await import('./rasterstyle');
+  await openRasterStyle({
+    backend,
+    updated: (info) => rasterPane!.replace(info),
+    opacity: (id) => rasterPane!.opacity(id),
+    setOpacity: (id, o) => rasterPane!.setOpacity(id, o),
+  }, r);
+}
+
 /** Right-click on a raster in Contents. */
 function rasterMenu(id: string, x: number, y: number): boolean {
   const rid = id.slice(2);
@@ -768,7 +751,7 @@ function rasterMenu(id: string, x: number, y: number): boolean {
     { label: on ? 'Hide' : 'Show', run: () => rasterPane!.setVisible(rid, !on) },
     { label: 'Zoom to raster', run: () => void map.fitBounds([[r.bounds[0], r.bounds[1]], [r.bounds[2], r.bounds[3]]], { padding: 40, maxZoom: 16, duration: 300 }) },
     { sep: true },
-    { label: 'Style…', hint: 'Colours and legend in the Rasters pane', run: () => workbench?.showTab('right', 'rasters') },
+    { label: 'Symbology…', hint: 'Renderer, colours, stretch, opacity', run: () => void rasterStyle(rid) },
     ...[100, 75, 50, 25].map((o) => ({ label: `Opacity ${o} %`, disabled: Math.round(rasterPane!.opacity(rid) * 100) === o, run: () => rasterPane!.setOpacity(rid, o / 100) })),
     { sep: true },
     { label: 'Properties…', run: async () => {
@@ -907,7 +890,8 @@ function wireContents() {
     else if (id.startsWith('r:')) {
       const r = rasterPane?.byId(id.slice(2));
       if (act === 'zoom' && r) map.fitBounds([[r.bounds[0], r.bounds[1]], [r.bounds[2], r.bounds[3]]], { padding: 40, maxZoom: 16, duration: 300 });
-      else if (act === 'props' || t.closest('.name')) workbench?.showTab('right', 'rasters');
+      else if (act === 'props') void rasterStyle(id.slice(2));
+      else if (t.closest('.name')) workbench?.showTab('right', 'rasters');
     } else if (act === 'zoom') fitLayer(id);
     else if (act === 'recipe' && actEl?.dataset.recipe) void automatePane?.run(actEl.dataset.recipe, { layer: id });
     else if (act === 'props' || t.classList.contains('name') || t.closest('.name')) {
@@ -1356,6 +1340,9 @@ async function main() {
   // no saved view: open on the data itself (fitted once the map exists), not on a fixed place
   const fitOnLoad = !urlView && !hasHashView && !project.view && !params.has('bench');
   const view = urlView ?? (!hasHashView && project.view ? project.view : { center: [144.25, -5.87] as [number, number], zoom: fitOnLoad ? 1 : 12.5 });
+  // a fresh start opens on the whole globe, then flies to the project (not for links to a view,
+  // reloads, benches or automated tests)
+  const intro = !urlView && !hasHashView && !params.has('bench') && !params.has('nointro') && !navigator.webdriver && mapProjection === 'globe';
   const ua = navigator.userAgent;
   const webkitGtk = /Linux/.test(ua) && /AppleWebKit/.test(ua) && !/Chrom/.test(ua);
   const preserveBuffer = params.has('glpdb') ? params.get('glpdb') === '1' : webkitGtk;
@@ -1363,7 +1350,7 @@ async function main() {
     container: 'map',
     style: buildStyle(),
     center: view.center,
-    zoom: view.zoom,
+    zoom: intro ? 1.6 : view.zoom,
     hash: params.has('bench') ? false : 'view',
     attributionControl: { compact: true, customAttribution: 'GeoSpaX · Natural Earth (public domain) · synthetic buildings' },
     // WebKitGTK (Tauri on Linux) randomly drops whole tiles with the default drawing buffer:
@@ -1376,6 +1363,11 @@ async function main() {
   map.addControl(new maplibregl.ScaleControl({}), 'bottom-left');
   (window as unknown as { map: maplibregl.Map }).map = map;
   map.on('moveend', () => saveProject());
+  // point shapes other than circles are SDF icons, made when a layer first asks for one
+  map.on('styleimagemissing', (e) => {
+    const id = (e as unknown as { id: string }).id;
+    if (id.startsWith(ICON_PREFIX) && !map.hasImage(id)) map.addImage(id, sdfImage(id.slice(ICON_PREFIX.length) as Shape), { sdf: true, pixelRatio: 2 });
+  });
   map.on('error', (e) => console.error('map error:', (e as unknown as { error?: Error }).error ?? e));
   map.once('load', () => {
     const gl = (map.painter as unknown as { context?: { gl?: WebGL2RenderingContext } }).context?.gl;
@@ -1453,6 +1445,7 @@ async function main() {
     restyle: applyStyle,
     fit: (b) => map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, maxZoom: 16, duration: 0 }),
     changed: () => onRastersChanged(),
+    style: (r) => void rasterStyle(r.id),
   });
   rasterPane.reload().then(applyStyle);
 
@@ -1926,7 +1919,8 @@ async function main() {
     renderContents();
   }
   (window as unknown as { workbench: Workbench | null }).workbench = workbench;
-  if (fitOnLoad) fitAll();
+  if (fitOnLoad) intro ? setTimeout(() => fitAll(3000), 700) : fitAll();
+  else if (intro) setTimeout(() => map.flyTo({ center: view.center, zoom: view.zoom, duration: 3000, essential: true }), 700);
 
   // Stage 2 of the lazy path: a start screen with a drop zone, drag-and-drop anywhere, and
   // "Finish my map" (web/src/start.ts, web/src/finish.ts)

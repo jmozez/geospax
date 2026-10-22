@@ -82,6 +82,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .layer .legend small { display: block; font-style: italic; margin-bottom: 1px; }
 .layer .legend div { display: flex; align-items: center; gap: 6px; line-height: 16px; }
 .layer .legend i { width: 12px; height: 10px; border-radius: 2px; flex: none; }
+.layer .legend i.sym-sw { width: 14px; height: 14px; border-radius: 0; display: inline-flex; }
 .layer .legend .more { padding-left: 18px; }
 .badge { display: inline-block !important; margin-top: 2px; padding: 0 6px; border-radius: 9px; font-size: 10px; line-height: 16px; }
 .badge.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok) !important; }
@@ -1183,3 +1184,43 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .ramp.split::after { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: currentColor; }
 .ends:has(.mid) { position: relative; }
 .ends .mid { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+
+/* Symbology pane: symbols and labels (symbols.ts) */
+.swatch.sym-sw { width: 16px; height: 16px; margin-top: 0; background: none; border-radius: 0; display: inline-flex; color: var(--muted); }
+.sym-sw svg, .sym-preview svg { display: block; overflow: visible; }
+.sym-preview { display: flex; justify-content: center; align-items: center; height: 60px; margin: 4px 0 8px; border: 1px solid var(--line); border-radius: 6px; background: repeating-conic-gradient(color-mix(in srgb, var(--fg) 6%, transparent) 0 25%, transparent 0 50%) 0 0 / 12px 12px; color: var(--muted); }
+.sym-shapes { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 8px; }
+.sym-shapes button, .anchors button { display: flex; align-items: center; justify-content: center; min-height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+.sym-shapes button.on, .anchors button.on { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.sym-shapes button:focus-visible, .anchors button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.anchors { display: grid; grid-template-columns: repeat(3, 40px); gap: 4px; margin-top: 4px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.sym-col input[type='color'] { width: 100%; height: 30px; padding: 2px; }
+.sym-num output { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* raster symbology dialog */
+.gx-dialog fieldset.rs { border: 1px solid var(--line, #333); border-radius: 6px; padding: 8px 10px; margin: 8px 0; display: grid; gap: 6px; }
+.gx-dialog fieldset.rs[hidden], .gx-dialog [hidden] { display: none !important; }
+.gx-dialog .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.gx-dialog .btnrow { display: flex; gap: 6px; flex-wrap: wrap; }
+.gx-dialog fieldset.rs .ramp { height: 10px; border-radius: 3px; margin-top: 4px; }
+.gx-dialog .chk { display: flex; align-items: center; gap: 6px; }
+
+/* About (laid out like GeoLibre's: version card, update check, link list) */
+.about h3.about-h { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 6px; }
+.about-card { text-align: left; border: 1px solid var(--line, #2a2a2a); border-radius: 10px; background: var(--panel, transparent); }
+.about-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
+.about-row + .about-row { border-top: 1px solid var(--line, #2a2a2a); }
+.about-row code { font-family: ui-monospace, 'DejaVu Sans Mono', monospace; }
+.about-update { flex: 1 1 100%; font-size: 13px; color: var(--muted); }
+.about-update:empty { display: none; }
+.about-update.ok { color: #3fb950; }
+.about-update.new { color: var(--fg); }
+.about-update.err { color: #f85149; }
+.about-update details { margin-top: 6px; max-height: 240px; overflow: auto; }
+.about-link { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; padding: 10px 14px; text-decoration: none; color: var(--fg) !important; }
+.about-link + .about-link { border-top: 1px solid var(--line, #2a2a2a); }
+.about-link small { grid-column: 1; color: var(--muted); }
+.about-link span { grid-column: 2; grid-row: 1 / 3; align-self: center; color: var(--muted); }
+.about-link:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.about-foot { font-size: 12px; color: var(--muted); margin-top: 14px; }

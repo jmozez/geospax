@@ -413,6 +413,8 @@ impl Engine {
         };
         // layers edited (or made) in earlier sessions read their copies again
         engine.load_edits();
+        // raster styles set by hand in earlier sessions
+        engine.apply_saved_raster_styles();
         Ok(engine)
     }
 

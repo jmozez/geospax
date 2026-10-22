@@ -22,6 +22,9 @@ acknowledges — including the two the workbench UI was modelled on.
 * **GeoLibre tools plugin** (`plugins/geolibre-tools/`) — downloads, on first use, the `geolibre-wasm`
   1.7.1 tool runner (MIT; opengeos/geolibre-rust, built on whitebox_next_gen by John Lindsay, MIT) from
   the npm registry and verifies its SHA-512. It is not redistributed in this repository or the installers.
+* **Fonts** — DejaVu Sans (Book, Bold, Oblique, Bold Oblique; Bitstream Vera licence with DejaVu changes,
+  public domain), as MapLibre glyph files in `web/public/fonts/` (made with fontnik 0.7.7) and embedded in
+  the engine (`crates/engine/fonts/`) for exported maps. Licence: `web/public/fonts/LICENSE-DejaVu.txt`.
 * **Data at runtime** — Natural Earth (public domain) for the sample layers and the bundled offline basemap
   (`web/public/basemap/`: 1:50m land, lakes and admin-0 boundary lines, coordinates rounded to 0.001°).
 * **Online data fetched on request** (nothing is redistributed; each result carries its citation) —

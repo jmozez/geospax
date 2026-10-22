@@ -2,6 +2,7 @@
 // functions that turn it into MapLibre expressions and legend entries.
 // No DOM here, so it is shared by the map, the Contents legend and the panel.
 import type { ExpressionSpecification } from 'maplibre-gl';
+import type { FillSymbol, LabelStyle, LineSymbol, PointSymbol } from './symbols';
 
 export type Method = 'jenks' | 'quantile' | 'equal' | 'guideline';
 
@@ -35,6 +36,11 @@ export interface LayerStyle {
   maxzoom: number;
   outline: boolean;
   symbology: Symbology;
+  /** symbols and labels (symbols.ts); absent = the look from before these options */
+  point?: PointSymbol;
+  line?: LineSymbol;
+  fill?: FillSymbol;
+  labels?: LabelStyle;
   /** AutoMap's reason for this style; dropped as soon as someone changes the symbology by hand */
   auto?: string;
 }

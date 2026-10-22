@@ -15,6 +15,20 @@ import {
   type Symbology,
   type UniqueResponse,
 } from './symbology';
+import {
+  ANCHORS,
+  DASHES,
+  FONTS,
+  SHAPES,
+  defaultFill,
+  defaultLabels,
+  defaultLine,
+  defaultPoint,
+  shapePath,
+  swatchSvg,
+  type LabelStyle,
+} from './symbols';
+import { primaryColor } from './symbology';
 
 export interface PanelHost {
   backend: Backend;
@@ -178,15 +192,90 @@ export class SymbologyPanel {
       ${this.busy ? `<p class="hint">${esc(this.busy)}</p>` : ''}
       ${this.stats ? `<p class="hint">${this.stats}</p>` : ''}
       ${this.error ? `<p class="err">${esc(this.error)}</p>` : ''}
+      ${this.symbolSection(l, st)}
+      ${this.labelSection(l, st)}
       <h3>Appearance</h3>
       <label class="field"><span>Opacity <output>${Math.round(st.opacity * 100)}%</output></span>
         <input type="range" min="0" max="100" step="5" data-k="opacity" value="${Math.round(st.opacity * 100)}"></label>
-      ${l.geometry === 'polygon' ? `<label class="check"><input type="checkbox" data-k="outline" ${st.outline ? 'checked' : ''}> Outline</label>` : ''}
       <div class="field"><span>Visible range (zoom)</span>
         <div class="row"><input type="number" min="0" max="24" data-k="minzoom" value="${st.minzoom}" aria-label="Min zoom"> to
         <input type="number" min="0" max="24" data-k="maxzoom" value="${st.maxzoom}" aria-label="Max zoom"></div></div>
       <h3>Overviews</h3>
       ${ov}`;
+  }
+
+  /** Symbol: shape, size and stroke of points; width and dash of lines; fill and outline of polygons. */
+  private symbolSection(l: LayerInfo, st: LayerStyle): string {
+    const opt = (v: string, label: string, sel: boolean) => `<option value="${esc(v)}" ${sel ? 'selected' : ''}>${esc(label)}</option>`;
+    const num = (k: string, v: number, min: number, max: number, step: number, label: string, unit = 'px') =>
+      `<label class="field sym-num"><span>${label} <output>${v}${unit}</output></span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v}"></label>`;
+    const color = (k: string, v: string, label: string) => `<label class="field sym-col"><span>${label}</span><input type="color" data-k="${k}" value="${esc(v)}"></label>`;
+    const preview = `<div class="sym-preview">${swatchSvg(l.geometry, st, primaryColor(st.symbology), 44)}</div>`;
+    if (l.geometry === 'point') {
+      const p = st.point ?? defaultPoint();
+      const nums = this.numericFields(l);
+      const sb = p.sizeBy;
+      return `<h3>Symbol</h3>${preview}
+        <div class="sym-shapes" role="radiogroup" aria-label="Shape">${SHAPES.map(([s, n]) => `<button type="button" data-k="pt-shape" data-v="${s}" class="${s === p.shape ? 'on' : ''}" title="${n}" aria-pressed="${s === p.shape}"><svg viewBox="0 0 24 24" width="18" height="18"><path d="${shapePath(s)}" fill="currentColor"/></svg></button>`).join('')}</div>
+        ${num('pt-size', p.size, 2, 40, 1, 'Size')}
+        <div class="row2">${color('pt-stroke', p.strokeColor, 'Outline')}${num('pt-strokew', p.strokeWidth, 0, 6, 0.5, 'Outline width')}</div>
+        ${num('pt-rot', p.rotation ?? 0, 0, 359, 1, 'Rotation', '°')}
+        <label class="field"><span>Size by field (proportional symbols)</span><select data-k="pt-sizeby">${opt('', 'none: one size', !sb)}${nums.map((f) => opt(f.name, f.name, sb?.field === f.name)).join('')}</select></label>
+        ${sb ? `<div class="row2">${num('pt-minsize', sb.minSize, 1, 40, 1, `Smallest (${fmtNum(sb.min)})`)}${num('pt-maxsize', sb.maxSize, 2, 80, 1, `Largest (${fmtNum(sb.max)})`)}</div><p class="hint">Areas grow with the value, as on a proportional-symbol map.</p>` : ''}`;
+    }
+    if (l.geometry === 'line') {
+      const ln = st.line ?? defaultLine();
+      return `<h3>Symbol</h3>${preview}
+        ${num('ln-width', ln.width, 0.25, 12, 0.25, 'Width')}
+        <div class="row2"><label class="field"><span>Dash</span><select data-k="ln-dash">${DASHES.map(([d, n]) => opt(d, n, d === ln.dash)).join('')}</select></label>
+          <label class="field"><span>Ends</span><select data-k="ln-cap">${opt('round', 'Round', ln.cap === 'round')}${opt('butt', 'Flat', ln.cap === 'butt')}${opt('square', 'Square', ln.cap === 'square')}</select></label></div>
+        <label class="field"><span>Corners</span><select data-k="ln-join">${opt('round', 'Round', ln.join === 'round')}${opt('miter', 'Sharp', ln.join === 'miter')}${opt('bevel', 'Bevelled', ln.join === 'bevel')}</select></label>
+        <div class="row2">${num('ln-casing', ln.casingWidth ?? 0, 0, 6, 0.5, 'Casing')}${color('ln-casingcolor', ln.casingColor ?? '#ffffff', 'Casing colour')}</div>`;
+    }
+    if (l.geometry === 'polygon') {
+      const f = st.fill ?? { ...defaultFill(), strokeWidth: st.outline ? 0.7 : 0 };
+      return `<h3>Symbol</h3>${preview}
+        <label class="check"><input type="checkbox" data-k="pg-fill" ${f.fill ? 'checked' : ''}> Fill</label>
+        <div class="row2">${color('pg-stroke', f.strokeColor, 'Outline')}${num('pg-strokew', f.strokeWidth, 0, 8, 0.25, 'Outline width')}</div>
+        <label class="field"><span>Outline dash</span><select data-k="pg-dash">${DASHES.map(([d, n]) => opt(d, n, d === f.strokeDash)).join('')}</select></label>`;
+    }
+    return '';
+  }
+
+  /** Labels: field, font, size, colours, halo and placement. */
+  private labelSection(l: LayerInfo, st: LayerStyle): string {
+    const fields = l.fields;
+    if (!fields.length) return '';
+    const lb: LabelStyle = st.labels ?? defaultLabels(this.labelGuess(l));
+    const opt = (v: string, label: string, sel: boolean) => `<option value="${esc(v)}" ${sel ? 'selected' : ''}>${esc(label)}</option>`;
+    const num = (k: string, v: number, min: number, max: number, step: number, label: string, unit = '') =>
+      `<label class="field sym-num"><span>${label} <output>${v}${unit}</output></span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v}"></label>`;
+    const head = `<h3>Labels</h3><label class="check"><input type="checkbox" data-k="lb-on" ${lb.on ? 'checked' : ''}> Label features</label>`;
+    if (!lb.on) return head;
+    const placement =
+      l.geometry === 'line'
+        ? `<label class="field"><span>Placement</span><select data-k="lb-placement">${opt('line', 'Along the line, repeated', lb.placement === 'line')}${opt('line-center', 'Along the line, once at its middle', lb.placement === 'line-center')}${opt('point', 'Horizontal', lb.placement === 'point')}</select></label>`
+        : `<div class="field"><span>Position ${l.geometry === 'polygon' ? 'around the centre' : 'around the point'}</span><div class="anchors">${ANCHORS.map(([a, g]) => `<button type="button" data-k="lb-anchor" data-v="${a}" class="${a === lb.anchor ? 'on' : ''}" aria-pressed="${a === lb.anchor}" title="${a}">${g}</button>`).join('')}</div></div>
+           <div class="row2">${num('lb-dx', lb.offset[0], -3, 3, 0.1, 'Offset right', ' em')}${num('lb-dy', lb.offset[1], -3, 3, 0.1, 'Offset down', ' em')}</div>`;
+    return `${head}
+      <label class="field"><span>Field</span><select data-k="lb-field">${fields.map((f) => opt(f.name, f.name, f.name === lb.field)).join('')}</select></label>
+      <div class="row2"><label class="field"><span>Font</span><select data-k="lb-font">${FONTS.map(([f, n]) => opt(f, n, f === lb.font)).join('')}</select></label>
+        <label class="field"><span>Case</span><select data-k="lb-case">${opt('none', 'As written', lb.transform === 'none')}${opt('uppercase', 'UPPERCASE', lb.transform === 'uppercase')}${opt('lowercase', 'lowercase', lb.transform === 'lowercase')}</select></label></div>
+      ${num('lb-size', lb.size, 6, 36, 1, 'Size', 'px')}
+      <div class="row2"><label class="field sym-col"><span>Colour</span><input type="color" data-k="lb-color" value="${esc(lb.color)}"></label>
+        <label class="field sym-col"><span>Halo</span><input type="color" data-k="lb-halo" value="${esc(lb.haloColor)}"></label></div>
+      ${num('lb-halow', lb.haloWidth, 0, 5, 0.25, 'Halo width', 'px')}
+      ${placement}
+      <div class="row2">${num('lb-wrap', lb.wrap, 0, 30, 1, 'Wrap after', ' em')}${num('lb-spacing', lb.letterSpacing, 0, 0.5, 0.02, 'Letter spacing', ' em')}</div>
+      <label class="check"><input type="checkbox" data-k="lb-overlap" ${lb.overlap ? 'checked' : ''}> Show labels that overlap others</label>
+      <div class="field"><span>Labels visible (zoom)</span><div class="row"><input type="number" min="0" max="24" data-k="lb-minz" value="${lb.minzoom}" aria-label="Labels from zoom"> to
+        <input type="number" min="0" max="24" data-k="lb-maxz" value="${lb.maxzoom}" aria-label="Labels to zoom"></div></div>`;
+  }
+
+  /** A name-like text field to label with first (name, site, title …). */
+  private labelGuess(l: LayerInfo): string {
+    const text = l.fields.filter((f) => f.kind === 'string');
+    return (text.find((f) => /^(name|label|title|site|station|place|town|village|species)$/i.test(f.name)) ?? text.find((f) => /name|label|title/i.test(f.name)) ?? text[0] ?? l.fields[0])?.name ?? '';
   }
 
   /** Apply a style edit. Slider drags pass rerender=false (keeps the live element). */
@@ -273,11 +362,100 @@ export class SymbologyPanel {
       case 'delete-ov':
         await this.host.deleteOverviews(id);
         return this.render();
+      case 'pt-shape':
+      case 'lb-anchor':
+        return this.setSym(t.dataset.k, t.dataset.v ?? '', true);
+    }
+  }
+
+  /** One symbol or label setting, by its control key. */
+  private setSym(k: string, v: string, rerender: boolean) {
+    const l = this.layer!;
+    const n = Number(v);
+    this.update((st) => {
+      if (k.startsWith('pt-')) {
+        const p = (st.point ??= defaultPoint());
+        if (k === 'pt-shape') p.shape = v as typeof p.shape;
+        else if (k === 'pt-size') p.size = n;
+        else if (k === 'pt-stroke') p.strokeColor = v;
+        else if (k === 'pt-strokew') p.strokeWidth = n;
+        else if (k === 'pt-rot') p.rotation = n;
+        else if (k === 'pt-minsize' && p.sizeBy) p.sizeBy.minSize = Math.min(n, p.sizeBy.maxSize);
+        else if (k === 'pt-maxsize' && p.sizeBy) p.sizeBy.maxSize = Math.max(n, p.sizeBy.minSize);
+      } else if (k.startsWith('ln-')) {
+        const ln = (st.line ??= defaultLine());
+        if (k === 'ln-width') ln.width = n;
+        else if (k === 'ln-dash') ln.dash = v as typeof ln.dash;
+        else if (k === 'ln-cap') ln.cap = v as typeof ln.cap;
+        else if (k === 'ln-join') ln.join = v as typeof ln.join;
+        else if (k === 'ln-casing') ln.casingWidth = n;
+        else if (k === 'ln-casingcolor') ln.casingColor = v;
+      } else if (k.startsWith('pg-')) {
+        const f = (st.fill ??= { ...defaultFill(), strokeWidth: st.outline ? 0.7 : 0 });
+        if (k === 'pg-fill') f.fill = v === 'true';
+        else if (k === 'pg-stroke') f.strokeColor = v;
+        else if (k === 'pg-strokew') f.strokeWidth = n;
+        else if (k === 'pg-dash') f.strokeDash = v as typeof f.strokeDash;
+        st.outline = f.strokeWidth > 0;
+      } else if (k.startsWith('lb-')) {
+        const lb = (st.labels ??= defaultLabels(this.labelGuess(l)));
+        if (k === 'lb-on') {
+          lb.on = v === 'true';
+          // a line is labelled along itself, a point beside it, a polygon at its centre
+          if (lb.on && !st.labels?.field) lb.field = this.labelGuess(l);
+          if (lb.on && l.geometry === 'polygon' && lb.anchor === 'top') lb.anchor = 'center';
+          if (lb.on && l.geometry === 'line' && lb.placement === 'point' && lb.anchor === 'top') lb.placement = 'line';
+        } else if (k === 'lb-field') lb.field = v;
+        else if (k === 'lb-font') lb.font = v as typeof lb.font;
+        else if (k === 'lb-case') lb.transform = v as typeof lb.transform;
+        else if (k === 'lb-size') lb.size = n;
+        else if (k === 'lb-color') lb.color = v;
+        else if (k === 'lb-halo') lb.haloColor = v;
+        else if (k === 'lb-halow') lb.haloWidth = n;
+        else if (k === 'lb-anchor') lb.anchor = v as typeof lb.anchor;
+        else if (k === 'lb-dx') lb.offset = [n, lb.offset[1]];
+        else if (k === 'lb-dy') lb.offset = [lb.offset[0], n];
+        else if (k === 'lb-placement') lb.placement = v as typeof lb.placement;
+        else if (k === 'lb-wrap') lb.wrap = n;
+        else if (k === 'lb-spacing') lb.letterSpacing = n;
+        else if (k === 'lb-overlap') lb.overlap = v === 'true';
+        else if (k === 'lb-minz') lb.minzoom = Math.max(0, Math.min(24, n || 0));
+        else if (k === 'lb-maxz') lb.maxzoom = Math.max(0, Math.min(24, n || 0));
+        if (lb.minzoom > lb.maxzoom) [lb.minzoom, lb.maxzoom] = [lb.maxzoom, lb.minzoom];
+      }
+    }, rerender);
+    if (!rerender) {
+      // keep the preview in step while a slider moves
+      const pv = this.root.querySelector('.sym-preview');
+      if (pv) pv.innerHTML = swatchSvg(l.geometry, this.host.style(l.id), primaryColor(this.host.style(l.id).symbology), 44);
+    }
+  }
+
+  /** Proportional symbols: the field's range from the engine, sizes 4–28 px to start with. */
+  private async sizeBy(field: string) {
+    const l = this.layer!;
+    if (!field) return this.update((st) => {
+      if (st.point) delete st.point.sizeBy;
+    });
+    try {
+      const r = await this.host.backend.json<ClassifyResponse>(`api/layers/${l.id}/classify?field=${encodeURIComponent(field)}&method=equal&classes=2`);
+      this.update((st) => {
+        const p = (st.point ??= defaultPoint());
+        p.sizeBy = { field, min: r.min >= 0 ? 0 : r.min, max: r.max, minSize: 4, maxSize: 28 };
+      });
+    } catch (e) {
+      this.error = String((e as Error).message ?? e);
+      this.render();
     }
   }
 
   private onInput(e: Event) {
     const t = e.target as HTMLInputElement;
+    if (t.type === 'range' && /^(pt|ln|pg|lb)-/.test(t.dataset.k ?? '')) {
+      const out = t.closest('label')?.querySelector('output');
+      if (out) out.textContent = out.textContent!.replace(/^-?[\d.]+/, t.value);
+      return this.setSym(t.dataset.k!, t.value, false);
+    }
     if (t.dataset.k === 'opacity') {
       const v = Number(t.value) / 100;
       const out = t.closest('label')?.querySelector('output');
@@ -294,6 +472,12 @@ export class SymbologyPanel {
     const l = this.layer!;
     const st = this.host.style(id);
     const s = st.symbology;
+    if (/^(pt|ln|pg|lb)-/.test(k)) {
+      if (t.type === 'range') return; // applied while dragging
+      if (k === 'pt-sizeby') return this.sizeBy(t.value);
+      const v = t instanceof HTMLInputElement && t.type === 'checkbox' ? String(t.checked) : t.value;
+      return this.setSym(k, v, true);
+    }
     switch (k) {
       case 'kind': {
         const v = t.value as Symbology['kind'];

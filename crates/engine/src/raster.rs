@@ -551,6 +551,18 @@ pub fn ramp_css(id: &str) -> Vec<String> {
     ramp_stops(id)
 }
 
+/// The ramps a raster can be drawn with (Rasters › Symbology), with their colours.
+pub const RAMP_IDS: &[(&str, &str)] = &[
+    ("viridis", "Viridis"), ("magma", "Magma"), ("ylorrd", "Yellow-Orange-Red"), ("blues", "Blues"), ("greens", "Greens"),
+    ("rdylbu", "Red-Yellow-Blue"), ("terrain", "Terrain (hypsometric)"), ("ocean", "Ocean depth"), ("ndvi", "Vegetation (NDVI)"),
+    ("ndwi", "Water (NDWI)"), ("slope", "Slope"), ("canopy", "Canopy"), ("loss", "Forest loss"), ("change", "Change (diverging)"),
+    ("uncert", "Uncertainty"), ("rough", "Roughness"), ("gray", "Grey"),
+];
+
+pub fn ramps_json() -> Value {
+    json!({ "ramps": RAMP_IDS.iter().map(|(id, name)| json!({ "id": id, "name": name, "colors": ramp_css(id) })).collect::<Vec<_>>() })
+}
+
 /// AutoMap for rasters: a style and the reason for it, from what the raster is.
 pub fn auto_style(info: &RasterInfo) -> (Value, String) {
     let s = info.stats.first().cloned().unwrap_or_default();
@@ -664,7 +676,11 @@ pub fn legend(info: &RasterInfo, style: &Value) -> Value {
     match style["kind"].as_str().unwrap_or("") {
         "stretch" if style["ramp"] == "gray" => json!({ "type": "none" }),
         "stretch" => {
-            let mut l = json!({ "type": "ramp", "colors": ramp_css(style["ramp"].as_str().unwrap_or("viridis")), "min": style["min"], "max": style["max"], "units": info.units });
+            let mut colors = ramp_css(style["ramp"].as_str().unwrap_or("viridis"));
+            if style["invert"].as_bool().unwrap_or(false) {
+                colors.reverse();
+            }
+            let mut l = json!({ "type": "ramp", "colors": colors, "min": style["min"], "max": style["max"], "units": info.units });
             // years and other labels that number formatting would spoil ("2,001")
             if let Some(lb) = style["labels"].as_array() {
                 l["labels"] = json!(lb);
@@ -716,8 +732,15 @@ pub fn colorize(style: &Value, bands: &[Vec<f32>], alpha: Option<&[f32]>, nodata
     let mut out = vec![0u8; n * 4];
     let kind = style["kind"].as_str().unwrap_or("stretch");
     let f = |k: &str, d: f64| style[k].as_f64().unwrap_or(d);
-    let table = lut(style["ramp"].as_str().unwrap_or("viridis"));
-    let (below, above) = (lut(style["below"].as_str().unwrap_or("ocean")), lut(style["above"].as_str().unwrap_or("terrain")));
+    let invert = style["invert"].as_bool().unwrap_or(false);
+    let rev = |mut t: Vec<[u8; 3]>| {
+        if invert {
+            t.reverse();
+        }
+        t
+    };
+    let table = rev(lut(style["ramp"].as_str().unwrap_or("viridis")));
+    let (below, above) = (rev(lut(style["below"].as_str().unwrap_or("ocean"))), rev(lut(style["above"].as_str().unwrap_or("terrain"))));
     let at = style["at"].as_f64().unwrap_or(0.0);
     let classes: Vec<(f64, [u8; 3])> = style["classes"].as_array().into_iter().flatten().filter_map(|c| Some((c["value"].as_f64()?, hex_rgb(c["color"].as_str().unwrap_or("#888888"))))).collect();
     let (lo, hi) = (f("min", 0.0), f("max", 1.0));
@@ -812,13 +835,21 @@ impl RasterHandle {
         let ds = open(&self.info.path)?;
         let kind = style["kind"].as_str().unwrap_or("stretch");
         let mut args = strings(&["-of", "MEM", "-t_srs", "EPSG:3857", "-ot", "Float32", "-dstalpha", "-r"]);
-        args.push(if kind == "classes" || kind == "aspect" { "near".into() } else { "bilinear".into() });
+        // resampling set by hand wins; classes and aspect never blend neighbouring values
+        args.push(match style["resampling"].as_str() {
+            Some("nearest") => "near".into(),
+            Some("bilinear") if kind != "classes" => "bilinear".into(),
+            _ if kind == "classes" || kind == "aspect" => "near".into(),
+            _ => "bilinear".into(),
+        });
         args.extend(["-te".to_string(), merc_box[0].to_string(), merc_box[1].to_string(), merc_box[2].to_string(), merc_box[3].to_string()]);
         args.extend(["-ts".to_string(), w.to_string(), h.to_string()]);
         let nb = if kind == "rgb" { 3.min(self.info.bands) } else { 1 };
         let pick: Vec<usize> = style["bands"].as_array().map(|a| a.iter().filter_map(|b| b.as_u64().map(|b| b as usize)).filter(|&b| b >= 1 && b <= self.info.bands).collect()).unwrap_or_default();
+        // one-band styles show the band chosen in the editor (default the first)
+        let single = style["band"].as_u64().map(|b| b as usize).filter(|&b| b >= 1 && b <= self.info.bands).unwrap_or(1);
         for b in 1..=nb {
-            let src = if kind == "rgb" && pick.len() == 3 { pick[b - 1] } else { b };
+            let src = if kind == "rgb" && pick.len() == 3 { pick[b - 1] } else if kind == "rgb" { b } else { single };
             args.extend(["-srcband".to_string(), src.to_string()]);
         }
         if self.info.nodata.is_none() && kind != "rgb" {
@@ -942,9 +973,56 @@ impl Engine {
         self.rasters.read().unwrap().iter().find(|r| r.info.id == id).cloned()
     }
 
+    /// Styles set by hand (Rasters › Symbology), kept in the state folder by raster id: the data
+    /// folders are the user's own and are never written to.
+    fn style_file(&self) -> PathBuf {
+        self.state_dir.join("raster-styles.json")
+    }
+
+    pub fn saved_raster_styles(&self) -> serde_json::Map<String, Value> {
+        std::fs::read(self.style_file()).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).and_then(|v| v.as_object().cloned()).unwrap_or_default()
+    }
+
+    /// Set a raster's style and keep it; `None` goes back to the automatic style.
+    pub fn set_raster_style(&self, id: &str, style: Option<Value>) -> Result<Arc<RasterHandle>, String> {
+        let r = self.raster(id).ok_or_else(|| format!("unknown raster '{id}'"))?;
+        let mut all = self.saved_raster_styles();
+        match style {
+            Some(s) => {
+                if !matches!(s["kind"].as_str(), Some("stretch" | "classes" | "rgb" | "split" | "aspect")) {
+                    return Err("style kind must be stretch, classes, rgb, split or aspect".into());
+                }
+                r.set_style(s.clone());
+                all.insert(id.to_string(), s);
+            }
+            None => {
+                let (s, why) = auto_style(&r.info);
+                r.set_style(s);
+                *r.why.write().unwrap() = why;
+                all.remove(id);
+            }
+        }
+        let _ = std::fs::create_dir_all(&self.state_dir);
+        std::fs::write(self.style_file(), serde_json::to_vec_pretty(&Value::Object(all)).unwrap_or_default()).map_err(|e| e.to_string())?;
+        Ok(r)
+    }
+
+    /// Re-apply the kept styles (at start and when a raster is registered again).
+    pub fn apply_saved_raster_styles(&self) {
+        let all = self.saved_raster_styles();
+        for r in self.rasters() {
+            if let Some(s) = all.get(&r.info.id) {
+                r.set_style(s.clone());
+            }
+        }
+    }
+
     /// Open a raster file and add (or replace) it under `id`.
     pub fn register_raster(&self, path: &Path, id: &str) -> Result<Arc<RasterHandle>, String> {
         let h = Arc::new(RasterHandle::new(open_info(path, id)?));
+        if let Some(s) = self.saved_raster_styles().get(id) {
+            h.set_style(s.clone());
+        }
         let mut r = self.rasters.write().unwrap();
         r.retain(|x| x.info.id != id);
         r.push(h.clone());
