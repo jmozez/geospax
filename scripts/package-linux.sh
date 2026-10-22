@@ -41,6 +41,7 @@ strip --strip-unneeded -o "$P/usr/bin/geospax-server" target/release/geospax-ser
 chmod 755 "$P/usr/bin/"*
 cp -r web/dist "$P/usr/share/geospax/web"
 cp -r recipes "$P/usr/share/geospax/recipes"        # examples to copy and edit (the gallery is built in)
+mkdir -p "$P/usr/share/geospax/samples" && cp -r samples/. "$P/usr/share/geospax/samples/"   # sample data (Data › Sample data)
 mkdir -p "$P/usr/share/geospax/plugins" && tar -C plugins --exclude=node_modules --exclude=src --exclude=tests -cf - . | tar -C "$P/usr/share/geospax/plugins" -xf -        # bundled plugins: GeoLibre tools (needs nodejs), examples
 for s in 32x32 64x64 128x128; do
   install -Dm644 "apps/desktop/src-tauri/icons/$s.png" "$P/usr/share/icons/hicolor/$s/apps/geospax.png"

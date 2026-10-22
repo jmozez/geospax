@@ -80,7 +80,7 @@ const PREFERRED_FIELDS: &[&str] = &[
     "name", "type", "kind", "class", "height", "pop_max", "pop_est", "iso_a3", "continent", "scalerank", "featurecla",
 ];
 const MAX_TILE_FIELDS: usize = 6;
-const EXTENSIONS: &[&str] = &["gpkg", "fgb", "shp", "geojson", "json", "gdb", "sqlite", "gml", "kml"];
+const EXTENSIONS: &[&str] = &["gpkg", "fgb", "shp", "geojson", "json", "gdb", "sqlite", "gml", "kml", "gspx"];
 
 impl LayerHandle {
     pub(crate) fn checkout(&self) -> Result<Handle, String> {
@@ -311,6 +311,15 @@ fn auto_minzoom(count: u64, b: [f64; 4]) -> u8 {
 
 /// Read every vector layer of one dataset.
 pub fn load_layers(path: &Path) -> Result<Vec<LayerHandle>, String> {
+    // projects from GeoSpaX 1.4.2 (.gspx) and 2.0 (.geolibre.json): their embedded layers
+    if crate::project_import::is_project(path) {
+        return crate::project_import::load(path);
+    }
+    load_layers_plain(path)
+}
+
+/// Every layer GDAL finds in a file.
+pub(crate) fn load_layers_plain(path: &Path) -> Result<Vec<LayerHandle>, String> {
     let ds = open_vector(path)?;
     let driver = ds.driver().short_name();
     let stem = sanitize(path.file_stem().and_then(|s| s.to_str()).unwrap_or("data"));

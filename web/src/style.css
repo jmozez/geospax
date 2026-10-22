@@ -1070,3 +1070,7 @@ body[data-snapping='on'] [data-cmd='edit.snap'] { background: color-mix(in srgb,
 .measure-box .m-foot { font-size: 11px; margin-top: 4px; }
 body[data-measure='distance'] [data-cmd$='measure.distance'], body[data-measure='area'] [data-cmd$='measure.area'] { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }
 body[data-projection='mercator'] [data-cmd='view.projMercator'], body[data-projection='globe'] [data-cmd='view.projGlobe'] { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }
+.gx-dialog label.sample { display: flex; gap: 10px; align-items: flex-start; color: var(--fg); font-size: 13px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; line-height: 1.45; }
+.gx-dialog label.sample input { width: auto; margin-top: 3px; }
+.gx-dialog .bm-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 10px 0 6px; }
+.gx-dialog .bm-custom { margin-top: 8px; }

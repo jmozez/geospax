@@ -14,6 +14,7 @@ import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
 import { Editor } from './editing';
 import { Measure } from './measure';
+import { BASEMAPS, basemapDef, checkTileUrl, onlineBasemap } from './basemaps';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
@@ -380,16 +381,10 @@ const basemap = (): Basemap => (params.get('basemap') as Basemap | null) ?? proj
 
 function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: maplibregl.LayerSpecification[]) {
   const b = basemap();
-  if (b === 'osm') {
-    sources['basemap:osm'] = {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    };
-    // dimmed so the data, not the basemap, carries the colour
-    out.push({ id: 'basemap:osm', type: 'raster', source: 'basemap:osm', paint: { 'raster-opacity': 0.55, 'raster-saturation': -0.6 } } as maplibregl.LayerSpecification);
+  const online = b !== 'offline' && b !== 'none' ? onlineBasemap(b, project.customBasemap) : null;
+  if (online) {
+    sources['basemap:tiles'] = online.source;
+    out.push(online.layer);
   } else if (b === 'offline') {
     for (const f of ['land', 'lakes', 'boundaries']) sources[`basemap:${f}`] = { type: 'geojson', data: basemapUrl(f), tolerance: 0.6 };
     out.push(
@@ -403,12 +398,48 @@ function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: mapl
   }
 }
 
+/** View › Basemap gallery: every basemap with its terms, and your own XYZ tiles. */
+async function basemapGallery() {
+  const { dialog, say } = await import('./editing');
+  const cur = basemap();
+  const e = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const groups = [...new Set(BASEMAPS.map((d) => d.group))];
+  const c = project.customBasemap;
+  await dialog(
+    'Basemap gallery',
+    groups
+      .map((g) => `<div class="bm-group">${e(g)}</div>` + BASEMAPS.filter((d) => d.group === g)
+        .map((d) => `<label class="sample"><input type="radio" name="bm" value="${d.id}"${d.id === cur ? ' checked' : ''}><span><b>${e(d.title)}</b><br><span class="dim">${e(d.terms)}</span></span></label>`)
+        .join(''))
+      .join('') +
+      `<div class="form-grid bm-custom"><label>XYZ URL (for "Your own tiles")<input name="url" value="${e(c?.url ?? '')}" placeholder="https://example.org/tiles/{z}/{x}/{y}.png"></label>
+       <label>Credit line<input name="attribution" value="${e(c?.attribution ?? '')}" placeholder="© the data provider"></label></div>
+       <div class="dlg-msg" data-msg></div>`,
+    [['ok', 'Use basemap'], ['', 'Cancel']],
+    {
+      wide: true,
+      onButton: (b, v, root) => {
+        if (b !== 'ok') return true;
+        if (v.bm === 'custom') {
+          const bad = checkTileUrl(v.url);
+          if (bad) { say(root, bad, 'err'); return false; }
+          if (!v.attribution.trim()) { say(root, 'Add the credit line the tile provider asks for.', 'err'); return false; }
+          project.customBasemap = { url: v.url.trim(), attribution: v.attribution.trim() };
+        }
+        setBasemap(v.bm);
+        return true;
+      },
+    },
+  );
+}
+
 function setBasemap(b: Basemap) {
   project.basemap = b;
   applyStyle();
   renderContents();
   saveProject();
-  workbench?.setStatus(b === 'offline' ? 'Basemap: Natural Earth (offline)' : b === 'osm' ? 'Basemap: OpenStreetMap (online)' : 'Basemap off');
+  const d = basemapDef(b);
+  workbench?.setStatus(d ? `Basemap: ${d.title}${b === 'offline' || b === 'none' ? '' : ` · ${d.terms}`}` : 'Basemap off', 7000);
 }
 
 function applyStyle() {
@@ -599,9 +630,9 @@ function renderContents() {
     const b = basemap();
     body += `<div class="lc-group"><span>Background</span></div>
       <div class="card basemap" style="--c:#4f7468"><div class="lc-top"><span class="lc-glyph">🌍</span>
-      <span class="lc-title"><b>${b === 'osm' ? 'Streets (OpenStreetMap)' : b === 'none' ? 'No background' : 'World map'}</b>
-      <small>${b === 'osm' ? 'online' : b === 'none' ? 'plain colour' : 'offline · Natural Earth'}</small></span>
-      <button data-basemap="${b === 'offline' ? 'osm' : 'offline'}" class="lc-switch">${b === 'offline' ? 'Streets' : 'World'}</button></div></div>`;
+      <span class="lc-title"><b>${basemapDef(b)?.title ?? 'World map'}</b>
+      <small>${b === 'offline' ? 'offline · Natural Earth' : b === 'none' ? 'plain colour' : 'online'}</small></span>
+      <button data-basemap="gallery" class="lc-switch">Change</button></div></div>`;
   } else {
     // ArcGIS Pro's Contents: Map ▸ group layers ▸ layers ▸ legend classes, then the basemap
     const f = layerFilter.toLowerCase();
@@ -627,8 +658,8 @@ function renderContents() {
     }
     const b = basemap();
     body += `<div class="pr-base" role="treeitem" aria-level="2"><span class="pr-gico">🌍</span><b>Basemap</b>
-      <select data-tree="basemap" aria-label="Basemap"><option value="offline" ${b === 'offline' ? 'selected' : ''}>World (offline)</option>
-      <option value="osm" ${b === 'osm' ? 'selected' : ''}>OpenStreetMap (online)</option><option value="none" ${b === 'none' ? 'selected' : ''}>None</option></select></div></div>`;
+      <select data-tree="basemap" aria-label="Basemap">${BASEMAPS.map((d) => `<option value="${d.id}" ${b === d.id ? 'selected' : ''}>${d.title}</option>`).join('')}</select>
+      <button data-basemap="gallery" title="Basemap gallery">⋯</button></div></div>`;
   }
   // keep the filter box focused while typing
   const focused = document.activeElement?.classList.contains('pr-filter');
@@ -714,7 +745,7 @@ function wireContents() {
     const t = e.target as HTMLInputElement;
     const gid = t.closest<HTMLElement>('.pr-group')?.dataset.group;
     if (gid && t.dataset.gact === 'visible') return groupAction('visible', gid, t);
-    if (t.dataset.tree === 'basemap') return setBasemap(t.value as Basemap);
+    if (t.dataset.tree === 'basemap') return t.value === 'custom' ? void basemapGallery() : setBasemap(t.value as Basemap);
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
     if (!id) return;
     if (t.type === 'checkbox') {
@@ -733,7 +764,7 @@ function wireContents() {
   el.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
     const bm = t.closest<HTMLElement>('[data-basemap]')?.dataset.basemap;
-    if (bm) return setBasemap(bm as Basemap);
+    if (bm) return bm === 'gallery' ? void basemapGallery() : setBasemap(bm as Basemap);
     const tree = t.closest<HTMLElement>('button[data-tree]')?.dataset.tree;
     if (tree === 'group') return newGroup();
     if (tree === 'expand' || tree === 'collapse') {
@@ -868,6 +899,60 @@ function wireContents() {
     saveProject();
   });
 }
+
+/** Data › Sample data: pick a set; it is copied into the data folder and mapped. */
+async function openSamples() {
+  const { dialog, say } = await import('./editing');
+  type Set = { id: string; title: string; description: string; credits: string; files: string[] };
+  let sets: Set[] = [];
+  try {
+    sets = (await backend.json<{ samples: Set[] }>('api/samples')).samples;
+  } catch { /* shown below */ }
+  if (!sets.length) return workbench?.setStatus('This installation has no sample data.', 6000);
+  const e = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  await dialog(
+    'Sample data',
+    sets
+      .map((s, i) => `<label class="sample"><input type="radio" name="set" value="${e(s.id)}"${i ? '' : ' checked'}><span><b>${e(s.title)}</b><br>${e(s.description)}<br><span class="dim">${s.files.filter((f) => !f.endsWith('.md')).length} files · ${e(s.credits)}</span></span></label>`)
+      .join('') + '<div class="dlg-msg" data-msg></div>',
+    [['ok', 'Open'], ['', 'Cancel']],
+    {
+      wide: true,
+      onButton: async (b, v, root) => {
+        if (b !== 'ok') return true;
+        say(root, 'Copying into your data folder…');
+        const r = await backend.json<{ layers: string[]; rasters: string[]; folder: string }>(`api/samples/${encodeURIComponent(v.set)}`, { method: 'POST' });
+        await addedToMap(r.layers, r.rasters);
+        workbench?.setStatus(`Sample data: ${r.layers.length} layers and ${r.rasters.length} rasters, saved in ${r.folder}`, 8000);
+        return true;
+      },
+    },
+  );
+}
+
+/** New layers and rasters joined the map (upload, sample data): show them, fit, select the first. */
+async function addedToMap(ids: string[], rasterIds: string[]) {
+    await reloadLayers();
+    let rb: [number, number, number, number][] = [];
+    if (rasterIds.length && rasterPane) {
+      await rasterPane.reload();
+      try {
+        const r = await backend.json<{ rasters: { id: string; bounds: [number, number, number, number] }[] }>('api/rasters');
+        rb = r.rasters.filter((x) => rasterIds.includes(x.id)).map((x) => x.bounds);
+      } catch {
+        /* fit to the vector layers only */
+      }
+      applyStyle();
+    }
+    for (const id of ids) if (project.layers[id]) project.layers[id].visible = true;
+    applyStyle();
+    renderContents();
+    fitTo(ids, rb);
+    if (ids[0]) {
+      panel.open(ids[0]);
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: ids[0] }));
+    }
+  }
 
 // ---------------------------------------------------------------- overview jobs
 async function reloadLayers() {
@@ -1477,6 +1562,8 @@ async function main() {
     workbench?.setStatus(mapProjection === 'globe' ? 'Globe: zoom out to see the whole Earth' : 'Web Mercator');
   });
   document.body.dataset.projection = mapProjection;
+  // Data › Sample data: the sets that ship with GeoSpaX (crates/engine/src/samples.rs)
+  document.addEventListener('geospax:samples', () => void openSamples());
   // Map › Measure: distance and area (web/src/measure.ts)
   const measure = new Measure(map);
   document.addEventListener('geospax:measure', (e) => {
@@ -1497,28 +1584,7 @@ async function main() {
   // "Finish my map" (web/src/start.ts, web/src/finish.ts)
   const start = new StartScreen({
     backend,
-    added: async (ids, rasterIds) => {
-      await reloadLayers();
-      let rb: [number, number, number, number][] = [];
-      if (rasterIds.length && rasterPane) {
-        await rasterPane.reload();
-        try {
-          const r = await backend.json<{ rasters: { id: string; bounds: [number, number, number, number] }[] }>('api/rasters');
-          rb = r.rasters.filter((x) => rasterIds.includes(x.id)).map((x) => x.bounds);
-        } catch {
-          /* fit to the vector layers only */
-        }
-        applyStyle();
-      }
-      for (const id of ids) if (project.layers[id]) project.layers[id].visible = true;
-      applyStyle();
-      renderContents();
-      fitTo(ids, rb);
-      if (ids[0]) {
-        panel.open(ids[0]);
-        document.dispatchEvent(new CustomEvent('geospax:active', { detail: ids[0] }));
-      }
-    },
+    added: addedToMap,
     devices: () => workbench?.showTab('right', 'devices'),
     toolbox: () => workbench?.showTab('right', 'toolbox'),
     openRun: openRunReport,
@@ -1578,7 +1644,11 @@ async function main() {
   (window as unknown as { geospax: object }).geospax = { start, finish };
   // the lazy path: new layers styled by AutoMap, dense ones get overviews, without a click
   void autostyleNew(firstSeen).then(() => queueAutoOverviews());
-  document.addEventListener('geospax:basemap', (e) => setBasemap((e as CustomEvent<Basemap>).detail));
+  document.addEventListener('geospax:basemap', (e) => {
+    const b = (e as CustomEvent<Basemap>).detail;
+    if (b === 'gallery' || b === 'custom') void basemapGallery();
+    else setBasemap(b);
+  });
 
   if (params.has('bench')) map.once('idle', () => void runBench());
 }
