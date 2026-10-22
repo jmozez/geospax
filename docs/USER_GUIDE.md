@@ -402,6 +402,11 @@ The **Edit** tab works like ArcGIS Pro's (and QGIS's digitising and attribute to
 | **Fields** | **Calculate field**: an SQL expression (`"a" * 2`, `round("x", 2)`, `"a" \|\| ' ' \|\| "b"`, `CASE WHEN "x" > 10 THEN 'high' ELSE 'low' END`, `upper()`, `substr()`, `coalesce()` …) or a **geometry** measure (geodesic area in m², ha or km², length, perimeter, x, y), for all features or the selected ones; a new field is created with the type you choose. **Add field**, **Attribute table**, **Definition query** (only matching features are drawn, listed and analysed until you clear it; the data is not changed). |
 | **Manage edits** | **Undo**/**Redo** (Ctrl+Z, Ctrl+Y) step through whole edits, including deletions; **New layer** (empty points, lines or polygons with the fields you list); **Export features** (the selection or the layer as a new layer); **Discard edits**. |
 
+**Measure** (Map tab and Edit tab): **Distance** sums the segments you click; **Area** gives the area and
+perimeter of the shape you click. Both are geodesic (measured on the globe, not on the flat map), in metric
+or imperial units (click the unit button); double-click or Enter finishes, Backspace removes the last
+point, Esc closes. **View › Projection** switches the map between Web Mercator and a **Globe**.
+
 **Your files are safe.** The first edit to a layer copies it, with its coordinate system, fields and
 feature ids, into a GeoPackage that GeoSpaX keeps in its state folder (`<state>/edits/`); from then on the
 layer (same name, same style) reads the copy, and it comes back the next time you start. The original

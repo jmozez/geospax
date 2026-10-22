@@ -933,7 +933,7 @@ export class Workbench {
     this.host.map.on('click', (e) => {
       // an edit tool owns the click (web/src/editing.ts); drawing handles (td-*) are not data
       const tool = document.body.dataset.editTool;
-      if (tool && tool !== 'idle') return;
+      if ((tool && tool !== 'idle') || document.body.dataset.measure) return;
       const feats = this.host.map.queryRenderedFeatures(e.point);
       const f = feats.find((x) => !x.layer.id.startsWith('td-') && !x.layer.id.endsWith('#sel') && x.properties && Object.keys(x.properties).length);
       if (!f) return;

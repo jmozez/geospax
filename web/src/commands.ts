@@ -104,6 +104,8 @@ export const ICONS: Record<string, string> = {
   clear: 'M6 5l6 6 6-6 1.4 1.4-6 6 6 6L18 19.8l-6-6-6 6L4.6 18.4l6-6-6-6z',
   export: 'M12 3l5 5h-3.5v7h-3V8H7zM4 17h16v4H4z',
   form: 'M4 3h16v18H4zm3 4v2h10V7zm0 4v2h10v-2zm0 4v2h6v-2z',
+  ruler: 'M2 15.5L15.5 2 22 8.5 8.5 22zm3 0l3.5 3.5 1-1-1.5-1.5 1-1 1.5 1.5 1-1-1.5-1.5 1-1L12 15l1-1-1.5-1.5 1-1L14 13l1-1-1.5-1.5 1-1L16 11l1-1-3.5-3.5z',
+  area: 'M3 5l7-2 11 4-2 12-9 2-7-6zm2 1.6l1.8 7 5.3 4.6 5.5-1.2 1.4-8.6-8.1-3z',
 };
 
 export function icon(name: string, size = 20): string {
@@ -176,6 +178,13 @@ export interface LayerStyleLite { symbology?: { kind?: string } }
 /** Editing and selection commands are handled by web/src/editing.ts via this event. */
 const editCmd = (action: string) => () => { document.dispatchEvent(new CustomEvent('geospax:edit', { detail: action })); };
 
+const measureCmd = (mode: string) => () => { document.dispatchEvent(new CustomEvent('geospax:measure', { detail: mode })); };
+const MEASURE: Command[] = [
+  { id: 'measure.distance', tab: 'style', group: 'Measure', title: 'Distance', icon: 'ruler', big: true, hint: 'Click points on the map: total and segment lengths (geodesic)', run: measureCmd('distance') },
+  { id: 'measure.area', tab: 'style', group: 'Measure', title: 'Area', icon: 'area', big: true, hint: 'Click points on the map: area and perimeter (geodesic)', run: measureCmd('area') },
+  { id: 'measure.clear', tab: 'style', group: 'Measure', title: 'Clear', icon: 'clear', run: measureCmd('clear') },
+];
+
 const SELECTION: Command[] = [
   { id: 'sel.attributes', tab: 'edit', group: 'Selection', title: 'By attributes', icon: 'filter', big: true, hint: 'Select features with an SQL query (field, operator, value)', run: editCmd('select-attributes') },
   { id: 'sel.location', tab: 'edit', group: 'Selection', title: 'By location', icon: 'hotspot', big: true, hint: 'Select features that intersect, lie within, contain or are near another layer', run: editCmd('select-location') },
@@ -206,6 +215,8 @@ export const COMMANDS: Command[] = [
   { id: 'edit.discard', tab: 'edit', group: 'Manage edits', title: 'Discard edits', icon: 'refresh', hint: 'Go back to the layer\'s original file', run: editCmd('discard') },
   // the same selection tools on the Map tab, where ArcGIS Pro also has them
   ...SELECTION.map((c) => ({ ...c, id: c.id.replace('sel.', 'map.sel.'), tab: 'style' as TabId })),
+  ...MEASURE,
+  ...MEASURE.map((c) => ({ ...c, id: c.id.replace('measure.', 'edit.measure.'), tab: 'edit' as TabId })),
   // ---- Layer (contextual tab: acts on the selected layer)
   {
     id: 'layer.zoom', tab: 'layer', group: 'Layer', title: 'Zoom to', icon: 'zoomTo', big: true,
@@ -422,6 +433,16 @@ export const COMMANDS: Command[] = [
   {
     id: 'view.themeSystem', tab: 'view', group: 'Theme', title: 'Follow the system', icon: 'globe',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:theme', { detail: 'system' })); },
+  },
+  {
+    id: 'view.projMercator', tab: 'view', group: 'Projection', title: 'Mercator', icon: 'grid',
+    hint: 'Web Mercator: the flat web map (shapes kept, areas grow towards the poles)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:projection', { detail: 'mercator' })); },
+  },
+  {
+    id: 'view.projGlobe', tab: 'view', group: 'Projection', title: 'Globe', icon: 'globe',
+    hint: '3D globe when zoomed out (true areas and directions at world scale), flat when zoomed in',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:projection', { detail: 'globe' })); },
   },
   {
     id: 'view.basemapOffline', tab: 'view', group: 'Basemap', title: 'World (offline)', icon: 'globe',

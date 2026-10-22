@@ -23,6 +23,9 @@ design.
   whole layer, show selected, switch selection, edit cells in place, a column menu (sort, calculate,
   statistics, delete field), field statistics; **field calculator** (SQL expressions) and **calculate
   geometry** (geodesic area, length, perimeter, x, y).
+- **Measure** (Map and Edit tabs): distance (total and per segment) and area (with perimeter), geodesic,
+  metric or imperial, as ArcGIS Pro's Measure tool.
+- **View › Projection: Globe** (MapLibre's globe at small scales) besides Web Mercator.
 - Engine API for all of it (`crates/engine/src/edit.rs`); `scripts/test-edit.py` (44 checks on
   GeoJSON, Shapefile and a projected GeoPackage) runs in CI.
 
