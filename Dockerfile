@@ -33,6 +33,9 @@ COPY apps/desktop/src-tauri apps/desktop/src-tauri
 # compiled in (include_str!/include_bytes!): the recipe gallery, the phone page, the offline basemap
 COPY recipes recipes
 COPY web/public web/public
+# the in-app help (Help › User guide, Automation, Credits …) is compiled in as well
+COPY README.md CHANGELOG.md SECURITY.md THIRD_PARTY_NOTICES.md ./
+COPY docs docs
 RUN --mount=type=cache,target=/root/.cargo/registry --mount=type=cache,target=/src/target \
     cargo build --release -p geospax-server \
     && strip --strip-unneeded -o /geospax-server target/release/geospax-server
