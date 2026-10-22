@@ -12,6 +12,7 @@ import { createBackend, clientTileTimings, type EngineStats, type Job, type Laye
 import { runBenchmark, type BenchReport } from './bench';
 import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
+import { Editor } from './editing';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
@@ -97,6 +98,12 @@ let rasterPane: RasterPane | null = null;
 let panel: SymbologyPanel;
 let automatePane: AutomatePane | null = null;
 let attributesPane: AttributesPane | null = null;
+/** Editing and selection (web/src/editing.ts) */
+let editor: Editor | null = null;
+/** Bumped after each edit to a layer, so the map fetches its tiles again */
+const tileRev: Record<string, number> = {};
+/** Most selected features drawn highlighted per layer (a style filter lists their ids). */
+const MAX_HIGHLIGHT = 20000;
 let workbench: Workbench | null = null;
 let pluginsPane: PluginsPane | null = null;
 
@@ -268,6 +275,7 @@ function buildStyle(): maplibregl.StyleSpecification {
     let url = backend.tileUrl(id, fields);
     // cache-bust the client tile cache when a pyramid is (re)built
     if (l.overview) url += `${url.includes('?') ? '&' : '?'}ov=${l.overview.built_at}`;
+    if (tileRev[id]) url += `${url.includes('?') ? '&' : '?'}rev=${tileRev[id]}`;
     sources[id] = {
       type: 'vector',
       tiles: [url],
@@ -319,6 +327,18 @@ function buildStyle(): maplibregl.StyleSpecification {
         },
       } as maplibregl.LayerSpecification);
     }
+    // the selection, drawn over the layer (ids are feature ids in the tiles)
+    const sel = editor?.selected(id) ?? [];
+    if (sel.length && st.visible) {
+      const filter = ['in', ['id'], ['literal', sel.slice(0, MAX_HIGHLIGHT)]];
+      const hi = '#00e5ff';
+      if (l.geometry === 'polygon')
+        out.push({ ...base, id: `${id}#sel`, type: 'line', filter, minzoom: 0, paint: { 'line-color': hi, 'line-width': 2.5 } } as maplibregl.LayerSpecification);
+      else if (l.geometry === 'line')
+        out.push({ ...base, id: `${id}#sel`, type: 'line', filter, minzoom: 0, paint: { 'line-color': hi, 'line-width': 4, 'line-opacity': 0.9 } } as maplibregl.LayerSpecification);
+      else
+        out.push({ ...base, id: `${id}#sel`, type: 'circle', filter, minzoom: 0, paint: { 'circle-color': 'rgba(0,0,0,0)', 'circle-radius': 7, 'circle-stroke-color': hi, 'circle-stroke-width': 2.5 } } as maplibregl.LayerSpecification);
+    }
   }
   // Live GNSS devices (phone page, NMEA, gpsd): recent track + current position, always on top.
   sources.live = { type: 'geojson', data: liveData as unknown as GeoJSON.FeatureCollection };
@@ -337,6 +357,12 @@ function buildStyle(): maplibregl.StyleSpecification {
     while (at < out.length && 'source' in out[at] && under((out[at] as { source: string }).source)) at++;
     out.splice(at, 0, ...r.layers);
   }
+  // keep terra-draw's drawing layers (td-*) across restyles, on top (web/src/editing.ts)
+  try {
+    const cur = map?.getStyle?.();
+    for (const [k, v] of Object.entries(cur?.sources ?? {})) if (k.startsWith('td-')) sources[k] = v;
+    for (const l of cur?.layers ?? []) if (l.id.startsWith('td-')) out.push(l);
+  } catch { /* first style: the map is not ready yet */ }
   return { version: 8, sources, layers: out };
 }
 
@@ -1381,6 +1407,62 @@ async function main() {
     },
   });
   workbench.mount();
+  editor = new Editor({
+    map,
+    backend,
+    layers: () => layers,
+    activeId: () => panel.current,
+    setActive: (id) => {
+      panel.open(id);
+      renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
+    },
+    changed: async (id) => {
+      tileRev[id] = (tileRev[id] ?? 0) + 1;
+      await reloadLayers();
+    },
+    selectionChanged: () => applyStyle(),
+    openTable: (id) => {
+      void attributesPane?.open(id);
+      workbench?.showTab('right', 'attributes');
+    },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+    log: (line, level) => workbench?.log(line, level),
+  });
+  attributesPane?.attachEditor(editor);
+  (window as unknown as { editor: Editor }).editor = editor;
+  document.addEventListener('geospax:edit', (e) => {
+    const ed = editor!;
+    const a = (e as CustomEvent<string>).detail;
+    const id = panel.current;
+    switch (a) {
+      case 'point': case 'line': case 'polygon': case 'select': case 'box': case 'vertices':
+        return void ed.setTool(ed.tool === a ? 'idle' : a);
+      case 'attributes': return void ed.editAttributes();
+      case 'delete': return void ed.deleteSelected();
+      case 'select-attributes': return void ed.selectByAttributes();
+      case 'select-location': return void ed.selectByLocation();
+      case 'zoom-selection': return void ed.zoomToSelection();
+      case 'clear-selection': return ed.clearSelection(id ?? undefined);
+      case 'calculate': return void ed.calculateField();
+      case 'add-field': return void ed.addField();
+      case 'definition-query': return void ed.definitionQuery();
+      case 'table':
+        if (!id) return workbench?.setStatus('Pick a layer first.');
+        void attributesPane?.open(id);
+        return workbench?.showTab('right', 'attributes');
+      case 'undo': return void ed.undo();
+      case 'redo': return void ed.redo();
+      case 'snapping':
+        ed.snapping = !ed.snapping;
+        document.body.dataset.snapping = ed.snapping ? 'on' : 'off';
+        return workbench?.setStatus(`Snapping ${ed.snapping ? 'on' : 'off'}`);
+      case 'new-layer': return void ed.newLayer();
+      case 'export': return void ed.exportSelection();
+      case 'discard': return void ed.discardEdits();
+    }
+  });
+  document.body.dataset.snapping = 'on';
   // open on something useful: the top layer's symbology, ready to edit
   if (project.order.length) {
     panel.open(project.order[project.order.length - 1]);

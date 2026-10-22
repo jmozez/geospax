@@ -53,6 +53,11 @@ export interface LayerInfo {
   overview: OverviewMeta | null;
   overview_suggested: number | null;
   overview_job: Job | null;
+  /** reads an edit copy (or was made in GeoSpaX): see crates/engine/src/edit.rs */
+  edited?: boolean;
+  /** definition query (SQL WHERE), if any */
+  filter?: string | null;
+  filtered_count?: number;
 }
 
 export type Transport = 'http' | 'scheme' | 'invoke';

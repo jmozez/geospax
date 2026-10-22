@@ -15,7 +15,8 @@ acknowledges — including the two the workbench UI was modelled on.
   Notable ones: `axum`, `tokio`, `serde`/`serde_json`, `gdal`, `arrow`, `geo`,
   `rusqlite`, `image`, `dhat`/`mimalloc` (feature-gated), `tauri`.
 * **JavaScript** — [`web/package.json`](web/package.json): MapLibre GL JS
-  (BSD-3-Clause), deck.gl (MIT), Apache Arrow JS (Apache-2.0), Vite (MIT),
+  (BSD-3-Clause), deck.gl (MIT), Apache Arrow JS (Apache-2.0), terra-draw and its MapLibre adapter
+  (MIT, drawing and vertex editing), Vite (MIT),
   TypeScript (Apache-2.0), Playwright (Apache-2.0, dev only).
 * **GeoLibre tools plugin** (`plugins/geolibre-tools/`) — downloads, on first use, the `geolibre-wasm`
   1.7.1 tool runner (MIT; opengeos/geolibre-rust, built on whitebox_next_gen by John Lindsay, MIT) from
