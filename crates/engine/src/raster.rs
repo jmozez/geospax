@@ -517,6 +517,11 @@ fn ramp_stops(id: &str) -> Vec<String> {
         "rough" => &["#ffffe5", "#fee391", "#fe9929", "#cc4c02", "#662506"],
         "uncert" => &["#fbf7fb", "#e7d4e8", "#c9a5cf", "#a66fb0", "#7b3f8c", "#4d1a5c"],
         "change" => &["#b2182b", "#ef8a62", "#fddbc7", "#f7f7f7", "#d1e5f0", "#67a9cf", "#2166ac"],
+        // forest loss by year: early (pink) to recent (dark purple), as Global Forest Watch draws loss,
+        // so it stands out from the greens of tree cover and the pale non-forest
+        "loss" => &["#fbb4c4", "#f768a1", "#dd3497", "#ae017e", "#7a0177", "#49006a"],
+        // deep (dark navy) to shallow (pale blue): the sea side of the bathymetry style
+        "ocean" => &["#08306b", "#08519c", "#2171b5", "#4292c6", "#6baed6", "#9ecae1", "#c6dbef", "#deebf7"],
         "canopy" => &["#f7fcb9", "#d9f0a3", "#addd8e", "#78c679", "#41ab5d", "#238443", "#006837", "#004529"],
         other => return crate::automation::automap::ramp_colors(other, 5),
     };
@@ -551,6 +556,23 @@ pub fn auto_style(info: &RasterInfo) -> (Value, String) {
     let s = info.stats.first().cloned().unwrap_or_default();
     let (lo, hi) = (s.p2, if s.p98 > s.p2 { s.p98 } else { s.max.max(s.p2 + 1e-6) });
     match info.kind.as_str() {
+        // GEBCO and other grids with sea and land: depths on the ocean ramp, heights on the terrain
+        // ramp, split at sea level so 0 m is the coastline whatever the area's range
+        "bathymetry" => {
+            let (deep, high) = (s.p2.min(-1.0), s.p98.max(1.0));
+            (
+                json!({ "kind": "split", "below": "ocean", "above": "terrain", "at": 0.0, "min": deep, "max": high, "opacity": 1.0 }),
+                format!("depths from dark navy ({:.0} m) to pale blue at the coast, heights on the hypsometric tint up to {:.0} m; the colours change at sea level (0 m) whatever the area's range", deep, high),
+            )
+        }
+        "treecover" => (
+            json!({ "kind": "stretch", "ramp": "canopy", "min": 0.0, "max": 100.0, "opacity": 1.0 }),
+            "tree canopy cover from pale yellow-green (open) to dark green (closed canopy), on a fixed 0–100 % scale".into(),
+        ),
+        "lossyear" => (
+            json!({ "kind": "stretch", "ramp": "loss", "min": 2001.0, "max": 2025.0, "opacity": 1.0, "labels": ["2001", "2025"] }),
+            "forest loss by year from pink (2001) to dark purple (2025), as Global Forest Watch draws it; cells with no loss are left clear".into(),
+        ),
         "dem" => (
             json!({ "kind": "stretch", "ramp": "terrain", "min": lo, "max": hi, "opacity": 1.0 }),
             format!("elevation → hypsometric tint (green lowlands, brown slopes, white peaks) stretched over {:.0}–{:.0} m (2–98 %)", lo, hi),
@@ -641,7 +663,23 @@ pub fn auto_style(info: &RasterInfo) -> (Value, String) {
 pub fn legend(info: &RasterInfo, style: &Value) -> Value {
     match style["kind"].as_str().unwrap_or("") {
         "stretch" if style["ramp"] == "gray" => json!({ "type": "none" }),
-        "stretch" => json!({ "type": "ramp", "colors": ramp_css(style["ramp"].as_str().unwrap_or("viridis")), "min": style["min"], "max": style["max"], "units": info.units }),
+        "stretch" => {
+            let mut l = json!({ "type": "ramp", "colors": ramp_css(style["ramp"].as_str().unwrap_or("viridis")), "min": style["min"], "max": style["max"], "units": info.units });
+            // years and other labels that number formatting would spoil ("2,001")
+            if let Some(lb) = style["labels"].as_array() {
+                l["labels"] = json!(lb);
+            }
+            l
+        }
+        // two ramps meeting at `at` (sea level): the legend gives each its own part of the bar
+        "split" => {
+            let (lo, hi, at) = (style["min"].as_f64().unwrap_or(-1.0), style["max"].as_f64().unwrap_or(1.0), style["at"].as_f64().unwrap_or(0.0));
+            let (b, a) = (ramp_css(style["below"].as_str().unwrap_or("ocean")), ramp_css(style["above"].as_str().unwrap_or("terrain")));
+            // each ramp gets its own half of the bar, so the mark sits exactly at the middle
+            let offsets: Vec<f64> = (0..b.len()).map(|k| k as f64 / (b.len() - 1).max(1) as f64 * 0.5).chain((0..a.len()).map(|k| 0.5 + k as f64 / (a.len() - 1).max(1) as f64 * 0.5)).collect();
+            let colors: Vec<String> = b.into_iter().chain(a).collect();
+            json!({ "type": "ramp", "colors": colors, "offsets": offsets, "min": lo, "max": hi, "mid": { "value": at, "label": if at == 0.0 { "0 (sea level)".to_string() } else { format!("{at}") } }, "units": info.units })
+        }
         "aspect" => {
             let items: Vec<Value> = [("#d7191c", "N"), ("#fdae61", "E"), ("#2c7bb6", "S"), ("#1a9641", "W"), ("#bdbdbd", "flat")].iter().map(|(c, l)| json!({ "color": c, "label": l })).collect();
             json!({ "type": "classes", "items": items })
@@ -679,6 +717,8 @@ pub fn colorize(style: &Value, bands: &[Vec<f32>], alpha: Option<&[f32]>, nodata
     let kind = style["kind"].as_str().unwrap_or("stretch");
     let f = |k: &str, d: f64| style[k].as_f64().unwrap_or(d);
     let table = lut(style["ramp"].as_str().unwrap_or("viridis"));
+    let (below, above) = (lut(style["below"].as_str().unwrap_or("ocean")), lut(style["above"].as_str().unwrap_or("terrain")));
+    let at = style["at"].as_f64().unwrap_or(0.0);
     let classes: Vec<(f64, [u8; 3])> = style["classes"].as_array().into_iter().flatten().filter_map(|c| Some((c["value"].as_f64()?, hex_rgb(c["color"].as_str().unwrap_or("#888888"))))).collect();
     let (lo, hi) = (f("min", 0.0), f("max", 1.0));
     let span = if hi > lo { hi - lo } else { 1.0 };
@@ -720,6 +760,14 @@ pub fn colorize(style: &Value, bands: &[Vec<f32>], alpha: Option<&[f32]>, nodata
                 Some((_, c)) => *c,
                 None => continue,
             },
+            "split" => {
+                let v = v as f64;
+                if v < at {
+                    below[(((v - lo) / (at - lo).max(1e-9)).clamp(0.0, 1.0) * 255.0).round() as usize]
+                } else {
+                    above[(((v - at) / (hi - at).max(1e-9)).clamp(0.0, 1.0) * 255.0).round() as usize]
+                }
+            }
             _ => {
                 if clear_below.is_some_and(|c| (v as f64) < c) {
                     continue;

@@ -61,6 +61,8 @@ export const ICONS: Record<string, string> = {
   zoomTo: 'M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5',
   zoomIn: 'M10 4a6 6 0 1 0 3.9 10.6L20 21l1-1-5.4-5.4A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm-1 3h2v2h2v2h-2v2H9v-2H7v-2h2z',
   zoomOut: 'M10 4a6 6 0 1 0 3.9 10.6L20 21l1-1-5.4-5.4A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM7 9h6v2H7z',
+  leaf: 'M4 21c0-1 .2-2 .5-3C3.6 11 9.5 4 20 3c-.5 10.5-7.4 16.5-14.6 15.6-.3 1-.4 1.6-.4 2.4zm3-5c2.5-3 5.5-6 9-8.5C12.5 9 9.5 12 7 16z',
+  wave: 'M2 8c2 0 3-2 5-2s3 2 5 2 3-2 5-2 3 2 5 2v2c-2 0-3-2-5-2s-3 2-5 2-3-2-5-2-3 2-5 2zm0 6c2 0 3-2 5-2s3 2 5 2 3-2 5-2 3 2 5 2v2c-2 0-3-2-5-2s-3 2-5 2-3-2-5-2-3 2-5 2z',
   globe: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c1.5 2 2.4 4.4 2.4 8S13.5 20 12 22c-1.5-2-2.4-4.4-2.4-8S10.5 4 12 4zM2.6 11h18.8M2.6 14h18.8',
   table: 'M3 4h18v16H3zM3 9h18M3 14h18M9 9v11M15 9v11',
   palette: 'M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2s-.7-1.8-.7-2.6c0-.9.7-1.4 1.7-1.4H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8zM7.5 10.5a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4zm3 4a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4zm5-1a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4z',
@@ -595,13 +597,21 @@ export const COMMANDS: Command[] = [
     run: (h) => { h.deck(); },
   },
   // ------------------------------------------------ Data › Online data (no API keys; cut to the map view)
-  onlineCmd('data.online', 'All sources', 'globe', 'choose', 'Every online source: climate, future climate, soil, species, boundaries, elevation'),
+  onlineCmd('data.online', 'All sources', 'globe', 'choose', 'Every online source: climate, future climate, soil, species, boundaries, elevation, ocean depth, forest change, ecoregions'),
   onlineCmd('data.climate', 'Climate', 'globe', 'worldclim', 'WorldClim 2.1 or CHELSA 2.1 bioclim and monthly climate for the map view', true),
   onlineCmd('data.future', 'Future climate', 'clock', 'worldclim-future', 'WorldClim CMIP6 projections: climate model, SSP and period'),
   onlineCmd('data.soil', 'Soil', 'layers', 'soilgrids', 'SoilGrids 2.0: pH, organic carbon, texture … by depth'),
   onlineCmd('data.species', 'Species', 'pin', 'gbif', 'Occurrences from GBIF, OBIS or iNaturalist, with the citation', true),
   onlineCmd('data.boundaries', 'Boundaries', 'grid', 'gadm', 'GADM 4.1 administrative areas of a country'),
   onlineCmd('data.elevation', 'Elevation', 'image', 'dem', 'Copernicus GLO-30 / GLO-90 DEM for the map view'),
+  {
+    id: 'data.worms', tab: 'data', group: 'Online data', title: 'Check species names', icon: 'check',
+    hint: 'Match a layer\'s scientific names against WoRMS: accepted names for synonyms, spelling checks, classification',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:worms')); },
+  },
+  onlineCmd('data.forest', 'Forest change', 'leaf', 'hansen', 'Hansen Global Forest Change: tree cover 2000 and year of loss 2001–2025 at 30 m'),
+  onlineCmd('data.ecoregions', 'Ecoregions', 'layers', 'ecoregions', 'RESOLVE / WWF terrestrial ecoregions (2017) for the map view'),
+  onlineCmd('data.ocean', 'Ocean depth', 'wave', 'gebco', 'GEBCO 2026 bathymetry and land height (~450 m), with how each depth was measured'),
   // ------------------------------------------------ Imagery
   {
     id: 'imagery.detect', tab: 'imagery', group: 'AI models', title: 'Detect objects', icon: 'search', big: true,

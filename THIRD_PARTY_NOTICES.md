@@ -24,6 +24,11 @@ acknowledges — including the two the workbench UI was modelled on.
   the npm registry and verifies its SHA-512. It is not redistributed in this repository or the installers.
 * **Data at runtime** — Natural Earth (public domain) for the sample layers and the bundled offline basemap
   (`web/public/basemap/`: 1:50m land, lakes and admin-0 boundary lines, coordinates rounded to 0.001°).
+* **Online data fetched on request** (nothing is redistributed; each result carries its citation) —
+  GEBCO 2026 Grid (public domain, not for navigation), Hansen Global Forest Change v1.13 (CC-BY 4.0,
+  Hansen/UMD/Google/USGS/NASA), RESOLVE Ecoregions 2017 (CC-BY 4.0, Dinerstein et al. 2017) and the World
+  Register of Marine Species (CC-BY 4.0, WoRMS Editorial Board), alongside the earlier WorldClim, CHELSA,
+  SoilGrids, GBIF, OBIS, iNaturalist, GADM (non-commercial), Copernicus DEM and AlphaEarth sources.
 
 Licence texts for the big ones are reproduced below where their terms require it.
 

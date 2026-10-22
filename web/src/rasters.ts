@@ -14,6 +14,12 @@ export interface RasterLegend {
   units?: string;
   items?: { color: string; label: string }[];
   label?: string;
+  /** colour positions 0–1 (a split ramp: each half its own ramp) */
+  offsets?: number[];
+  /** end labels given by the engine (years) */
+  labels?: string[];
+  /** the value where a split ramp changes (sea level) */
+  mid?: { value: number; label: string };
 }
 
 export interface RasterInfo {
@@ -203,7 +209,11 @@ export class RasterPane {
 
   private legend(l: RasterLegend): string {
     if (l.type === 'ramp' && l.colors?.length) {
-      return `<div class="ramp" style="background:linear-gradient(90deg,${l.colors.join(',')})"></div><div class="ends"><span>${esc(fmt(l.min, l.units))}</span><span>${esc(fmt(l.max, l.units))}</span></div>`;
+      // a split ramp (bathymetry) places its colours itself and marks sea level at the middle
+      const stops = l.offsets?.length === l.colors.length ? l.colors.map((c, i) => `${c} ${(l.offsets![i] * 100).toFixed(1)}%`) : l.colors;
+      const mid = l.mid ? `<span class="mid">${esc(l.mid.label)}</span>` : '';
+      const [lo, hi] = l.labels?.length === 2 ? l.labels : [fmt(l.min, l.units), fmt(l.max, l.units)];
+      return `<div class="ramp${l.mid ? ' split' : ''}" style="background:linear-gradient(90deg,${stops.join(',')})"></div><div class="ends"><span>${esc(lo)}</span>${mid}<span>${esc(hi)}</span></div>`;
     }
     if (l.type === 'classes') {
       return `<ul class="classes">${(l.items ?? []).slice(0, 12).map((c) => `<li><i style="background:${esc(c.color)}"></i>${esc(c.label)}</li>`).join('')}</ul>`;

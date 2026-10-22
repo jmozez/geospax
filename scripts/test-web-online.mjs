@@ -67,6 +67,14 @@ r = await submit('data.boundaries', async () => page.fill('#online input[name=co
 ok('Boundaries → GADM PNG level 1, no area', r.w?.source === 'gadm' && r.w.country === 'PNG' && r.w.level === 1 && !r.w.aoi, JSON.stringify(r.w));
 r = await submit('data.elevation');
 ok('Elevation → dem.fetch Copernicus', r.use === 'dem.fetch' && r.w?.source === 'copernicus', JSON.stringify(r.w));
+r = await submit('data.ocean', async () => page.check('#online input[name=layers][value=tid]'));
+ok('Ocean depth → GEBCO elevation and TID', r.use === 'data.fetch' && r.w?.source === 'gebco' && r.w.layers?.join() === 'elevation,tid' && r.w.aoi.length === 4, JSON.stringify(r.w));
+r = await submit('data.forest');
+ok('Forest change → Hansen tree cover and loss year', r.w?.source === 'hansen' && r.w.layers?.join() === 'treecover,lossyear', JSON.stringify(r.w));
+r = await submit('data.forest', async () => { await page.uncheck('#online input[name=layers][value=treecover]'); await page.uncheck('#online input[name=layers][value=lossyear]'); });
+ok('no Hansen layer ticked is caught before saving', !r.yaml && /at least one Hansen layer/.test(r.msg), r.msg);
+r = await submit('data.ecoregions');
+ok('Ecoregions → data.fetch ecoregions for the map view', r.w?.source === 'ecoregions' && r.w.aoi.length === 4, JSON.stringify(r.w));
 r = await submit('data.climate', async () => page.click('#online [data-bio="none"]'));
 ok('no variable ticked is caught before saving', !r.yaml && /at least one/.test(r.msg), r.msg);
 // Lazy mode: the task bar's "Online data" opens a chooser, and a card opens its form
@@ -74,7 +82,7 @@ await page.click('#mode-switch [data-mode="lazy"]');
 await page.waitForTimeout(800);
 await page.locator('.tk-bar [data-cmd="data.online"]').click();
 await page.waitForTimeout(300);
-ok('Lazy: "Online data" shows the six sources', (await page.locator('#online .ol-card').count()) === 6);
+ok('Lazy: "Online data" shows the nine sources', (await page.locator('#online .ol-card').count()) === 9);
 await page.locator('#online [data-online="gbif"]').click();
 await page.waitForTimeout(300);
 ok('a source card opens its form', await page.locator('#online input[name=species]').isVisible());
