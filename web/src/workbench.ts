@@ -4,6 +4,7 @@
 // one front end. Layout state (pane sizes, open tabs) persists in localStorage.
 import * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
+import { DocsViewer } from './docs';
 import type { RecipeInfo } from './automate';
 import type { PluginsPane } from './plugins';
 import { groupItemsHtml, COMMANDS, TABS, commandHtml, groupsFor, icon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
@@ -164,10 +165,17 @@ export class Workbench {
       deck: h.deck,
       setStatus: (t, ms) => this.setStatus(t, ms),
       log: (line, level) => this.log(line, level),
-      openUrl: (p) => window.open(p, '_blank', 'noopener'),
+      // guides open inside the app (a new tab cannot show Markdown, and the desktop window and phones have no tabs)
+      openUrl: (p) => (/\.md(#.*)?$/.test(p) ? void this.docs().open(p) : window.open(p, '_blank', 'noopener')),
+      about: () => void this.docs().about(this.host.edition),
       setRibbonCompact: (compact) => this.setRibbonCompact(compact),
       toggleRibbon: () => this.setRibbonPinned(!this.layout.ribbonPinned),
     };
+  }
+
+  private docsViewer?: DocsViewer;
+  private docs(): DocsViewer {
+    return (this.docsViewer ??= new DocsViewer(this.host.backend));
   }
 
   // ---------------------------------------------------------------- ribbon
