@@ -7,7 +7,7 @@
 use super::automap::{device_role, Colorer, NULL_COLOR};
 use super::features::{FeatureSet, Val};
 use super::furniture;
-pub use super::furniture::Furniture;
+pub use super::furniture::{Furniture, Place};
 use crate::catalog::GeomKind;
 use crate::wkb::Geom;
 use serde_json::Value;
@@ -86,8 +86,112 @@ fn inv_merc(x: f64, y: f64) -> [f64; 2] {
     [x * 360.0 - 180.0, (PI * (1.0 - 2.0 * y)).sinh().atan().to_degrees()]
 }
 
+/// Map projection of an exported map. Web Mercator matches the web map and suits local maps;
+/// Equal Earth (Šavrič, Patterson & Jenny 2018) is equal-area with a pleasing world shape, the
+/// usual choice for world and continental maps. Both work in a normalised plane with y down.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Proj {
+    #[default]
+    Mercator,
+    EqualEarth,
+}
+
+const EE_A1: f64 = 1.340264;
+const EE_A2: f64 = -0.081106;
+const EE_A3: f64 = 0.000893;
+const EE_A4: f64 = 0.003796;
+/// Earth radius used for Equal Earth (a sphere, as `+proj=eqearth +R=6378137` in GDAL)
+const EE_R: f64 = 6_378_137.0;
+/// metres per normalised unit: the equator is as long as Mercator's (one unit = the world's width)
+fn ee_k() -> f64 {
+    2.0 * PI * EE_R * 2.0 * 3f64.sqrt() / (3.0 * EE_A1)
+}
+
+/// Equal Earth in metres (x east, y north) on the sphere.
+pub fn eqearth_m(lon: f64, lat: f64) -> [f64; 2] {
+    let m = 3f64.sqrt() / 2.0;
+    let (l, p) = (lon.clamp(-180.0, 180.0).to_radians(), lat.clamp(-90.0, 90.0).to_radians());
+    let t = (m * p.sin()).asin();
+    let (t2, t6) = (t * t, t.powi(6));
+    let d = 3.0 * (9.0 * EE_A4 * t6 * t2 + 7.0 * EE_A3 * t6 + 3.0 * EE_A2 * t2 + EE_A1);
+    [EE_R * 2.0 * 3f64.sqrt() * l * t.cos() / d, EE_R * (EE_A4 * t6 * t2 * t + EE_A3 * t6 * t + EE_A2 * t2 * t + EE_A1 * t)]
+}
+
+/// The inverse (Newton on the parametric latitude); points beyond the world's edge are clamped to it.
+pub fn inv_eqearth_m(x: f64, y: f64) -> [f64; 2] {
+    let m = 3f64.sqrt() / 2.0;
+    let y = y / EE_R;
+    let ymax = EE_A4 * (PI / 3.0).powi(9) + EE_A3 * (PI / 3.0).powi(7) + EE_A2 * (PI / 3.0).powi(3) + EE_A1 * PI / 3.0;
+    let y = y.clamp(-ymax, ymax);
+    let mut t = y / EE_A1;
+    for _ in 0..12 {
+        let t2 = t * t;
+        let t6 = t2 * t2 * t2;
+        let f = EE_A4 * t6 * t2 * t + EE_A3 * t6 * t + EE_A2 * t2 * t + EE_A1 * t - y;
+        let df = 9.0 * EE_A4 * t6 * t2 + 7.0 * EE_A3 * t6 + 3.0 * EE_A2 * t2 + EE_A1;
+        let dt = f / df;
+        t -= dt;
+        if dt.abs() < 1e-12 {
+            break;
+        }
+    }
+    let t2 = t * t;
+    let t6 = t2 * t2 * t2;
+    let d = 9.0 * EE_A4 * t6 * t2 + 7.0 * EE_A3 * t6 + 3.0 * EE_A2 * t2 + EE_A1;
+    let lon = (3.0 * (x / EE_R) * d / (2.0 * 3f64.sqrt() * t.cos())).to_degrees();
+    [lon.clamp(-180.0, 180.0), ((t.sin() / m).clamp(-1.0, 1.0)).asin().to_degrees()]
+}
+
+/// Is a point (Equal Earth metres) on the world, not in the corners beyond its outline?
+pub fn eqearth_inside(x: f64, y: f64) -> bool {
+    let c = inv_eqearth_m(x, y);
+    let m = eqearth_m(c[0], c[1]);
+    (m[0] - x).abs() < 1.0 && (m[1] - y).abs() < 1.0
+}
+
+fn fwd(p: Proj, lon: f64, lat: f64) -> [f64; 2] {
+    match p {
+        Proj::Mercator => merc(lon, lat),
+        Proj::EqualEarth => {
+            let m = eqearth_m(lon, lat);
+            [m[0] / ee_k(), -m[1] / ee_k()]
+        }
+    }
+}
+
+fn inv(p: Proj, x: f64, y: f64) -> [f64; 2] {
+    match p {
+        Proj::Mercator => inv_merc(x, y),
+        Proj::EqualEarth => inv_eqearth_m(x * ee_k(), -y * ee_k()),
+    }
+}
+
+impl Proj {
+    /// "mercator", "equal-earth" or "auto": Equal Earth for world and continental extents (wider
+    /// than 90° of longitude or taller than 60° of latitude), Web Mercator otherwise.
+    pub fn parse(v: Option<&str>, extent: [f64; 4]) -> Result<Proj, String> {
+        match v.unwrap_or("auto").to_ascii_lowercase().replace(['_', ' '], "-").as_str() {
+            "mercator" | "web-mercator" | "3857" | "epsg:3857" => Ok(Proj::Mercator),
+            "equal-earth" | "equalearth" | "eqearth" | "8857" | "epsg:8857" => Ok(Proj::EqualEarth),
+            "auto" => Ok(if extent[2] - extent[0] > 90.0 || extent[3] - extent[1] > 60.0 { Proj::EqualEarth } else { Proj::Mercator }),
+            o => Err(format!("projection must be auto, mercator or equal-earth (not '{o}')")),
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            Proj::Mercator => "Web Mercator",
+            Proj::EqualEarth => "Equal Earth (equal-area)",
+        }
+    }
+}
+
 /// Page size in px: named paper sizes at 150 dpi (landscape), "WxH", or auto from the extent.
 pub fn page_size(size: &str, extent: [f64; 4]) -> (f64, f64) {
+    page_size_in(size, extent, Proj::Mercator)
+}
+
+/// The page for a map in a projection (auto sizes follow the projected shape of the extent).
+pub fn page_size_in(size: &str, extent: [f64; 4], proj: Proj) -> (f64, f64) {
     let s = size.trim().to_ascii_lowercase();
     if let Some((w, h)) = s.split_once('x') {
         if let (Ok(w), Ok(h)) = (w.trim().parse::<f64>(), h.trim().parse::<f64>()) {
@@ -101,8 +205,8 @@ pub fn page_size(size: &str, extent: [f64; 4]) -> (f64, f64) {
         "letter" => (1650.0, 1275.0),
         "letter-portrait" => (1275.0, 1650.0),
         _ => {
-            let (a, b) = (merc(extent[0], extent[1]), merc(extent[2], extent[3]));
-            let aspect = ((b[0] - a[0]).abs() / (a[1] - b[1]).abs().max(1e-12)).clamp(0.2, 5.0);
+            let b = proj_bbox(proj, extent);
+            let aspect = ((b[2] - b[0]).abs() / (b[3] - b[1]).abs().max(1e-12)).clamp(0.2, 5.0);
             // the map frame takes the data's shape (fixed width, matching height), so raster maps
             // neither crop the data nor float in empty margins
             let w = if aspect < 0.8 { 1240.0 } else { 1600.0 };
@@ -135,11 +239,17 @@ pub struct Layout {
     s: f64,
     cx: f64,
     cy: f64,
+    pub proj: Proj,
 }
 
 impl Layout {
     pub fn new(extent: [f64; 4], width: f64, height: f64) -> Layout {
         Layout::fit(extent, width, height, Fit::Margin, true)
+    }
+
+    /// The same layout in another projection (the extent is fitted again).
+    pub fn fit_proj(extent: [f64; 4], width: f64, height: f64, fit: Fit, legend_column: bool, proj: Proj) -> Layout {
+        Layout::fit_in(extent, width, height, fit, legend_column, proj)
     }
 
     /// Exactly the extent (a map series sheet): no margin, so neighbouring sheets do not overlap.
@@ -156,14 +266,16 @@ impl Layout {
     /// The map frame on a page: beside a legend column, or the full width when the legend sits inside
     /// the map or is switched off.
     pub fn fit(extent: [f64; 4], width: f64, height: f64, fit: Fit, legend_column: bool) -> Layout {
+        Layout::fit_in(extent, width, height, fit, legend_column, Proj::Mercator)
+    }
+
+    fn fit_in(extent: [f64; 4], width: f64, height: f64, fit: Fit, legend_column: bool, proj: Proj) -> Layout {
         let fw = width - 2.0 * MARGIN - if legend_column { LEGEND_W + 18.0 } else { 0.0 };
         let fh = height - HEADER - FOOTER;
-        let a = merc(extent[0], extent[1]);
-        let b = merc(extent[2], extent[3]);
-        let (mut x0, mut x1, mut y0, mut y1) = (a[0].min(b[0]), a[0].max(b[0]), a[1].min(b[1]), a[1].max(b[1]));
+        let [mut x0, mut y0, mut x1, mut y1] = proj_bbox(proj, extent);
         if fit == Fit::Cover {
             let s = (fw / (x1 - x0).max(1e-12)).max(fh / (y1 - y0).max(1e-12));
-            return Layout { width, height, fx: MARGIN, fy: HEADER, fw, fh, s, cx: (x0 + x1) / 2.0, cy: (y0 + y1) / 2.0 };
+            return Layout { width, height, fx: MARGIN, fy: HEADER, fw, fh, s, cx: (x0 + x1) / 2.0, cy: (y0 + y1) / 2.0, proj };
         }
         let pad = if fit == Fit::Exact { 1.0 } else { 1.16 };
         // at least ~400 m across, so a single photo still gets a sensible map
@@ -176,7 +288,7 @@ impl Layout {
         y0 = cy - h / 2.0;
         y1 = cy + h / 2.0;
         let s = (fw / (x1 - x0)).min(fh / (y1 - y0));
-        Layout { width, height, fx: MARGIN, fy: HEADER, fw, fh, s, cx, cy }
+        Layout { width, height, fx: MARGIN, fy: HEADER, fw, fh, s, cx, cy, proj }
     }
 
     /// A map frame at a given place on the page showing exactly `extent` (no margin): the extent fits
@@ -187,28 +299,47 @@ impl Layout {
         let b = merc(extent[2], extent[3]);
         let (x0, x1, y0, y1) = (a[0].min(b[0]), a[0].max(b[0]), a[1].min(b[1]), a[1].max(b[1]));
         let s = (fw / (x1 - x0).max(1e-12)).min(fh / (y1 - y0).max(1e-12));
-        Layout { width: 0.0, height: 0.0, fx, fy, fw, fh, s, cx: (x0 + x1) / 2.0, cy: (y0 + y1) / 2.0 }
+        Layout { width: 0.0, height: 0.0, fx, fy, fw, fh, s, cx: (x0 + x1) / 2.0, cy: (y0 + y1) / 2.0, proj: Proj::Mercator }
     }
 
     pub fn px(&self, c: [f64; 2]) -> [f64; 2] {
-        let m = merc(c[0], c[1]);
+        let m = fwd(self.proj, c[0], c[1]);
         [self.fx + self.fw / 2.0 + (m[0] - self.cx) * self.s, self.fy + self.fh / 2.0 + (m[1] - self.cy) * self.s]
     }
 
     pub fn lonlat(&self, x: f64, y: f64) -> [f64; 2] {
-        inv_merc(self.cx + (x - self.fx - self.fw / 2.0) / self.s, self.cy + (y - self.fy - self.fh / 2.0) / self.s)
+        inv(self.proj, self.cx + (x - self.fx - self.fw / 2.0) / self.s, self.cy + (y - self.fy - self.fh / 2.0) / self.s)
     }
 
     /// Lon/lat bounds of the visible frame (what to read from each layer).
     pub fn view(&self) -> [f64; 4] {
-        let a = self.lonlat(self.fx, self.fy + self.fh);
-        let b = self.lonlat(self.fx + self.fw, self.fy);
-        [a[0], a[1], b[0], b[1]]
+        if self.proj == Proj::Mercator {
+            let a = self.lonlat(self.fx, self.fy + self.fh);
+            let b = self.lonlat(self.fx + self.fw, self.fy);
+            return [a[0], a[1], b[0], b[1]];
+        }
+        // meridians curve: the lon/lat box around points along the frame's edges
+        let mut v = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+        for i in 0..=32 {
+            let f = i as f64 / 32.0;
+            for (x, y) in [(self.fx + f * self.fw, self.fy), (self.fx + f * self.fw, self.fy + self.fh), (self.fx, self.fy + f * self.fh), (self.fx + self.fw, self.fy + f * self.fh)] {
+                let c = self.lonlat(x, y);
+                v = [v[0].min(c[0]), v[1].min(c[1]), v[2].max(c[0]), v[3].max(c[1])];
+            }
+        }
+        v
     }
 
     pub fn meters_per_px(&self) -> f64 {
-        let lat = self.lonlat(self.fx + self.fw / 2.0, self.fy + self.fh / 2.0)[1];
-        40_075_016.686 * lat.to_radians().cos() / self.s
+        if self.proj == Proj::Mercator {
+            let lat = self.lonlat(self.fx + self.fw / 2.0, self.fy + self.fh / 2.0)[1];
+            return 40_075_016.686 * lat.to_radians().cos() / self.s;
+        }
+        // east–west ground distance across 100 px at the centre
+        let (cx, cy) = (self.fx + self.fw / 2.0, self.fy + self.fh / 2.0);
+        let (a, b) = (self.lonlat(cx - 50.0, cy), self.lonlat(cx + 50.0, cy));
+        let lat = ((a[1] + b[1]) / 2.0).to_radians();
+        6_371_008.8 * (b[0] - a[0]).abs().to_radians() * lat.cos() / 100.0
     }
 
     pub fn scale_denominator(&self) -> f64 {
@@ -218,6 +349,21 @@ impl Layout {
     fn clip_rect(&self) -> [f64; 4] {
         [self.fx - 20.0, self.fy - 20.0, self.fx + self.fw + 20.0, self.fy + self.fh + 20.0]
     }
+}
+
+/// The projected box around a lon/lat extent (its edges sampled, as meridians curve in Equal Earth).
+fn proj_bbox(p: Proj, e: [f64; 4]) -> [f64; 4] {
+    let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+    let n = if p == Proj::Mercator { 1 } else { 24 };
+    for i in 0..=n {
+        let f = i as f64 / n as f64;
+        let (lon, lat) = (e[0] + f * (e[2] - e[0]), e[1] + f * (e[3] - e[1]));
+        for c in [[lon, e[1]], [lon, e[3]], [e[0], lat], [e[2], lat]] {
+            let q = fwd(p, c[0], c[1]);
+            b = [b[0].min(q[0]), b[1].min(q[1]), b[2].max(q[0]), b[3].max(q[1])];
+        }
+    }
+    b
 }
 
 pub fn esc(s: &str) -> String {
@@ -730,11 +876,12 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
     let _ = write!(
         svg,
         "<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">{}</text>\
-<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">Scale ≈ 1:{} at {DPI:.0} dpi · Web Mercator · WGS 84 · north is up</text></svg>",
+<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">Scale ≈ 1:{} at {DPI:.0} dpi · {} · WGS 84 · north is up</text></svg>",
         h - 22.0,
         esc(&truncate(&spec.credits, max_chars)),
         h - 8.0,
-        fmt_num(round_sig(denom, 2))
+        fmt_num(round_sig(denom, 2)),
+        lay.proj.name()
     );
     MapOut { svg, drawn, labels: n_labels, scale_denominator: denom }
 }
@@ -1333,7 +1480,33 @@ fn graticule(svg: &mut String, lay: &Layout) {
     let mut lon = (v[0] / step).ceil() * step;
     while lon < v[2] {
         let a = lay.px([lon, v[1]]);
-        let _ = write!(d, "M{:.1} {:.1}V{:.1}", a[0], lay.fy, lay.fy + lay.fh);
+        if lay.proj == Proj::Mercator {
+            let _ = write!(d, "M{:.1} {:.1}V{:.1}", a[0], lay.fy, lay.fy + lay.fh);
+        } else {
+            // meridians curve: draw each as a polyline, labelled where it leaves the top of the frame
+            for i in 0..=48 {
+                let p = lay.px([lon, v[1] + (v[3] - v[1]) * i as f64 / 48.0]);
+                let _ = write!(d, "{}{:.1} {:.1}", if i == 0 { 'M' } else { 'L' }, p[0], p[1]);
+            }
+            // where the meridian crosses the frame's top edge (bisection on latitude)
+            let (mut lo, mut hi) = (v[1], v[3]);
+            if lay.px([lon, hi])[1] > lay.fy {
+                lon += step;
+                continue; // ends inside the frame (at the pole of a world map): no edge label
+            }
+            for _ in 0..40 {
+                let mid = (lo + hi) / 2.0;
+                if lay.px([lon, mid])[1] > lay.fy { lo = mid } else { hi = mid }
+            }
+            let x = lay.px([lon, lo])[0];
+            if x < lay.fx + 36.0 || x > lay.fx + lay.fw - 90.0 {
+                lon += step;
+                continue;
+            }
+            let _ = write!(text, "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\">{:.*}°{}</text>", x, lay.fy + 13.0, decimals, lon.abs(), if lon < 0.0 { 'W' } else { 'E' });
+            lon += step;
+            continue;
+        }
         if a[0] < lay.fx + 36.0 || a[0] > lay.fx + lay.fw - 90.0 {
             lon += step;
             continue; // label would be clipped or hit the north arrow
@@ -1351,6 +1524,19 @@ fn graticule(svg: &mut String, lay: &Layout) {
         }
         let _ = write!(text, "<text x=\"{:.1}\" y=\"{:.1}\">{:.*}°{}</text>", lay.fx + 5.0, a[1] - 3.0, decimals, lat.abs(), if lat < 0.0 { 'S' } else { 'N' });
         lat += step;
+    }
+    // a whole Equal Earth world: its outline (the ±180° meridians), as world maps are drawn
+    if lay.proj == Proj::EqualEarth && v[0] <= -179.0 && v[2] >= 179.0 {
+        let mut o = String::new();
+        for i in 0..=64 {
+            let p = lay.px([-180.0, -90.0 + 180.0 * i as f64 / 64.0]);
+            let _ = write!(o, "{}{:.1} {:.1}", if i == 0 { 'M' } else { 'L' }, p[0], p[1]);
+        }
+        for i in 0..=64 {
+            let p = lay.px([180.0, 90.0 - 180.0 * i as f64 / 64.0]);
+            let _ = write!(o, "L{:.1} {:.1}", p[0], p[1]);
+        }
+        let _ = write!(svg, "<path d=\"{o}Z\" stroke=\"#5d6d7a\" stroke-width=\"1\" fill=\"none\"/>");
     }
     let _ = write!(
         svg,
@@ -1615,6 +1801,19 @@ fn draw_rasters(svg: &mut String, rasters: &[MapRaster], lay: &Layout) {
     }
 }
 
+/// The map frame's box in the layout's projection, as (GDAL SRS, [xmin, ymin, xmax, ymax] in metres).
+pub fn frame_box(lay: &Layout) -> (&'static str, [f64; 4]) {
+    match lay.proj {
+        Proj::Mercator => ("EPSG:3857", frame_merc(lay)),
+        Proj::EqualEarth => {
+            let k = ee_k();
+            let (x0, x1) = (lay.cx - lay.fw / 2.0 / lay.s, lay.cx + lay.fw / 2.0 / lay.s);
+            let (y0, y1) = (lay.cy - lay.fh / 2.0 / lay.s, lay.cy + lay.fh / 2.0 / lay.s);
+            ("+proj=eqearth +R=6378137 +units=m +no_defs", [x0 * k, -y1 * k, x1 * k, -y0 * k])
+        }
+    }
+}
+
 /// The map frame's Web Mercator box [xmin, ymin, xmax, ymax] (rasters are rendered for it).
 pub fn frame_merc(lay: &Layout) -> [f64; 4] {
     let bl = lay.lonlat(lay.fx, lay.fy + lay.fh);
@@ -1734,5 +1933,30 @@ mod tests {
         assert_eq!(fmt_num(5.20), "5.2");
         assert_eq!(round_sig(23456.0, 2), 23000.0);
         assert_eq!(page_size("a4", [0.0, 0.0, 1.0, 1.0]), (1754.0, 1240.0));
+    }
+
+    #[test]
+    fn equal_earth_round_trip_and_known_values() {
+        // the same numbers as PROJ (cs2cs +proj=lonlat +R=6378137 +to +proj=eqearth +R=6378137)
+        for (lon, lat, x, y) in [(180.0, 0.0, 17_263_256.844, 0.0), (0.0, 90.0, 0.0, 8_402_320.157), (147.2, -9.4, 14_026_862.719, -1_211_711.566)] {
+            let m = eqearth_m(lon, lat);
+            assert!((m[0] - x).abs() < 0.01 && (m[1] - y).abs() < 0.01, "{lon},{lat} -> {m:?}");
+        }
+        for (lon, lat) in [(147.2, -9.4), (-70.0, 45.0), (0.0, 0.0), (179.0, -80.0)] {
+            let m = eqearth_m(lon, lat);
+            let back = inv_eqearth_m(m[0], m[1]);
+            assert!((back[0] - lon).abs() < 1e-7 && (back[1] - lat).abs() < 1e-7, "{lon},{lat} -> {back:?}");
+        }
+        // equal area: a 10° cell at the equator and at 60° keep the ratio of their true areas
+        let area = |lat: f64| {
+            let (a, b, c) = (eqearth_m(0.0, lat), eqearth_m(10.0, lat), eqearth_m(0.0, lat + 10.0));
+            let d = eqearth_m(10.0, lat + 10.0);
+            0.5 * ((a[0] * b[1] - b[0] * a[1]) + (b[0] * d[1] - d[0] * b[1]) + (d[0] * c[1] - c[0] * d[1]) + (c[0] * a[1] - a[0] * c[1])).abs()
+        };
+        let truth = |lat: f64| (lat + 10.0).to_radians().sin() - lat.to_radians().sin();
+        assert!((area(60.0) / area(0.0) - truth(60.0) / truth(0.0)).abs() < 0.01);
+        assert_eq!(Proj::parse(None, [-180.0, -60.0, 180.0, 85.0]).unwrap(), Proj::EqualEarth);
+        assert_eq!(Proj::parse(None, [144.0, -6.0, 145.0, -5.0]).unwrap(), Proj::Mercator);
+        assert!(Proj::parse(Some("lambert"), [0.0; 4]).is_err());
     }
 }

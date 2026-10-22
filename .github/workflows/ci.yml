@@ -73,6 +73,8 @@ jobs:
         run: python3 scripts/test-domain-plugins.py target/release/geospax-server
       - name: Plan-B data (GEBCO, Hansen forest change, ecoregions, WoRMS) against local mirrors with known answers
         run: python3 scripts/test-plan-b.py target/release/geospax-server
+      - name: Equal Earth for exported maps (world map chooses it, rasters warped and cut at the outline)
+        run: python3 scripts/test-equal-earth.py target/release/geospax-server
       - name: Sensor networks (MQTT over TLS, LoRaWAN, SensorThings) against Mosquitto
         run: |
           apt-get install -y -q --no-install-recommends mosquitto openssl

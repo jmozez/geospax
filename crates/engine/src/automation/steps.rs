@@ -50,6 +50,7 @@ const MAP_PARAMS: &[(&str, bool, &str)] = &[
     ("labels", false, "label points with their name field (default true)"),
     ("context", false, "auto (land, roads, rivers if loaded), none, or layer ids"),
     ("grid", false, "lon/lat graticule (default true)"),
+    ("projection", false, "auto (default: Equal Earth for world and continental maps, else Web Mercator), mercator or equal-earth"),
     ("scale", false, "PNG pixel scale 1-4 (default 1)"),
     ("name", false, "file name without extension (default map)"),
     ("frames", false, "index map: [{extent: [w, s, e, n], label}] outlined on the map"),
@@ -2092,13 +2093,19 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     if let Some(bad) = formats.iter().find(|f| !matches!(f.as_str(), "png" | "svg" | "pdf")) {
         return Err(format!("format '{bad}' is not supported (png, svg, pdf)"));
     }
-    let (w, h) = cartography::page_size(p_str(p, "size").unwrap_or("auto"), extent);
+    let proj = cartography::Proj::parse(p_str(p, "projection"), extent)?;
+    let (w, h) = cartography::page_size_in(p_str(p, "size").unwrap_or("auto"), extent, proj);
     // raster maps fill the frame with data (cover); vector maps keep a margin around the features
     // rasters that cover their extent fill the frame; surfaces masked to the samples' hull
     // (interpolate.auto) are shown whole instead, or their edges would be cut off
     let masked = rhandles.iter().any(|r| matches!(r.info.kind.as_str(), "surface" | "stderr"));
-    let cover = !rhandles.is_empty() && p.get("extent").is_none_or(|e| e.as_str() == Some("auto")) && p_bool(p, "fill", !masked);
-    let fur = cartography::Furniture::from_params(p)?;
+    // an Equal Earth world is an oval: show it whole rather than crop it to fill the frame
+    let cover = proj == cartography::Proj::Mercator && !rhandles.is_empty() && p.get("extent").is_none_or(|e| e.as_str() == Some("auto")) && p_bool(p, "fill", !masked);
+    let mut fur = cartography::Furniture::from_params(p)?;
+    // a world or continental Equal Earth map has no single scale: no scale bar unless one is asked for
+    if proj == cartography::Proj::EqualEarth && extent[2] - extent[0] > 90.0 && p_str(p, "scale_bar_at").is_none_or(|v| v == "auto") {
+        fur.scale_at = cartography::Place::Off;
+    }
     let fit = if cover {
         cartography::Fit::Cover
     } else if p_bool(p, "exact", false) {
@@ -2107,11 +2114,12 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         cartography::Fit::Margin
     };
     // the legend inside the map (or none) gives the map the full page width
-    let lay = Layout::fit(extent, w, h, fit, fur.legend == "right");
+    let lay = Layout::fit_proj(extent, w, h, fit, fur.legend == "right", proj);
     let view = lay.view();
     // rasters are rendered for the map frame at 2× page resolution (bottom first, shading on top)
     let mut map_rasters = Vec::new();
     let fm = cartography::frame_merc(&lay);
+    let (srs, fbox) = cartography::frame_box(&lay);
     // native resolution across the frame, between 1× and 2× the page (no point upsampling 30 m cells 2×)
     let frame_m = (fm[2] - fm[0]) * ((extent[1] + extent[3]) / 2.0).to_radians().cos();
     let finest = rhandles.iter().map(|r| r.info.pixel_m).fold(f64::MAX, f64::min).max(0.01);
@@ -2119,7 +2127,19 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     let (rw, rh) = (((lay.fw * k).round() as usize).min(crate::raster::MAX_OVERLAY * 2), ((lay.fh * k).round() as usize).min(crate::raster::MAX_OVERLAY * 2));
     for r in &rhandles {
         let style = r.style();
-        let rgba = r.render_rgba(&style, fm, rw, rh)?;
+        let mut rgba = r.render_rgba_in(&style, srs, fbox, rw, rh)?;
+        if lay.proj == cartography::Proj::EqualEarth {
+            // GDAL fills the corners beyond the world's outline too: clear them
+            for j in 0..rh {
+                let y = fbox[3] - (j as f64 + 0.5) / rh as f64 * (fbox[3] - fbox[1]);
+                for i in 0..rw {
+                    let x = fbox[0] + (i as f64 + 0.5) / rw as f64 * (fbox[2] - fbox[0]);
+                    if !cartography::eqearth_inside(x, y) {
+                        rgba[(j * rw + i) * 4 + 3] = 0;
+                    }
+                }
+            }
+        }
         map_rasters.push(cartography::MapRaster {
             id: r.info.id.clone(),
             title: sc.names.get(&r.info.id).cloned().unwrap_or_else(|| r.info.title.clone()),
@@ -2277,10 +2297,12 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     sc.extent = Some(view);
     let scale = format!("1:{}", cartography::fmt_num(round2(out.scale_denominator)));
     if sc.maps.len() == 1 { sc.methods.push(format!(
-        "The {:.0}×{:.0} px map page (title, legend, scale bar, north arrow, graticule, credits) was laid out automatically; the extent fits all mapped data with a margin (Web Mercator, ≈ {scale} at {} dpi).",
+        "The {:.0}×{:.0} px map page (title, legend, scale bar, north arrow, graticule, credits) was laid out automatically; the extent fits all mapped data with a margin ({}, ≈ {scale} at {} dpi).{}",
         w,
         h,
-        cartography::DPI
+        lay.proj.name(),
+        cartography::DPI,
+        if lay.proj == cartography::Proj::EqualEarth { " Equal Earth (Šavrič, Patterson & Jenny 2018) keeps areas true, so regions can be compared by size; the scale holds at the centre of the map only." } else { "" }
     )); }
     Ok(StepOut {
         outputs: json!({

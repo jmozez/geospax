@@ -20,8 +20,8 @@ This guide gets you from zero to a finished map in a few minutes.
 
 | You have | Do this |
 |---|---|
-| **Windows 10 or 11** (64-bit) | Run `GeoSpaX_1.8.2_x64-setup.exe`. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start **GeoSpaX** from the Start menu. **GeoSpaX Web Server** in the same menu opens the web edition in your browser. The installer isn't code-signed yet, so Windows may say "Windows protected your PC": click *More info → Run anyway*. Prefer no installer? Unzip `GeoSpaX-1.6.0-windows-x64.zip` anywhere and run `geospax.exe`. |
-| **Debian 13** (desktop) | Download `geospax_1.8.2_amd64.deb`, then `sudo apt install ./geospax_1.8.2_amd64.deb`. Start **GeoSpaX** from the applications menu. |
+| **Windows 10 or 11** (64-bit) | Run `GeoSpaX_3.0.0_x64-setup.exe`. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start **GeoSpaX** from the Start menu. **GeoSpaX Web Server** in the same menu opens the web edition in your browser. The installer isn't code-signed yet, so Windows may say "Windows protected your PC": click *More info → Run anyway*. Prefer no installer? Unzip `GeoSpaX-3.0.0-windows-x64.zip` anywhere and run `geospax.exe`. |
+| **Debian 13** (desktop) | Download `geospax_3.0.0_amd64.deb`, then `sudo apt install ./geospax_3.0.0_amd64.deb`. Start **GeoSpaX** from the applications menu. |
 | Another Debian/Ubuntu release | The `.deb` above is built against GDAL 3.10 (`libgdal36`). Build a matching one: `scripts/setup-linux.sh && scripts/package-linux.sh` (it works out the right dependencies for your system), or use the web edition in a container. |
 | **Docker** (any OS, web edition) | `mkdir -p data inbox && docker compose up -d`, then open the `http://localhost:8080/?token=…` link printed by `docker compose logs geospax` (set `GEOSPAX_TOKEN` to keep a fixed token). The compose file also starts an MQTT broker for live sensors. *The image is built by CI on version tags; it has not been built in our own test sandbox yet.* |
 | macOS | Not packaged yet (it needs a Mac to build). Use the Docker web edition for now. |
@@ -87,6 +87,9 @@ Under *Page, legend, scale bar, north arrow, inset* (open in Pro, one click away
 - **Legend**: beside the map, **inside the map** (on a card) or none, with its heading. **Edit the
   legend** lists every layer with its classes: untick to hide a layer, type a new title, rename any
   class, and drag a row (or ▲▼) to change the order.
+- **Projection**: Automatic uses **Equal Earth** (equal-area: countries keep their true relative sizes)
+  for world and continental maps and **Web Mercator** (as on the web map) for everything smaller; pick
+  either yourself. A world map in Equal Earth has no single scale, so it gets no scale bar.
 - **Scale bar**: pill, checker, line or ruler; km/m, mi/ft or both.
 - **North arrow**: needle, compass, 8-point rose, minimal or none.
 - **Overview inset**: a world/region map with your area boxed.

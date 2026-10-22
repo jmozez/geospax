@@ -832,9 +832,15 @@ impl RasterHandle {
 
     /// Render the raster into a Web Mercator box (`merc` = [xmin, ymin, xmax, ymax]) as RGBA.
     pub fn render_rgba(&self, style: &Value, merc_box: [f64; 4], w: usize, h: usize) -> Result<Vec<u8>, String> {
+        self.render_rgba_in(style, "EPSG:3857", merc_box, w, h)
+    }
+
+    /// Render into a box of any projection (`srs` as GDAL takes it, the box in its units): exported
+    /// maps in Equal Earth.
+    pub fn render_rgba_in(&self, style: &Value, srs: &str, merc_box: [f64; 4], w: usize, h: usize) -> Result<Vec<u8>, String> {
         let ds = open(&self.info.path)?;
         let kind = style["kind"].as_str().unwrap_or("stretch");
-        let mut args = strings(&["-of", "MEM", "-t_srs", "EPSG:3857", "-ot", "Float32", "-dstalpha", "-r"]);
+        let mut args = strings(&["-of", "MEM", "-t_srs", srs, "-ot", "Float32", "-dstalpha", "-r"]);
         // resampling set by hand wins; classes and aspect never blend neighbouring values
         args.push(match style["resampling"].as_str() {
             Some("nearest") => "near".into(),
