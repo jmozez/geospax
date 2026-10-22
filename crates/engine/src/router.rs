@@ -114,6 +114,11 @@ impl Engine {
                 Some((n, t, md)) => ApiResponse::json(200, &json!({ "name": n, "title": t, "markdown": md, "version": env!("CARGO_PKG_VERSION") })),
                 None => ApiResponse::error(404, format!("there is no guide '{name}'")),
             },
+            ("GET", ["api", "samples"]) => ApiResponse::json(200, &json!({ "samples": crate::samples::list() })),
+            ("POST", ["api", "samples", set]) => match crate::samples::open(self, set) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();

@@ -281,6 +281,11 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:start')); },
   },
   {
+    id: 'data.samples', tab: 'data', group: 'Add data', title: 'Sample data', icon: 'layers',
+    hint: 'Ready-made data to try the tools (Papua New Guinea survey, species, climate and tree cover)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:samples')); },
+  },
+  {
     id: 'data.add', tab: 'data', group: 'Add data', title: 'Add files', icon: 'download', big: true,
     hint: 'Choose files to map (or drop them anywhere on the window)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:browse')); },
@@ -453,6 +458,11 @@ export const COMMANDS: Command[] = [
     id: 'view.basemapOsm', tab: 'view', group: 'Basemap', title: 'OpenStreetMap (online)', icon: 'image',
     hint: 'Streets and places from openstreetmap.org (needs internet)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:basemap', { detail: 'osm' })); },
+  },
+  {
+    id: 'view.basemapGallery', tab: 'view', group: 'Basemap', title: 'Basemap gallery', icon: 'gallery', big: true,
+    hint: 'Streets, topography, imagery, light and dark canvas, or your own XYZ tiles',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:basemap', { detail: 'gallery' })); },
   },
   {
     id: 'view.basemapNone', tab: 'view', group: 'Basemap', title: 'No basemap', icon: 'layout',

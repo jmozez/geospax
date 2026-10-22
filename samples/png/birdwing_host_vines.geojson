@@ -1,0 +1,854 @@
+{
+  "type": "FeatureCollection",
+  "name": "Aristolochia_host_plants",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.24909,
+          -6.43261
+        ]
+      },
+      "properties": {
+        "elevation_m": 274,
+        "density": 11.5,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 58
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.19791,
+          -6.56186
+        ]
+      },
+      "properties": {
+        "elevation_m": 266,
+        "density": 13.8,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 90
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.13533,
+          -6.3631
+        ]
+      },
+      "properties": {
+        "elevation_m": 232,
+        "density": 8.5,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 88
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.14734,
+          -6.42965
+        ]
+      },
+      "properties": {
+        "elevation_m": 282,
+        "density": 7.4,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 68
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.30956,
+          -6.45879
+        ]
+      },
+      "properties": {
+        "elevation_m": 369,
+        "density": 9.4,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 58
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.18267,
+          -6.46516
+        ]
+      },
+      "properties": {
+        "elevation_m": 571,
+        "density": 13.7,
+        "species": "A. acuminata",
+        "canopy_pct": 58
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17107,
+          -6.45388
+        ]
+      },
+      "properties": {
+        "elevation_m": 177,
+        "density": 3.9,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 69
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32821,
+          -6.40194
+        ]
+      },
+      "properties": {
+        "elevation_m": 241,
+        "density": 11.5,
+        "species": "A. foveolata",
+        "canopy_pct": 80
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17669,
+          -6.30491
+        ]
+      },
+      "properties": {
+        "elevation_m": 289,
+        "density": 16.6,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 82
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.19177,
+          -6.40098
+        ]
+      },
+      "properties": {
+        "elevation_m": 308,
+        "density": 12.8,
+        "species": "A. foveolata",
+        "canopy_pct": 55
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.19126,
+          -6.33577
+        ]
+      },
+      "properties": {
+        "elevation_m": 264,
+        "density": 7.1,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 94
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.22491,
+          -6.32762
+        ]
+      },
+      "properties": {
+        "elevation_m": 228,
+        "density": 14.7,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 58
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.11621,
+          -6.39126
+        ]
+      },
+      "properties": {
+        "elevation_m": 146,
+        "density": 19.0,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 78
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.10333,
+          -6.3999
+        ]
+      },
+      "properties": {
+        "elevation_m": 346,
+        "density": 13.6,
+        "species": "A. foveolata",
+        "canopy_pct": 47
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.28773,
+          -6.41906
+        ]
+      },
+      "properties": {
+        "elevation_m": 365,
+        "density": 10.7,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 93
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.11554,
+          -6.38847
+        ]
+      },
+      "properties": {
+        "elevation_m": 284,
+        "density": 11.7,
+        "species": "A. foveolata",
+        "canopy_pct": 61
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.19796,
+          -6.53238
+        ]
+      },
+      "properties": {
+        "elevation_m": 329,
+        "density": 9.1,
+        "species": "A. acuminata",
+        "canopy_pct": 90
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.25467,
+          -6.36869
+        ]
+      },
+      "properties": {
+        "elevation_m": 244,
+        "density": 13.8,
+        "species": "A. foveolata",
+        "canopy_pct": 59
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.21816,
+          -6.52806
+        ]
+      },
+      "properties": {
+        "elevation_m": 324,
+        "density": 17.8,
+        "species": "A. foveolata",
+        "canopy_pct": 60
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.29858,
+          -6.34459
+        ]
+      },
+      "properties": {
+        "elevation_m": 283,
+        "density": 9.5,
+        "species": "A. acuminata",
+        "canopy_pct": 62
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.12961,
+          -6.38554
+        ]
+      },
+      "properties": {
+        "elevation_m": 355,
+        "density": 9.8,
+        "species": "A. acuminata",
+        "canopy_pct": 81
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.12351,
+          -6.34193
+        ]
+      },
+      "properties": {
+        "elevation_m": 367,
+        "density": 11.5,
+        "species": "A. acuminata",
+        "canopy_pct": 61
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.1844,
+          -6.40343
+        ]
+      },
+      "properties": {
+        "elevation_m": 352,
+        "density": 10.5,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 71
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.13494,
+          -6.3223
+        ]
+      },
+      "properties": {
+        "elevation_m": 243,
+        "density": 10.7,
+        "species": "A. acuminata",
+        "canopy_pct": 52
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.52777,
+          -6.75971
+        ]
+      },
+      "properties": {
+        "elevation_m": 1484,
+        "density": 5.9,
+        "species": "A. acuminata",
+        "canopy_pct": 53
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.64293,
+          -6.84118
+        ]
+      },
+      "properties": {
+        "elevation_m": 950,
+        "density": 6.9,
+        "species": "A. foveolata",
+        "canopy_pct": 79
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.46687,
+          -6.91415
+        ]
+      },
+      "properties": {
+        "elevation_m": 1195,
+        "density": 12.1,
+        "species": "A. foveolata",
+        "canopy_pct": 50
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.34497,
+          -6.87431
+        ]
+      },
+      "properties": {
+        "elevation_m": 998,
+        "density": 7.9,
+        "species": "A. foveolata",
+        "canopy_pct": 64
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.53477,
+          -6.71095
+        ]
+      },
+      "properties": {
+        "elevation_m": 975,
+        "density": 6.4,
+        "species": "A. foveolata",
+        "canopy_pct": 55
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.51972,
+          -6.97847
+        ]
+      },
+      "properties": {
+        "elevation_m": 1164,
+        "density": 8.5,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 56
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47511,
+          -6.72896
+        ]
+      },
+      "properties": {
+        "elevation_m": 1041,
+        "density": 7.1,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 60
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.44952,
+          -6.82511
+        ]
+      },
+      "properties": {
+        "elevation_m": 1138,
+        "density": 8.1,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 82
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.33973,
+          -6.78966
+        ]
+      },
+      "properties": {
+        "elevation_m": 845,
+        "density": 5.8,
+        "species": "A. foveolata",
+        "canopy_pct": 53
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.50211,
+          -6.83411
+        ]
+      },
+      "properties": {
+        "elevation_m": 1084,
+        "density": 8.0,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 39
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.50999,
+          -6.87841
+        ]
+      },
+      "properties": {
+        "elevation_m": 1192,
+        "density": 3.6,
+        "species": "A. foveolata",
+        "canopy_pct": 75
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.5188,
+          -6.78522
+        ]
+      },
+      "properties": {
+        "elevation_m": 937,
+        "density": 9.4,
+        "species": "A. acuminata",
+        "canopy_pct": 43
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.33833,
+          -6.92672
+        ]
+      },
+      "properties": {
+        "elevation_m": 1292,
+        "density": 5.4,
+        "species": "A. acuminata",
+        "canopy_pct": 77
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.44704,
+          -6.76659
+        ]
+      },
+      "properties": {
+        "elevation_m": 991,
+        "density": 11.2,
+        "species": "A. foveolata",
+        "canopy_pct": 90
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.49652,
+          -6.77733
+        ]
+      },
+      "properties": {
+        "elevation_m": 901,
+        "density": 4.1,
+        "species": "A. acuminata",
+        "canopy_pct": 53
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.50572,
+          -6.93288
+        ]
+      },
+      "properties": {
+        "elevation_m": 1204,
+        "density": 8.3,
+        "species": "A. acuminata",
+        "canopy_pct": 78
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.54001,
+          -6.81059
+        ]
+      },
+      "properties": {
+        "elevation_m": 1023,
+        "density": 9.2,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 79
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.53215,
+          -6.89999
+        ]
+      },
+      "properties": {
+        "elevation_m": 1050,
+        "density": 8.8,
+        "species": "A. acuminata",
+        "canopy_pct": 80
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.51499,
+          -6.83462
+        ]
+      },
+      "properties": {
+        "elevation_m": 1272,
+        "density": 5.3,
+        "species": "A. foveolata",
+        "canopy_pct": 78
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47604,
+          -6.80603
+        ]
+      },
+      "properties": {
+        "elevation_m": 1630,
+        "density": 5.1,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 28
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.41384,
+          -6.73098
+        ]
+      },
+      "properties": {
+        "elevation_m": 530,
+        "density": 6.6,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 58
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.25871,
+          -6.65084
+        ]
+      },
+      "properties": {
+        "elevation_m": 1218,
+        "density": 7.1,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 46
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.39022,
+          -6.58829
+        ]
+      },
+      "properties": {
+        "elevation_m": 1133,
+        "density": 5.7,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 72
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.41932,
+          -6.55813
+        ]
+      },
+      "properties": {
+        "elevation_m": 1164,
+        "density": 5.3,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 68
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.26509,
+          -6.66373
+        ]
+      },
+      "properties": {
+        "elevation_m": 517,
+        "density": 6.7,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 40
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.36374,
+          -6.7756
+        ]
+      },
+      "properties": {
+        "elevation_m": 1447,
+        "density": 8.0,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 54
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.25581,
+          -6.71183
+        ]
+      },
+      "properties": {
+        "elevation_m": 1699,
+        "density": 5.8,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 39
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.48437,
+          -6.74553
+        ]
+      },
+      "properties": {
+        "elevation_m": 1331,
+        "density": 7.3,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 66
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.25611,
+          -6.59571
+        ]
+      },
+      "properties": {
+        "elevation_m": 389,
+        "density": 4.6,
+        "species": "Aristolochia tagala",
+        "canopy_pct": 43
+      }
+    }
+  ]
+}

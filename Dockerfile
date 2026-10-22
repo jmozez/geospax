@@ -53,6 +53,7 @@ COPY --from=server /geospax-server /usr/bin/geospax-server
 COPY --from=web /src/web/dist /usr/share/geospax/web
 COPY recipes /usr/share/geospax/recipes
 COPY plugins /usr/share/geospax/plugins
+COPY samples /usr/share/geospax/samples
 RUN useradd --create-home --uid 1000 geospax && mkdir -p /data /state /inbox && chown geospax /data /state /inbox
 USER 1000:1000
 VOLUME ["/state"]

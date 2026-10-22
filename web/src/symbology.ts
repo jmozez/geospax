@@ -39,8 +39,8 @@ export interface LayerStyle {
   auto?: string;
 }
 
-/** Map background: offline Natural Earth (bundled), OpenStreetMap (online) or none. */
-export type Basemap = 'offline' | 'osm' | 'none';
+/** Map background: an id from web/src/basemaps.ts ('offline' = Natural Earth, bundled; 'none'; 'custom' …). */
+export type Basemap = string;
 
 export interface Project {
   version: 1;
@@ -49,6 +49,8 @@ export interface Project {
   layers: Record<string, LayerStyle>;
   view?: { center: [number, number]; zoom: number };
   basemap?: Basemap;
+  /** the user's own XYZ tiles (basemap 'custom') */
+  customBasemap?: { url: string; attribution: string; maxzoom?: number };
   /** group layers (Pro tree): a group switches its layers on and off together */
   groups?: LayerGroup[];
   /** layer id -> group id */

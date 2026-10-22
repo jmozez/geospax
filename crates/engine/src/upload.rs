@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 /// What can be dropped. Anything else is refused with a list of these.
 pub const ACCEPTED: &[&str] = &[
-    "geojson", "json", "gpkg", "fgb", "kml", "kmz", "gpx", "csv", "gml", "parquet", "zip", "tif", "tiff", "las", "laz", "nmea",
+    "geojson", "json", "gspx", "gpkg", "fgb", "kml", "kmz", "gpx", "csv", "gml", "parquet", "zip", "tif", "tiff", "las", "laz", "nmea",
 ];
 const MAX_ZIP_MEMBER: u64 = 1 << 30;
 
@@ -27,7 +27,7 @@ fn ext_of(p: &Path) -> String {
 }
 
 /// `Uploads/` in the first data folder that can be written, else `<state>/uploads`.
-fn upload_dir(engine: &Engine) -> PathBuf {
+pub(crate) fn upload_dir(engine: &Engine) -> PathBuf {
     for d in &engine.data_dirs {
         let dir = d.join("Uploads");
         if fs::create_dir_all(&dir).is_ok() && fs::metadata(&dir).map(|m| !m.permissions().readonly()).unwrap_or(false) {
@@ -88,6 +88,34 @@ fn unzip(zip_path: &Path, dest: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
+/// Put saved files on the map: GeoTIFFs as rasters, LAS/LAZ kept for the LiDAR recipe, everything else
+/// GDAL opens as vector layers. Returns (layer ids, raster ids, point clouds, skipped with reasons).
+pub fn register_files(engine: &Arc<Engine>, files: &[PathBuf]) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
+    let (mut layers, mut rasters, mut kept, mut skipped) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for f in files {
+        let e = ext_of(f);
+        if matches!(e.as_str(), "tif" | "tiff") {
+            let id = f.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            match engine.register_raster(f, &id) {
+                Ok(h) => rasters.push(h.info.id.clone()),
+                Err(err) => skipped.push(format!("{}: {err}", f.display())),
+            }
+        } else if matches!(e.as_str(), "las" | "laz") {
+            // point clouds are a job for lidar-to-terrain, which finds them in the data folder
+            kept.push(f.display().to_string());
+        } else if matches!(e.as_str(), "shx" | "dbf" | "prj" | "cpg" | "qix" | "sbn" | "sbx" | "xml" | "txt" | "md" | "pdf") {
+            // shapefile sidecars and documents: read through their main file, or kept as they are
+        } else {
+            match crate::catalog::load_layers(f) {
+                Ok(h) if !h.is_empty() => layers.extend(engine.register_layers(h)),
+                Ok(_) => skipped.push(format!("{}: no features", f.display())),
+                Err(err) => skipped.push(format!("{}: {err}", f.display())),
+            }
+        }
+    }
+    (layers, rasters, kept, skipped)
+}
+
 /// Save one dropped file and put what it holds on the map.
 pub fn upload(engine: &Arc<Engine>, name: &str, body: &[u8]) -> Result<serde_json::Value, String> {
     let name = clean_name(name).ok_or("the file needs a name")?;
@@ -112,28 +140,7 @@ pub fn upload(engine: &Arc<Engine>, name: &str, body: &[u8]) -> Result<serde_jso
         vec![path.clone()]
     };
 
-    let (mut layers, mut rasters, mut kept, mut skipped) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for f in &candidates {
-        let e = ext_of(f);
-        if matches!(e.as_str(), "tif" | "tiff") {
-            let id = f.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-            match engine.register_raster(f, &id) {
-                Ok(h) => rasters.push(h.info.id.clone()),
-                Err(err) => skipped.push(format!("{}: {err}", f.display())),
-            }
-        } else if matches!(e.as_str(), "las" | "laz") {
-            // point clouds are a job for lidar-to-terrain, which finds them in the data folder
-            kept.push(f.display().to_string());
-        } else if matches!(e.as_str(), "shx" | "dbf" | "prj" | "cpg" | "qix" | "sbn" | "sbx" | "xml" | "txt" | "md" | "pdf") {
-            // shapefile sidecars and documents: read through their main file, or kept as they are
-        } else {
-            match crate::catalog::load_layers(f) {
-                Ok(h) if !h.is_empty() => layers.extend(engine.register_layers(h)),
-                Ok(_) => skipped.push(format!("{}: no features", f.display())),
-                Err(err) => skipped.push(format!("{}: {err}", f.display())),
-            }
-        }
-    }
+    let (layers, rasters, kept, skipped) = register_files(engine, &candidates);
     if layers.is_empty() && rasters.is_empty() && kept.is_empty() {
         return Err(format!("nothing GeoSpaX can map in {name}{}", if skipped.is_empty() { String::new() } else { format!(" ({})", skipped.join("; ")) }));
     }
