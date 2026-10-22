@@ -25,11 +25,23 @@ design.
   geometry** (geodesic area, length, perimeter, x, y).
 - **Measure** (Map and Edit tabs): distance (total and per segment) and area (with perimeter), geodesic,
   metric or imperial, as ArcGIS Pro's Measure tool.
+- **Right-click menus** (long press on touch screens): on layers in Contents (zoom, table, symbology,
+  AutoMap, show/hide, selections, definition query, calculate, add field, export, discard edits, remove
+  from map, properties), on Catalog items and on the map (copy coordinates, centre, zoom, measure, and
+  for a feature under the cursor: select, edit attributes, layer options).
+- **Basemap gallery** (View): OpenStreetMap, OpenTopoMap, Esri Topographic and World Imagery,
+  Sentinel-2 cloudless 2016, CARTO light and dark, or your own XYZ tiles; each with its licence or terms.
+- **Sample data** (Data): the 1.4.2 Papua New Guinea survey and teaching layers with WorldClim and tree
+  cover rasters (`samples/png`, credits in its README); **1.4.2 `.gspx` and 2.0 `.geolibre.json`
+  projects** open like any file (their embedded layers).
 - **View › Projection: Globe** (MapLibre's globe at small scales) besides Web Mercator.
 - Engine API for all of it (`crates/engine/src/edit.rs`); `scripts/test-edit.py` (44 checks on
   GeoJSON, Shapefile and a projected GeoPackage) runs in CI.
 
 ### Fixed
+- **Phones showed no map.** At widths up to 900 px the pane dividers were hidden, which shifted the
+  grid so the right pane took the map's place (map width 0, in Lazy and Pro). The map now fills the
+  screen and **Layers / Tools / Panel** buttons slide the panes over it; a tap on the map closes them.
 - **Help › User guide, Automation, Feature matrix, Credits** opened a new tab that showed the app again
   (the guides were not served), and **About** only flashed a status line. The guides are now built
   into the program and open in a dialog (also on phones and in the desktop window); About shows the

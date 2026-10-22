@@ -598,6 +598,7 @@ export class Workbench {
     if (this.layout.collapsed.includes(dock)) this.layout.collapsed = this.layout.collapsed.filter((d) => d !== dock);
     this.saveLayout();
     this.applyLayout();
+    document.dispatchEvent(new CustomEvent('geospax:show-pane', { detail: dock }));
   }
 
   toggleDock(dock: Dock) {
