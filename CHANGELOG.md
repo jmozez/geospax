@@ -31,6 +31,9 @@ design.
   for a feature under the cursor: select, edit attributes, layer options).
 - **Basemap gallery** (View): OpenStreetMap, OpenTopoMap, Esri Topographic and World Imagery,
   Sentinel-2 cloudless 2016, CARTO light and dark, or your own XYZ tiles; each with its licence or terms.
+- **Local Moran's I (LISA)** with the global Moran's I and the Moran scatterplot, and **elevation
+  profiles** (lines over a DEM, or points with an elevation field per transect) — from 1.4.2; tool
+  results can carry charts.
 - **Sample data** (Data): the 1.4.2 Papua New Guinea survey and teaching layers with WorldClim and tree
   cover rasters (`samples/png`, credits in its README); **1.4.2 `.gspx` and 2.0 `.geolibre.json`
   projects** open like any file (their embedded layers).

@@ -68,6 +68,27 @@ half is vegetated (NDVI extent 50.0 %), a planted loss strip (found cell for cel
 slope 10° ± 0.2) and a species confined to one climate corner (cross-validated AUC above 0.85 for
 Mahalanobis and logistic, above 0.7 for BIOCLIM).
 
+## From GeoSpaX 1.4.2 (phase C)
+
+| Tool | Toolbox | What it gives you |
+| --- | --- | --- |
+| **Local Moran's I (clusters and outliers, LISA)** | Spatial Statistics › Clusters and outliers | Each feature as a high-high or low-low cluster, a high-low or low-high outlier, or not significant (Anselin 1995), in the conventional red/blue colours; the global Moran's I with its permutation p-value and the Moran scatterplot. Neighbours: touching polygons (queen), k nearest or a distance band, row-standardised; conditional permutations with a seed (same seed, same answer); optional Benjamini–Hochberg false discovery rate |
+| **Elevation profile** | Terrain › Profiles | The terrain along each line over a DEM (bilinear samples every half cell), or through points with an elevation field, one profile per group (e.g. transect) and sorted by a field: the chart, length, lowest and highest point, total climb and descent, steepest stretch |
+| **Calculate field** | Edit › Fields, attribute table | SQL expressions and geodesic geometry measures ([USER_GUIDE §5a](USER_GUIDE.md#5a-edit-and-query-data)) |
+
+Tool results can now carry charts (`figures` in the plugin answer, drawn as images so a plugin's SVG
+cannot run scripts). **Checked** (`tests/legacytools.test.ts`): a two-block pattern is strongly clustered
+with high-high and low-low on the right sides and no outliers; a checkerboard with rook neighbours gives
+Moran's I = −1 exactly; the global I equals the textbook double sum; a north-facing ramp DEM gives the
+profile length (11.1 km for 0.1° of latitude) and climb (1,000 m) it should. On the 1.4.2 sample
+transects, species richness gives I = 0.82 with 8 neighbours (1.4.2's guide expects about 0.8).
+
+**Sample data** (Data › Sample data) brings back the 1.4.2 Papua New Guinea set: the survey transects,
+birdwing butterflies and their host vines, forest patches, a habitat grid, streams, WorldClim
+temperature and rainfall and tree cover ([samples/png/README.md](../samples/png/README.md)). **1.4.2
+`.gspx` and 2.0 `.geolibre.json` projects** open like any file: their embedded layers come onto the map
+(styles and layers that only point at outside files are not carried over).
+
 ## From scripts
 
 ```bash
@@ -126,8 +147,6 @@ reports run for real; the downloads need internet and are covered by the `data.f
   forest, marine, SPREP) in Data › Online data.
 - **More kits:** marine (OBIS with ocean covariates), hydrology (watersheds and stream networks with the
   raster tools), ecosystem services.
-- **From 1.4.2:** local and global Moran's I, calculate field with expressions, opening 1.4.2 `.gspx`
-  and 2.0 projects, the Papua New Guinea sample data, elevation profiles.
 
 ## Credits
 
