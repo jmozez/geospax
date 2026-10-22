@@ -32,6 +32,8 @@ export interface CommandHost {
   setStatus: (text: string, ms?: number) => void;
   log: (line: string, level?: 'info' | 'warn' | 'error') => void;
   openUrl: (path: string) => void;
+  /** Help › About GeoSpaX */
+  about: () => void;
   /** true = big galleries collapse into a single dropdown button (default). */
   setRibbonCompact: (compact: boolean) => void;
   /** Switch between a ribbon that is always open and one that opens on a tab click. */
@@ -473,7 +475,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'help.about', tab: 'help', group: 'About', title: 'About GeoSpaX', icon: 'globe',
-    run: (h) => { h.setStatus('GeoSpaX — spatial automation engine, Rust + Tauri', 6000); },
+    run: (h) => { h.about(); },
   },
   {
     id: 'analyze.bench', tab: 'help', group: 'Diagnostics', title: 'Benchmark', icon: 'clock',

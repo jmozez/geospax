@@ -97,6 +97,14 @@ impl Engine {
         let segs: Vec<&str> = segs.iter().map(String::as_str).collect();
         let q = req.query.as_str();
         match (req.method.as_str(), segs.as_slice()) {
+            ("GET", ["api", "docs"]) => ApiResponse::json(
+                200,
+                &json!({ "docs": crate::docs::DOCS.iter().map(|(n, t, _)| json!({ "name": n, "title": t })).collect::<Vec<_>>() }),
+            ),
+            ("GET", ["api", "docs", name]) => match crate::docs::find(name) {
+                Some((n, t, md)) => ApiResponse::json(200, &json!({ "name": n, "title": t, "markdown": md, "version": env!("CARGO_PKG_VERSION") })),
+                None => ApiResponse::error(404, format!("there is no guide '{name}'")),
+            },
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();
