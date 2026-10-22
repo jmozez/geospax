@@ -9,6 +9,7 @@ This guide gets you from zero to a finished map in a few minutes.
 - [3. Where things go](#3-where-things-go)
 - [4. Recipes in the box](#4-recipes-in-the-box)
 - [5. Automation on and off](#5-automation-on-and-off)
+- [5a. Edit and query data](#5a-edit-and-query-data)
 - [6. Live sensors and phones](#6-live-sensors-and-phones)
 - [7. Optional power tools: R, Python, GRASS, SAGA](#7-optional-power-tools-r-python-grass-saga)
 - [8. Command line](#8-command-line)
@@ -387,6 +388,36 @@ Every recipe with a trigger has an **Auto** switch in the Automate section. Your
 | Live GNSS receiver | `GEOSPAX_GPS=gpsd://localhost:2947` or a serial/TCP/file URL | `--gps …` |
 | Data and state folders | `GEOSPAX_DATA`, `GEOSPAX_STATE` | `--data DIR`, `--state-dir DIR` |
 | Everything off | — | `--no-triggers` |
+
+## 5a. Edit and query data
+
+The **Edit** tab works like ArcGIS Pro's (and QGIS's digitising and attribute tools). Edits go into the
+**active layer**: the one picked in Contents.
+
+| Group | Tools |
+| --- | --- |
+| **Create** | **Point**, **Line**, **Polygon**: click to place vertices, double-click (or click the first point) to finish, then fill in the feature's attributes. New vertices **snap** to the vertices of visible features (Manage edits › Snapping turns it off). |
+| **Modify** | **Select** (click; Shift adds, Ctrl removes, Delete deletes), **Select by rectangle**, **Edit vertices** (drag a vertex or the whole shape, drag a midpoint to add a vertex, right-click a vertex to delete it; Enter saves, Esc cancels), **Attributes** (form for the selected feature), **Delete**. |
+| **Selection** | **By attributes**: a query builder (field, operator, value list, AND/OR) that writes an SQL WHERE clause you can edit and **Check** before selecting; new selection, add, remove or select from the current one. **By location**: features that intersect, lie completely within, contain or are within a distance (metres) of another layer's features, or only its selected ones. **Zoom to selected**, **Clear selection**. The same selection tools are on the Map tab. |
+| **Fields** | **Calculate field**: an SQL expression (`"a" * 2`, `round("x", 2)`, `"a" \|\| ' ' \|\| "b"`, `CASE WHEN "x" > 10 THEN 'high' ELSE 'low' END`, `upper()`, `substr()`, `coalesce()` …) or a **geometry** measure (geodesic area in m², ha or km², length, perimeter, x, y), for all features or the selected ones; a new field is created with the type you choose. **Add field**, **Attribute table**, **Definition query** (only matching features are drawn, listed and analysed until you clear it; the data is not changed). |
+| **Manage edits** | **Undo**/**Redo** (Ctrl+Z, Ctrl+Y) step through whole edits, including deletions; **New layer** (empty points, lines or polygons with the fields you list); **Export features** (the selection or the layer as a new layer); **Discard edits**. |
+
+**Your files are safe.** The first edit to a layer copies it, with its coordinate system, fields and
+feature ids, into a GeoPackage that GeoSpaX keeps in its state folder (`<state>/edits/`); from then on the
+layer (same name, same style) reads the copy, and it comes back the next time you start. The original
+file is never written. **Discard edits** goes back to it; **Export** (or Data › Export) saves the edited
+data wherever you like.
+
+**The attribute table** (Attributes pane) shows every field. Click a column name to sort (again for
+descending, a third time for none); its **⋮** menu sorts, calculates, shows statistics or deletes the field.
+The search box looks through every text and number field of the whole layer, not just the page on screen.
+Clicking a row selects the feature on the map (Shift selects a range, Ctrl adds or removes); double-click
+the id to zoom to it and double-click a cell to edit it. **Show selected** lists only the selection;
+**Switch** selects the others. The toolbar has the same Select by attributes, Filter (definition query),
+Calculate, Add field, Delete and Export as the ribbon.
+
+The engine's API does the same for scripts: `POST /api/layers/{id}/select`, `…/table`, `…/calculate`,
+`…/features`, `PUT …/filter` ([README](../README.md), section API).
 
 ## 5b. LiDAR point clouds
 

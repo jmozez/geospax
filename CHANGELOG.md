@@ -8,6 +8,30 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — editing, selection and the attribute table
+- **Edit tab** (ArcGIS Pro's layout): create points, lines and polygons with snapping to visible
+  features and an attribute form for each new feature; select (click, rectangle), edit vertices
+  (drag, insert at midpoints, delete), move, delete; undo and redo of whole edits; new empty layers;
+  export features; discard edits. Drawing uses terra-draw (MIT).
+- **Edits never touch the original file**: the first edit copies the layer (CRS, fields and feature
+  ids kept) into a GeoPackage under `<state>/edits/`; the layer reads the copy, also after a restart.
+- **Select by attributes** (query builder writing SQL, with Check, and new/add/remove/subset
+  selection), **select by location** (intersect, within, contain, within a distance, optionally of the
+  other layer's selection), **definition queries** (drawn, listed and analysed features), on the Edit
+  and Map tabs; selected features are highlighted on the map.
+- **Attribute table**: every field (not just the six drawn in tiles), sort by any column, search the
+  whole layer, show selected, switch selection, edit cells in place, a column menu (sort, calculate,
+  statistics, delete field), field statistics; **field calculator** (SQL expressions) and **calculate
+  geometry** (geodesic area, length, perimeter, x, y).
+- Engine API for all of it (`crates/engine/src/edit.rs`); `scripts/test-edit.py` (44 checks on
+  GeoJSON, Shapefile and a projected GeoPackage) runs in CI.
+
+### Fixed
+- **Help › User guide, Automation, Feature matrix, Credits** opened a new tab that showed the app again
+  (the guides were not served), and **About** only flashed a status line. The guides are now built
+  into the program and open in a dialog (also on phones and in the desktop window); About shows the
+  version, edition, author, licence and links.
+
 ### Added — domain kits
 - **Nine domain kits** (Analysis › Recipes, by domain; Toolbox › Ready-made analyses; Lazy › Find
   patterns): species distribution model (GBIF + WorldClim), survey diversity and clustering, range
