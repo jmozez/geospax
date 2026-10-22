@@ -16,5 +16,5 @@ GRASS GIS and SAGA (standalone installers or OSGeo4W). Set GEOSPAX_PYTHON / GEOS
 GEOSPAX_SAGA to point at a specific copy.
 
 Bundled: GDAL 3.10 + PROJ 9.7 (conda-forge builds, share\gdal and share\proj), DejaVu Sans (fonts\).
-Licenses: LICENSE-MIT.txt, LICENSE-APACHE.txt; third-party-licenses\ lists every bundled library and its license.
+License: LICENSE.txt (MIT); third-party-licenses\ lists every bundled library and its license.
 Docs: docs\USER_GUIDE.md (step-by-step guide; the source repository has README.md and the full docs\ folder)

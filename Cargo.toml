@@ -6,7 +6,7 @@ default-members = ["crates/engine", "crates/server"]
 [workspace.package]
 version = "3.0.0"
 edition = "2024"
-license = "Apache-2.0 OR MIT"
+license = "MIT"
 
 [workspace.dependencies]
 geospax-engine = { path = "crates/engine" }

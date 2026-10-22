@@ -5,6 +5,11 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Changed
+- GeoSpaX is licensed under the **MIT licence** only (previously MIT or Apache-2.0, at your choice).
+  `LICENSE-MIT` is now `LICENSE`; `LICENSE-APACHE` is removed. Third-party parts keep their own licences
+  (THIRD_PARTY_NOTICES.md).
+
 ## [3.0.0] — 2026-10-22
 
 GeoSpaX 3.0: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this design. Installers
