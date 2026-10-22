@@ -52,7 +52,7 @@ So GeoSpaX does not compete on "chat to make a map". It competes on **automation
 | Science / stats | Geostatistical Analyst (extension) | Via providers and plugins | Kriging/IDW, spatial-statistics toolbox [4] | GeoLibre/Whitebox tools | **R and Python as first-class recipe steps, with geostat autopilot and "show me the code"** |
 | Remote sensing | Image Analyst (extension) | Via providers (OTB, SAGA, GRASS) | SamGeo segmentation [4] | Whitebox RS tools | **RS autopilot: STAC search → cloud-free composite → indices → classification → change report** |
 | Engine | Native (.NET/C++) | Native (C++/Qt) | Browser (WASM) + Python sidecar | Native Rust + WASM | **One native Rust engine for desktop, web and headless CLI** |
-| License / cost | Commercial | GPL, free | MIT | Apache-2.0 | **Apache-2.0 OR MIT, free** |
+| License / cost | Commercial | GPL, free | MIT | Apache-2.0 | **MIT, free** |
 
 **One-sentence position:** *GeoSpaX is the open-source GIS where every map is a re-runnable recipe that triggers itself
 on new data (a plugged-in phone, a dropped file, a new satellite pass, a sensor crossing a threshold) and finishes the

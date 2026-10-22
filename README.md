@@ -388,7 +388,7 @@ Names follow `setup-*`, `data-*`, `demo-*`, `test-*`, `bench-*` (`test-web-*` fo
 ## Layout
 ```
 docs/            USER_GUIDE.md · VISION.md · FEATURE_MATRIX.md · AUTOMATION.md · DEVICES.md
-CHANGELOG.md · LICENSE-APACHE · LICENSE-MIT
+CHANGELOG.md · LICENSE (MIT)
 Dockerfile · docker-compose.yml    web edition image (+ MQTT broker); .github/workflows/ci.yml: CI and releases
 releases/        packages built by scripts/package-linux.sh (.deb) and scripts/package-windows.sh (setup.exe)
 packaging/windows/  Tauri NSIS overlay, installer hooks, geospax-web.cmd, README.txt for the install folder
@@ -466,4 +466,4 @@ bench/           RESULTS.md · engine-*.json · reader-*.json · overviews.json 
 - **CEF on Linux.** Waiting for Tauri 3 to stabilize.
 - **Web-map export, `for_each`, the step cache, OGC SensorThings, cloud-free composites, land-cover classification, more providers (Whitebox, OTB, SNAP, ODM), the optional AI recipe writer.** Specified in [docs/AUTOMATION.md](docs/AUTOMATION.md); Phase 2 onwards.
 
-License: Apache-2.0 OR MIT.
+License: [MIT](LICENSE).

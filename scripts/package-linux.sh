@@ -59,7 +59,7 @@ Terminal=false
 Categories=Science;Geography;
 Keywords=GIS;map;GPS;drone;satellite;remote sensing;sensor;recipe;
 EOF
-for f in README.md CHANGELOG.md docs/USER_GUIDE.md LICENSE-MIT LICENSE-APACHE; do
+for f in README.md CHANGELOG.md docs/USER_GUIDE.md LICENSE; do
   [ -f "$f" ] && install -m644 "$f" "$P/usr/share/doc/geospax/"
 done
 cat > "$P/usr/share/doc/geospax/copyright" <<EOF
@@ -67,8 +67,8 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: GeoSpaX
 Files: *
 Copyright: 2026 GeoSpaX contributors
-License: Apache-2.0 or MIT
- See /usr/share/doc/geospax/LICENSE-APACHE and /usr/share/doc/geospax/LICENSE-MIT.
+License: MIT
+ See /usr/share/doc/geospax/LICENSE.
  .
  The binaries also contain Mozilla's root certificate list (webpki-roots crate, CDLA-Permissive-2.0), used to
  check MQTT brokers' TLS certificates: see /usr/share/doc/geospax/third-party/webpki-roots/LICENSE.txt.
