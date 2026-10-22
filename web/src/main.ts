@@ -21,6 +21,7 @@ import { ProjectPane } from './projectpane';
 import { AskPane } from './ask';
 import { openEmbeddings } from './embeddings';
 import { openDetect, openModels } from './models';
+import { openWorms } from './taxa';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
 import { Toolbox } from './toolbox';
@@ -1975,6 +1976,14 @@ async function main() {
   };
   document.addEventListener('geospax:detect', () => void openDetect(modelsHost));
   document.addEventListener('geospax:models', () => void openModels(modelsHost));
+  // Data › Check species names (taxa.ts): WoRMS
+  document.addEventListener('geospax:worms', () => void openWorms({
+    backend,
+    layers: () => layers.map((l) => ({ id: l.id, name: l.name, fields: l.fields })),
+    active: () => panel.current ?? null,
+    run: modelsHost.run,
+    setStatus: modelsHost.setStatus,
+  }));
   // Imagery › Satellite embeddings (embeddings.ts)
   document.addEventListener('geospax:embeddings', (e) => void openEmbeddings({
     backend,

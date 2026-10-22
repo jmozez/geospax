@@ -172,10 +172,23 @@ change a default, or save a copy with your own steps. Kits call the tools with t
 that download data run with the downloads swapped for local test rasters, so their tools, maps and
 reports run for real; the downloads need internet and are covered by the `data.fetch` tests.
 
+## Online data from the 2.0 catalogue
+
+GeoSpaX 2.0 listed these sources; 3.0 fetches them, for the area on the map, with their citations
+(Data › Online data and Data › Check species names; steps in [AUTOMATION.md](AUTOMATION.md)):
+
+| Source | What you get | Licence and credit |
+| --- | --- | --- |
+| **GEBCO 2026 Grid** | Sea depth and land height in one surface at 15″ (~450 m), drawn with the colours changing at sea level; optionally how each depth was obtained (GEBCO's Type Identifier: multibeam, single beam, satellite gravity, interpolation …) with its share of the area | Public domain; *not for navigation*. GEBCO Compilation Group (2026) GEBCO 2026 Grid, doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa. Read from the cloud-optimised copy on Source Cooperative (giswqs/gebco-bathymetry), checked cell for cell |
+| **Hansen Global Forest Change v1.13** | Tree canopy cover in 2000 (%), year of forest loss 2001–2025, gain 2000–2012, land/water mask, at 1″ (~30 m), for areas up to 2° a side. Maps draw loss (pink 2001 → purple 2025) over tree cover | CC-BY 4.0; *Source: Hansen/UMD/Google/USGS/NASA*; Hansen et al. 2013, *Science* 342. The authors' caveat goes into the methods: a relative indicator of loss; do not estimate areas from pixel counts |
+| **RESOLVE Ecoregions 2017** | The 846 terrestrial ecoregions (updated WWF ecoregions), clipped to the area, with biome, realm, Nature Needs Half category and geodesic area, in RESOLVE's colours | CC-BY 4.0; Dinerstein et al. 2017, *BioScience* 67: 534–545. The 149 MB file is downloaded once into `<state>/catalog/` |
+| **WoRMS** | Names checked: AphiaID, status, accepted name, classification, habitat and a verdict per name | WoRMS Editorial Board, World Register of Marine Species, doi:10.14284/170 (citation with the access date in the methods) |
+
+**Not yet:** coral reef extent, mangroves and the SPREP Pacific layers. The SPREP Inform portal refuses
+automated requests (a Cloudflare browser challenge), so it needs another route.
+
 ## Coming next
 
-- **Data:** WoRMS taxonomy checks, GEBCO bathymetry and the 2.0 catalogue layers (ecoregions,
-  forest, marine, SPREP) in Data › Online data.
 - **More kits:** marine (OBIS with ocean covariates), hydrology (watersheds and stream networks with the
   raster tools), ecosystem services.
 

@@ -1177,3 +1177,9 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .gx-dialog table.models .err { color: #e5484d; }
 .gx-dialog fieldset.add-model { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 10px; display: grid; gap: 6px; }
 .gx-dialog fieldset.add-model legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
+
+/* split ramps (bathymetry): sea level marked at the middle of the bar */
+.ramp.split { position: relative; }
+.ramp.split::after { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: currentColor; }
+.ends:has(.mid) { position: relative; }
+.ends .mid { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; }

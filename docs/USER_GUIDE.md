@@ -182,10 +182,22 @@ default) changes the ribbon and the layer list together:
 
 **Online data** (Data tab, or the Lazy task) gets free data for the area on the map, with no account:
 WorldClim 2.1 bioclim and monthly climate, WorldClim CMIP6 future climate (12 models, four SSPs, four
-periods), CHELSA 2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries and the
-Copernicus DEM. Only the area is downloaded (climate keeps the provider's own grid), each result becomes a
+periods), CHELSA 2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries, the
+Copernicus DEM, **ocean depth** (GEBCO 2026: sea depth and land height in one surface, drawn with sea level
+as the coastline, and how each depth was measured), **forest change** (Hansen Global Forest Change v1.13:
+tree cover in 2000 and the year of loss 2001–2025 at 30 m, for areas up to about 220 km a side) and
+**ecoregions** (RESOLVE 2017, the updated WWF terrestrial ecoregions, in their published colours). Only the area is downloaded (climate keeps the provider's own grid), each result becomes a
 layer, and its citation goes into the run's methods and report. It is a recipe step, `data.fetch`, so a
 recipe can fetch data on a schedule too ([AUTOMATION.md](AUTOMATION.md)).
+
+**Check species names** (Data tab) matches a layer's scientific names against the World Register of
+Marine Species (WoRMS). You get a copy of the layer with each name's AphiaID, its status, the accepted
+name for synonyms (*Acropora formosa* → *Acropora muricata*), the classification, the habitat and a
+verdict to review: *ok*, *synonym*, *check spelling* (a fuzzy match, e.g. *Chelonia mydass*),
+*ambiguous* (a name shared by two groups: *Acropora* is a coral and an old bryozoan genus; *Only within
+Cnidaria* settles it) or *not in WoRMS*. Your own names are never changed. WoRMS covers marine taxa
+best; many freshwater and land species are not in it. Answers are kept for 30 days, so a re-run does not
+ask WoRMS again.
 
 The side and bottom panes follow it too:
 
