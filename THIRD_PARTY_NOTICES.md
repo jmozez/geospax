@@ -1,7 +1,7 @@
 # Third-party notices
 
-GeoSpaX is dual-licensed under **MIT** or **Apache-2.0** (your choice): see
-[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
+GeoSpaX is licensed under the **MIT licence**: see [`LICENSE`](LICENSE). The third-party parts below keep
+their own licences.
 
 This file records the open-source projects GeoSpaX depends on, learns from, or
 acknowledges — including the two the workbench UI was modelled on.
@@ -57,9 +57,9 @@ The 1.7 workbench borrows, with attribution and re-implemented in TypeScript:
 a browser/Tauri webview; RustGIS's is Rust/egui. The items above are
 architectural patterns, re-implemented against GeoSpaX's own engine API.
 
-Apache-2.0 requires that derivative works state the changes: the table above is
-that statement. The full Apache-2.0 text ships as [`LICENSE-APACHE`](LICENSE-APACHE)
-and at <http://www.apache.org/licenses/LICENSE-2.0>.
+The table above records what was borrowed, as RustGIS's Apache-2.0 terms ask of
+derivative works; as no RustGIS code is included, GeoSpaX itself remains MIT. The
+Apache-2.0 text is at <http://www.apache.org/licenses/LICENSE-2.0>.
 
 ---
 
@@ -132,7 +132,7 @@ SOFTWARE.
 
 ## 5. If you reuse GeoSpaX
 
-You may copy, modify and redistribute it under MIT or Apache-2.0. If you carry
+You may copy, modify and redistribute it under the MIT licence. If you carry
 the workbench forward, keep this file (or an equivalent NOTICE) with the
 attributions in sections 2–4 intact.
 
