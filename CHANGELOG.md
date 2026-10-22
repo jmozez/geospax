@@ -20,6 +20,17 @@ design.
   the Copernicus DEM (0.61 if the bottom-up files were read unflipped); `test-embeddings.py` checks every
   step against known landscapes offline.
 
+### Fixed — results join Contents
+- Analysis results now always appear in **Contents**, switched on and on top, like ArcGIS Pro and QGIS:
+  vector layers and, newly, **rasters** (classifications, hot-spot surfaces, similarity, DEMs, indices),
+  which used to show only in the Rasters pane. Rasters have rows in Contents (switch, opacity, legend,
+  move up/down, drag, zoom, right-click menu) and are drawn at their place in the draw order.
+- Results made outside the app's own run button (a recipe started by the Ask assistant, MCP, a trigger or
+  a Toolbox tool that starts a recipe) used to need a page reload; the app now notices any change in what
+  the engine has (`GET /api/rev`) and adds it. A new result no longer switches off rasters already shown.
+- `scripts/test-results-in-contents.mjs` checks the ribbon, an outside recipe making a raster and a
+  Toolbox tool, the two panes' switches, the map order and a reload.
+
 ### Fixed — recipes
 - `geospax-server check` reported "network: none" for every recipe; it now names the steps that
   download (`dem.fetch`, `data.fetch`, `rs.*`, `embeddings.fetch`).

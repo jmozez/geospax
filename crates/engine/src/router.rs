@@ -144,6 +144,19 @@ impl Engine {
                     Err(e) => ApiResponse::error(502, e),
                 }
             }
+            // what is on the map, as one number: the app polls it so results from anywhere (a recipe, a
+            // tool, the assistant, a trigger, an upload) join Contents without a reload
+            ("GET", ["api", "rev"]) => {
+                use std::hash::{Hash, Hasher};
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                for l in self.layers() {
+                    (&l.info.id, l.info.feature_count, l.filter()).hash(&mut h);
+                }
+                for r in self.rasters() {
+                    (&r.info.id, r.info.width, r.info.height).hash(&mut h);
+                }
+                ApiResponse::json(200, &json!({ "rev": format!("{:x}", h.finish()), "layers": self.layers().len(), "rasters": self.rasters().len() }))
+            }
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();

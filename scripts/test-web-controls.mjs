@@ -94,8 +94,8 @@ ok('every Pro ribbon command runs without an error', !problems.length, `${total}
 
 // the sweep ends on Help › Engine diagnostics, which opens the Project pane
 await page.click('#dock-left .dock-tabs [data-tab="contents"]');
-const layerId = await page.locator('#contents .layer.pro').first().getAttribute('data-id');
-await page.locator('#contents .layer.pro .name').first().click();
+const layerId = await page.locator('#contents .layer.pro:not(.raster)').first().getAttribute('data-id');
+await page.locator('#contents .layer.pro:not(.raster) .name').first().click();
 await settle(300);
 ok('contextual Layer tab appears for a selected layer', await page.locator('#ribbon-tabs .rb-ctx').isVisible());
 await page.click('#ribbon-tabs .rb-ctx');
