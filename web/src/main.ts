@@ -13,6 +13,7 @@ import { runBenchmark, type BenchReport } from './bench';
 import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
 import { Editor } from './editing';
+import { Measure } from './measure';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
@@ -100,6 +101,10 @@ let automatePane: AutomatePane | null = null;
 let attributesPane: AttributesPane | null = null;
 /** Editing and selection (web/src/editing.ts) */
 let editor: Editor | null = null;
+/** View › Projection: 'mercator' or 'globe' (remembered in this browser) */
+let mapProjection: 'mercator' | 'globe' = (() => {
+  try { return localStorage.getItem('geospax.projection') === 'globe' ? 'globe' : 'mercator'; } catch { return 'mercator'; }
+})();
 /** Bumped after each edit to a layer, so the map fetches its tiles again */
 const tileRev: Record<string, number> = {};
 /** Most selected features drawn highlighted per layer (a style filter lists their ids). */
@@ -363,7 +368,8 @@ function buildStyle(): maplibregl.StyleSpecification {
     for (const [k, v] of Object.entries(cur?.sources ?? {})) if (k.startsWith('td-')) sources[k] = v;
     for (const l of cur?.layers ?? []) if (l.id.startsWith('td-')) out.push(l);
   } catch { /* first style: the map is not ready yet */ }
-  return { version: 8, sources, layers: out };
+  // View › Projection (MapLibre's own projections: Web Mercator or a globe)
+  return { version: 8, sources, layers: out, projection: { type: mapProjection } };
 }
 
 // ---------------------------------------------------------------- basemap
@@ -1463,6 +1469,22 @@ async function main() {
     }
   });
   document.body.dataset.snapping = 'on';
+  document.addEventListener('geospax:projection', (e) => {
+    mapProjection = (e as CustomEvent<'mercator' | 'globe'>).detail === 'globe' ? 'globe' : 'mercator';
+    try { localStorage.setItem('geospax.projection', mapProjection); } catch { /* private mode */ }
+    document.body.dataset.projection = mapProjection;
+    applyStyle();
+    workbench?.setStatus(mapProjection === 'globe' ? 'Globe: zoom out to see the whole Earth' : 'Web Mercator');
+  });
+  document.body.dataset.projection = mapProjection;
+  // Map › Measure: distance and area (web/src/measure.ts)
+  const measure = new Measure(map);
+  document.addEventListener('geospax:measure', (e) => {
+    const m = (e as CustomEvent<string>).detail;
+    if (m === 'clear') return measure.stop();
+    void editor?.setTool('idle'); // one map tool at a time
+    measure.start(m as 'distance' | 'area');
+  });
   // open on something useful: the top layer's symbology, ready to edit
   if (project.order.length) {
     panel.open(project.order[project.order.length - 1]);
