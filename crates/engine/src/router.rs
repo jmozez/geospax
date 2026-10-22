@@ -119,6 +119,17 @@ impl Engine {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(400, e),
             },
+            ("GET", ["api", "browse"]) => match crate::browse::list(self, param(q, "path").as_deref()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(403, e),
+            },
+            ("POST", ["api", "browse", "add"]) => match crate::browse::add(self, &param(q, "path").unwrap_or_default()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("GET", ["api", "project", "info"]) => ApiResponse::json(200, &json!({
+                "path": self.project_path().display().to_string(), "exists": self.project_path().exists(),
+            })),
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();

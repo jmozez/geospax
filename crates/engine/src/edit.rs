@@ -307,6 +307,16 @@ impl Engine {
         std::fs::read(self.edits_dir().join("index.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
     }
 
+    /// Ids of edited layers whose original is `file` (the Catalog counts those as on the map).
+    pub(crate) fn edited_from(&self, file: &Path) -> Vec<String> {
+        let f = std::fs::canonicalize(file).ok();
+        self.edit_index()
+            .into_iter()
+            .filter(|(id, e)| f.is_some() && e.source.as_ref().and_then(|s| std::fs::canonicalize(s).ok()) == f && self.layer(id).is_some())
+            .map(|(id, _)| id)
+            .collect()
+    }
+
     fn save_edit_index(&self, idx: &BTreeMap<String, Entry>) -> Result<(), String> {
         std::fs::create_dir_all(self.edits_dir()).map_err(|e| e.to_string())?;
         std::fs::write(self.edits_dir().join("index.json"), serde_json::to_vec_pretty(idx).unwrap_or_default()).map_err(|e| e.to_string())

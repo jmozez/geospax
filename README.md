@@ -439,6 +439,9 @@ bench/           RESULTS.md · engine-*.json · reader-*.json · overviews.json 
 | `GET /api/jobs` · `GET /api/jobs/{id}` · `POST /api/jobs/{id}/cancel` | Background jobs: status, done/total, message, result |
 | `GET /api/project` · `PUT /api/project` | The project document (styles with AutoMap's reason, draw order, group layers, view, basemap) |
 | `POST /api/upload?name=FILE` | Body = the file. Saved in `Uploads/` of the data folder (unique name), zips unpacked safely, vector layers and GeoTIFF rasters added to the map: `{"layers", "rasters", "point_clouds", "skipped", "saved"}` (201); unsupported types → 400 with the accepted list |
+| `GET /api/browse[?path=DIR]` | The Catalog's browser: without `path` the roots (data folders, `Edits`, `Uploads`); with it that folder's sub-folders and map files `{name, path, kind, size, on_map}`. Folders outside the roots → 403 |
+| `POST /api/browse/add?path=FILE` | Put a file from a data folder on the map: `{"layers", "rasters"}`, or `"already": true` when it is on the map; outside the roots → 400 |
+| `GET /api/project/info` | Where the project is saved: `{"path", "exists"}` |
 | `GET /api/plugins` · `POST /api/plugins/{id}/tools/{tool}/run` | Plugins (source, kind, runnable, tools with forms) · run a tool (`{"params": {…}}`); the reply lists the layers and rasters its `outputs` added (`"added"`) |
 | `POST /api/layers/{layer}/table` · `…/select` | Attribute table page (`offset`, `limit`, `sort`, `desc`, `where`, `fids`) · select by attributes (`where`) and/or location (`location: {layer, relation, distance_m, fids}`) → `fids` |
 | `GET/POST/PUT/DELETE /api/layers/{layer}/features[/{fid}]` · `POST …/features/delete` | One feature as GeoJSON · add · change geometry and/or properties · delete (edits go to the layer's GeoPackage copy; `POST …/edit` makes it, `POST …/revert` drops it) |

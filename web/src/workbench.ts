@@ -70,6 +70,13 @@ export interface WorkbenchHost {
   nextSteps: (id: string) => { label: string; run: () => void }[];
 }
 
+interface BrowseListing {
+  path: string;
+  parent: string | null;
+  folders: { name: string; path: string }[];
+  files: { name: string; path: string; kind: string; size: number; on_map: string[] }[];
+}
+
 interface RunRow {
   id: string;
   recipe: string;
@@ -685,10 +692,64 @@ export class Workbench {
 
   // ---------------------------------------------------------------- catalog
 
+  private browseOpen = new Set<string>();
+  private browseCache = new Map<string, BrowseListing>();
+  private browseLoading = false;
+  private browseRoots: { title: string; path: string; about: string }[] | null = null;
+
+  /** Re-read the open folders (after an upload, an edit or "Refresh"). */
+  async refreshCatalog() {
+    this.browseRoots = null;
+    this.browseCache.clear();
+    await this.loadBrowse();
+  }
+
+  private async loadBrowse() {
+    this.browseLoading = true;
+    try {
+      if (!this.browseRoots) this.browseRoots = (await this.host.backend.json<{ roots: { title: string; path: string; about: string }[] }>('api/browse')).roots;
+      for (const p of this.browseOpen)
+        if (!this.browseCache.has(p)) this.browseCache.set(p, await this.host.backend.json<BrowseListing>(`api/browse?path=${encodeURIComponent(p)}`));
+    } catch (e) {
+      this.browseOpen.clear();
+      this.browseRoots ??= [];
+      this.log(`catalog: ${e}`, 'warn');
+    }
+    this.browseLoading = false;
+    this.renderCatalog();
+  }
+
+  /**
+   * The Catalog, as in ArcGIS Pro and QGIS's Browser: the data folders on disk (double-click a file to
+   * add it to the map; a green tick marks files already on it), the layers on the map by source, and
+   * shortcuts to sample data, recipes, devices, rasters and run history.
+   */
   renderCatalog() {
     const el = document.querySelector<HTMLElement>('#catalog');
     if (!el) return;
+    if (!this.browseRoots && !this.browseLoading) void this.loadBrowse();
     const f = this.catalogFilter.trim().toLowerCase();
+    const KIND_ICON: Record<string, string> = { vector: 'layers', raster: 'image', project: 'save', 'point cloud': 'grid', recipe: 'play' };
+    const size = (n: number) => (n >= 1 << 30 ? `${(n / (1 << 30)).toFixed(1)} GB` : n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+    const folder = (title: string, path: string, about: string, depth: number): string => {
+      const open = this.browseOpen.has(path);
+      const pad = `style="padding-left:${4 + depth * 14}px"`;
+      let html = `<div class="node source folder" data-folder="${esc(path)}" ${pad} title="${esc(about || path)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon('folder', 14)}<span class="nm">${esc(title)}</span></div>`;
+      if (!open) return html;
+      const l = this.browseCache.get(path);
+      if (!l) return `${html}<div class="pane-empty" ${pad}>Reading…</div>`;
+      const kids = l.folders.map((d) => folder(d.name, d.path, '', depth + 1)).join('');
+      const files = l.files
+        .filter((x) => !f || x.name.toLowerCase().includes(f))
+        .map((x) => {
+          const on = x.on_map.length > 0;
+          return `<div class="node file${on ? ' onmap' : ''}" data-file="${esc(x.path)}" data-kind="${esc(x.kind)}" style="padding-left:${18 + (depth + 1) * 14}px" title="${esc(`${x.kind} · ${size(x.size)}${on ? ` · on the map as ${x.on_map.join(', ')}` : ' · double-click to add to the map'}`)}">${icon(KIND_ICON[x.kind] ?? 'layers', 14)}<span class="nm">${esc(x.name)}</span>${on ? `<span class="ct ok" aria-label="on the map">${icon('check', 12)}</span>` : `<button class="ct add" data-add="${esc(x.path)}" title="Add to the map" aria-label="Add ${esc(x.name)} to the map">${icon('plus', 12)}</button>`}</div>`;
+        })
+        .join('');
+      return html + kids + (files || (l.folders.length ? '' : `<div class="pane-empty" style="padding-left:${18 + (depth + 1) * 14}px">${f ? 'No match' : 'No map files here'}</div>`));
+    };
+    const roots = (this.browseRoots ?? []).map((r) => folder(r.title, r.path, r.about, 0)).join('');
+
     const layers = this.host.layers();
     const bySource = new Map<string, LayerInfo[]>();
     for (const l of layers) {
@@ -710,24 +771,46 @@ export class Workbench {
             </div>`,
           )
           .join('');
-        return `<div class="node source"><span class="tw">▾</span>${icon('book', 14)}<span class="nm">${esc(src.split('/').pop() || src)}</span><span class="ct">${ls.length}</span></div><div class="kids">${rows}</div>`;
+        return `<div class="node source" title="${esc(src)}"><span class="tw">▾</span>${icon('book', 14)}<span class="nm">${esc(src.split(/[\\/]/).pop() || src)}</span><span class="ct">${ls.length}</span></div><div class="kids">${rows}</div>`;
       })
       .join('');
-    el.innerHTML = `<div class="pane-tools"><input id="cat-filter" type="search" placeholder="Find a layer…" value="${esc(this.catalogFilter)}" /></div>
+    el.innerHTML = `<div class="pane-tools"><input id="cat-filter" type="search" placeholder="Find a file or layer…" value="${esc(this.catalogFilter)}" /><button id="cat-refresh" title="Read the folders again" aria-label="Refresh">${icon('refresh', 14)}</button></div>
+      <p class="hint cat-intro">Your files on disk. Double-click a file (or <b>+</b>) to add it to the map; ${icon('check', 11)} means it is on the map. Right-click for more.</p>
       <div class="tree">
+        <div class="cat-head">Folders</div>
+        ${roots || '<div class="pane-empty">No data folder. Add files with Data › Add data, or open sample data.</div>'}
+        <div class="cat-head">On the map</div>
+        ${tree || '<div class="pane-empty">No layers yet. Add a file above, open sample data, or run a recipe.</div>'}
+        <div class="cat-head">More</div>
+        <div class="node source" data-shortcut="samples">${icon('gallery', 14)}<span class="nm">Sample data</span></div>
+        <div class="node source" data-shortcut="automate">${icon('play', 14)}<span class="nm">Recipes</span></div>
         <div class="node source" data-shortcut="devices">${icon('phone', 14)}<span class="nm">Devices</span></div>
         <div class="node source" data-shortcut="rasters">${icon('image', 14)}<span class="nm">Rasters</span></div>
-        <div class="node source" data-shortcut="automate">${icon('play', 14)}<span class="nm">Recipes</span></div>
         <div class="node source" data-shortcut="history">${icon('history', 14)}<span class="nm">Run history</span></div>
-        ${tree || '<div class="pane-empty">No layers yet — import a device or run a recipe.</div>'}
       </div>`;
     el.onclick = (e) => {
       const t = e.target as HTMLElement;
+      if (t.closest('#cat-refresh')) return void this.refreshCatalog();
+      const add = t.closest<HTMLElement>('[data-add]')?.dataset.add;
+      if (add) return void this.addFile(add);
       const sc = t.closest<HTMLElement>('[data-shortcut]')?.dataset.shortcut;
+      if (sc === 'samples') return void document.dispatchEvent(new CustomEvent('geospax:samples'));
       if (sc === 'devices') return this.showTab('right', 'devices');
       if (sc === 'rasters') return this.showTab('right', 'rasters');
       if (sc === 'automate') return this.showTab('bottom', 'automate');
       if (sc === 'history') return this.showTab('bottom', 'history');
+      const fold = t.closest<HTMLElement>('[data-folder]')?.dataset.folder;
+      if (fold) {
+        if (this.browseOpen.has(fold)) this.browseOpen.delete(fold);
+        else this.browseOpen.add(fold);
+        return void this.loadBrowse();
+      }
+      const file = t.closest<HTMLElement>('[data-file]');
+      if (file) {
+        el.querySelectorAll('.node.file.sel').forEach((n) => n.classList.remove('sel'));
+        file.classList.add('sel');
+        return;
+      }
       const row = t.closest<HTMLElement>('[data-layer]');
       if (row?.dataset.layer) {
         const id = row.dataset.layer;
@@ -739,10 +822,28 @@ export class Workbench {
         this.renderCatalog();
       }
     };
+    el.ondblclick = (e) => {
+      const file = (e.target as HTMLElement).closest<HTMLElement>('[data-file]');
+      if (file?.dataset.file) void this.addFile(file.dataset.file);
+    };
     el.oninput = (e) => {
       const t = e.target as HTMLInputElement;
       if (t.id === 'cat-filter') { this.catalogFilter = t.value; this.renderCatalog(); const a = document.querySelector<HTMLInputElement>('#cat-filter'); if (a) { a.focus(); a.setSelectionRange(a.value.length, a.value.length); } }
     };
+  }
+
+  /** Put a file from a data folder on the map (Catalog double-click, + or right-click). */
+  async addFile(path: string) {
+    const name = path.split(/[\\/]/).pop() ?? path;
+    this.setStatus(`Adding ${name}…`);
+    try {
+      const r = await this.host.backend.json<{ layers: string[]; rasters: string[]; already?: boolean }>(`api/browse/add?path=${encodeURIComponent(path)}`, { method: 'POST' });
+      document.dispatchEvent(new CustomEvent('geospax:added', { detail: r }));
+      this.setStatus(r.already ? `${name} is already on the map` : `Added ${name}: ${[...r.layers, ...r.rasters].join(', ')}`, 6000);
+      await this.refreshCatalog();
+    } catch (e) {
+      this.setStatus(`${name} could not be added: ${e instanceof Error ? e.message : e}`, 10000);
+    }
   }
 
   // ---------------------------------------------------------------- history + log

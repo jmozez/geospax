@@ -172,5 +172,29 @@ check("geodesic area of a 0.1° cell", abs(area - exact) / exact < 1e-6, f"{area
 call("POST", f"api/layers/{nid}/revert")
 call("POST", "api/layers/yus_sites.gpkg/revert")
 
+print("catalog browser")
+from urllib.parse import quote
+s, r = call("GET", "api/browse")
+roots = r.get("roots", [])
+check("data folder and edits are roots", s == 200 and any(x["title"] == "Edits" for x in roots) and len(roots) >= 2, ", ".join(x["title"] for x in roots))
+data = roots[0]["path"]
+s, l = call("GET", f"api/browse?path={quote(data)}")
+on = [f for f in l.get("files", []) if f["on_map"]]
+check("files listed with kind and on-map ids", s == 200 and on and all(f["kind"] for f in l["files"]), f"{len(l.get('files', []))} files, {len(on)} on the map")
+s, r = call("GET", f"api/browse?path={quote('/etc')}")
+check("a folder outside the data folders is refused", s == 403)
+s, r = call("GET", f"api/browse?path={quote(data + '/../..')}")
+check("'..' cannot climb out", s == 403)
+s, r = call("POST", f"api/browse/add?path={quote(on[0]['path'])}")
+check("adding a file already on the map says so", s == 200 and r.get("already") is True)
+s, r = call("POST", f"api/browse/add?path={quote('/etc/passwd')}")
+check("adding a file outside is refused", s == 400)
+s, e = call("POST", f"api/layers/{GJ}/edit")
+s, l2 = call("GET", f"api/browse?path={quote(data)}")
+check("an edited layer's original still counts as on the map", all(f["on_map"] for f in l2["files"]), str([f["name"] for f in l2["files"] if not f["on_map"]]))
+call("POST", f"api/layers/{GJ}/revert")
+s, r = call("GET", "api/project/info")
+check("project info has its path", s == 200 and r["path"].endswith("project.json"))
+
 print(f"\n{passed} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

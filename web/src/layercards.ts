@@ -217,7 +217,8 @@ export function actionsFor(l: LayerInfo, s: Symbology, recipes: Set<string>): [s
   if (l.geometry === 'point') {
     const numeric = s.kind === 'graduated';
     if (numeric) add('interpolate-samples', 'Make a surface');
-    add('points-to-hotspots', 'Hot spots');
+    // the hot-spot recipe aggregates incidents into cells and needs at least 60 points (stats.hotspots)
+    if (l.feature_count >= 60) add('points-to-hotspots', 'Hot spots');
     if (l.feature_count >= 5000) add('points-to-hexbins', 'Hexagon map');
   }
   return out;
