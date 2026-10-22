@@ -65,8 +65,14 @@ the API; the first-use download verified and byte-identical to the npm package.
 ## 1b. Conservation, raster and species tools (bundled)
 
 `plugins/gsx` brings the conservation, biodiversity, raster and species-distribution tools of GeoSpaX
-2.0 and 1.4.2 into GeoSpaX 3 as one Node plugin; they show as built-in tools, filed by task. See
-[GSX.md](GSX.md).
+2.0 and 1.4.2 into GeoSpaX 3 as a Node tool library (`library: true`: its tools run from recipes, the
+API and MCP but are not listed). The app shows them through the **twelve default domain plugins**
+`plugins/geospax-<domain>` (`default: true`), whose manifests `plugins/gsx/gen-manifest.mjs` writes and
+whose `run:` is the library's `run.mjs`. See [GSX.md](GSX.md).
+
+Two manifest keys serve this: `library: true` (a tool set other plugins run; hidden from the ribbon,
+Toolbox and plugin list) and `default: true` (honoured only for plugins shipped with GeoSpaX: listed as a
+default plugin, not uninstallable).
 
 ## 2. Plugin folders
 

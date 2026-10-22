@@ -43,7 +43,7 @@ jobs:
         run: npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: GSX plugin (GeoSpaX 2.0 analysis tests; bundle and manifest match the source)
         working-directory: plugins/gsx
-        run: sha256sum run.mjs plugin.yaml > /tmp/gsx.sha && npm ci --no-audit --no-fund && npx tsc -p . && npm test && npm run build && node gen-manifest.mjs && sha256sum -c /tmp/gsx.sha
+        run: sha256sum run.mjs plugin.yaml ../geospax-*/plugin.yaml > /tmp/gsx.sha && npm ci --no-audit --no-fund && npx tsc -p . && npm test && npm run build && node gen-manifest.mjs && sha256sum -c /tmp/gsx.sha
       - name: Engine unit tests
         run: . /opt/rust-env.sh && cargo test --release -p geospax-engine
       - name: Release build (server + desktop)
@@ -67,6 +67,8 @@ jobs:
           python3 scripts/test-embeddings.py target/release/geospax-server
       - name: Your own ONNX model (fixture models with known answers)
         run: python3 scripts/test-detect.py target/release/geospax-server
+      - name: The twelve default domain plugins against known answers
+        run: python3 scripts/test-domain-plugins.py target/release/geospax-server
       - name: Sensor networks (MQTT over TLS, LoRaWAN, SensorThings) against Mosquitto
         run: |
           apt-get install -y -q --no-install-recommends mosquitto openssl

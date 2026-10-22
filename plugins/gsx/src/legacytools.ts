@@ -9,7 +9,6 @@ import { cellSize, projector } from './rastertools';
 
 const STATS = 'Spatial Statistics › Clusters and outliers';
 const TERRAIN = 'Terrain › Profiles';
-export const TAB_OF_LEGACY: Record<string, string> = { [STATS]: 'analyze', [TERRAIN]: 'imagery' };
 
 const R = 6371008.8;
 const rad = Math.PI / 180;
