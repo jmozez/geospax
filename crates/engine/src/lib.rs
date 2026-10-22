@@ -12,6 +12,7 @@ pub mod automation;
 pub mod catalog;
 pub mod classify;
 pub mod devices;
+pub mod docs;
 pub mod geostats;
 pub mod sensors;
 pub mod sta;
