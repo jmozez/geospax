@@ -167,9 +167,9 @@ default) changes the ribbon and the layer list together:
   | **Home** | Project · Layers · Selection · Map (Finish my map, export) |
   | **Data** | Add data · **Online data** (climate, future climate, soil, species, boundaries, elevation) · Sources |
   | **Map** | Symbology · Fields |
-  | **Analysis** | Recipes · Toolbox · Spatial statistics · GeoLibre tools · GSX landscape and species tools |
+  | **Analysis** | Recipes · Toolbox · Spatial statistics · GeoLibre tools |
   | **Imagery** | Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools |
-  | **Modelling** | Interpolation (kriging, kriging in R) · GSX planning (suitability, gaps, representation …) |
+  | **Modelling** | Interpolation (kriging, kriging in R) |
   | **R** | R console · R setup · tmap, ggplot2 and rayshader maps · terra terrain · Earth Engine · biomod2 and MaxEnt species models · tidymodels · dbplyr ([R.md](R.md)) |
   | **Automate** | Recipes · Runs · Scripts |
   | **View** | Navigate · Theme · Basemap · Windows |

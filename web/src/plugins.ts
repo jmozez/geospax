@@ -55,6 +55,10 @@ export interface PluginInfo {
   warning?: string;
   /** part of GeoSpaX: its tools are filed with the built-in ones, not listed as a plugin */
   builtin?: boolean;
+  /** a tool library other plugins run (GSX): its tools run from recipes and the API, never listed */
+  library?: boolean;
+  /** one of GeoSpaX's default plugins: listed here, shipped with the app, not removable */
+  default?: boolean;
 }
 
 export interface PluginsState {
@@ -136,7 +140,7 @@ export class PluginsPane {
       .map(([k]) => k)
       .join(', ');
     // built-in tool sets are part of GeoSpaX: their tools are in the Toolbox, not listed here
-    const added = this.state.plugins.filter((p) => !p.builtin);
+    const added = this.state.plugins.filter((p) => !p.builtin && !p.library).sort((a, b) => Number(!!b.default) - Number(!!a.default));
     const head = `<div class="pane-head">
         <span class="pane-title">Plugins</span>
         <span class="pane-sub">${added.length} installed · runtimes: ${esc(rt || 'none found')}</span>
@@ -192,7 +196,9 @@ export class PluginsPane {
       ${cmds}
       <div class="p-foot">
         <span class="p-path">${esc(p.path)}</span>
-        ${this.canUninstall(p)
+        ${p.default
+          ? `<span class="p-keep dim" title="Ships with GeoSpaX">default plugin</span>`
+          : this.canUninstall(p)
           ? `<button class="p-del" data-act="uninstall" data-id="${esc(p.id)}" title="Remove this plugin from ${esc(
               this.state.dirs[this.state.dirs.length - 1] ?? 'the plugin folder',
             )}">${this.confirmUninstall === p.id ? 'Click again to delete' : 'Uninstall'}</button>`

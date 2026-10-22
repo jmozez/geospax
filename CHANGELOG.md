@@ -8,6 +8,14 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Changed — the twelve domain plugins of 2.0 are default plugins
+- The GSX tools reach the app as GeoSpaX 2.0's twelve domain plugins (Conservation, Agriculture,
+  Biodiversity, Environment, Forestry, Marine, Climate, Disaster, Geoscience, Hydrology, Land use and
+  land cover, Soil), shipped and listed as **default plugins**, each with its 2.0 tools, on the Plugins
+  tab and in the Toolbox under *Plugins*. They are no longer on the Analysis, Imagery and Modelling tabs.
+- They share one library (`plugins/gsx`, `library: true`), so recipes and scripts calling `gsx/<tool>`
+  keep working. New manifest keys `library` and `default` ([PLUGINS.md](docs/PLUGINS.md)).
+
 ### Added — satellite embeddings (AlphaEarth Foundations)
 - **Imagery › Embeddings**: Google DeepMind's AlphaEarth annual satellite embeddings (64 numbers per 10 m
   pixel, 2017–2025, CC-BY 4.0) read for the map view or a layer's area from the public copy, and what

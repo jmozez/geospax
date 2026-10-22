@@ -4,8 +4,8 @@
 import type { Feature } from 'geojson';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import * as A from './analysis';
-import { RASTER_TOOLS, TAB_OF_RASTER } from './rastertools';
-import { LEGACY_TOOLS, TAB_OF_LEGACY } from './legacytools';
+import { RASTER_TOOLS } from './rastertools';
+import { LEGACY_TOOLS } from './legacytools';
 
 export interface Param {
   name: string;
@@ -526,11 +526,8 @@ export const TOOLS: Tool[] = [
   },
 ];
 
-// Where each group sits on the ribbon: planning (suitability, gaps, representation) is modelling;
-// landscape metrics and point patterns are analysis.
-const TAB_OF: Record<string, string> = { [PLAN]: 'modelling', [LAND]: 'analyze', [OVERLAY]: 'analyze', [POINTS]: 'analyze', [BIODIV]: 'analyze' };
-for (const t of TOOLS) t.tab ??= TAB_OF[t.group];
+// The tools reach the user through the twelve domain plugins (gen-manifest.mjs), not the core tabs.
 // phase B: rasters and species distribution models (src/rastertools.ts)
-for (const t of RASTER_TOOLS) TOOLS.push({ ...t, tab: t.tab ?? TAB_OF_RASTER[t.group] });
+TOOLS.push(...RASTER_TOOLS);
 // from 1.4.2: LISA and elevation profiles (src/legacytools.ts)
-for (const t of LEGACY_TOOLS) TOOLS.push({ ...t, tab: t.tab ?? TAB_OF_LEGACY[t.group] });
+TOOLS.push(...LEGACY_TOOLS);

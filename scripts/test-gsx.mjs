@@ -43,5 +43,19 @@ for (const [tool, params] of cases) {
   else fails.push(tool);
   console.log(`  ${good ? 'ok  ' : 'FAIL'} ${tool} (${Date.now() - t0} ms): ${good ? `${j.result.message}${j.added?.length ? ` · added ${j.added.length}` : ''}` : j.error ?? JSON.stringify(j).slice(0, 200)}`);
 }
+// the twelve default domain plugins: listed, carrying their tools, running them through the library
+const ok = (name, cond, extra = '') => { if (cond) pass++; else fails.push(name); console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}${extra ? ` (${extra})` : ''}`); };
+const plugins = (await get('api/plugins')).plugins;
+const domains = plugins.filter((p) => p.id.startsWith('geospax-'));
+ok('twelve default domain plugins', domains.length === 12 && domains.every((p) => p.default && p.runnable && !p.builtin), domains.map((p) => p.id.slice(8)).join(', '));
+ok('GSX is a library, not listed', plugins.find((p) => p.id === 'gsx')?.library === true);
+ok('no domain tool on a core ribbon tab', domains.every((p) => p.tools.every((t) => !t.tab)));
+const all = new Set(domains.flatMap((p) => p.tools.map((t) => t.id)));
+ok('every GSX tool is in a domain plugin', plugins.find((p) => p.id === 'gsx').tools.every((t) => all.has(t.id)), `${all.size} tools`);
+{
+  const r = await fetch(`${base}/api/plugins/geospax-forestry/tools/fragmentation/run`, { method: 'POST', body: JSON.stringify({ params: { patches: p1.id, edge_m: 100 } }), headers: { 'content-type': 'application/json' } });
+  const j = await r.json().catch(() => ({}));
+  ok('a tool runs from its domain plugin (Forestry › fragmentation)', r.ok && j.result?.ok, j.error ?? j.result?.message);
+}
 console.log(`\n${pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);
