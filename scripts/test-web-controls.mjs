@@ -55,7 +55,7 @@ const clickAll = async (label, selector) => {
     if (!(await el.isVisible().catch(() => false)) || !(await el.isEnabled().catch(() => false))) continue;
     where = `${label} #${i} ${((await el.innerText().catch(() => '')) || (await el.getAttribute('title')) || '').replace(/\s+/g, ' ').slice(0, 40)}`;
     const before = problems.length;
-    await el.click({ timeout: 3000 }).catch((e) => problems.push(`[${where}] click failed: ${e.message.split('\n')[0]}`));
+    await el.click({ timeout: 3000 }).catch((e) => problems.push(`[${where}] click failed: ${e.message.split('\n')[0]}${(e.message.match(/<[^\n]*intercepts pointer events/) ?? [''])[0].slice(0, 160)}`));
     await settle();
     await tidy();
     clicked++;

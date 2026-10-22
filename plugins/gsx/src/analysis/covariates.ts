@@ -1,3 +1,4 @@
+import { maxOf, minOf } from './extent';
 // Environmental covariates for SDM: a regular lon/lat background grid built
 // from raster windows, and presence records annotated with the value of the
 // grid cell they fall in. Presences and background therefore share one
@@ -48,10 +49,10 @@ export function covariateGridFor(
     ([lon, lat]) => Number.isFinite(lon) && Number.isFinite(lat)
   );
   if (!valid.length || !(cellSizeDeg > 0) || !(bufferDeg >= 0)) return null;
-  const west = Math.max(-180, Math.min(...valid.map((p) => p[0])) - bufferDeg);
-  const east = Math.min(180, Math.max(...valid.map((p) => p[0])) + bufferDeg);
-  const south = Math.max(-90, Math.min(...valid.map((p) => p[1])) - bufferDeg);
-  const north = Math.min(90, Math.max(...valid.map((p) => p[1])) + bufferDeg);
+  const west = Math.max(-180, minOf(valid.map((p) => p[0])) - bufferDeg);
+  const east = Math.min(180, maxOf(valid.map((p) => p[0])) + bufferDeg);
+  const south = Math.max(-90, minOf(valid.map((p) => p[1])) - bufferDeg);
+  const north = Math.min(90, maxOf(valid.map((p) => p[1])) + bufferDeg);
   const width = Math.max(2, Math.ceil((east - west) / cellSizeDeg));
   const height = Math.max(2, Math.ceil((north - south) / cellSizeDeg));
   if (width > MAX_COVARIATE_GRID_SIDE || height > MAX_COVARIATE_GRID_SIDE)
@@ -145,10 +146,10 @@ function preparePolygons(geometries: MaskGeometry[]): PreparedPolygon[] {
       return {
         rings,
         bbox: [
-          Math.min(...xs),
-          Math.min(...ys),
-          Math.max(...xs),
-          Math.max(...ys),
+          minOf(xs),
+          minOf(ys),
+          maxOf(xs),
+          maxOf(ys),
         ],
       };
     });

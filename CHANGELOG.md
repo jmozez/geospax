@@ -15,6 +15,19 @@ design.
   tab and in the Toolbox under *Plugins*. They are no longer on the Analysis, Imagery and Modelling tabs.
 - They share one library (`plugins/gsx`, `library: true`), so recipes and scripts calling `gsx/<tool>`
   keep working. New manifest keys `library` and `default` ([PLUGINS.md](docs/PLUGINS.md)).
+- Tool dialogs open with **fitting inputs pre-selected**, as in ArcGIS Pro: the selected layer when it
+  fits, else the best-named layer of the right geometry, a matching field of the right type, a
+  multiband image, a DEM by name, the earlier and later of dated rasters; never an earlier result
+  unless selected ([GSX.md](docs/GSX.md)).
+- A tool that refuses its input says why in its own words ("Agriculture: Tree cover pct has 1 band(s);
+  band A is band 4"), not "node exited with exit status 1".
+
+### Fixed
+- **Raster change, spectral index and other raster tools** failed with "Maximum call stack size
+  exceeded" on rasters above about 100,000 cells (the PNG WorldClim samples have 2.9 million): min and
+  max were taken by spreading every cell into one call. Now loops, same results (GSX tests 121/121;
+  a 1,000,000-cell change is in `test-domain-plugins.py`).
+- The R console no longer opens after you have closed it while it was still loading.
 
 ### Added — satellite embeddings (AlphaEarth Foundations)
 - **Imagery › Embeddings**: Google DeepMind's AlphaEarth annual satellite embeddings (64 numbers per 10 m

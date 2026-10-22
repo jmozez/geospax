@@ -1568,7 +1568,8 @@ async function main() {
   pluginsPane = new PluginsPane($('#plugins'), backend, {
     log: (line) => workbench?.log(line),
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
-    layers: () => layers.map((l) => ({ id: l.id, name: l.name, fields: l.fields })),
+    layers: () => layers.map((l) => ({ id: l.id, name: l.name, geometry: l.geometry, fields: l.fields })),
+    active: () => panel.current ?? null,
     onChanged: () => document.dispatchEvent(new CustomEvent('geospax:plugins-changed')),
   });
   void pluginsPane.reload();

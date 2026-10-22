@@ -75,6 +75,15 @@ raster("ndvi_2024", after)
 x = (np.arange(N) + 0.5) * PX
 z = np.where(x < 500, x * 0.05, 25 + (x - 500) * 0.7)
 raster("dem", np.tile(z, (N, 1)))
+# a large pair (1,000,000 cells): Math.min(...cells) once overflowed the stack on rasters this size
+BIG = 1000
+big = np.full((BIG, BIG), 0.8, np.float32)
+big.tofile(os.path.join(tmp, "big.bin"))
+for nm, arr in (("big_2015", big), ("big_2024", np.where(np.arange(BIG)[:, None] < 250, 0.1, big).astype(np.float32))):
+    arr.tofile(os.path.join(tmp, nm + ".bin"))
+    with open(os.path.join(tmp, nm + ".hdr"), "w") as f:
+        f.write(f"ENVI\nsamples = {BIG}\nlines = {BIG}\nbands = 1\nheader offset = 0\nfile type = ENVI Standard\ndata type = 4\ninterleave = bsq\nbyte order = 0\n")
+    subprocess.run(["gdal_translate", "-q", "-of", "GTiff", "-a_srs", "EPSG:32755", "-a_ullr", str(X0), str(Y0), str(X0 + BIG), str(Y0 - BIG), os.path.join(tmp, nm + ".bin"), os.path.join(data, nm + ".tif")], check=True)
 
 
 def vector(name, feats):
@@ -186,6 +195,10 @@ try:
                 right = False
             check(f"{tid}", right, msg)
             answers.setdefault(tid, []).append(r.get("message"))
+    print("large rasters")
+    s, j = call("POST", "api/plugins/geospax-forestry/tools/raster-change/run", {"params": {"before": R("big_2015"), "after": R("big_2024")}})
+    msg = (j.get("result") or {}).get("message") or j.get("error", "")
+    check("raster change on 1,000,000 cells (a quarter lost: 25 ha)", s == 200 and num(msg, r"([\d.]+) ha loss") == 25, msg)
     print("same answer everywhere")
     for tid, (params, _) in P.items():
         s, j = call("POST", f"api/plugins/gsx/tools/{tid}/run", {"params": params})

@@ -1,3 +1,4 @@
+import { maxOf, minOf } from './extent';
 // Species-distribution model evaluation: discrimination (ROC AUC), threshold
 // metrics (sensitivity, specificity, TSS), the continuous Boyce index, and
 // spatially blocked k-fold cross-validation.
@@ -169,8 +170,8 @@ export function boyceIndex(
   const steps = options.steps ?? 101;
   if (!(fraction > 0 && fraction <= 1) || !Number.isInteger(steps) || steps < 2)
     return empty;
-  const min = Math.min(...background);
-  const max = Math.max(...background);
+  const min = minOf(background);
+  const max = maxOf(background);
   if (max === min) return empty;
   // A moving-window P/E curve needs a continuous score. With only a few
   // distinct values (e.g. binary limiting-factor BIOCLIM) the windows collapse

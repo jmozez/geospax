@@ -1,3 +1,4 @@
+import { maxOf, minOf } from './extent';
 // Change detection helpers for sampled rasters and two-date vector extents.
 //
 // Raster differencing complements the Whitebox change tools. Vector change is
@@ -74,8 +75,8 @@ export function changeOtsu(diff: Float32Array): ChangeOtsu {
     };
     return { histogram, otsuGain: null, otsuLoss: null };
   }
-  let lo = Math.min(...vals);
-  let hi = Math.max(...vals);
+  let lo = minOf(vals);
+  let hi = maxOf(vals);
   if (lo === hi) {
     lo -= 1;
     hi += 1;
