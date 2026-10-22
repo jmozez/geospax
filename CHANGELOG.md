@@ -8,6 +8,19 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — Catalog and Project panes
+- **Catalog** is now a file browser (ArcGIS Pro's Catalog, QGIS's Browser): the data folders and the
+  edit copies, every map file in them with its kind and a ✓ when it is on the map; double-click, **+**
+  or right-click adds a file. Only the data folders can be listed (`GET /api/browse`,
+  `POST /api/browse/add`); paths outside them, `..` included, are refused.
+- **Project** pane: where the project is saved, what it holds (layers, basemap, projection, view),
+  **Save a copy…**, **Open…** (3.0 copies, 1.4.2 `.gspx`, 2.0 `.geolibre.json`), **New**, and named
+  **bookmarks** (also *View › Bookmarks* and *Bookmark view*). The developer controls moved under
+  *Diagnostics* (*Help › Engine diagnostics*).
+
+### Fixed — project
+- A custom XYZ basemap was forgotten when the app restarted (the saved project dropped it).
+
 ### Added — editing, selection and the attribute table
 - **Edit tab** (ArcGIS Pro's layout): create points, lines and polygons with snapping to visible
   features and an attribute form for each new feature; select (click, rectangle), edit vertices
