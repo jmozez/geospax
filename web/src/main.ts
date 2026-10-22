@@ -12,6 +12,10 @@ import { createBackend, clientTileTimings, type EngineStats, type Job, type Laye
 import { runBenchmark, type BenchReport } from './bench';
 import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
+import { Editor } from './editing';
+import { Measure } from './measure';
+import { onContextMenu, showMenu, type MenuItem } from './contextmenu';
+import { BASEMAPS, basemapDef, checkTileUrl, onlineBasemap } from './basemaps';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
@@ -97,6 +101,16 @@ let rasterPane: RasterPane | null = null;
 let panel: SymbologyPanel;
 let automatePane: AutomatePane | null = null;
 let attributesPane: AttributesPane | null = null;
+/** Editing and selection (web/src/editing.ts) */
+let editor: Editor | null = null;
+/** View › Projection: 'mercator' or 'globe' (remembered in this browser) */
+let mapProjection: 'mercator' | 'globe' = (() => {
+  try { return localStorage.getItem('geospax.projection') === 'globe' ? 'globe' : 'mercator'; } catch { return 'mercator'; }
+})();
+/** Bumped after each edit to a layer, so the map fetches its tiles again */
+const tileRev: Record<string, number> = {};
+/** Most selected features drawn highlighted per layer (a style filter lists their ids). */
+const MAX_HIGHLIGHT = 20000;
 let workbench: Workbench | null = null;
 let pluginsPane: PluginsPane | null = null;
 
@@ -268,6 +282,7 @@ function buildStyle(): maplibregl.StyleSpecification {
     let url = backend.tileUrl(id, fields);
     // cache-bust the client tile cache when a pyramid is (re)built
     if (l.overview) url += `${url.includes('?') ? '&' : '?'}ov=${l.overview.built_at}`;
+    if (tileRev[id]) url += `${url.includes('?') ? '&' : '?'}rev=${tileRev[id]}`;
     sources[id] = {
       type: 'vector',
       tiles: [url],
@@ -319,6 +334,18 @@ function buildStyle(): maplibregl.StyleSpecification {
         },
       } as maplibregl.LayerSpecification);
     }
+    // the selection, drawn over the layer (ids are feature ids in the tiles)
+    const sel = editor?.selected(id) ?? [];
+    if (sel.length && st.visible) {
+      const filter = ['in', ['id'], ['literal', sel.slice(0, MAX_HIGHLIGHT)]];
+      const hi = '#00e5ff';
+      if (l.geometry === 'polygon')
+        out.push({ ...base, id: `${id}#sel`, type: 'line', filter, minzoom: 0, paint: { 'line-color': hi, 'line-width': 2.5 } } as maplibregl.LayerSpecification);
+      else if (l.geometry === 'line')
+        out.push({ ...base, id: `${id}#sel`, type: 'line', filter, minzoom: 0, paint: { 'line-color': hi, 'line-width': 4, 'line-opacity': 0.9 } } as maplibregl.LayerSpecification);
+      else
+        out.push({ ...base, id: `${id}#sel`, type: 'circle', filter, minzoom: 0, paint: { 'circle-color': 'rgba(0,0,0,0)', 'circle-radius': 7, 'circle-stroke-color': hi, 'circle-stroke-width': 2.5 } } as maplibregl.LayerSpecification);
+    }
   }
   // Live GNSS devices (phone page, NMEA, gpsd): recent track + current position, always on top.
   sources.live = { type: 'geojson', data: liveData as unknown as GeoJSON.FeatureCollection };
@@ -337,7 +364,14 @@ function buildStyle(): maplibregl.StyleSpecification {
     while (at < out.length && 'source' in out[at] && under((out[at] as { source: string }).source)) at++;
     out.splice(at, 0, ...r.layers);
   }
-  return { version: 8, sources, layers: out };
+  // keep terra-draw's drawing layers (td-*) across restyles, on top (web/src/editing.ts)
+  try {
+    const cur = map?.getStyle?.();
+    for (const [k, v] of Object.entries(cur?.sources ?? {})) if (k.startsWith('td-')) sources[k] = v;
+    for (const l of cur?.layers ?? []) if (l.id.startsWith('td-')) out.push(l);
+  } catch { /* first style: the map is not ready yet */ }
+  // View › Projection (MapLibre's own projections: Web Mercator or a globe)
+  return { version: 8, sources, layers: out, projection: { type: mapProjection } };
 }
 
 // ---------------------------------------------------------------- basemap
@@ -348,16 +382,10 @@ const basemap = (): Basemap => (params.get('basemap') as Basemap | null) ?? proj
 
 function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: maplibregl.LayerSpecification[]) {
   const b = basemap();
-  if (b === 'osm') {
-    sources['basemap:osm'] = {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    };
-    // dimmed so the data, not the basemap, carries the colour
-    out.push({ id: 'basemap:osm', type: 'raster', source: 'basemap:osm', paint: { 'raster-opacity': 0.55, 'raster-saturation': -0.6 } } as maplibregl.LayerSpecification);
+  const online = b !== 'offline' && b !== 'none' ? onlineBasemap(b, project.customBasemap) : null;
+  if (online) {
+    sources['basemap:tiles'] = online.source;
+    out.push(online.layer);
   } else if (b === 'offline') {
     for (const f of ['land', 'lakes', 'boundaries']) sources[`basemap:${f}`] = { type: 'geojson', data: basemapUrl(f), tolerance: 0.6 };
     out.push(
@@ -371,12 +399,48 @@ function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: mapl
   }
 }
 
+/** View › Basemap gallery: every basemap with its terms, and your own XYZ tiles. */
+async function basemapGallery() {
+  const { dialog, say } = await import('./editing');
+  const cur = basemap();
+  const e = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const groups = [...new Set(BASEMAPS.map((d) => d.group))];
+  const c = project.customBasemap;
+  await dialog(
+    'Basemap gallery',
+    groups
+      .map((g) => `<div class="bm-group">${e(g)}</div>` + BASEMAPS.filter((d) => d.group === g)
+        .map((d) => `<label class="sample"><input type="radio" name="bm" value="${d.id}"${d.id === cur ? ' checked' : ''}><span><b>${e(d.title)}</b><br><span class="dim">${e(d.terms)}</span></span></label>`)
+        .join(''))
+      .join('') +
+      `<div class="form-grid bm-custom"><label>XYZ URL (for "Your own tiles")<input name="url" value="${e(c?.url ?? '')}" placeholder="https://example.org/tiles/{z}/{x}/{y}.png"></label>
+       <label>Credit line<input name="attribution" value="${e(c?.attribution ?? '')}" placeholder="© the data provider"></label></div>
+       <div class="dlg-msg" data-msg></div>`,
+    [['ok', 'Use basemap'], ['', 'Cancel']],
+    {
+      wide: true,
+      onButton: (b, v, root) => {
+        if (b !== 'ok') return true;
+        if (v.bm === 'custom') {
+          const bad = checkTileUrl(v.url);
+          if (bad) { say(root, bad, 'err'); return false; }
+          if (!v.attribution.trim()) { say(root, 'Add the credit line the tile provider asks for.', 'err'); return false; }
+          project.customBasemap = { url: v.url.trim(), attribution: v.attribution.trim() };
+        }
+        setBasemap(v.bm);
+        return true;
+      },
+    },
+  );
+}
+
 function setBasemap(b: Basemap) {
   project.basemap = b;
   applyStyle();
   renderContents();
   saveProject();
-  workbench?.setStatus(b === 'offline' ? 'Basemap: Natural Earth (offline)' : b === 'osm' ? 'Basemap: OpenStreetMap (online)' : 'Basemap off');
+  const d = basemapDef(b);
+  workbench?.setStatus(d ? `Basemap: ${d.title}${b === 'offline' || b === 'none' ? '' : ` · ${d.terms}`}` : 'Basemap off', 7000);
 }
 
 function applyStyle() {
@@ -567,9 +631,9 @@ function renderContents() {
     const b = basemap();
     body += `<div class="lc-group"><span>Background</span></div>
       <div class="card basemap" style="--c:#4f7468"><div class="lc-top"><span class="lc-glyph">🌍</span>
-      <span class="lc-title"><b>${b === 'osm' ? 'Streets (OpenStreetMap)' : b === 'none' ? 'No background' : 'World map'}</b>
-      <small>${b === 'osm' ? 'online' : b === 'none' ? 'plain colour' : 'offline · Natural Earth'}</small></span>
-      <button data-basemap="${b === 'offline' ? 'osm' : 'offline'}" class="lc-switch">${b === 'offline' ? 'Streets' : 'World'}</button></div></div>`;
+      <span class="lc-title"><b>${basemapDef(b)?.title ?? 'World map'}</b>
+      <small>${b === 'offline' ? 'offline · Natural Earth' : b === 'none' ? 'plain colour' : 'online'}</small></span>
+      <button data-basemap="gallery" class="lc-switch">Change</button></div></div>`;
   } else {
     // ArcGIS Pro's Contents: Map ▸ group layers ▸ layers ▸ legend classes, then the basemap
     const f = layerFilter.toLowerCase();
@@ -595,8 +659,8 @@ function renderContents() {
     }
     const b = basemap();
     body += `<div class="pr-base" role="treeitem" aria-level="2"><span class="pr-gico">🌍</span><b>Basemap</b>
-      <select data-tree="basemap" aria-label="Basemap"><option value="offline" ${b === 'offline' ? 'selected' : ''}>World (offline)</option>
-      <option value="osm" ${b === 'osm' ? 'selected' : ''}>OpenStreetMap (online)</option><option value="none" ${b === 'none' ? 'selected' : ''}>None</option></select></div></div>`;
+      <select data-tree="basemap" aria-label="Basemap">${BASEMAPS.map((d) => `<option value="${d.id}" ${b === d.id ? 'selected' : ''}>${d.title}</option>`).join('')}</select>
+      <button data-basemap="gallery" title="Basemap gallery">⋯</button></div></div>`;
   }
   // keep the filter box focused while typing
   const focused = document.activeElement?.classList.contains('pr-filter');
@@ -682,7 +746,7 @@ function wireContents() {
     const t = e.target as HTMLInputElement;
     const gid = t.closest<HTMLElement>('.pr-group')?.dataset.group;
     if (gid && t.dataset.gact === 'visible') return groupAction('visible', gid, t);
-    if (t.dataset.tree === 'basemap') return setBasemap(t.value as Basemap);
+    if (t.dataset.tree === 'basemap') return t.value === 'custom' ? void basemapGallery() : setBasemap(t.value as Basemap);
     const id = t.closest<HTMLElement>('.layer')?.dataset.id;
     if (!id) return;
     if (t.type === 'checkbox') {
@@ -701,7 +765,7 @@ function wireContents() {
   el.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
     const bm = t.closest<HTMLElement>('[data-basemap]')?.dataset.basemap;
-    if (bm) return setBasemap(bm as Basemap);
+    if (bm) return bm === 'gallery' ? void basemapGallery() : setBasemap(bm as Basemap);
     const tree = t.closest<HTMLElement>('button[data-tree]')?.dataset.tree;
     if (tree === 'group') return newGroup();
     if (tree === 'expand' || tree === 'collapse') {
@@ -836,6 +900,76 @@ function wireContents() {
     saveProject();
   });
 }
+
+/** Layer › Properties: where it comes from and what it holds. */
+async function layerProperties(id: string) {
+  const l = layerById(id);
+  if (!l) return;
+  const { dialog } = await import('./editing');
+  const e = (x: unknown) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const rows: [string, string][] = [
+    ['Name', l.name], ['Id', l.id], ['Source', l.source], ['Format', l.driver], ['Geometry', l.geometry],
+    ['Features', l.feature_count.toLocaleString() + (l.filter ? ` (definition query: ${l.filter})` : '')],
+    ['Coordinate system', l.crs], ['Extent (WGS 84)', l.bounds.map((v) => v.toFixed(5)).join(', ')],
+    ['Edits', l.edited ? 'saved to a GeoPackage copy; the original file is unchanged' : 'none'],
+    ['Fields', l.fields.map((f) => `${f.name} (${f.kind})`).join(', ') || 'none'],
+  ];
+  await dialog(`Properties · ${l.name}`, `<table class="props">${rows.map(([k, v]) => `<tr><th>${e(k)}</th><td>${e(v)}</td></tr>`).join('')}</table>`, [['', 'Close']], { wide: true });
+}
+
+/** Data › Sample data: pick a set; it is copied into the data folder and mapped. */
+async function openSamples() {
+  const { dialog, say } = await import('./editing');
+  type Set = { id: string; title: string; description: string; credits: string; files: string[] };
+  let sets: Set[] = [];
+  try {
+    sets = (await backend.json<{ samples: Set[] }>('api/samples')).samples;
+  } catch { /* shown below */ }
+  if (!sets.length) return workbench?.setStatus('This installation has no sample data.', 6000);
+  const e = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  await dialog(
+    'Sample data',
+    sets
+      .map((s, i) => `<label class="sample"><input type="radio" name="set" value="${e(s.id)}"${i ? '' : ' checked'}><span><b>${e(s.title)}</b><br>${e(s.description)}<br><span class="dim">${s.files.filter((f) => !f.endsWith('.md')).length} files · ${e(s.credits)}</span></span></label>`)
+      .join('') + '<div class="dlg-msg" data-msg></div>',
+    [['ok', 'Open'], ['', 'Cancel']],
+    {
+      wide: true,
+      onButton: async (b, v, root) => {
+        if (b !== 'ok') return true;
+        say(root, 'Copying into your data folder…');
+        const r = await backend.json<{ layers: string[]; rasters: string[]; folder: string }>(`api/samples/${encodeURIComponent(v.set)}`, { method: 'POST' });
+        await addedToMap(r.layers, r.rasters);
+        workbench?.setStatus(`Sample data: ${r.layers.length} layers and ${r.rasters.length} rasters, saved in ${r.folder}`, 8000);
+        return true;
+      },
+    },
+  );
+}
+
+/** New layers and rasters joined the map (upload, sample data): show them, fit, select the first. */
+async function addedToMap(ids: string[], rasterIds: string[]) {
+    await reloadLayers();
+    let rb: [number, number, number, number][] = [];
+    if (rasterIds.length && rasterPane) {
+      await rasterPane.reload();
+      try {
+        const r = await backend.json<{ rasters: { id: string; bounds: [number, number, number, number] }[] }>('api/rasters');
+        rb = r.rasters.filter((x) => rasterIds.includes(x.id)).map((x) => x.bounds);
+      } catch {
+        /* fit to the vector layers only */
+      }
+      applyStyle();
+    }
+    for (const id of ids) if (project.layers[id]) project.layers[id].visible = true;
+    applyStyle();
+    renderContents();
+    fitTo(ids, rb);
+    if (ids[0]) {
+      panel.open(ids[0]);
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: ids[0] }));
+    }
+  }
 
 // ---------------------------------------------------------------- overview jobs
 async function reloadLayers() {
@@ -1381,6 +1515,203 @@ async function main() {
     },
   });
   workbench.mount();
+  editor = new Editor({
+    map,
+    backend,
+    layers: () => layers,
+    activeId: () => panel.current,
+    setActive: (id) => {
+      panel.open(id);
+      renderContents();
+      document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
+    },
+    changed: async (id) => {
+      tileRev[id] = (tileRev[id] ?? 0) + 1;
+      await reloadLayers();
+    },
+    selectionChanged: () => applyStyle(),
+    openTable: (id) => {
+      void attributesPane?.open(id);
+      workbench?.showTab('right', 'attributes');
+    },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+    log: (line, level) => workbench?.log(line, level),
+  });
+  attributesPane?.attachEditor(editor);
+  (window as unknown as { editor: Editor }).editor = editor;
+  document.addEventListener('geospax:edit', (e) => {
+    const ed = editor!;
+    const a = (e as CustomEvent<string>).detail;
+    const id = panel.current;
+    switch (a) {
+      case 'point': case 'line': case 'polygon': case 'select': case 'box': case 'vertices':
+        return void ed.setTool(ed.tool === a ? 'idle' : a);
+      case 'attributes': return void ed.editAttributes();
+      case 'delete': return void ed.deleteSelected();
+      case 'select-attributes': return void ed.selectByAttributes();
+      case 'select-location': return void ed.selectByLocation();
+      case 'zoom-selection': return void ed.zoomToSelection();
+      case 'clear-selection': return ed.clearSelection(id ?? undefined);
+      case 'calculate': return void ed.calculateField();
+      case 'add-field': return void ed.addField();
+      case 'definition-query': return void ed.definitionQuery();
+      case 'table':
+        if (!id) return workbench?.setStatus('Pick a layer first.');
+        void attributesPane?.open(id);
+        return workbench?.showTab('right', 'attributes');
+      case 'undo': return void ed.undo();
+      case 'redo': return void ed.redo();
+      case 'snapping':
+        ed.snapping = !ed.snapping;
+        document.body.dataset.snapping = ed.snapping ? 'on' : 'off';
+        return workbench?.setStatus(`Snapping ${ed.snapping ? 'on' : 'off'}`);
+      case 'new-layer': return void ed.newLayer();
+      case 'export': return void ed.exportSelection();
+      case 'discard': return void ed.discardEdits();
+    }
+  });
+  document.body.dataset.snapping = 'on';
+  document.addEventListener('geospax:projection', (e) => {
+    mapProjection = (e as CustomEvent<'mercator' | 'globe'>).detail === 'globe' ? 'globe' : 'mercator';
+    try { localStorage.setItem('geospax.projection', mapProjection); } catch { /* private mode */ }
+    document.body.dataset.projection = mapProjection;
+    applyStyle();
+    workbench?.setStatus(mapProjection === 'globe' ? 'Globe: zoom out to see the whole Earth' : 'Web Mercator');
+  });
+  document.body.dataset.projection = mapProjection;
+  // ---- phones: the map fills the screen; these open the panes over it (style.css, max-width 900px)
+  {
+    const bar = document.createElement('div');
+    bar.className = 'mobile-bar';
+    bar.innerHTML = '<button data-m="left">Layers</button><button data-m="bottom">Tools</button><button data-m="right">Panel</button>';
+    $('#center').append(bar);
+    const docks: Record<string, HTMLElement | null> = { left: document.querySelector('#dock-left'), right: document.querySelector('#dock-right') };
+    const sync = () => {
+      bar.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+        const d = b.dataset.m!;
+        b.classList.toggle('on', d === 'bottom' ? $('#center').classList.contains('bottom-open') : !!docks[d]?.classList.contains('mobile-open'));
+      });
+      map.resize();
+    };
+    bar.addEventListener('click', (e) => {
+      const d = (e.target as HTMLElement).closest<HTMLButtonElement>('button')?.dataset.m;
+      if (!d) return;
+      if (d === 'bottom') $('#center').classList.toggle('bottom-open');
+      else {
+        const open = !docks[d]?.classList.contains('mobile-open');
+        Object.values(docks).forEach((x) => x?.classList.remove('mobile-open'));
+        if (open) docks[d]?.classList.add('mobile-open');
+      }
+      sync();
+    });
+    // a tap on the map closes the side panes
+    map.on('click', () => { if (Object.values(docks).some((x) => x?.classList.contains('mobile-open'))) { Object.values(docks).forEach((x) => x?.classList.remove('mobile-open')); sync(); } });
+    // opening a pane from the ribbon on a phone slides it in
+    document.addEventListener('geospax:show-pane', (e) => {
+      if (innerWidth > 900) return;
+      const d = (e as CustomEvent<string>).detail;
+      if (d === 'bottom') $('#center').classList.add('bottom-open');
+      else { Object.values(docks).forEach((x) => x?.classList.remove('mobile-open')); docks[d]?.classList.add('mobile-open'); }
+      sync();
+    });
+  }
+
+  // ---- right-click menus (long press on touch): layers, catalog items, the map (web/src/contextmenu.ts)
+  const edit = (a: string): void => void document.dispatchEvent(new CustomEvent('geospax:edit', { detail: a }));
+  const layerMenu = (id: string, x: number, y: number) => {
+    const l = layerById(id);
+    if (!l) return false;
+    panel.open(id);
+    renderContents();
+    document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
+    const nsel = editor?.selected(id).length ?? 0;
+    const items: MenuItem[] = [
+      { label: 'Zoom to layer', run: () => fitLayer(id) },
+      { label: nsel ? `Zoom to selected (${nsel})` : 'Zoom to selected', disabled: !nsel, run: () => void editor?.zoomToSelection(id) },
+      { sep: true },
+      { label: 'Attribute table', run: () => edit('table') },
+      { label: 'Symbology…', run: () => workbench?.showTab('right', 'symbology') },
+      { label: 'Style automatically (AutoMap)', run: () => void autostyleLayer(id, { keepVisibility: true }) },
+      { label: project.layers[id]?.visible ? 'Hide' : 'Show', run: () => setLayerStyle(id, { ...project.layers[id], visible: !project.layers[id]?.visible }) },
+      { sep: true },
+      { label: 'Select by attributes…', run: () => edit('select-attributes') },
+      { label: 'Select by location…', run: () => edit('select-location') },
+      { label: nsel ? `Clear selection (${nsel})` : 'Clear selection', disabled: !nsel, run: () => editor?.clearSelection(id) },
+      { label: l.filter ? 'Definition query (on)…' : 'Definition query…', run: () => edit('definition-query') },
+      { sep: true },
+      { label: 'Calculate field…', run: () => edit('calculate') },
+      { label: 'Add field…', run: () => edit('add-field') },
+      { label: 'Export features…', run: () => edit('export') },
+      { label: 'Discard edits…', disabled: !l.edited, danger: true, run: () => edit('discard') },
+      { sep: true },
+      { label: 'Remove from map', danger: true, hint: 'The file is not touched; it opens again at the next start', run: async () => {
+        await backend.json(`api/layers/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null);
+        editor?.clearSelection(id);
+        await reloadLayers();
+        workbench?.setStatus(`${l.name} removed from the map (the file is kept)`);
+      } },
+      { label: 'Properties…', run: () => void layerProperties(id) },
+    ];
+    showMenu(x, y, l.name, items);
+    return true;
+  };
+  onContextMenu($('#contents'), (t, x, y) => {
+    const row = t.closest<HTMLElement>('[data-id]');
+    return row?.dataset.id ? layerMenu(row.dataset.id, x, y) : false;
+  });
+  onContextMenu($('#catalog'), (t, x, y) => {
+    const row = t.closest<HTMLElement>('[data-layer]');
+    if (row?.dataset.layer) return layerMenu(row.dataset.layer, x, y);
+    if (t.closest('.node.source')) {
+      showMenu(x, y, 'Catalog', [
+        { label: 'Add files…', run: () => void document.dispatchEvent(new CustomEvent('geospax:browse')) },
+        { label: 'Sample data…', run: () => void openSamples() },
+        { label: 'New layer…', run: () => edit('new-layer') },
+        { label: 'Refresh', run: () => void reloadLayers() },
+      ]);
+      return true;
+    }
+    return false;
+  });
+  onContextMenu(map.getContainer(), (t, x, y) => {
+    if (!t.closest('canvas')) return false;
+    const r = map.getCanvas().getBoundingClientRect();
+    const ll = map.unproject([x - r.left, y - r.top]);
+    const c = `${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)}`;
+    const ids = layers.flatMap((l) => [`${l.id}#fill`, `${l.id}#line`, `${l.id}#circle`].filter((x) => map.getLayer(x)));
+    const hit = ids.length ? map.queryRenderedFeatures([x - r.left, y - r.top], { layers: ids })[0] : undefined;
+    const hitLayer = hit?.layer.id.replace(/#.*$/, '');
+    const items: MenuItem[] = [
+      { label: `Copy coordinates (${c})`, run: () => void navigator.clipboard?.writeText(c).then(() => workbench?.setStatus(`Copied ${c}`)) },
+      { label: 'Centre the map here', run: () => void map.easeTo({ center: ll }) },
+      { label: 'Zoom in here', run: () => void map.easeTo({ center: ll, zoom: map.getZoom() + 2 }) },
+      { sep: true },
+      { label: 'Measure distance', run: () => void document.dispatchEvent(new CustomEvent('geospax:measure', { detail: 'distance' })) },
+      { label: 'Measure area', run: () => void document.dispatchEvent(new CustomEvent('geospax:measure', { detail: 'area' })) },
+    ];
+    if (hit && hitLayer && Number.isFinite(Number(hit.id))) {
+      const name = layerById(hitLayer)?.name ?? hitLayer;
+      items.push(
+        { sep: true },
+        { label: `Select this feature (${name})`, run: () => { panel.open(hitLayer); editor?.setSelection(hitLayer, [Number(hit.id)]); } },
+        { label: 'Edit its attributes…', run: () => { panel.open(hitLayer); void editor?.editAttributes(hitLayer, Number(hit.id)); } },
+        { label: `${name}: layer options…`, run: () => void layerMenu(hitLayer, x, y) },
+      );
+    }
+    showMenu(x, y, c, items);
+    return true;
+  });
+
+  // Data › Sample data: the sets that ship with GeoSpaX (crates/engine/src/samples.rs)
+  document.addEventListener('geospax:samples', () => void openSamples());
+  // Map › Measure: distance and area (web/src/measure.ts)
+  const measure = new Measure(map);
+  document.addEventListener('geospax:measure', (e) => {
+    const m = (e as CustomEvent<string>).detail;
+    if (m === 'clear') return measure.stop();
+    void editor?.setTool('idle'); // one map tool at a time
+    measure.start(m as 'distance' | 'area');
+  });
   // open on something useful: the top layer's symbology, ready to edit
   if (project.order.length) {
     panel.open(project.order[project.order.length - 1]);
@@ -1393,28 +1724,7 @@ async function main() {
   // "Finish my map" (web/src/start.ts, web/src/finish.ts)
   const start = new StartScreen({
     backend,
-    added: async (ids, rasterIds) => {
-      await reloadLayers();
-      let rb: [number, number, number, number][] = [];
-      if (rasterIds.length && rasterPane) {
-        await rasterPane.reload();
-        try {
-          const r = await backend.json<{ rasters: { id: string; bounds: [number, number, number, number] }[] }>('api/rasters');
-          rb = r.rasters.filter((x) => rasterIds.includes(x.id)).map((x) => x.bounds);
-        } catch {
-          /* fit to the vector layers only */
-        }
-        applyStyle();
-      }
-      for (const id of ids) if (project.layers[id]) project.layers[id].visible = true;
-      applyStyle();
-      renderContents();
-      fitTo(ids, rb);
-      if (ids[0]) {
-        panel.open(ids[0]);
-        document.dispatchEvent(new CustomEvent('geospax:active', { detail: ids[0] }));
-      }
-    },
+    added: addedToMap,
     devices: () => workbench?.showTab('right', 'devices'),
     toolbox: () => workbench?.showTab('right', 'toolbox'),
     openRun: openRunReport,
@@ -1474,7 +1784,11 @@ async function main() {
   (window as unknown as { geospax: object }).geospax = { start, finish };
   // the lazy path: new layers styled by AutoMap, dense ones get overviews, without a click
   void autostyleNew(firstSeen).then(() => queueAutoOverviews());
-  document.addEventListener('geospax:basemap', (e) => setBasemap((e as CustomEvent<Basemap>).detail));
+  document.addEventListener('geospax:basemap', (e) => {
+    const b = (e as CustomEvent<Basemap>).detail;
+    if (b === 'gallery' || b === 'custom') void basemapGallery();
+    else setBasemap(b);
+  });
 
   if (params.has('bench')) map.once('idle', () => void runBench());
 }

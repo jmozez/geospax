@@ -93,7 +93,7 @@ try {
     }));
     outputs.push(`${stem}.grid.json`);
   }
-  console.log(JSON.stringify({ ok: true, message: out.message, outputs, table: out.table ?? [], notes: out.notes ?? [] }));
+  console.log(JSON.stringify({ ok: true, message: out.message, outputs, table: out.table ?? [], notes: out.notes ?? [], figures: out.figures ?? [] }));
 } catch (err) {
   fail((err as Error).message ?? String(err));
 }

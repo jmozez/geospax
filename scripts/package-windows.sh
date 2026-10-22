@@ -70,6 +70,7 @@ cp "$(ls "${CARGO_HOME:-$HOME/.cargo}"/registry/src/*/webview2-com-sys-"$WV2"/x6
 cp -rp "$GDAL_WIN/Library/share/gdal" "$GDAL_WIN/Library/share/proj" "$STAGE/share/"
 cp -rp web/dist "$STAGE/web"
 cp -p recipes/*.yaml "$STAGE/recipes/"
+mkdir -p "$STAGE/samples" && cp -r samples/. "$STAGE/samples/"   # sample data (Data › Sample data)
 mkdir -p "$STAGE/plugins" && tar -C plugins --exclude=node_modules --exclude=src --exclude=tests -cf - . | tar -C "$STAGE/plugins" -xf -   # bundled plugins (GeoLibre tools run on Node.js when it is installed)
 cp -p docs/USER_GUIDE.md "$STAGE/docs/"
 cp -p LICENSE-MIT "$STAGE/LICENSE-MIT.txt"

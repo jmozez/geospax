@@ -8,6 +8,48 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — editing, selection and the attribute table
+- **Edit tab** (ArcGIS Pro's layout): create points, lines and polygons with snapping to visible
+  features and an attribute form for each new feature; select (click, rectangle), edit vertices
+  (drag, insert at midpoints, delete), move, delete; undo and redo of whole edits; new empty layers;
+  export features; discard edits. Drawing uses terra-draw (MIT).
+- **Edits never touch the original file**: the first edit copies the layer (CRS, fields and feature
+  ids kept) into a GeoPackage under `<state>/edits/`; the layer reads the copy, also after a restart.
+- **Select by attributes** (query builder writing SQL, with Check, and new/add/remove/subset
+  selection), **select by location** (intersect, within, contain, within a distance, optionally of the
+  other layer's selection), **definition queries** (drawn, listed and analysed features), on the Edit
+  and Map tabs; selected features are highlighted on the map.
+- **Attribute table**: every field (not just the six drawn in tiles), sort by any column, search the
+  whole layer, show selected, switch selection, edit cells in place, a column menu (sort, calculate,
+  statistics, delete field), field statistics; **field calculator** (SQL expressions) and **calculate
+  geometry** (geodesic area, length, perimeter, x, y).
+- **Measure** (Map and Edit tabs): distance (total and per segment) and area (with perimeter), geodesic,
+  metric or imperial, as ArcGIS Pro's Measure tool.
+- **Right-click menus** (long press on touch screens): on layers in Contents (zoom, table, symbology,
+  AutoMap, show/hide, selections, definition query, calculate, add field, export, discard edits, remove
+  from map, properties), on Catalog items and on the map (copy coordinates, centre, zoom, measure, and
+  for a feature under the cursor: select, edit attributes, layer options).
+- **Basemap gallery** (View): OpenStreetMap, OpenTopoMap, Esri Topographic and World Imagery,
+  Sentinel-2 cloudless 2016, CARTO light and dark, or your own XYZ tiles; each with its licence or terms.
+- **Local Moran's I (LISA)** with the global Moran's I and the Moran scatterplot, and **elevation
+  profiles** (lines over a DEM, or points with an elevation field per transect) — from 1.4.2; tool
+  results can carry charts.
+- **Sample data** (Data): the 1.4.2 Papua New Guinea survey and teaching layers with WorldClim and tree
+  cover rasters (`samples/png`, credits in its README); **1.4.2 `.gspx` and 2.0 `.geolibre.json`
+  projects** open like any file (their embedded layers).
+- **View › Projection: Globe** (MapLibre's globe at small scales) besides Web Mercator.
+- Engine API for all of it (`crates/engine/src/edit.rs`); `scripts/test-edit.py` (44 checks on
+  GeoJSON, Shapefile and a projected GeoPackage) runs in CI.
+
+### Fixed
+- **Phones showed no map.** At widths up to 900 px the pane dividers were hidden, which shifted the
+  grid so the right pane took the map's place (map width 0, in Lazy and Pro). The map now fills the
+  screen and **Layers / Tools / Panel** buttons slide the panes over it; a tap on the map closes them.
+- **Help › User guide, Automation, Feature matrix, Credits** opened a new tab that showed the app again
+  (the guides were not served), and **About** only flashed a status line. The guides are now built
+  into the program and open in a dialog (also on phones and in the desktop window); About shows the
+  version, edition, author, licence and links.
+
 ### Added — domain kits
 - **Nine domain kits** (Analysis › Recipes, by domain; Toolbox › Ready-made analyses; Lazy › Find
   patterns): species distribution model (GBIF + WorldClim), survey diversity and clustering, range
