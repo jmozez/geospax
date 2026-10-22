@@ -87,6 +87,9 @@ Under *Page, legend, scale bar, north arrow, inset* (open in Pro, one click away
 - **Legend**: beside the map, **inside the map** (on a card) or none, with its heading. **Edit the
   legend** lists every layer with its classes: untick to hide a layer, type a new title, rename any
   class, and drag a row (or ▲▼) to change the order.
+- **Projection**: Automatic uses **Equal Earth** (equal-area: countries keep their true relative sizes)
+  for world and continental maps and **Web Mercator** (as on the web map) for everything smaller; pick
+  either yourself. A world map in Equal Earth has no single scale, so it gets no scale bar.
 - **Scale bar**: pill, checker, line or ruler; km/m, mi/ft or both.
 - **North arrow**: needle, compass, 8-point rose, minimal or none.
 - **Overview inset**: a world/region map with your area boxed.

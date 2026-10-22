@@ -8,6 +8,14 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — Equal Earth for exported maps
+- `export.map` `projection: auto | mercator | equal-earth` and a **Projection** choice in Finish my map.
+  Automatic puts world and continental maps (wider than 90° or taller than 60°) in Equal Earth (Šavrič,
+  Patterson & Jenny 2018), keeping areas true. Rasters are warped into the same projection and cut at the
+  world's outline, the graticule draws curved meridians, the outline of the world is drawn, and the
+  footer and methods name the projection. World maps in Equal Earth leave out the scale bar, as there is
+  no single scale. The formulas agree with PROJ to the millimetre (a unit test checks this).
+
 ### Added — symbology like ArcGIS Pro and QGIS, labels, raster styling, About
 - **Point symbols**: circle, square, triangle, diamond, star, cross, X, pentagon, hexagon, pin; size (fixed
   or proportional to a field), fill, outline colour and width, opacity, rotation. Drawn on the map (SDF

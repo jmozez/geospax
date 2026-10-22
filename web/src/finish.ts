@@ -103,7 +103,7 @@ export function classLabels(st: LayerStyle | undefined): string[] {
 /** The furniture fields as export.map parameters; legend edits and order from the legend editor. */
 function furniture(f: FormData, form: HTMLFormElement): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const k of ['dpi', 'legend', 'legend_at', 'legend_title', 'scale_bar', 'units', 'scale_bar_at', 'north_arrow', 'north_arrow_at', 'inset']) {
+  for (const k of ['projection', 'dpi', 'legend', 'legend_at', 'legend_title', 'scale_bar', 'units', 'scale_bar_at', 'north_arrow', 'north_arrow_at', 'inset']) {
     const v = f.get(k);
     if (v != null) out[k] = k === 'dpi' ? Number(v) : String(v);
   }
@@ -239,6 +239,7 @@ export class FinishMap {
           <label><span>Page shape</span><select name="size">
             <option value="auto">Automatic (fits the area)</option><option value="1:1">Square 1:1</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="16:9">Wide 16:9</option>
             <option value="3:4">Portrait 3:4</option><option value="2:3">Portrait 2:3</option><option value="a4">A4 landscape</option><option value="a4-portrait">A4 portrait</option><option value="a3">A3 landscape</option><option value="letter">US Letter</option></select></label>
+          <label><span>Projection</span><select name="projection" title="Equal Earth keeps areas true; Web Mercator matches the web map"><option value="auto">Automatic (Equal Earth for world maps)</option><option value="mercator">Web Mercator</option><option value="equal-earth">Equal Earth (equal-area)</option></select></label>
           <label><span>Resolution</span><select name="dpi"><option value="150">150 dpi (screen)</option><option value="300">300 dpi (print, journals)</option><option value="600">600 dpi (fine print)</option><option value="1200">1200 dpi (line art)</option></select></label>
           <label><span>Legend</span><select name="legend"><option value="right">Beside the map</option><option value="inside">Inside the map</option><option value="none">None</option></select></label>
           <label><span>Legend corner</span>${corners('legend_at', 'Where the data isn’t')}</label>
