@@ -8,6 +8,22 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — satellite embeddings (AlphaEarth Foundations)
+- **Imagery › Embeddings**: Google DeepMind's AlphaEarth annual satellite embeddings (64 numbers per 10 m
+  pixel, 2017–2025, CC-BY 4.0) read for the map view or a layer's area from the public copy, and what
+  they are for: **similar places** (cosine similarity to sample points), **landscape groups** (k-means),
+  **classification** from labelled points (k-nearest neighbours, leave-one-out accuracy, area per class)
+  and **change** between two years. Each becomes a recipe run with a map, report and citation; steps
+  `embeddings.fetch/similar/cluster/classify/change` and recipes `embeddings-similar-places`,
+  `embeddings-classify` (so the Toolbox and the Ask assistant can run them).
+- Checked against the real data: land and sea on the Port Moresby coast separate with AUC 0.997 against
+  the Copernicus DEM (0.61 if the bottom-up files were read unflipped); `test-embeddings.py` checks every
+  step against known landscapes offline.
+
+### Fixed — recipes
+- `geospax-server check` reported "network: none" for every recipe; it now names the steps that
+  download (`dem.fetch`, `data.fetch`, `rs.*`, `embeddings.fetch`).
+
 ### Added — AI: Ask and an MCP server
 - **Ask** pane (*Analysis › Ask*, right-click a layer › *Ask about this layer…*): questions about the
   data in plain words, answered through GeoSpaX's own tools (`list_layers`, `describe_field`,

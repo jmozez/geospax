@@ -169,7 +169,12 @@ fn real_main(cmd: &str, args: &[String]) -> Result<i32, String> {
                         let after: Vec<&str> = s["after"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
                         println!("    {}. {:<12} {:<22}{}", n + 1, s["id"].as_str().unwrap_or(""), s["use"].as_str().unwrap_or(""), if after.is_empty() { String::new() } else { format!(" after {}", after.join(", ")) });
                     }
-                    println!("  permissions: reads devices and data; writes the state folder; code steps: {}; network: none", if r.has_code_steps() { "yes (Python/R run as local processes)" } else { "none" });
+                    let net = r.network_steps();
+                    println!(
+                        "  permissions: reads devices and data; writes the state folder; code steps: {}; network: {}",
+                        if r.has_code_steps() { "yes (Python/R run as local processes)" } else { "none" },
+                        if net.is_empty() { "none".to_string() } else { format!("downloads ({})", net.join(", ")) }
+                    );
                     for w in warns {
                         println!("  warning: {w}");
                     }

@@ -61,6 +61,10 @@ jobs:
           kill "$pid"
       - name: Assistant (Ollama, OpenAI-compatible and Claude wire formats, scripted model) and MCP server
         run: python3 scripts/test-ai.py target/release/geospax-server /tmp/ed/data
+      - name: Satellite embeddings (known landscapes in a local AlphaEarth-layout mirror)
+        run: |
+          python3 -c "import numpy" 2>/dev/null || apt-get install -y -q --no-install-recommends python3-numpy
+          python3 scripts/test-embeddings.py target/release/geospax-server
       - name: Sensor networks (MQTT over TLS, LoRaWAN, SensorThings) against Mosquitto
         run: |
           apt-get install -y -q --no-install-recommends mosquitto openssl

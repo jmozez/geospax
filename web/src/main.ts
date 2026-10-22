@@ -19,6 +19,7 @@ import { BASEMAPS, basemapDef, checkTileUrl, onlineBasemap } from './basemaps';
 import { Workbench } from './workbench';
 import { ProjectPane } from './projectpane';
 import { AskPane } from './ask';
+import { openEmbeddings } from './embeddings';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
 import { Toolbox } from './toolbox';
@@ -1830,6 +1831,18 @@ async function main() {
     },
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
   });
+  // Imagery › Satellite embeddings (embeddings.ts)
+  document.addEventListener('geospax:embeddings', (e) => void openEmbeddings({
+    backend,
+    view: () => map.getBounds().toArray().flat() as [number, number, number, number],
+    layers: () => project.order.map((id) => layerById(id)).filter((l): l is LayerInfo => !!l).reverse()
+      .map((l) => ({ id: l.id, name: l.name, geometry: l.geometry, fields: l.fields ?? [] })),
+    run: async (id) => {
+      workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+      await automatePane?.run(id);
+    },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  }, (e as CustomEvent<string>).detail));
   // Plugins › Manage plugins: the plugins pane in a dialog
   const pm = $('#plugin-manager');
   document.addEventListener('geospax:plugin-manager', () => { pm.hidden = false; });
