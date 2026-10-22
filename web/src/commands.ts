@@ -98,6 +98,7 @@ export const ICONS: Record<string, string> = {
   undo: 'M8 5L3 10l5 5v-3.5h6a4 4 0 0 1 0 8h-3V22h3a6.5 6.5 0 0 0 0-13H8z',
   redo: 'M16 5l5 5-5 5v-3.5h-6a4 4 0 0 0 0 8h3V22h-3a6.5 6.5 0 0 1 0-13h6z',
   magnet: 'M5 3h4v8a3 3 0 0 0 6 0V3h4v8a7 7 0 0 1-14 0zm0 0v3h4V3zm10 0v3h4V3z',
+  folder: 'M3 5h7l2 2h9v12H3z',
   plus: 'M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z',
   filter: 'M3 4h18l-7 8.5V19l-4 2v-8.5z',
   calc: 'M5 2h14v20H5zm2 2v4h10V4zm0 6v2h2v-2zm4 0v2h2v-2zm4 0v6h2v-6zM7 14v2h2v-2zm4 0v2h2v-2zm-4 4v2h2v-2zm4 0v2h6v-2z',
@@ -259,6 +260,14 @@ export const COMMANDS: Command[] = [
     id: 'home.zoomAll', tab: 'home', group: 'Layers', title: 'Zoom to all', icon: 'globe',
     hint: 'Fit every visible layer', keys: 'Ctrl+0',
     run: (h) => { h.fitAll(); },
+  },
+  {
+    id: 'view.bookmarks', tab: 'view', group: 'Navigate', title: 'Bookmarks', icon: 'pin',
+    hint: 'Your saved map views (Project pane)', run: (h) => { h.showTab('left', 'project'); },
+  },
+  {
+    id: 'view.addBookmark', tab: 'view', group: 'Navigate', title: 'Bookmark view', icon: 'plus',
+    hint: 'Remember this map view by name', run: () => { document.dispatchEvent(new CustomEvent('geospax:bookmark')); },
   },
   {
     id: 'home.attributes', tab: 'home', group: 'Selection', title: 'Attribute table', icon: 'table', big: true,
@@ -557,6 +566,11 @@ export const COMMANDS: Command[] = [
   {
     id: 'help.about', tab: 'help', group: 'About', title: 'About GeoSpaX', icon: 'globe',
     run: (h) => { h.about(); },
+  },
+  {
+    id: 'help.diagnostics', tab: 'help', group: 'Diagnostics', title: 'Engine diagnostics', icon: 'terminal',
+    hint: 'Tile transport, engine cache and the developer tests',
+    run: (h) => { h.showTab('left', 'project'); const d = document.querySelector<HTMLDetailsElement>('#diagnostics'); if (d) d.open = true; },
   },
   {
     id: 'analyze.bench', tab: 'help', group: 'Diagnostics', title: 'Benchmark', icon: 'clock',
