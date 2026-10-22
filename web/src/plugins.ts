@@ -359,7 +359,7 @@ export class PluginsPane {
         { method: 'POST', body: JSON.stringify({ params }), headers: { 'content-type': 'application/json' } },
       );
       // a tool's answer: its message as text, its table and notes in the dialog (not raw JSON)
-      const r = (res.result ?? {}) as { message?: string; table?: [string, unknown][]; notes?: string[] };
+      const r = (res.result ?? {}) as { message?: string; table?: [string, unknown][]; notes?: string[]; figures?: { title: string; svg: string }[] };
       const text = res.run?.id
         ? `Recipe started: ${res.run.id} (see History)`
         : res.message
@@ -368,12 +368,19 @@ export class PluginsPane {
             ? String(r.message)
             : JSON.stringify(res.result ?? res).slice(0, 300);
       const box = this.modal.querySelector<HTMLElement>('#plugin-result');
-      if (box && (r.table?.length || r.notes?.length)) {
-        box.innerHTML = `${r.table?.length ? `<table>${r.table.map(([k, v]) => `<tr><th>${esc(String(k))}</th><td>${esc(String(v))}</td></tr>`).join('')}</table>` : ''}${(r.notes ?? [])
+      if (box && (r.table?.length || r.notes?.length || r.figures?.length)) {
+        const figs = (r.figures ?? [])
+          // as images: an SVG in an <img> cannot run scripts, whichever plugin made it
+          .map((f) => `<figure class="tool-fig"><img alt="${esc(f.title)}" src="data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(f.svg)))}"><figcaption>${esc(f.title)}</figcaption></figure>`)
+          .join('');
+        // the chart first, then the numbers, then the method notes
+        box.innerHTML = `${figs}${r.table?.length ? `<table>${r.table.map(([k, v]) => `<tr><th>${esc(String(k))}</th><td>${esc(String(v))}</td></tr>`).join('')}</table>` : ''}${(r.notes ?? [])
           .filter(Boolean)
           .map((n) => `<p class="dim">${esc(n)}</p>`)
           .join('')}`;
         box.hidden = false;
+        // the answer, not the form, is what you want to see now
+        box.scrollIntoView({ block: 'start' });
       }
       if (msg) msg.textContent = text;
       this.host.setStatus(text, 6000);

@@ -3,7 +3,7 @@
 plugin: gsx
 version: 3.0.0
 title: Conservation, landscape and biodiversity tools
-description: "17 conservation, landscape and biodiversity tools: suitability, protection gaps, minimum-cost representation, fragmentation, connectivity, change, clusters and diversity. Runs on Node, offline."
+description: "19 conservation, landscape and biodiversity tools: suitability, protection gaps, minimum-cost representation, fragmentation, connectivity, change, clusters and diversity. Runs on Node, offline."
 author: J. Moses (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
 license: MIT
 homepage: https://github.com/jmozez/geospax
@@ -194,3 +194,32 @@ tools:
       - { name: "folds", label: "Cross-validation folds", kind: number, default: 5 }
       - { name: "future", label: "Future rasters (optional)", kind: rasters, description: "The same variables for a future climate (e.g. Data › Future climate, CMIP6), in the same order: adds future suitability and range gain / loss." }
       - { name: "block_deg", label: "Block size (°, blank = automatic)", kind: number, description: "Spatial blocks for cross-validation, in degrees; automatic: about a sixth of the study area’s width, so every fold gets blocks." }
+  - id: "local-moran"
+    name: "Local Moran's I (clusters and outliers, LISA)"
+    summary: "Where high values sit among high values (hot spots), low among low, and where a feature differs from its neighbours (outliers); with the global Moran's I and its scatterplot. As ArcGIS Pro's Cluster and Outlier Analysis and GeoDa's LISA."
+    group: "Spatial Statistics › Clusters and outliers"
+    icon: hotspot
+    tab: analyze
+    params:
+      - { name: "layer", label: "Layer", kind: layer, required: true }
+      - { name: "field", label: "Numeric field", kind: field, required: true, description: "The value to test, e.g. species richness, count, rate" }
+      - { name: "neighbours", label: "Neighbours", kind: choice, default: "auto", description: "auto: polygons that touch (queen contiguity), points: the 8 nearest", choices: ["auto", "contiguity", "k-nearest", "distance"] }
+      - { name: "k", label: "k (nearest)", kind: number, default: 8 }
+      - { name: "distance_km", label: "Distance band (km)", kind: number, default: 0, description: "For \"distance\": neighbours within this distance" }
+      - { name: "permutations", label: "Permutations", kind: number, default: 999 }
+      - { name: "alpha", label: "Significance level", kind: number, default: 0.05 }
+      - { name: "fdr", label: "False discovery rate correction", kind: bool, default: false, description: "Benjamini–Hochberg over all features (fewer, safer clusters)" }
+      - { name: "seed", label: "Random seed", kind: number, default: 12345, description: "Same seed, same p-values" }
+  - id: "elevation-profile"
+    name: "Elevation profile"
+    summary: "The terrain along a line over a DEM (each line its own profile), or through points that carry an elevation field (in their order, grouped by a field such as a transect): the chart, length, climb, descent and steepest slope."
+    group: "Terrain › Profiles"
+    icon: chart
+    tab: imagery
+    params:
+      - { name: "layer", label: "Lines or points", kind: layer, required: true }
+      - { name: "dem", label: "Elevation raster (DEM)", kind: raster, description: "For lines; points can use their own elevation field instead" }
+      - { name: "elevation_field", label: "Elevation field (points)", kind: field, description: "e.g. elevation_m; used when no DEM is given" }
+      - { name: "group_field", label: "One profile per (points)", kind: field, description: "e.g. transect" }
+      - { name: "order_field", label: "Sort points by", kind: field, description: "e.g. site or distance along the transect; empty = the order in the layer" }
+      - { name: "spacing_m", label: "Sample every (m)", kind: number, default: 0, description: "0 = half the DEM cell size" }

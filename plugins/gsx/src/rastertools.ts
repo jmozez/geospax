@@ -22,7 +22,7 @@ const centre = (g: Grid, i: number): [number, number] => {
   return [x0 + ((i % g.width) + 0.5) * dx, y0 + (Math.floor(i / g.width) + 0.5) * dy];
 };
 /** raster CRS ⇄ lon/lat (geographic rasters need no projection) */
-const projector = (g: Grid) => {
+export const projector = (g: Grid) => {
   if (g.geographic || !g.crs) return { toLonLat: (p: [number, number]) => p, fromLonLat: (p: [number, number]) => p };
   try {
     const conv = proj4(g.crs, WGS84);
@@ -48,7 +48,7 @@ const lonLatBounds = (g: Grid): [number, number, number, number] => {
   return [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))];
 };
 /** ground size of one cell in metres */
-const cellSize = (g: Grid): { w: number; h: number; area: number } => {
+export const cellSize = (g: Grid): { w: number; h: number; area: number } => {
   if (!g.geographic) {
     const w = Math.abs(g.transform[1]);
     const h = Math.abs(g.transform[5]);

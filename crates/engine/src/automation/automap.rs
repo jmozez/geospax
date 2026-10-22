@@ -197,6 +197,8 @@ fn style_layer_inner(engine: &Engine, l: &LayerHandle, fs: Option<&FeatureSet>, 
             return single(color, why.to_string(), 0.9);
         }
     }
+    // classes with a conventional palette (LISA: Anselin 1995, as GeoDa and ArcGIS Pro draw them)
+    let hint = if hint.is_none() && l.info.fields.iter().any(|f| f.name == "lisa_cluster") { Some("lisa_cluster") } else { hint };
     let fallback = single_color(&id);
     if hint == Some("none") {
         return single(fallback, "single colour (requested)".into(), 0.9);
@@ -384,7 +386,28 @@ pub fn graduated(field: &str, mut v: Vec<f64>) -> (Value, String) {
 }
 
 /// Unique colours for up to 12 categories (largest first), the rest as "other".
+/// Fixed colours for known class fields: (field, [(value, colour)], why).
+const FIXED_CLASSES: &[(&str, &[(&str, &str)], &str)] = &[(
+    "lisa_cluster",
+    &[
+        ("High-High cluster", "#d7191c"),
+        ("Low-Low cluster", "#2c7bb6"),
+        ("High-Low outlier", "#fdae61"),
+        ("Low-High outlier", "#abd9e9"),
+        ("Not significant", "#d3d3d3"),
+        ("No neighbours", "#f7f7f7"),
+    ],
+    "LISA classes in their conventional colours: red high-high, blue low-low, orange and light blue outliers, grey not significant",
+)];
+
 pub fn unique(field: &str, mut list: Vec<(String, u64, bool)>) -> (Value, String) {
+    if let Some((_, colors, why)) = FIXED_CLASSES.iter().find(|(f, _, _)| *f == field) {
+        let classes: Vec<Value> = colors
+            .iter()
+            .filter_map(|(v, c)| list.iter().find(|x| x.0 == *v).map(|x| json!({ "value": v, "color": c, "count": x.1 })))
+            .collect();
+        return (json!({ "kind": "unique", "field": field, "ramp": "fixed", "classes": classes, "other": OTHER_COLOR, "othersCount": 0 }), why.to_string());
+    }
     list.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let total = list.len();
     let ramp_id = if total > 10 { "bold" } else { "tableau" };
