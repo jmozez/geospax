@@ -5,8 +5,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
-GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
-design.
+## [3.0.0] — 2026-10-22
+
+GeoSpaX 3.0: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this design. Installers
+for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attached to the GitHub release.
 
 ### Added — Equal Earth for exported maps
 - `export.map` `projection: auto | mercator | equal-earth` and a **Projection** choice in Finish my map.
