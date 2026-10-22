@@ -7,9 +7,8 @@ model, and with Ollama nothing leaves your computer.
 | --- | --- | --- |
 | **Ask** (right pane) | Answers questions about your data in plain words, selects features, starts recipes | Ollama on this computer, any OpenAI-compatible server, or Claude with your API key |
 | **MCP server** (`geospax-server mcp`) | Gives AI assistants (Claude Desktop, Claude Code, editors) GeoSpaX's tools | On this computer; the assistant you connect decides where its model runs |
-
-Satellite embeddings (AlphaEarth) and object detection and segmentation (ONNX models) are next on the
-roadmap.
+| **Satellite embeddings** (*Imagery › Embeddings*) | Finds places like your samples, groups the landscape, classifies from labelled points, maps change between years | On this computer; the embeddings are read once from a public copy |
+| **Your own model** (*Imagery › Detect objects*) | Runs an ONNX object-detection or segmentation model you add over an image | On this computer; GeoSpaX ships no model |
 
 ## 1. Ask
 
@@ -103,7 +102,81 @@ the app, so recipes and runs are the same), `--recipes DIR`, `--threads N`.
 Tool errors come back as results with `isError: true`, so the assistant can correct its request (a wrong
 field name, for example). Results longer than 12,000 characters are cut, and the cut is marked.
 
-## 3. Safety
+## 3. Satellite embeddings
+
+Google DeepMind's **AlphaEarth Foundations** sums up a whole year of Sentinel-1 radar, Sentinel-2 and
+Landsat imagery, elevation, and climate for every 10 m pixel on land, as 64 numbers (an *embedding*).
+Places that look and behave alike over the year get alike embeddings. So a handful of samples is
+enough to map a land-cover type, a few groups describe a landscape, and comparing two years shows
+change. GeoSpaX reads the embeddings for your area only, from the public copy on
+[Source Cooperative](https://source.coop/tge-labs/aef), and does all the analysis on your computer.
+
+Open **Imagery › Embeddings** (or *Similar places*, *Group landscape*, *Classify*, *Change*). Choose
+the area (the map view, or around a layer), the year, and what to do:
+
+| Task | You give | You get |
+| --- | --- | --- |
+| **Look at the embeddings** | an area | Three of the 64 axes as red, green and blue: alike places get alike colours |
+| **Find places like my samples** | a point layer on the kind of place you want | Similarity to the samples on every pixel (1 = alike), and the area at ≥ 0.9 |
+| **Group the landscape** | the number of groups | k groups of alike landscape (k-means), for you to name from what you know |
+| **Classify from labelled samples** | points with a class field | A class map, the area per class, and leave-one-out accuracy |
+| **Change between two years** | two years | How much each pixel changed (1 − similarity), and the changed area |
+
+Each task becomes a recipe run, with a map, a report and the citation in its methods. Two of them
+are also in the Toolbox, and the Ask assistant can run them: *Places like my samples*
+(`embeddings-similar-places`) and *Classify from labelled samples* (`embeddings-classify`). The steps
+are listed in [AUTOMATION.md](AUTOMATION.md).
+
+**Good to know**
+
+- The data covers 2017–2025, on land and coastal waters. The default year is 2024.
+- An area can be up to 60 km a side. Above about 20 km it is read coarser than 10 m, using the
+  dataset's averaged overviews, to stay under 4 million pixels.
+- The first time a UTM zone and year is used, GeoSpaX reads that zone's file list, about 490 files at
+  2 KB each (a few seconds), and keeps it in `<state>/aef/`. A 4 km area of one year then reads in
+  about 10 s.
+- Accuracy from leave-one-out is optimistic when the samples sit close together. Check the map with
+  independent points.
+- Change in the embeddings means the year *looked* different: clearing, gardens, floods, building,
+  but also an unusually wet year. Look at imagery before naming it.
+- **Credit:** *"The AlphaEarth Foundations Satellite Embedding dataset is produced by Google and
+  Google DeepMind."* (CC-BY 4.0). It is added to the methods and the map credits automatically.
+- A mirror or a local copy in the same layout works too: set `GEOSPAX_AEF_BASE` to its address or
+  folder.
+
+## 4. Your own model: object detection and segmentation
+
+**Imagery › Detect objects** runs a model *you* add over an image, on your computer. An image is a drone
+orthophoto, aerial photo or satellite image in a data folder. Two kinds of model work:
+
+| Model | Output it must have | You get |
+| --- | --- | --- |
+| **Object detection**: YOLOv5, YOLOv8, YOLO11 and models with the same output | `[1, 4+classes, boxes]` (v8/11), `[1, boxes, 5+classes]` (v5), or `[1, boxes, 6]` boxes already decided (x0, y0, x1, y1, score, class) | A polygon layer: one box per object with `class`, `score` and `area_m2` |
+| **Segmentation** (U-Net, DeepLab, SegFormer exported with a per-pixel output) | `[1, classes, height, width]`, or one channel for yes/no | A class raster with the area of each class |
+
+**Adding a model.** Use **Imagery › Models…**, choose the `.onnx` file, and give its classes (read from the
+file when it has them, as Ultralytics exports do), its **licence** and where it comes from. Export a
+YOLO model with `yolo export model=yourmodel.pt format=onnx`, or PyTorch with `torch.onnx.export`.
+GeoSpaX **ships no model**. Many popular pretrained weights have licences of their own: Ultralytics
+YOLO is AGPL-3.0 or needs a commercial licence, and SAM is Apache-2.0. Some are trained on data with
+other terms. The licence you state is printed in the methods of every report made with the model;
+without one the report says "licence not stated".
+
+**How it runs.** The image is read in tiles of the model's input size (512 px for models of any
+size), at the image's own resolution. Use imagery close to the resolution the model was trained on.
+Values are divided by 255 for 8-bit images and by 10,000 for 16-bit ones; per-band `mean`/`std`,
+other bands (`bands: [4, 3, 2]`) and other scaling can be set per model or per run. Detection tiles
+overlap by 1/8. Overlapping boxes of a class are merged (non-maximum suppression, IoU 0.45), and boxes
+scoring below 0.25 are dropped. The model is data, not code: GeoSpaX evaluates it with
+[tract](https://github.com/sonos/tract) (pure Rust), so nothing in the file runs, and there is no
+Python or runtime to install. On a laptop CPU a small YOLO model takes roughly 0.1–0.5 s per 640 px
+tile.
+
+In recipes the step is `ai.detect` ([AUTOMATION.md](AUTOMATION.md)). The models API is
+`GET /api/models`, `POST /api/models?name=FILE.onnx`, `PUT /api/models/NAME`
+(`labels`, `licence`, `source`, `task`, `bands`, `scale`, `mean`, `std`) and `DELETE /api/models/NAME`.
+
+## 5. Safety
 
 - Every tool is a call to GeoSpaX's own API. The assistant can do nothing that you could not do in the
   app, and nothing that runs code.

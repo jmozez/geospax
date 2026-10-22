@@ -55,7 +55,7 @@ const clickAll = async (label, selector) => {
     if (!(await el.isVisible().catch(() => false)) || !(await el.isEnabled().catch(() => false))) continue;
     where = `${label} #${i} ${((await el.innerText().catch(() => '')) || (await el.getAttribute('title')) || '').replace(/\s+/g, ' ').slice(0, 40)}`;
     const before = problems.length;
-    await el.click({ timeout: 3000 }).catch((e) => problems.push(`[${where}] click failed: ${e.message.split('\n')[0]}`));
+    await el.click({ timeout: 3000 }).catch((e) => problems.push(`[${where}] click failed: ${e.message.split('\n')[0]}${(e.message.match(/<[^\n]*intercepts pointer events/) ?? [''])[0].slice(0, 160)}`));
     await settle();
     await tidy();
     clicked++;
@@ -94,8 +94,8 @@ ok('every Pro ribbon command runs without an error', !problems.length, `${total}
 
 // the sweep ends on Help › Engine diagnostics, which opens the Project pane
 await page.click('#dock-left .dock-tabs [data-tab="contents"]');
-const layerId = await page.locator('#contents .layer.pro').first().getAttribute('data-id');
-await page.locator('#contents .layer.pro .name').first().click();
+const layerId = await page.locator('#contents .layer.pro:not(.raster)').first().getAttribute('data-id');
+await page.locator('#contents .layer.pro:not(.raster) .name').first().click();
 await settle(300);
 ok('contextual Layer tab appears for a selected layer', await page.locator('#ribbon-tabs .rb-ctx').isVisible());
 await page.click('#ribbon-tabs .rb-ctx');

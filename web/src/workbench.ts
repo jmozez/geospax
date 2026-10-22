@@ -1112,7 +1112,7 @@ export class Workbench {
 
   /** Installed plugins with at least one tool (used by the ribbon and the palette). */
   private pluginTools(): PluginInfo[] {
-    return (this.host.plugins()?.plugins ?? []).filter((p) => p.tools.length > 0);
+    return (this.host.plugins()?.plugins ?? []).filter((p) => p.tools.length > 0 && !p.library);
   }
 
   private paletteSeq = 0;

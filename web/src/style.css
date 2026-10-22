@@ -1157,3 +1157,23 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .gx-dialog label.ask-prov:has(input:checked) { border-color: var(--accent); }
 .spinner { width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.gx-dialog .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.gx-dialog [hidden] { display: none !important; }
+/* ---- rasters in Contents (main.ts rasterRow): the same legend as the Rasters pane */
+.swatch.raster { width: 12px; height: 12px; border-radius: 2px; background: linear-gradient(135deg, #4c78a8 0 33%, #f2cf5b 33% 66%, #54a24b 66%); }
+.rlegend { grid-column: 1 / -1; padding: 2px 0 4px calc(28px + var(--d, 0) * 14px); font-size: 11px; }
+.rlegend .ramp { height: 9px; border-radius: 3px; border: 1px solid var(--line); }
+.rlegend .ends { display: flex; justify-content: space-between; opacity: 0.85; }
+.rlegend .classes { list-style: none; margin: 0; padding: 0; }
+.rlegend .classes li { display: flex; gap: 6px; align-items: center; line-height: 16px; }
+.rlegend .classes i { width: 12px; height: 12px; border-radius: 2px; flex: none; border: 1px solid rgba(127, 127, 127, 0.35); }
+.rlegend .note { color: var(--muted); }
+.card.raster-card .rlegend { padding-left: 8px; }
+.layer.pro .legend.rlegend { padding-left: 0; }
+.layer.pro .legend.rlegend span { margin-left: 0; }
+.layer .legend.rlegend div.ramp { display: block; }
+.gx-dialog table.models td, .gx-dialog table.models th { padding: 4px 8px 4px 0; vertical-align: top; font-size: 12px; }
+.gx-dialog table.models .warn { color: #e5a50a; }
+.gx-dialog table.models .err { color: #e5484d; }
+.gx-dialog fieldset.add-model { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 10px; display: grid; gap: 6px; }
+.gx-dialog fieldset.add-model legend { font-size: 12px; color: var(--muted); padding: 0 4px; }

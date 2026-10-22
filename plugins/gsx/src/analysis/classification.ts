@@ -1,3 +1,4 @@
+import { maxOf, minOf } from './extent';
 // Classification — equal-interval and Jenks natural breaks.
 //
 // Equal-interval is trivial; Jenks is the "natural breaks" (Fisher-Jenks)
@@ -10,8 +11,8 @@ export function equalInterval(values: number[], classes: number): number[] | nul
   if (!values || values.length === 0 || classes <= 0) return null;
   const finite = values.filter((v) => Number.isFinite(v));
   if (finite.length === 0) return null;
-  const lo = Math.min(...finite),
-    hi = Math.max(...finite);
+  const lo = minOf(finite),
+    hi = maxOf(finite);
   if (lo === hi) return Array(classes).fill(lo);
   const step = (hi - lo) / classes;
   return Array.from({ length: classes }, (_, i) => lo + step * (i + 1));

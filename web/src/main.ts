@@ -19,6 +19,8 @@ import { BASEMAPS, basemapDef, checkTileUrl, onlineBasemap } from './basemaps';
 import { Workbench } from './workbench';
 import { ProjectPane } from './projectpane';
 import { AskPane } from './ask';
+import { openEmbeddings } from './embeddings';
+import { openDetect, openModels } from './models';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
 import { Toolbox } from './toolbox';
@@ -137,8 +139,21 @@ function mergeProject(saved: Project | null): Project {
     .sort((a, b) => (isLand(a.id) ? -1 : 0) - (isLand(b.id) ? -1 : 0) || GEOM_ORDER[a.geometry] - GEOM_ORDER[b.geometry])
     .map((l) => l.id);
   const known = new Set(defaultOrder);
-  const order = (saved?.order ?? []).filter((id) => known.has(id));
+  // rasters are in the same draw order as "r:<id>"; until the raster list has loaded, keep them all
+  const rasterIds = rasterPane ? new Set(rasterPane.rasters.map((r) => `r:${r.id}`)) : null;
+  const order = (saved?.order ?? []).filter((id) => known.has(id) || (id.startsWith('r:') && (!rasterIds || rasterIds.has(id))));
   for (const id of defaultOrder) if (!order.includes(id)) order.push(id);
+  if (rasterPane) {
+    // results (recipe or tool outputs, "<recipe>.<name>") go on top like any new layer, hillshades above
+    // their colour raster; rasters found in the data folders go just above the land polygons
+    const fresh = rasterPane.rasters.filter((r) => !order.includes(`r:${r.id}`));
+    const isResult = (id: string) => id.includes('.');
+    const top = fresh.filter((r) => isResult(r.id)).sort((a, b) => +(a.kind === 'hillshade') - +(b.kind === 'hillshade'));
+    const bottom = fresh.filter((r) => !isResult(r.id));
+    const afterLand = order.reduce((at, id, i) => (isLand(id) ? i + 1 : at), 0);
+    order.splice(afterLand, 0, ...bottom.map((r) => `r:${r.id}`));
+    order.push(...top.map((r) => `r:${r.id}`));
+  }
   const styles: Record<string, LayerStyle> = {};
   for (const l of layers) styles[l.id] = { ...defaultStyle(l), ...(saved?.layers?.[l.id] ?? {}) };
   const groups = saved?.groups ?? [];
@@ -277,6 +292,15 @@ function buildStyle(): maplibregl.StyleSpecification {
   const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': css('map-bg') || '#0b0b0b' } }];
   addBasemap(sources, out);
   for (const id of project.order) {
+    if (id.startsWith('r:')) {
+      if (groupOf_(id) && !groupOf_(id)!.visible) continue;
+      const p = rasterPane?.partsFor(id.slice(2));
+      if (p) {
+        sources[p.sid] = p.source;
+        out.push(p.layer);
+      }
+      continue;
+    }
     const l = layerById(id);
     if (!l) continue;
     // a switched-off group hides its layers without touching their own switches
@@ -360,15 +384,6 @@ function buildStyle(): maplibregl.StyleSpecification {
     { id: 'live#pos', type: 'circle', source: 'live', filter: ['==', ['get', 'role'], 'position'],
       paint: { 'circle-color': '#ffd166', 'circle-radius': 7, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 } } as maplibregl.LayerSpecification,
   );
-  // rasters sit above the basemap and land polygons and below every other vector layer
-  if (rasterPane) {
-    const r = rasterPane.styleParts();
-    Object.assign(sources, r.sources);
-    let at = 1;
-    const under = (src: string) => isLand(src) || src.startsWith('basemap:');
-    while (at < out.length && 'source' in out[at] && under((out[at] as { source: string }).source)) at++;
-    out.splice(at, 0, ...r.layers);
-  }
   // keep terra-draw's drawing layers (td-*) across restyles, on top (web/src/editing.ts)
   try {
     const cur = map?.getStyle?.();
@@ -609,8 +624,9 @@ function renderContents() {
   const el = $('#contents');
   document.body.dataset.mode = uiMode;
   // ArcGIS convention: top of the list draws on top (= end of the draw order)
-  const list = [...project.order].reverse().filter((id) => layerById(id));
+  const list = [...project.order].reverse().filter((id) => layerById(id) || (id.startsWith('r:') && rasterPane?.byId(id.slice(2))));
   const row = (id: string, i: number, depth = 0) => {
+    if (id.startsWith('r:')) return rasterRow(id, i === 0, i === list.length - 1, depth);
     const l = layerById(id)!;
     const st = project.layers[id];
     const state = {
@@ -633,7 +649,7 @@ function renderContents() {
     // cards grouped by where the data came from; the draw order is kept inside each group
     const groups = new Map<Group, string[]>();
     list.forEach((id, i) => {
-      const g = groupOf(layerById(id)!, isDeviceLayer);
+      const g: Group = id.startsWith('r:') ? (id.includes('.') ? 'results' : 'data') : groupOf(layerById(id)!, isDeviceLayer);
       groups.set(g, [...(groups.get(g) ?? []), row(id, i)]);
     });
     for (const g of ['devices', 'data', 'results', 'reference'] as Group[]) {
@@ -685,6 +701,84 @@ function renderContents() {
     fi?.focus();
     fi?.setSelectionRange(fi.value.length, fi.value.length);
   }
+}
+
+/** A raster in Contents: switch, name, kind, opacity, legend (state shared with the Rasters pane). */
+function rasterRow(id: string, first: boolean, last: boolean, depth = 0): string {
+  const rid = id.slice(2);
+  const r = rasterPane!.byId(rid)!;
+  const e = (x: unknown) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const on = rasterPane!.isVisible(rid);
+  const op = Math.round(rasterPane!.opacity(rid) * 100);
+  const open = !closedLegends.has(id);
+  const legend = on && open ? rasterPane!.legendHtml(rid) : '';
+  if (uiMode === 'lazy') {
+    return `<div class="card raster-card" data-id="${e(id)}" style="--c:#7a8ea6"><div class="lc-top"><span class="lc-glyph">▦</span>
+      <span class="lc-title"><b>${e(r.title)}</b><small>${e(r.kind)} raster · ${r.pixel_m} m pixels</small></span>
+      <label class="lc-switch"><input type="checkbox" ${on ? 'checked' : ''} aria-label="Show ${e(r.title)}"> Show</label></div>
+      ${legend ? `<div class="rlegend">${legend}</div>` : ''}</div>`;
+  }
+  return `<div class="layer pro raster" data-id="${e(id)}" draggable="true" role="treeitem" aria-level="${depth + 2}" aria-expanded="${open}" aria-selected="false" style="--d:${depth}">
+    <button class="pr-tw" data-act="twisty" aria-label="${open ? 'Collapse' : 'Expand'} legend">${open ? '▾' : '▸'}</button>
+    <input type="checkbox" ${on ? 'checked' : ''} aria-label="Toggle ${e(r.title)}" />
+    <span class="swatch raster" aria-hidden="true"></span>
+    <b class="name" title="${e(r.description || r.why || 'Style in the Rasters pane')}">${e(r.title)}</b>
+    <span class="pr-n">${e(r.kind)}</span>
+    <input class="pr-op" type="range" min="0" max="100" step="5" value="${op}" data-act="opacity" title="Opacity ${op}%" aria-label="Opacity" />
+    <span class="tools">
+      <button data-act="up" title="Move up" aria-label="Move up" ${first ? 'disabled' : ''}>▲</button>
+      <button data-act="down" title="Move down" aria-label="Move down" ${last ? 'disabled' : ''}>▼</button>
+      <button data-act="zoom" title="Zoom to" aria-label="Zoom to">⤢</button>
+      <button data-act="props" title="Style in the Rasters pane" aria-label="Style">⚙</button>
+    </span>
+    <small class="pr-sub">raster · ${e(r.kind)} · ${r.width}×${r.height} px · ${r.pixel_m} m · ${e(r.crs)}</small>
+    ${legend ? `<div class="legend rlegend">${legend}</div>` : ''}
+  </div>`;
+}
+
+/** Rasters loaded or changed (new results, a switch in either pane): keep the draw order and Contents in step. */
+let knownRasters: Set<string> | null = null;
+function onRastersChanged() {
+  if (!rasterPane) return;
+  const ids = rasterPane.rasters.map((r) => r.id);
+  // a raster that appeared while the app was open (a tool, the assistant, a trigger) is shown, like a new layer
+  if (knownRasters) {
+    const fresh = ids.filter((id) => !knownRasters!.has(id));
+    knownRasters = new Set(ids);
+    if (fresh.length) {
+      rasterPane.showNew(fresh);
+      workbench?.setStatus(`Added to the map: ${fresh.map((id) => rasterPane!.byId(id)?.title ?? id).join(', ')}`, 6000);
+    }
+  } else knownRasters = new Set(ids);
+  const before = project.order.join('|');
+  project = mergeProject(project);
+  if (project.order.join('|') !== before) saveProject();
+  applyStyle();
+  renderContents();
+}
+
+/** Right-click on a raster in Contents. */
+function rasterMenu(id: string, x: number, y: number): boolean {
+  const rid = id.slice(2);
+  const r = rasterPane?.byId(rid);
+  if (!r) return false;
+  const on = rasterPane!.isVisible(rid);
+  showMenu(x, y, r.title, [
+    { label: on ? 'Hide' : 'Show', run: () => rasterPane!.setVisible(rid, !on) },
+    { label: 'Zoom to raster', run: () => void map.fitBounds([[r.bounds[0], r.bounds[1]], [r.bounds[2], r.bounds[3]]], { padding: 40, maxZoom: 16, duration: 300 }) },
+    { sep: true },
+    { label: 'Style…', hint: 'Colours and legend in the Rasters pane', run: () => workbench?.showTab('right', 'rasters') },
+    ...[100, 75, 50, 25].map((o) => ({ label: `Opacity ${o} %`, disabled: Math.round(rasterPane!.opacity(rid) * 100) === o, run: () => rasterPane!.setOpacity(rid, o / 100) })),
+    { sep: true },
+    { label: 'Properties…', run: async () => {
+      const { dialog } = await import('./editing');
+      const e = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const rows: [string, string][] = [['Name', r.title], ['Id', r.id], ['Kind', r.kind], ['Size', `${r.width} × ${r.height} px`], ['Pixel', `${r.pixel_m} m`],
+        ['Coordinate system', r.crs], ['Extent (WGS 84)', r.bounds.map((v) => v.toFixed(5)).join(', ')], ['About', r.description || r.why]];
+      await dialog(`Properties · ${r.title}`, `<table class="props">${rows.map(([k, v]) => `<tr><th>${e(k)}</th><td>${e(v)}</td></tr>`).join('')}</table>`, [['', 'Close']], { wide: true });
+    } },
+  ]);
+  return true;
 }
 
 /** Lazy mode's right pane: the selected layer as a story (web/src/inspector.ts). */
@@ -759,8 +853,13 @@ function wireContents() {
     const gid = t.closest<HTMLElement>('.pr-group')?.dataset.group;
     if (gid && t.dataset.gact === 'visible') return groupAction('visible', gid, t);
     if (t.dataset.tree === 'basemap') return t.value === 'custom' ? void basemapGallery() : setBasemap(t.value as Basemap);
-    const id = t.closest<HTMLElement>('.layer')?.dataset.id;
+    const id = t.closest<HTMLElement>('.layer, .raster-card')?.dataset.id;
     if (!id) return;
+    if (id.startsWith('r:')) {
+      if (t.type === 'checkbox') rasterPane?.setVisible(id.slice(2), t.checked);
+      else if (t.dataset.act === 'opacity') rasterPane?.setOpacity(id.slice(2), Number(t.value) / 100);
+      return;
+    }
     if (t.type === 'checkbox') {
       setLayerStyle(id, { ...project.layers[id], visible: t.checked });
       if (t.checked) void queueAutoOverviews();
@@ -804,7 +903,11 @@ function wireContents() {
       return renderContents();
     }
     if (act === 'up' || act === 'down') moveLayer(id, act);
-    else if (act === 'zoom') fitLayer(id);
+    else if (id.startsWith('r:')) {
+      const r = rasterPane?.byId(id.slice(2));
+      if (act === 'zoom' && r) map.fitBounds([[r.bounds[0], r.bounds[1]], [r.bounds[2], r.bounds[3]]], { padding: 40, maxZoom: 16, duration: 300 });
+      else if (act === 'props' || t.closest('.name')) workbench?.showTab('right', 'rasters');
+    } else if (act === 'zoom') fitLayer(id);
     else if (act === 'recipe' && actEl?.dataset.recipe) void automatePane?.run(actEl.dataset.recipe, { layer: id });
     else if (act === 'props' || t.classList.contains('name') || t.closest('.name')) {
       panel.open(id);
@@ -991,8 +1094,13 @@ async function reloadLayers() {
   // Layers that appeared at runtime (device imports) join the project with default styles, on top.
   const known = new Set(project.order);
   project = mergeProject(project);
-  const added = project.order.filter((id) => !known.has(id));
-  if (added.length) saveProject();
+  const added = project.order.filter((id) => !known.has(id) && !id.startsWith('r:'));
+  if (added.length) {
+    saveProject();
+    // new layers are switched on and listed on top (mergeProject puts them at the end of the draw order)
+    for (const id of added) if (project.layers[id] && defaultVisible(layerById(id)!)) project.layers[id].visible = true;
+    if (known.size) workbench?.setStatus(`Added to the map: ${added.map((id) => layerById(id)?.name ?? id).join(', ')}`, 6000);
+  }
   void autostyleNew(added);
   applyStyle();
   renderContents();
@@ -1343,6 +1451,7 @@ async function main() {
   rasterPane = new RasterPane($('#rasters'), backend, {
     restyle: applyStyle,
     fit: (b) => map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, maxZoom: 16, duration: 0 }),
+    changed: () => onRastersChanged(),
   });
   rasterPane.reload().then(applyStyle);
 
@@ -1376,9 +1485,14 @@ async function main() {
       applyStyle();
       renderContents();
       saveProject();
-      const b = run.extent;
+      // frame the result: the run's extent, else (a run that made only rasters) its rasters
+      let b = run.extent;
+      if (!(b && b.every(Number.isFinite)) && run.rasters?.length && rasterPane) {
+        const bs = run.rasters.map((id) => rasterPane!.byId(id)?.bounds).filter((x): x is [number, number, number, number] => !!x);
+        if (bs.length) b = [Math.min(...bs.map((x) => x[0])), Math.min(...bs.map((x) => x[1])), Math.max(...bs.map((x) => x[2])), Math.max(...bs.map((x) => x[3]))];
+      }
       if (b && run.status === 'done' && b.every(Number.isFinite)) {
-        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 16, duration: 0 });
+        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 19, duration: 0 });
       }
       document.body.dataset.runApplied = run.id;
     },
@@ -1392,6 +1506,23 @@ async function main() {
   });
   automatePane = automate;
   automate.start();
+  // Results made anywhere (a recipe, a Toolbox tool, the assistant, a trigger, another window) join
+  // Contents as they appear, like ArcGIS Pro and QGIS add tool outputs to the map
+  {
+    let rev = '';
+    const poll = async () => {
+      try {
+        const r = await backend.json<{ rev: string }>('api/rev');
+        if (rev && r.rev !== rev) {
+          await reloadLayers();
+          await rasterPane?.reload();
+        }
+        rev = r.rev;
+      } catch { /* engine busy or restarting */ }
+      setTimeout(poll, 2500);
+    };
+    void poll();
+  }
 
   const tsel = $('#transport') as HTMLSelectElement;
   tsel.innerHTML = backend.transports.map((t) => `<option ${t === backend.transport ? 'selected' : ''}>${t}</option>`).join('');
@@ -1437,7 +1568,8 @@ async function main() {
   pluginsPane = new PluginsPane($('#plugins'), backend, {
     log: (line) => workbench?.log(line),
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
-    layers: () => layers.map((l) => ({ id: l.id, name: l.name, fields: l.fields })),
+    layers: () => layers.map((l) => ({ id: l.id, name: l.name, geometry: l.geometry, fields: l.fields })),
+    active: () => panel.current ?? null,
     onChanged: () => document.dispatchEvent(new CustomEvent('geospax:plugins-changed')),
   });
   void pluginsPane.reload();
@@ -1664,6 +1796,8 @@ async function main() {
     return true;
   };
   onContextMenu($('#contents'), (t, x, y) => {
+    const rid = t.closest<HTMLElement>('.layer.raster, .raster-card')?.dataset.id;
+    if (rid) return rasterMenu(rid, x, y);
     const row = t.closest<HTMLElement>('[data-id]');
     return row?.dataset.id ? layerMenu(row.dataset.id, x, y) : false;
   });
@@ -1830,6 +1964,29 @@ async function main() {
     },
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
   });
+  // Imagery › Detect objects and Models… (models.ts)
+  const modelsHost = {
+    backend,
+    run: async (id: string) => {
+      workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+      await automatePane?.run(id);
+    },
+    setStatus: (t: string, ms?: number) => workbench?.setStatus(t, ms),
+  };
+  document.addEventListener('geospax:detect', () => void openDetect(modelsHost));
+  document.addEventListener('geospax:models', () => void openModels(modelsHost));
+  // Imagery › Satellite embeddings (embeddings.ts)
+  document.addEventListener('geospax:embeddings', (e) => void openEmbeddings({
+    backend,
+    view: () => map.getBounds().toArray().flat() as [number, number, number, number],
+    layers: () => project.order.map((id) => layerById(id)).filter((l): l is LayerInfo => !!l).reverse()
+      .map((l) => ({ id: l.id, name: l.name, geometry: l.geometry, fields: l.fields ?? [] })),
+    run: async (id) => {
+      workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+      await automatePane?.run(id);
+    },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  }, (e as CustomEvent<string>).detail));
   // Plugins › Manage plugins: the plugins pane in a dialog
   const pm = $('#plugin-manager');
   document.addEventListener('geospax:plugin-manager', () => { pm.hidden = false; });

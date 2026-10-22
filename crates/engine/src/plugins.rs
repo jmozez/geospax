@@ -119,6 +119,13 @@ pub struct PluginInfo {
     /// built-in tools, not in the plugin manager, never uninstalled.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub builtin: bool,
+    /// A tool library other plugins run: not on the ribbon, in the Toolbox or the plugin list, but its
+    /// tools still run from recipes, the API and MCP.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub library: bool,
+    /// A default plugin: shipped with GeoSpaX and listed in the plugin manager, not removable.
+    #[serde(rename = "default", skip_serializing_if = "std::ops::Not::not")]
+    pub default_set: bool,
 }
 
 /// Tool sets that ship with GeoSpaX and are part of it, though they run on Node and WebAssembly
@@ -155,6 +162,12 @@ struct NativeManifest {
     tools: Vec<ToolSpec>,
     #[serde(default)]
     commands: Vec<CommandSpec>,
+    /// A shared tool library for other plugins: its tools run (recipes, API, MCP) but are not listed.
+    #[serde(default)]
+    library: bool,
+    /// One of GeoSpaX's default plugins (honoured only when shipped with the app).
+    #[serde(default, rename = "default")]
+    default_set: bool,
 }
 
 // RustGIS / GeoLibre plugin.json
@@ -396,6 +409,7 @@ fn finish(mut i: PluginInfo, path: &Path) -> PluginInfo {
     i.path = path.to_string_lossy().to_string();
     let shipped = bundled_dirs().iter().any(|d| path.starts_with(d));
     i.builtin = shipped && BUILTIN.contains(&i.id.as_str());
+    i.default_set &= shipped;
     // A runtime the machine does not have is reported, not silently dropped.
     if i.needs.is_none() {
         match i.kind.as_str() {
@@ -442,6 +456,8 @@ fn read_native(path: &Path) -> Option<PluginInfo> {
             return Some(finish(
                 PluginInfo {
                     builtin: false,
+                    library: false,
+                    default_set: false,
                     id: path.file_name()?.to_string_lossy().to_string(),
                     name: path.file_name()?.to_string_lossy().to_string(),
                     version: None,
@@ -481,6 +497,8 @@ fn read_native(path: &Path) -> Option<PluginInfo> {
     Some(finish(
         PluginInfo {
             builtin: false,
+            library: m.library,
+            default_set: m.default_set,
             id: m.plugin.clone(),
             name: m.title.clone().unwrap_or(m.plugin),
             version: m.version,
@@ -522,6 +540,8 @@ fn read_json_manifest(path: &Path) -> Option<PluginInfo> {
     Some(finish(
         PluginInfo {
             builtin: false,
+            library: false,
+            default_set: false,
             id: m.id.clone(),
             name: m.name.clone().unwrap_or_else(|| m.id.clone()),
             version: m.version,
@@ -588,6 +608,8 @@ fn read_qgis(path: &Path) -> Option<PluginInfo> {
     Some(finish(
         PluginInfo {
             builtin: false,
+            library: false,
+            default_set: false,
             id: id.clone(),
             name: id.clone(),
             version: map.get("version").cloned(),
@@ -700,6 +722,8 @@ fn read_arcgis(path: &Path) -> Option<PluginInfo> {
     Some(finish(
         PluginInfo {
             builtin: false,
+            library: false,
+            default_set: false,
             id,
             name,
             version: attr(&text, "AddInInfo", "version"),
@@ -789,6 +813,8 @@ fn read_package(path: &Path) -> Option<PluginInfo> {
         return Some(finish(
             PluginInfo {
                 builtin: false,
+                library: false,
+                default_set: false,
                 id: json.id.clone(),
                 name: json.name.clone().unwrap_or_else(|| json.id.clone()),
                 version: json.version,
@@ -837,6 +863,8 @@ fn read_package(path: &Path) -> Option<PluginInfo> {
         return Some(finish(
             PluginInfo {
                 builtin: false,
+                library: false,
+                default_set: false,
                 id: id.clone(),
                 name,
                 version: attr(&text, "AddInInfo", "version"),
@@ -1048,6 +1076,12 @@ impl Plugins {
         let stdout = String::from_utf8_lossy(&wait.stdout).to_string();
         let stderr = String::from_utf8_lossy(&wait.stderr).to_string();
         if !wait.status.success() {
+            // exit 1 with a message is the tool refusing its input: say why, in its words
+            if wait.status.code() == Some(1) {
+                if let Some(why) = first_line(&stderr) {
+                    return Err(format!("{}: {why}", p.name));
+                }
+            }
             return Err(format!(
                 "{prog} exited with {}: {}",
                 wait.status,

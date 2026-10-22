@@ -13,7 +13,8 @@ acknowledges — including the two the workbench UI was modelled on.
 * **Rust crates** — every direct dependency is listed in
   [`Cargo.toml`](Cargo.toml); `cargo tree` prints the full graph with licences.
   Notable ones: `axum`, `tokio`, `serde`/`serde_json`, `gdal`, `arrow`, `geo`,
-  `rusqlite`, `image`, `dhat`/`mimalloc` (feature-gated), `tauri`.
+  `rusqlite`, `image`, `dhat`/`mimalloc` (feature-gated), `tauri`, `tract-onnx`
+  (Sonos; MIT or Apache-2.0: runs ONNX models you add, docs/AI.md §4).
 * **JavaScript** — [`web/package.json`](web/package.json): MapLibre GL JS
   (BSD-3-Clause), deck.gl (MIT), Apache Arrow JS (Apache-2.0), terra-draw and its MapLibre adapter
   (MIT, drawing and vertex editing), Vite (MIT),

@@ -1,0 +1,29 @@
+# Satellite embeddings: a land-cover map from labelled sample points (docs/AI.md §3).
+recipe: embeddings-classify
+version: 1
+kit: Satellite embeddings
+title: Classify from labelled samples
+description: >-
+  AlphaEarth satellite embeddings (Google DeepMind, CC-BY 4.0) around your labelled points, each
+  pixel given the class of its most similar samples, with leave-one-out accuracy and area per class.
+inputs:
+  samples: { type: layer, default: auto, description: points with a class field }
+  field: { type: text, default: class, description: the field that holds the classes }
+  year: { type: number, default: 2024, description: year of the embeddings (2017–2025) }
+  margin: { type: number, default: 1000, description: metres around the samples }
+steps:
+  - id: fetch
+    use: embeddings.fetch
+    with: { aoi: "${inputs.samples}", buffer: "${inputs.margin}", year: "${inputs.year}" }
+  - id: classify
+    use: embeddings.classify
+    with: { embeddings: "${fetch.raster}", samples: "${inputs.samples}", field: "${inputs.field}" }
+  - id: map
+    use: export.map
+    needs: [classify]
+    with: { name: classified, title: "Classified from samples (${inputs.year})" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Classification from samples · ${run.date}" }
+outputs: [map, report]

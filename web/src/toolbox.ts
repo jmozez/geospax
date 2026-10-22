@@ -133,7 +133,7 @@ export class Toolbox {
     for (const x of s.steps) {
       tools.push({ key: `s:${x.name}`, kind: 'step', name: STEP_TITLES[x.name] ?? x.name, summary: x.summary, category: FAMILY_TOOLBOX[x.family] ?? 'Data Management', source: '', aka: x.borrowed ?? '', step: x });
     }
-    for (const pl of p.plugins) {
+    for (const pl of p.plugins.filter((x) => !x.library)) {
       for (const t of pl.tools ?? []) {
         // built-in tool sets file their tools by task, like the engine's own; added plugins go under
         // Plugins, one toolset each, with where they come from

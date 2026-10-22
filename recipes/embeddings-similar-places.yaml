@@ -1,0 +1,28 @@
+# Satellite embeddings: places like your sample points (docs/AI.md §3).
+recipe: embeddings-similar-places
+version: 1
+kit: Satellite embeddings
+title: Places like my samples
+description: >-
+  AlphaEarth satellite embeddings (Google DeepMind, CC-BY 4.0) around your sample points, and how
+  alike every pixel is to them: a map of more places like these (a forest type, a crop, a reef).
+inputs:
+  samples: { type: layer, default: auto, description: points on the kind of place you are after }
+  year: { type: number, default: 2024, description: year of the embeddings (2017–2025) }
+  margin: { type: number, default: 3000, description: metres around the samples }
+steps:
+  - id: fetch
+    use: embeddings.fetch
+    with: { aoi: "${inputs.samples}", buffer: "${inputs.margin}", year: "${inputs.year}" }
+  - id: similar
+    use: embeddings.similar
+    with: { embeddings: "${fetch.raster}", samples: "${inputs.samples}" }
+  - id: map
+    use: export.map
+    needs: [similar]
+    with: { name: similar-places, title: "Places like the samples (${inputs.year})" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Places like the samples · ${run.date}" }
+outputs: [map, report]

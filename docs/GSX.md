@@ -3,12 +3,43 @@
 The GSX tools bring the conservation, biodiversity and environmental analysis of **GeoSpaX 2.0**
 ([jm0535/GeoSpaX](https://github.com/jm0535/GeoSpaX)) and **GeoSpaX 1.4.2**
 ([jm0535/map-kit](https://github.com/jm0535/map-kit)) into GeoSpaX 3, in GeoSpaX 3's design. They are
-built-in tools: filed in the **Toolbox** by task (Conservation Planning, Landscape Ecology,
-Biodiversity, Spatial Statistics › Point patterns, Analysis › Overlay), on the Analysis and Modelling
-ribbon tabs, in the command palette and the HTTP API, with no separate label. Inside, they run as
-`plugins/gsx` through the plugin contract, which is why the source lives there.
-In 2.0 the same code sat behind twelve domain panels; here each tool appears once, and the domains
-become ready-made recipes (see [Coming next](#coming-next)).
+**twelve default plugins**, one per domain of 2.0, each with the tools 2.0 gave that domain:
+
+| Plugin | Tools |
+| --- | --- |
+| **Conservation** | overlay, hot spot grid, DBSCAN, local Moran's I, priority sites, representation, species distribution, suitability, protection gap, fragmentation, connectivity, change |
+| **Agriculture** | spectral index, suitability, distance decay, slope zones, raster change, change |
+| **Biodiversity** | diversity, nearest neighbour, DBSCAN, local Moran's I, hot spot grid, species distribution, priority sites, protection gap |
+| **Environment** | slope zones, spectral index, raster change, overlay, elevation profile |
+| **Forestry** | spectral index, fragmentation, connectivity, raster change, change, protection gap |
+| **Marine** | diversity, nearest neighbour, DBSCAN, species distribution, spectral index, suitability, hot spot grid, priority sites, protection gap |
+| **Climate** | spectral index, suitability, distance decay, raster change, change |
+| **Disaster** | suitability, slope zones, spectral index, distance decay, priority sites, raster change, change, hot spot grid, local Moran's I |
+| **Geoscience** | slope zones, spectral index, suitability, overlay, raster change, change, elevation profile |
+| **Hydrology** | spectral index, slope zones, suitability, distance decay, overlay, raster change, change, elevation profile |
+| **Land use and land cover** | spectral index, raster change, change, overlay, suitability |
+| **Soil** | spectral index, suitability, distance decay, overlay, raster change, change |
+
+They ship with GeoSpaX and are on the **Plugins** tab (one group per domain), in the **Toolbox** under
+*Plugins › <domain>* and in the plugin manager marked *default plugin*. They are not on the Analysis,
+Imagery or Modelling tabs, which hold GeoSpaX's own tools. All twelve run the same code, the shared
+**GSX library** in `plugins/gsx` (`library: true`: not listed, but recipes, the API and MCP call its
+tools as `gsx/<tool>`, so a tool gives the same answer from every domain).
+
+A tool's dialog opens with its inputs already chosen, as in ArcGIS Pro's geoprocessing pane:
+- **Layers:** the layer selected in Contents when it fits, unless another layer fits the input better
+  by name (a *habitat* layer for "Habitat", a layer with a species column for diversity). Points,
+  lines and polygons go only to inputs that take them; a second input (B, protected areas) gets a
+  different layer, and the second date of a pair the layer's later version (habitat → habitat_2024).
+- **Fields:** a field of the right type from that layer, its name matching the input's
+  (`dist_to_road_km` for "Distance field", `species` for "Species"); identifiers such as `site` are
+  never taken as values. Optional inputs (a constraint field, a second layer) stay empty unless their
+  own name names the field, since a wrong constraint would change the result.
+- **Rasters:** a multiband image for "Image", a raster named as a DEM for "Elevation" (never a
+  temperature or other surface), the earlier and later of two dated rasters for change, and the
+  climate rasters as species-model covariates.
+- **Never earlier results**, unless you select one: a tool starts from your data.
+When nothing fits, the input stays empty and the tool says what it needs ("Choose a DEM").
 
 The analysis code (`plugins/gsx/src/analysis`, about 5,000 lines of TypeScript on Turf and proj4) is
 GeoSpaX 2.0's `@geospax/analysis`, unchanged, so its golden-value tests run as they did (103 of them,

@@ -1,3 +1,4 @@
+import { maxOf, minOf } from './analysis/extent';
 // Raster and species-distribution tools (GSX phase B, from GeoSpaX 2.0): spectral index with an
 // Otsu threshold, two-date raster change, slope zones and species distribution models (BIOCLIM,
 // Mahalanobis, presence-background logistic) with spatially blocked cross-validation. The maths is
@@ -45,7 +46,7 @@ const lonLatBounds = (g: Grid): [number, number, number, number] => {
   const xs = [x0, x0 + dx * g.width];
   const ys = [y0, y0 + dy * g.height];
   const pts = xs.flatMap((x) => ys.map((y) => toLonLat([x, y])));
-  return [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))];
+  return [minOf(pts.map((p) => p[0])), minOf(pts.map((p) => p[1])), maxOf(pts.map((p) => p[0])), maxOf(pts.map((p) => p[1]))];
 };
 /** ground size of one cell in metres */
 export const cellSize = (g: Grid): { w: number; h: number; area: number } => {
@@ -431,4 +432,3 @@ export const RASTER_TOOLS: Tool[] = [
   },
 ];
 
-export const TAB_OF_RASTER: Record<string, string> = { [SPECTRAL]: 'imagery', [CHANGE]: 'imagery', [SLOPE]: 'imagery', [SDM]: 'modelling' };
