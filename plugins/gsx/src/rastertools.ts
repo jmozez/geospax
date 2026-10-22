@@ -432,4 +432,3 @@ export const RASTER_TOOLS: Tool[] = [
   },
 ];
 
-export const TAB_OF_RASTER: Record<string, string> = { [SPECTRAL]: 'imagery', [CHANGE]: 'imagery', [SLOPE]: 'imagery', [SDM]: 'modelling' };
