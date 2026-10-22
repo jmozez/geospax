@@ -7,9 +7,9 @@ model, and with Ollama nothing leaves your computer.
 | --- | --- | --- |
 | **Ask** (right pane) | Answers questions about your data in plain words, selects features, starts recipes | Ollama on this computer, any OpenAI-compatible server, or Claude with your API key |
 | **MCP server** (`geospax-server mcp`) | Gives AI assistants (Claude Desktop, Claude Code, editors) GeoSpaX's tools | On this computer; the assistant you connect decides where its model runs |
+| **Satellite embeddings** (*Imagery › Embeddings*) | Finds places like your samples, groups the landscape, classifies from labelled points, maps change between years | On this computer; the embeddings are read once from a public copy |
 
-Satellite embeddings (AlphaEarth) and object detection and segmentation (ONNX models) are next on the
-roadmap.
+Object detection and segmentation with ONNX models are not in GeoSpaX yet; see §4.
 
 ## 1. Ask
 
@@ -103,7 +103,58 @@ the app, so recipes and runs are the same), `--recipes DIR`, `--threads N`.
 Tool errors come back as results with `isError: true`, so the assistant can correct its request (a wrong
 field name, for example). Results longer than 12,000 characters are cut, and the cut is marked.
 
-## 3. Safety
+## 3. Satellite embeddings
+
+Google DeepMind's **AlphaEarth Foundations** sums up a whole year of Sentinel-1 radar, Sentinel-2 and
+Landsat imagery, elevation, and climate for every 10 m pixel on land, as 64 numbers (an *embedding*).
+Places that look and behave alike over the year get alike embeddings. So a handful of samples is
+enough to map a land-cover type, a few groups describe a landscape, and comparing two years shows
+change. GeoSpaX reads the embeddings for your area only, from the public copy on
+[Source Cooperative](https://source.coop/tge-labs/aef), and does all the analysis on your computer.
+
+Open **Imagery › Embeddings** (or *Similar places*, *Group landscape*, *Classify*, *Change*). Choose
+the area (the map view, or around a layer), the year, and what to do:
+
+| Task | You give | You get |
+| --- | --- | --- |
+| **Look at the embeddings** | an area | Three of the 64 axes as red, green and blue: alike places get alike colours |
+| **Find places like my samples** | a point layer on the kind of place you want | Similarity to the samples on every pixel (1 = alike), and the area at ≥ 0.9 |
+| **Group the landscape** | the number of groups | k groups of alike landscape (k-means), for you to name from what you know |
+| **Classify from labelled samples** | points with a class field | A class map, the area per class, and leave-one-out accuracy |
+| **Change between two years** | two years | How much each pixel changed (1 − similarity), and the changed area |
+
+Each task becomes a recipe run, with a map, a report and the citation in its methods. Two of them
+are also in the Toolbox, and the Ask assistant can run them: *Places like my samples*
+(`embeddings-similar-places`) and *Classify from labelled samples* (`embeddings-classify`). The steps
+are listed in [AUTOMATION.md](AUTOMATION.md).
+
+**Good to know**
+
+- The data covers 2017–2025, on land and coastal waters. The default year is 2024.
+- An area can be up to 60 km a side. Above about 20 km it is read coarser than 10 m, using the
+  dataset's averaged overviews, to stay under 4 million pixels.
+- The first time a UTM zone and year is used, GeoSpaX reads that zone's file list, about 490 files at
+  2 KB each (a few seconds), and keeps it in `<state>/aef/`. A 4 km area of one year then reads in
+  about 10 s.
+- Accuracy from leave-one-out is optimistic when the samples sit close together. Check the map with
+  independent points.
+- Change in the embeddings means the year *looked* different: clearing, gardens, floods, building,
+  but also an unusually wet year. Look at imagery before naming it.
+- **Credit:** *"The AlphaEarth Foundations Satellite Embedding dataset is produced by Google and
+  Google DeepMind."* (CC-BY 4.0). It is added to the methods and the map credits automatically.
+- A mirror or a local copy in the same layout works too: set `GEOSPAX_AEF_BASE` to its address or
+  folder.
+
+## 4. Object detection and segmentation (not yet)
+
+Finding buildings, trees, or ships in imagery needs a trained model. No permissively licensed,
+ready-made ONNX model for satellite or drone imagery was found that GeoSpaX could ship. Repositories
+that publish code under MIT or Apache rarely license their trained weights the same way, and their
+training data often has its own terms. Planned: run *your own* ONNX model on a raster or drone image,
+with its licence stated on the result. The satellite-embedding classification above already maps
+land-cover classes without a model.
+
+## 5. Safety
 
 - Every tool is a call to GeoSpaX's own API. The assistant can do nothing that you could not do in the
   app, and nothing that runs code.

@@ -486,7 +486,12 @@ own tools, gives figures only from what they return, and lists every tool it use
 It can select features, zoom, and start recipes that do not run code. The model runs where you choose
 in **Model…**: Ollama on this computer (nothing leaves it), an OpenAI-compatible server, or Claude with
 your own API key. `geospax-server mcp` offers the same tools to Claude Desktop, Claude Code and other
-MCP clients. See [AI.md](AI.md).
+MCP clients.
+
+**Imagery › Embeddings** reads Google DeepMind's AlphaEarth satellite embeddings for your area: 64
+numbers per 10 m pixel that sum up a year of satellite observations. Use them to find places like
+your sample points, group the landscape, classify it from labelled points, or map change between two
+years. See [AI.md](AI.md).
 
 ## 6. Live sensors and phones
 
