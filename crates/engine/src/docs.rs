@@ -10,6 +10,7 @@ pub const DOCS: &[(&str, &str, &str)] = &[
     ("R", "R in GeoSpaX", include_str!("../../../docs/R.md")),
     ("PLUGINS", "Plugins", include_str!("../../../docs/PLUGINS.md")),
     ("DEVICES", "Devices", include_str!("../../../docs/DEVICES.md")),
+    ("AI", "AI: Ask and MCP", include_str!("../../../docs/AI.md")),
     ("VISION", "Vision", include_str!("../../../docs/VISION.md")),
     ("README", "About GeoSpaX", include_str!("../../../README.md")),
     ("CHANGELOG", "What's new", include_str!("../../../CHANGELOG.md")),

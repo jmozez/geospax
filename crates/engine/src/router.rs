@@ -130,6 +130,20 @@ impl Engine {
             ("GET", ["api", "project", "info"]) => ApiResponse::json(200, &json!({
                 "path": self.project_path().display().to_string(), "exists": self.project_path().exists(),
             })),
+            ("GET", ["api", "ai", "settings"]) => ApiResponse::json(200, &crate::ai::load_settings(&self.state_dir).public_json()),
+            ("PUT", ["api", "ai", "settings"]) => match crate::ai::save_settings(&self.state_dir, &body_json(&req.body)) {
+                Ok(s) => ApiResponse::json(200, &s.public_json()),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("GET", ["api", "ai", "models"]) => ApiResponse::json(200, &self.ai_models()),
+            ("POST", ["api", "ask"]) => {
+                let b = body_json(&req.body);
+                let history = b["history"].as_array().cloned().unwrap_or_default();
+                match self.ask(b["question"].as_str().unwrap_or(""), &history) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(502, e),
+                }
+            }
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();

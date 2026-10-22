@@ -99,6 +99,8 @@ export const ICONS: Record<string, string> = {
   redo: 'M16 5l5 5-5 5v-3.5h-6a4 4 0 0 0 0 8h3V22h-3a6.5 6.5 0 0 1 0-13h6z',
   magnet: 'M5 3h4v8a3 3 0 0 0 6 0V3h4v8a7 7 0 0 1-14 0zm0 0v3h4V3zm10 0v3h4V3z',
   folder: 'M3 5h7l2 2h9v12H3z',
+  chat: 'M4 4h16v11H9l-5 4zm4 4v2h8V8zm0 3v1h5v-1z',
+  settings: 'M10.5 2h3l.5 2.6 1.9.8 2.2-1.5 2.1 2.1-1.5 2.2.8 1.9 2.6.5v3l-2.6.5-.8 1.9 1.5 2.2-2.1 2.1-2.2-1.5-1.9.8-.5 2.6h-3l-.5-2.6-1.9-.8-2.2 1.5-2.1-2.1 1.5-2.2-.8-1.9L2 13.5v-3l2.6-.5.8-1.9-1.5-2.2 2.1-2.1 2.2 1.5 1.9-.8zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
   plus: 'M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z',
   filter: 'M3 4h18l-7 8.5V19l-4 2v-8.5z',
   calc: 'M5 2h14v20H5zm2 2v4h10V4zm0 6v2h2v-2zm4 0v2h2v-2zm4 0v6h2v-6zM7 14v2h2v-2zm4 0v2h2v-2zm-4 4v2h2v-2zm4 0v2h6v-2z',
@@ -389,6 +391,16 @@ export const COMMANDS: Command[] = [
   },
 
   // ---- Analyze
+  {
+    id: 'analyze.ask', tab: 'analyze', group: 'Assistant', title: 'Ask', icon: 'chat', big: true,
+    hint: 'Ask about your data in plain words (Ollama on this computer, or Claude with your key)',
+    run: (h) => { h.showTab('right', 'ask'); document.querySelector<HTMLTextAreaElement>('#ask-q')?.focus(); },
+  },
+  {
+    id: 'analyze.askModel', tab: 'analyze', group: 'Assistant', title: 'Model…', icon: 'settings',
+    hint: 'Choose where the assistant runs: Ollama, an OpenAI-compatible server or Claude',
+    run: (h) => { h.showTab('right', 'ask'); document.dispatchEvent(new CustomEvent('geospax:ask-settings')); },
+  },
   {
     id: 'analyze.gallery', tab: 'analyze', group: 'Geoprocessing', title: 'Recipe gallery', icon: 'play', big: true,
     hint: 'One-click workflows: pick one, press Run', keys: 'Ctrl+R',

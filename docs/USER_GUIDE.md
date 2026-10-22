@@ -478,6 +478,16 @@ each method and the variogram (the chart of how quickly samples stop resembling 
 
 Both are checked against R's spdep and gstat, and give the same numbers. Details: [AUTOMATION.md §6e](AUTOMATION.md#6e-spatial-statistics-built).
 
+## 5e. Ask about your data (AI)
+
+**Analysis › Ask** (or the **Ask** tab on the right) answers questions about your layers in plain
+words, such as *"How many sites are above 2000 m? Select them."* It reads your data through GeoSpaX's
+own tools, gives figures only from what they return, and lists every tool it used under the answer.
+It can select features, zoom, and start recipes that do not run code. The model runs where you choose
+in **Model…**: Ollama on this computer (nothing leaves it), an OpenAI-compatible server, or Claude with
+your own API key. `geospax-server mcp` offers the same tools to Claude Desktop, Claude Code and other
+MCP clients. See [AI.md](AI.md).
+
 ## 6. Live sensors and phones
 
 - **MQTT:** point GeoSpaX at a broker (`GEOSPAX_MQTT` / `--mqtt`). Publish JSON such as

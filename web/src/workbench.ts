@@ -877,7 +877,7 @@ export class Workbench {
     const bottom = this.layout.tabs.bottom;
     if (lazy) {
       if (this.layout.tabs.left === 'project') this.layout.tabs.left = 'contents';
-      if (!['inspector', 'toolbox', 'devices', 'attributes'].includes(right)) this.layout.tabs.right = 'inspector';
+      if (!['inspector', 'toolbox', 'ask', 'devices', 'attributes'].includes(right)) this.layout.tabs.right = 'inspector';
       if (bottom !== 'activity') this.layout.tabs.bottom = 'activity';
     } else {
       if (right === 'inspector') this.layout.tabs.right = 'symbology';

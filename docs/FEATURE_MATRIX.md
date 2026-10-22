@@ -57,7 +57,7 @@ These are marked ✅ / 🚧 in the tables below; details are in [AUTOMATION.md](
 | Network Analyst (routes, service areas) | "What can I reach in 15 min?" as one step (isochrones, OD matrices) | P (Valhalla/OSRM) / Py (osmnx) | P4 |
 | Contents pane (drawing order, group layers, expandable legends), contextual tabs | **Pro mode**: a layer tree with Map node, group layers, twisties, drag into groups and a group switch; a contextual **Layer** tab for the selected layer. **Lazy mode** turns the same layers into cards that explain themselves | N | ✅ next |
 | Geoprocessing pane (search tools, favourites, history) | **Toolbox**: recipes, building blocks and every plugin's tools in one ranked search; each building block lists the ArcGIS Pro / QGIS tools it stands in for, so their names find it; recently used on top | N | ✅ next |
-| Pro assistant (help, SQL, ArcPy code) [1] | Natural language → **recipe** (previewed, never auto-run if it writes, deletes or uses the network) | AI | P2 |
+| Pro assistant (help, SQL, ArcPy code) [1] | **Ask** pane: questions about the data answered through GeoSpaX's own tools (queries, statistics, selections, recipes without code), every tool call listed; local (Ollama, OpenAI-compatible) or Claude with your key; the same tools as an **MCP server**. Natural language → recipe: P2 | AI | ✅ Ask + MCP next; recipe writer P2 |
 
 ### QGIS 4 (GPL)
 | Borrow | GeoSpaX lazy version | How | Phase |

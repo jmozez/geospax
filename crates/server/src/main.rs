@@ -34,6 +34,10 @@ struct Args {
 }
 
 fn parse_args() -> Args {
+    parse_args_from(std::env::args().skip(1).collect())
+}
+
+fn parse_args_from(argv: Vec<String>) -> Args {
     let mut a = Args {
         cfg: EngineConfig {
             data: vec![],
@@ -47,7 +51,7 @@ fn parse_args() -> Args {
         gzip: true,
         token: std::env::var("GEOSPAX_TOKEN").ok().filter(|t| !t.is_empty()),
     };
-    let mut it = std::env::args().skip(1);
+    let mut it = argv.into_iter();
     let mut web_given = false;
     while let Some(k) = it.next() {
         let mut v = || it.next().unwrap_or_else(|| usage_exit(&format!("missing value for {k}")));
@@ -149,6 +153,7 @@ const SERVER_USAGE: &str = "geospax-server: the GeoSpaX web edition (and the com
 
 usage: geospax-server [options]                 serve the app at http://localhost:8080
        geospax-server run|check|watch|recipes|steps ...   recipes without a web server (see below)
+       geospax-server mcp [--data DIR] [--state-dir DIR]  GeoSpaX's tools for AI assistants (MCP over stdio)
 
 options:
   --data DIR|FILE        GIS data to serve (repeatable; default ./data)
@@ -184,6 +189,30 @@ fn usage_exit(msg: &str) -> ! {
     std::process::exit(2)
 }
 
+
+/// `geospax-server mcp …`: the assistant's tools for MCP clients (Claude Desktop, Claude Code, editors).
+/// stdout carries only MCP messages; everything else goes to stderr. No devices, triggers or web server.
+fn mcp(argv: Vec<String>) -> i32 {
+    let mut a = parse_args_from(argv);
+    a.cfg.devices.scan_mounts = false;
+    a.cfg.automation.triggers = false;
+    let engine = match Engine::open(a.cfg) {
+        Ok(e) => Arc::new(e),
+        Err(e) => {
+            eprintln!("geospax mcp: {e}");
+            return 1;
+        }
+    };
+    eprintln!("geospax mcp: {} layers, {} rasters; waiting for an MCP client on stdin", engine.layers().len(), engine.rasters().len());
+    let stdin = std::io::stdin();
+    match geospax_engine::ai::mcp_serve(&engine, stdin.lock(), std::io::stdout().lock()) {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("geospax mcp: {e}");
+            1
+        }
+    }
+}
 
 /// `geospax-server plugins …` — list, check and install plugins without opening a map.
 fn plugins_cli(args: &[String]) -> i32 {
@@ -317,6 +346,9 @@ fn main() {
             return;
         }
         _ => {}
+    }
+    if argv.first().map(String::as_str) == Some("mcp") {
+        std::process::exit(mcp(argv[1..].to_vec()));
     }
     if argv.first().map(String::as_str) == Some("plugins") {
         std::process::exit(plugins_cli(&argv[1..]));
