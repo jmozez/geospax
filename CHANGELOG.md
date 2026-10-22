@@ -8,6 +8,19 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — AI: Ask and an MCP server
+- **Ask** pane (*Analysis › Ask*, right-click a layer › *Ask about this layer…*): questions about the
+  data in plain words, answered through GeoSpaX's own tools (`list_layers`, `describe_field`,
+  `query_features`, `select_features`, `zoom_to_layer`, recipes). Figures come only from tool results,
+  the tools used are listed under each answer, and selections show on the map. Recipes that run code are
+  never started by the assistant.
+- Runs where the user chooses: **Ollama** on this computer (default, nothing leaves it), any
+  **OpenAI-compatible** server (LM Studio, llama.cpp, vLLM), or **Claude** with the user's key
+  (`claude-opus-5-5` by default, server-side fallback on a declined request). The key is kept in the state
+  folder (0600) and never returned to the browser (`/api/ai/settings`, `/api/ai/models`, `/api/ask`).
+- **`geospax-server mcp`**: the same tools for MCP clients (Claude Desktop, Claude Code, editors) over
+  stdio. See docs/AI.md.
+
 ### Added — Catalog and Project panes
 - **Catalog** is now a file browser (ArcGIS Pro's Catalog, QGIS's Browser): the data folders and the
   edit copies, every map file in them with its kind and a ✓ when it is on the map; double-click, **+**
