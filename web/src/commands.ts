@@ -604,6 +604,16 @@ export const COMMANDS: Command[] = [
   onlineCmd('data.elevation', 'Elevation', 'image', 'dem', 'Copernicus GLO-30 / GLO-90 DEM for the map view'),
   // ------------------------------------------------ Imagery
   {
+    id: 'imagery.detect', tab: 'imagery', group: 'AI models', title: 'Detect objects', icon: 'search', big: true,
+    hint: 'Run your own ONNX model (object detection or segmentation) over an image, on this computer',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:detect')); },
+  },
+  {
+    id: 'imagery.models', tab: 'imagery', group: 'AI models', title: 'Models…', icon: 'settings',
+    hint: 'Add, describe and remove your ONNX models (with their licence)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:models')); },
+  },
+  {
     id: 'imagery.embeddings', tab: 'imagery', group: 'Satellite embeddings', title: 'Embeddings', icon: 'satellite', big: true,
     hint: 'AlphaEarth satellite embeddings for the area: look, find similar places, group, classify, change',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:embeddings', { detail: 'look' })); },

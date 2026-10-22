@@ -15,6 +15,7 @@ pub mod raster_steps;
 pub mod cartography;
 pub mod charts;
 pub mod data_steps;
+pub mod detect_steps;
 pub mod embed_steps;
 pub mod tool_step;
 pub mod cli;

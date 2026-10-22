@@ -20,6 +20,7 @@ import { Workbench } from './workbench';
 import { ProjectPane } from './projectpane';
 import { AskPane } from './ask';
 import { openEmbeddings } from './embeddings';
+import { openDetect, openModels } from './models';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
 import { Toolbox } from './toolbox';
@@ -1484,9 +1485,14 @@ async function main() {
       applyStyle();
       renderContents();
       saveProject();
-      const b = run.extent;
+      // frame the result: the run's extent, else (a run that made only rasters) its rasters
+      let b = run.extent;
+      if (!(b && b.every(Number.isFinite)) && run.rasters?.length && rasterPane) {
+        const bs = run.rasters.map((id) => rasterPane!.byId(id)?.bounds).filter((x): x is [number, number, number, number] => !!x);
+        if (bs.length) b = [Math.min(...bs.map((x) => x[0])), Math.min(...bs.map((x) => x[1])), Math.max(...bs.map((x) => x[2])), Math.max(...bs.map((x) => x[3]))];
+      }
       if (b && run.status === 'done' && b.every(Number.isFinite)) {
-        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 16, duration: 0 });
+        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 19, duration: 0 });
       }
       document.body.dataset.runApplied = run.id;
     },
@@ -1957,6 +1963,17 @@ async function main() {
     },
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
   });
+  // Imagery › Detect objects and Models… (models.ts)
+  const modelsHost = {
+    backend,
+    run: async (id: string) => {
+      workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+      await automatePane?.run(id);
+    },
+    setStatus: (t: string, ms?: number) => workbench?.setStatus(t, ms),
+  };
+  document.addEventListener('geospax:detect', () => void openDetect(modelsHost));
+  document.addEventListener('geospax:models', () => void openModels(modelsHost));
   // Imagery › Satellite embeddings (embeddings.ts)
   document.addEventListener('geospax:embeddings', (e) => void openEmbeddings({
     backend,

@@ -157,6 +157,20 @@ impl Engine {
                 }
                 ApiResponse::json(200, &json!({ "rev": format!("{:x}", h.finish()), "layers": self.layers().len(), "rasters": self.rasters().len() }))
             }
+            // your own ONNX models (automation/detect_steps.rs)
+            ("GET", ["api", "models"]) => ApiResponse::json(200, &json!({ "models": crate::automation::detect_steps::list(&self.state_dir), "folder": crate::automation::detect_steps::models_dir(&self.state_dir) })),
+            ("POST", ["api", "models"]) => match crate::automation::detect_steps::save(&self.state_dir, &param(q, "name").unwrap_or_default(), &req.body) {
+                Ok(v) => ApiResponse::json(201, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("PUT", ["api", "models", name]) => match crate::automation::detect_steps::describe(&self.state_dir, name, &body_json(&req.body)) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("DELETE", ["api", "models", name]) => match crate::automation::detect_steps::remove(&self.state_dir, name) {
+                Ok(()) => ApiResponse::json(200, &json!({ "removed": name })),
+                Err(e) => ApiResponse::error(404, e),
+            },
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();
