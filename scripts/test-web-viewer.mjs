@@ -40,6 +40,7 @@ await shot('03-world-z1', '1.6/10/30');
 // Arrow -> deck.gl: 1M points in one binary payload.
 await page.goto(`${base}/?fresh#view=9/-5.95/144.6`);
 await settled();
+await page.evaluate(() => { document.querySelector('[data-tab="project"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true })); document.querySelector('#diagnostics').open = true; });
 await page.click('#arrow');
 await page.waitForSelector('body[data-arrow="done"]', { timeout: 180_000 });
 await page.waitForTimeout(500);

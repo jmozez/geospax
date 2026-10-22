@@ -40,23 +40,19 @@
               <div id="catalog"></div>
             </section>
             <section data-tab="project">
-              <h2>Transport</h2>
-              <select id="transport" aria-label="Tile transport"></select>
-              <p class="hint">Web: HTTP. Desktop: custom URI scheme or <code>invoke</code> (raw bytes).</p>
-              <h2>Go to</h2>
-              <div class="row">
-                <button data-goto="30,10,1.6">World</button>
-                <button data-goto="146,-6.5,6">PNG</button>
-                <button data-goto="144.6,-5.95,11">Highlands</button>
-                <button data-goto="144.235,-5.862,15">Mt Hagen</button>
-              </div>
-              <h2>Measure</h2>
-              <div class="row">
-                <button id="bench" class="primary">Run benchmark</button>
-                <button id="arrow">Arrow → deck.gl</button>
-                <button id="clear">Clear engine cache</button>
-              </div>
-              <div id="results"></div>
+              <div id="project-pane"></div>
+              <details id="diagnostics">
+                <summary>Diagnostics (for developers)</summary>
+                <h2>Tile transport</h2>
+                <select id="transport" aria-label="Tile transport"></select>
+                <p class="hint">Web: HTTP. Desktop: custom URI scheme or <code>invoke</code> (raw bytes).</p>
+                <div class="row">
+                  <button id="bench">Run benchmark</button>
+                  <button id="arrow">Arrow → deck.gl</button>
+                  <button id="clear">Clear engine cache</button>
+                </div>
+                <div id="results"></div>
+              </details>
             </section>
           </div>
         </aside>

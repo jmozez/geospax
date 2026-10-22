@@ -17,6 +17,7 @@ import { Measure } from './measure';
 import { onContextMenu, showMenu, type MenuItem } from './contextmenu';
 import { BASEMAPS, basemapDef, checkTileUrl, onlineBasemap } from './basemaps';
 import { Workbench } from './workbench';
+import { ProjectPane } from './projectpane';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
 import { Toolbox } from './toolbox';
@@ -112,6 +113,7 @@ const tileRev: Record<string, number> = {};
 /** Most selected features drawn highlighted per layer (a style filter lists their ids). */
 const MAX_HIGHLIGHT = 20000;
 let workbench: Workbench | null = null;
+let projectPane: ProjectPane | null = null;
 let pluginsPane: PluginsPane | null = null;
 
 const layerById = (id: string) => layers.find((l) => l.id === id);
@@ -140,7 +142,8 @@ function mergeProject(saved: Project | null): Project {
   for (const l of layers) styles[l.id] = { ...defaultStyle(l), ...(saved?.layers?.[l.id] ?? {}) };
   const groups = saved?.groups ?? [];
   const member = Object.fromEntries(Object.entries(saved?.member ?? {}).filter(([id, g]) => known.has(id) && groups.some((x) => x.id === g)));
-  return { version: 1, order, layers: styles, view: saved?.view, basemap: saved?.basemap, groups, member };
+  // keep everything else the project holds (custom basemap, bookmarks…)
+  return { ...(saved ?? {}), version: 1, order, layers: styles, view: saved?.view, basemap: saved?.basemap, groups, member };
 }
 
 let saveTimer: number | undefined;
@@ -155,6 +158,7 @@ function saveProject() {
         headers: { 'content-type': 'application/json' },
       });
       document.body.dataset.saved = String(Date.now());
+      projectPane?.touchSaved();
     } catch (e) {
       console.warn('project save failed', e);
     }
@@ -445,6 +449,13 @@ function setBasemap(b: Basemap) {
 
 function applyStyle() {
   map.setStyle(buildStyle()); // MapLibre diffs the style: only changed layers/sources update
+}
+
+/** Help › Diagnostics: the developer controls live folded away at the foot of the Project pane. */
+function openDiagnostics() {
+  workbench?.showTab('left', 'project');
+  const d = document.querySelector<HTMLDetailsElement>('#diagnostics');
+  if (d) { d.open = true; d.scrollIntoView({ block: 'nearest' }); }
 }
 
 // ---------------------------------------------------------------- workbench actions
@@ -965,6 +976,7 @@ async function addedToMap(ids: string[], rasterIds: string[]) {
     applyStyle();
     renderContents();
     fitTo(ids, rb);
+    void workbench?.refreshCatalog();
     if (ids[0]) {
       panel.open(ids[0]);
       document.dispatchEvent(new CustomEvent('geospax:active', { detail: ids[0] }));
@@ -1388,12 +1400,6 @@ async function main() {
     applyStyle();
   };
 
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-goto]')) {
-    b.onclick = () => {
-      const [lon, lat, z] = b.dataset.goto!.split(',').map(Number);
-      map.flyTo({ center: [lon, lat], zoom: z, duration: 1500 });
-    };
-  }
   $('#clear').onclick = async () => {
     await backend.json('api/cache/clear', { method: 'POST' });
   };
@@ -1504,8 +1510,8 @@ async function main() {
     save: saveProject,
     runRecipe: (id) => automatePane!.run(id),
     openRun: openRunReport,
-    bench: () => void runBench(),
-    deck: () => ab.click(),
+    bench: () => { openDiagnostics(); void runBench(); },
+    deck: () => { openDiagnostics(); ab.click(); },
     refreshContents: renderContents,
     plugins: () => pluginsPane,
     layersWithFields: () => layers.map((l) => ({ id: l.id, name: l.name, fields: l.fields })),
@@ -1662,6 +1668,28 @@ async function main() {
   onContextMenu($('#catalog'), (t, x, y) => {
     const row = t.closest<HTMLElement>('[data-layer]');
     if (row?.dataset.layer) return layerMenu(row.dataset.layer, x, y);
+    const file = t.closest<HTMLElement>('[data-file]');
+    if (file?.dataset.file) {
+      const path = file.dataset.file;
+      const on = file.classList.contains('onmap');
+      showMenu(x, y, path.split(/[\\/]/).pop() ?? path, [
+        { label: on ? 'Already on the map' : 'Add to the map', disabled: on, run: () => void workbench?.addFile(path) },
+        { label: 'Copy the file path', run: () => void navigator.clipboard?.writeText(path).then(() => workbench?.setStatus(`Copied ${path}`)) },
+        { sep: true },
+        { label: 'Refresh', run: () => void workbench?.refreshCatalog() },
+      ]);
+      return true;
+    }
+    const folder = t.closest<HTMLElement>('[data-folder]');
+    if (folder?.dataset.folder) {
+      const path = folder.dataset.folder;
+      showMenu(x, y, path.split(/[\\/]/).pop() ?? path, [
+        { label: 'Copy the folder path', run: () => void navigator.clipboard?.writeText(path).then(() => workbench?.setStatus(`Copied ${path}`)) },
+        { label: 'Add files to it…', hint: 'Files you add are saved in your first data folder', run: () => void document.dispatchEvent(new CustomEvent('geospax:browse')) },
+        { label: 'Refresh', run: () => void workbench?.refreshCatalog() },
+      ]);
+      return true;
+    }
     if (t.closest('.node.source')) {
       showMenu(x, y, 'Catalog', [
         { label: 'Add files…', run: () => void document.dispatchEvent(new CustomEvent('geospax:browse')) },
@@ -1704,6 +1732,36 @@ async function main() {
 
   // Data › Sample data: the sets that ship with GeoSpaX (crates/engine/src/samples.rs)
   document.addEventListener('geospax:samples', () => void openSamples());
+  projectPane = new ProjectPane({
+    backend,
+    project: () => project,
+    view: () => ({ center: map.getCenter().toArray() as [number, number], zoom: map.getZoom() }),
+    flyTo: (b) => void map.flyTo({ center: b.center, zoom: b.zoom, duration: 1200 }),
+    projection: () => mapProjection,
+    layerCount: () => layers.length,
+    rasterCount: () => rasterPane?.rasters.length ?? 0,
+    save: saveProject,
+    replace: async (p) => {
+      project = mergeProject(p);
+      applyStyle();
+      renderContents();
+      if (p.view) map.jumpTo({ center: p.view.center, zoom: p.view.zoom });
+      saveProject();
+    },
+    importFile: async (f) => {
+      const r = await backend.json<{ layers: string[]; rasters: string[] }>(`api/upload?name=${encodeURIComponent(f.name)}`, { method: 'POST', body: f });
+      await addedToMap(r.layers, r.rasters);
+      workbench?.setStatus(`Imported ${r.layers.length} layers from ${f.name}`, 8000);
+    },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  }, $('#project-pane'));
+  projectPane.render();
+  map.on('moveend', () => { if (document.querySelector('#dock-left section[data-tab="project"].on')) projectPane?.render(); });
+  document.addEventListener('geospax:bookmark', () => void projectPane?.addBookmark());
+  document.addEventListener('geospax:added', (e) => {
+    const r = (e as CustomEvent<{ layers: string[]; rasters: string[] }>).detail;
+    void addedToMap(r.layers, r.rasters);
+  });
   // Map › Measure: distance and area (web/src/measure.ts)
   const measure = new Measure(map);
   document.addEventListener('geospax:measure', (e) => {

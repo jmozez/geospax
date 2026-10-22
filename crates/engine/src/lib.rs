@@ -9,6 +9,7 @@
 #[cfg(feature = "arrow")]
 pub mod arrow_export;
 pub mod automation;
+pub mod browse;
 pub mod catalog;
 pub mod classify;
 pub mod devices;

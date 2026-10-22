@@ -92,6 +92,8 @@ for (const tab of tabs) {
 }
 ok('every Pro ribbon command runs without an error', !problems.length, `${total} commands on ${tabs.length} tabs`);
 
+// the sweep ends on Help › Engine diagnostics, which opens the Project pane
+await page.click('#dock-left .dock-tabs [data-tab="contents"]');
 const layerId = await page.locator('#contents .layer.pro').first().getAttribute('data-id');
 await page.locator('#contents .layer.pro .name').first().click();
 await settle(300);
