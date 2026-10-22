@@ -609,6 +609,23 @@ pub fn auto_style(info: &RasterInfo) -> (Value, String) {
             json!({ "kind": "classes", "classes": info.classes.iter().map(|(v, l, c)| json!({ "value": v, "label": l, "color": c })).collect::<Vec<_>>(), "opacity": 1.0 }),
             format!("{} classes, one colour each", info.classes.len()),
         ),
+        // AlphaEarth embeddings: three of the 64 axes as red, green and blue (A01, A16, A09, the
+        // combination Google's examples use); alike places get alike colours
+        "embedding" => (
+            json!({ "kind": "rgb", "bands": [2, 17, 10], "min": [-90, -90, -90], "max": [90, 90, 90], "gamma": 1.0, "opacity": 1.0 }),
+            "satellite embedding axes A01, A16 and A09 as red, green and blue: places that look alike over the year get alike colours".into(),
+        ),
+        "similarity" => {
+            let lo = s.p2.max(0.0);
+            (
+                json!({ "kind": "stretch", "ramp": "magma", "min": lo, "max": 1.0, "opacity": 1.0 }),
+                format!("similarity to the samples on Magma: bright = alike (1.0), dark = unlike ({lo:.2})"),
+            )
+        }
+        "dissimilarity" => (
+            json!({ "kind": "stretch", "ramp": "magma", "min": 0.0, "max": hi.max(0.2), "opacity": 1.0 }),
+            format!("change between the years on Magma: dark = the same, bright = changed (to {:.2})", hi.max(0.2)),
+        ),
         "rgb" => {
             // one stretch for all three bands keeps the colour balance (per-band stretches turn vegetation purple)
             let lo = info.stats.iter().take(3).map(|b| b.p2.max(0.0)).fold(f64::MAX, f64::min);
@@ -633,6 +650,7 @@ pub fn legend(info: &RasterInfo, style: &Value) -> Value {
             let items: Vec<Value> = style["classes"].as_array().into_iter().flatten().map(|c| json!({ "color": c["color"], "label": c["label"], "share": c.get("share").cloned().unwrap_or(Value::Null) })).collect();
             json!({ "type": "classes", "items": items })
         }
+        "rgb" if info.kind == "embedding" => json!({ "type": "note", "label": format!("embedding axes A01, A16, A09 as red, green, blue (alike colours = alike places) · {:.0} m pixels", info.pixel_m) }),
         "rgb" => json!({ "type": "note", "label": format!("natural colour (red, green, blue) · {:.0} m pixels", info.pixel_m) }),
         _ => json!({ "type": "none" }),
     }
@@ -750,8 +768,10 @@ impl RasterHandle {
         args.extend(["-te".to_string(), merc_box[0].to_string(), merc_box[1].to_string(), merc_box[2].to_string(), merc_box[3].to_string()]);
         args.extend(["-ts".to_string(), w.to_string(), h.to_string()]);
         let nb = if kind == "rgb" { 3.min(self.info.bands) } else { 1 };
+        let pick: Vec<usize> = style["bands"].as_array().map(|a| a.iter().filter_map(|b| b.as_u64().map(|b| b as usize)).filter(|&b| b >= 1 && b <= self.info.bands).collect()).unwrap_or_default();
         for b in 1..=nb {
-            args.extend(["-srcband".to_string(), b.to_string()]);
+            let src = if kind == "rgb" && pick.len() == 3 { pick[b - 1] } else { b };
+            args.extend(["-srcband".to_string(), src.to_string()]);
         }
         if self.info.nodata.is_none() && kind != "rgb" {
             // without a declared nodata value, keep every source pixel and let the alpha band mark coverage

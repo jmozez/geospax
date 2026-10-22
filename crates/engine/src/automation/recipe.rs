@@ -388,6 +388,18 @@ impl Recipe {
         self.steps.iter().any(|s| matches!(s.uses.as_str(), "python" | "r" | "script.python" | "script.r" | "grass" | "saga"))
     }
 
+    /// Steps that download from the internet (open data services, satellite imagery, embeddings).
+    pub fn network_steps(&self) -> Vec<&str> {
+        let mut v: Vec<&str> = self
+            .steps
+            .iter()
+            .map(|s| s.uses.as_str())
+            .filter(|u| matches!(*u, "data.fetch" | "dem.fetch" | "rs.search" | "rs.index" | "rs.fetch" | "embeddings.fetch"))
+            .collect();
+        v.dedup();
+        v
+    }
+
     /// Fill defaults and reject unknown inputs.
     pub fn bind_inputs(&self, given: &Map<String, Value>) -> Result<Map<String, Value>, String> {
         let mut out = Map::new();

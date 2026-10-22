@@ -130,7 +130,9 @@ const cards = await page.$$eval('#plugins .plugin .p-name', (els) => els.map((e)
 ok('plugins listed', cards.length >= 2, cards.join(' · '));
 ok('tools listed', (await page.$$('#plugins .tool-row button')).length >= 2, `${(await page.$$('#plugins .tool-row button')).length} tools`);
 ok('source badges shown', (await page.$$('#plugins .badge')).length >= 2);
-const firstRun = await page.$('#plugins .tool-row button:not([disabled])');
+// an added plugin's tool that runs as it opens (the default domain plugins: test-domain-plugins.py)
+ok('the twelve default plugins listed first', (await page.$$('#plugins .plugin .p-keep')).length >= 12 && cards[0] === 'Agriculture', cards.slice(0, 3).join(' · '));
+const firstRun = await page.$('#plugins .plugin:not(:has(.p-keep:text-is("default plugin"))) .tool-row button:not([disabled])');
 if (firstRun) {
   await firstRun.click();
   await page.waitForSelector('#plugin-modal:not([hidden])', { timeout: 10_000 });

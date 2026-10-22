@@ -144,6 +144,33 @@ impl Engine {
                     Err(e) => ApiResponse::error(502, e),
                 }
             }
+            // what is on the map, as one number: the app polls it so results from anywhere (a recipe, a
+            // tool, the assistant, a trigger, an upload) join Contents without a reload
+            ("GET", ["api", "rev"]) => {
+                use std::hash::{Hash, Hasher};
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                for l in self.layers() {
+                    (&l.info.id, l.info.feature_count, l.filter()).hash(&mut h);
+                }
+                for r in self.rasters() {
+                    (&r.info.id, r.info.width, r.info.height).hash(&mut h);
+                }
+                ApiResponse::json(200, &json!({ "rev": format!("{:x}", h.finish()), "layers": self.layers().len(), "rasters": self.rasters().len() }))
+            }
+            // your own ONNX models (automation/detect_steps.rs)
+            ("GET", ["api", "models"]) => ApiResponse::json(200, &json!({ "models": crate::automation::detect_steps::list(&self.state_dir), "folder": crate::automation::detect_steps::models_dir(&self.state_dir) })),
+            ("POST", ["api", "models"]) => match crate::automation::detect_steps::save(&self.state_dir, &param(q, "name").unwrap_or_default(), &req.body) {
+                Ok(v) => ApiResponse::json(201, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("PUT", ["api", "models", name]) => match crate::automation::detect_steps::describe(&self.state_dir, name, &body_json(&req.body)) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("DELETE", ["api", "models", name]) => match crate::automation::detect_steps::remove(&self.state_dir, name) {
+                Ok(()) => ApiResponse::json(200, &json!({ "removed": name })),
+                Err(e) => ApiResponse::error(404, e),
+            },
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();

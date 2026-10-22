@@ -8,6 +8,65 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Changed — the twelve domain plugins of 2.0 are default plugins
+- The GSX tools reach the app as GeoSpaX 2.0's twelve domain plugins (Conservation, Agriculture,
+  Biodiversity, Environment, Forestry, Marine, Climate, Disaster, Geoscience, Hydrology, Land use and
+  land cover, Soil), shipped and listed as **default plugins**, each with its 2.0 tools, on the Plugins
+  tab and in the Toolbox under *Plugins*. They are no longer on the Analysis, Imagery and Modelling tabs.
+- They share one library (`plugins/gsx`, `library: true`), so recipes and scripts calling `gsx/<tool>`
+  keep working. New manifest keys `library` and `default` ([PLUGINS.md](docs/PLUGINS.md)).
+- Tool dialogs open with **fitting inputs pre-selected**, as in ArcGIS Pro: the selected layer when it
+  fits, else the best-named layer of the right geometry, a matching field of the right type, a
+  multiband image, a DEM by name, the earlier and later of dated rasters; never an earlier result
+  unless selected ([GSX.md](docs/GSX.md)).
+- A tool that refuses its input says why in its own words ("Agriculture: Tree cover pct has 1 band(s);
+  band A is band 4"), not "node exited with exit status 1".
+
+### Fixed
+- **Raster change, spectral index and other raster tools** failed with "Maximum call stack size
+  exceeded" on rasters above about 100,000 cells (the PNG WorldClim samples have 2.9 million): min and
+  max were taken by spreading every cell into one call. Now loops, same results (GSX tests 121/121;
+  a 1,000,000-cell change is in `test-domain-plugins.py`).
+- The R console no longer opens after you have closed it while it was still loading.
+
+### Added — satellite embeddings (AlphaEarth Foundations)
+- **Imagery › Embeddings**: Google DeepMind's AlphaEarth annual satellite embeddings (64 numbers per 10 m
+  pixel, 2017–2025, CC-BY 4.0) read for the map view or a layer's area from the public copy, and what
+  they are for: **similar places** (cosine similarity to sample points), **landscape groups** (k-means),
+  **classification** from labelled points (k-nearest neighbours, leave-one-out accuracy, area per class)
+  and **change** between two years. Each becomes a recipe run with a map, report and citation; steps
+  `embeddings.fetch/similar/cluster/classify/change` and recipes `embeddings-similar-places`,
+  `embeddings-classify` (so the Toolbox and the Ask assistant can run them).
+- Checked against the real data: land and sea on the Port Moresby coast separate with AUC 0.997 against
+  the Copernicus DEM (0.61 if the bottom-up files were read unflipped); `test-embeddings.py` checks every
+  step against known landscapes offline.
+
+### Added — your own ONNX model (object detection and segmentation)
+- **Imagery › Detect objects** runs an ONNX model you add (**Imagery › Models…**, with its classes, licence and
+  source) over an image in tiles, on this computer: YOLOv5/v8/v11-style detection → a polygon layer (class,
+  score, area), segmentation → a class raster with areas. Pure-Rust inference (tract): no Python or runtime
+  to install, and nothing in a model file is executed. GeoSpaX ships no model; the licence you state is in
+  the methods of every report. Step `ai.detect`; `/api/models`.
+- `scripts/test-detect.py` (25 checks, in CI) with tiny fixture models (`tests/fixtures/onnx`, made by
+  `scripts/make-onnx-fixtures.py`): the segmentation hits exactly the 400 roof pixels, every box lands
+  where the model put it to 1 cm in both YOLO layouts, the licence reaches the methods.
+- Runs that make only rasters now frame their result on the map, like runs that make layers.
+
+### Fixed — results join Contents
+- Analysis results now always appear in **Contents**, switched on and on top, like ArcGIS Pro and QGIS:
+  vector layers and, newly, **rasters** (classifications, hot-spot surfaces, similarity, DEMs, indices),
+  which used to show only in the Rasters pane. Rasters have rows in Contents (switch, opacity, legend,
+  move up/down, drag, zoom, right-click menu) and are drawn at their place in the draw order.
+- Results made outside the app's own run button (a recipe started by the Ask assistant, MCP, a trigger or
+  a Toolbox tool that starts a recipe) used to need a page reload; the app now notices any change in what
+  the engine has (`GET /api/rev`) and adds it. A new result no longer switches off rasters already shown.
+- `scripts/test-results-in-contents.mjs` checks the ribbon, an outside recipe making a raster and a
+  Toolbox tool, the two panes' switches, the map order and a reload.
+
+### Fixed — recipes
+- `geospax-server check` reported "network: none" for every recipe; it now names the steps that
+  download (`dem.fetch`, `data.fetch`, `rs.*`, `embeddings.fetch`).
+
 ### Added — AI: Ask and an MCP server
 - **Ask** pane (*Analysis › Ask*, right-click a layer › *Ask about this layer…*): questions about the
   data in plain words, answered through GeoSpaX's own tools (`list_layers`, `describe_field`,

@@ -603,6 +603,41 @@ export const COMMANDS: Command[] = [
   onlineCmd('data.boundaries', 'Boundaries', 'grid', 'gadm', 'GADM 4.1 administrative areas of a country'),
   onlineCmd('data.elevation', 'Elevation', 'image', 'dem', 'Copernicus GLO-30 / GLO-90 DEM for the map view'),
   // ------------------------------------------------ Imagery
+  {
+    id: 'imagery.detect', tab: 'imagery', group: 'AI models', title: 'Detect objects', icon: 'search', big: true,
+    hint: 'Run your own ONNX model (object detection or segmentation) over an image, on this computer',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:detect')); },
+  },
+  {
+    id: 'imagery.models', tab: 'imagery', group: 'AI models', title: 'Models…', icon: 'settings',
+    hint: 'Add, describe and remove your ONNX models (with their licence)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:models')); },
+  },
+  {
+    id: 'imagery.embeddings', tab: 'imagery', group: 'Satellite embeddings', title: 'Embeddings', icon: 'satellite', big: true,
+    hint: 'AlphaEarth satellite embeddings for the area: look, find similar places, group, classify, change',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:embeddings', { detail: 'look' })); },
+  },
+  {
+    id: 'imagery.similar', tab: 'imagery', group: 'Satellite embeddings', title: 'Similar places', icon: 'search',
+    hint: 'Places like your sample points (satellite embeddings)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:embeddings', { detail: 'similar' })); },
+  },
+  {
+    id: 'imagery.groups', tab: 'imagery', group: 'Satellite embeddings', title: 'Group landscape', icon: 'grid',
+    hint: 'Groups of alike landscape, no samples needed (satellite embeddings)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:embeddings', { detail: 'cluster' })); },
+  },
+  {
+    id: 'imagery.classifyEmb', tab: 'imagery', group: 'Satellite embeddings', title: 'Classify', icon: 'layers',
+    hint: 'Classify from labelled sample points (satellite embeddings)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:embeddings', { detail: 'classify' })); },
+  },
+  {
+    id: 'imagery.embChange', tab: 'imagery', group: 'Satellite embeddings', title: 'Change', icon: 'clock',
+    hint: 'Change between two years (satellite embeddings)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:embeddings', { detail: 'change' })); },
+  },
   recipeCmd('imagery.ndvi', 'imagery', 'Satellite', 'Latest NDVI', 'satellite', 'latest-ndvi', 'Newest cloud-free Sentinel-2 pass over the area → NDVI map', true),
   recipeCmd('imagery.terrain', 'imagery', 'Terrain', 'Terrain report', 'image', 'terrain-report', 'DEM → hillshade, slope, aspect, contours, map and report', true),
   recipeCmd('imagery.landforms', 'imagery', 'Terrain', 'Landforms', 'layers', 'landforms-grass', 'Geomorphons landforms (GRASS r.geomorphon)'),

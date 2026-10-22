@@ -49,7 +49,7 @@ export class RasterPane {
   constructor(
     private el: HTMLElement,
     private backend: Backend,
-    private hooks: { restyle: () => void; fit: (b: [number, number, number, number]) => void },
+    private hooks: { restyle: () => void; fit: (b: [number, number, number, number]) => void; changed?: () => void },
   ) {
     try {
       this.state = JSON.parse(localStorage.getItem(KEY) ?? '{}');
@@ -87,7 +87,51 @@ export class RasterPane {
   }
 
   private save() {
-    localStorage.setItem(KEY, JSON.stringify(this.state));
+    try { localStorage.setItem(KEY, JSON.stringify(this.state)); } catch { /* private mode */ }
+    this.hooks.changed?.();
+  }
+
+  // ---- for the Contents pane, which lists rasters with the layers (one state for both panes)
+  byId(id: string): RasterInfo | undefined {
+    return this.rasters.find((r) => r.id === id);
+  }
+  isVisible(id: string): boolean {
+    return this.st(id).visible;
+  }
+  opacity(id: string): number {
+    return this.st(id).opacity;
+  }
+  setVisible(id: string, on: boolean) {
+    this.st(id).visible = on;
+    this.save();
+    this.render();
+    this.hooks.restyle();
+  }
+  setOpacity(id: string, o: number) {
+    this.st(id).opacity = Math.min(1, Math.max(0, o));
+    this.save();
+    this.render();
+    this.hooks.restyle();
+  }
+  legendHtml(id: string): string {
+    const r = this.byId(id);
+    return r ? this.legend(r.legend) : '';
+  }
+  /** The MapLibre source and layer of one raster, or null when it is hidden. */
+  partsFor(id: string): { sid: string; source: maplibregl.SourceSpecification; layer: maplibregl.LayerSpecification } | null {
+    const r = this.byId(id);
+    if (!r || !this.st(id).visible) return null;
+    const sid = `raster:${r.id}`;
+    return {
+      sid,
+      source: { type: 'image', url: this.backend.url(r.overlay.url.replace(/^\//, '')), coordinates: r.overlay.coordinates as never },
+      layer: {
+        id: sid,
+        type: 'raster',
+        source: sid,
+        paint: { 'raster-opacity': this.st(id).opacity, 'raster-fade-duration': 0, 'raster-resampling': r.kind === 'classes' ? 'nearest' : 'linear' },
+      } as maplibregl.LayerSpecification,
+    };
   }
 
   async reload() {
@@ -98,6 +142,21 @@ export class RasterPane {
     }
     for (const id of Object.keys(this.state)) if (!this.rasters.some((r) => r.id === id)) delete this.state[id];
     this.render();
+    this.hooks.changed?.();
+  }
+
+  /**
+   * Rasters that just appeared (a tool, the assistant, a trigger): the newest thematic one is shown with
+   * its relief shading, the way a run's result is; nothing that is already on is switched off.
+   */
+  showNew(ids: string[]) {
+    const made = ids.map((id) => this.byId(id)).filter((r): r is RasterInfo => !!r);
+    const base = [...made].reverse().find((r) => r.kind !== 'hillshade' && r.kind !== 'embedding') ?? [...made].reverse().find((r) => r.kind !== 'hillshade');
+    const shade = base && base.kind !== 'rgb' ? [...made].reverse().find((r) => r.kind === 'hillshade') : undefined;
+    for (const r of [base, shade]) if (r) this.st(r.id).visible = true;
+    this.save();
+    this.render();
+    this.hooks.restyle();
   }
 
   /**
@@ -106,8 +165,9 @@ export class RasterPane {
    */
   showRun(ids: string[], mainMap?: string[]) {
     const pick = (mainMap ?? []).filter((id) => this.rasters.some((r) => r.id === id));
+    // like ArcGIS Pro and QGIS, a new result is switched on and nothing already on is switched off
     if (pick.length) {
-      for (const r of this.rasters) this.st(r.id).visible = pick.includes(r.id);
+      for (const id of pick) this.st(id).visible = true;
       this.save();
       this.render();
       return;
@@ -116,7 +176,7 @@ export class RasterPane {
     if (!made.length) return;
     const base = [...made].reverse().find((r) => r.kind !== 'hillshade');
     const shade = base && base.kind !== 'rgb' ? [...made].reverse().find((r) => r.kind === 'hillshade') : undefined;
-    for (const r of this.rasters) this.st(r.id).visible = r === base || r === shade || (!base && r === made[made.length - 1]);
+    for (const r of [base ?? made[made.length - 1], shade]) if (r) this.st(r.id).visible = true;
     this.save();
     this.render();
   }

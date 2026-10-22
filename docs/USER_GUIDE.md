@@ -167,9 +167,9 @@ default) changes the ribbon and the layer list together:
   | **Home** | Project · Layers · Selection · Map (Finish my map, export) |
   | **Data** | Add data · **Online data** (climate, future climate, soil, species, boundaries, elevation) · Sources |
   | **Map** | Symbology · Fields |
-  | **Analysis** | Recipes · Toolbox · Spatial statistics · GeoLibre tools · GSX landscape and species tools |
+  | **Analysis** | Recipes · Toolbox · Spatial statistics · GeoLibre tools |
   | **Imagery** | Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools |
-  | **Modelling** | Interpolation (kriging, kriging in R) · GSX planning (suitability, gaps, representation …) |
+  | **Modelling** | Interpolation (kriging, kriging in R) |
   | **R** | R console · R setup · tmap, ggplot2 and rayshader maps · terra terrain · Earth Engine · biomod2 and MaxEnt species models · tidymodels · dbplyr ([R.md](R.md)) |
   | **Automate** | Recipes · Runs · Scripts |
   | **View** | Navigate · Theme · Basemap · Windows |
@@ -232,7 +232,7 @@ Both show the same project: switching never changes the map.
 | Where | What it does |
 | --- | --- |
 | **Ribbon** | Seven tabs of commands with icons, tooltips and shortcuts. **Analyze** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The **pin** at the right of the tab strip (or `Ctrl+F1`) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map). |
-| **Contents** (left) | The layer list — visibility, draw order, legend, symbology. |
+| **Contents** (left) | The layer list: visibility, draw order, legend, symbology. Rasters are listed with the vector layers. Every result of an analysis (a recipe, a Toolbox tool, the Ask assistant, a trigger) is added here by itself, switched on and on top, as in ArcGIS Pro and QGIS; drag it or use ▲ ▼ to change what draws over what. |
 | **Catalog** (left) | Your files on disk, as ArcGIS Pro's Catalog and QGIS's Browser: **Folders** lists the data folders (and *Edits*, the copies of layers you edited) with every map file in them; double-click a file or press **+** to add it to the map, a ✓ marks files already on it, right-click for *Add*, *Copy path* and *Refresh*. **On the map** lists the layers by the file they come from (click one to make it active); **More** opens sample data, recipes, devices, rasters and run history. Only the data folders can be browsed, never the rest of the computer. |
 | **Project** (left) | Your map as a whole: where it is saved (it saves itself after every change), its layers, basemap, projection and view; **Save a copy…** downloads it as a file to keep or share, **Open…** reads one back (also a 1.4.2 `.gspx` or a 2.0 `.geolibre.json`, whose layers are imported), **New** starts again. **Bookmarks** remember map views by name (also *View › Bookmark view*). The data stays in your files; the project only points at them. Developer controls (tile transport, engine cache, benchmark, Arrow → deck.gl) are folded away under *Diagnostics*, also opened by *Help › Engine diagnostics*. |
 | **Symbology** (right) | Renderer, field, ramp, opacity, labels, overviews — for the active layer. |
@@ -486,7 +486,12 @@ own tools, gives figures only from what they return, and lists every tool it use
 It can select features, zoom, and start recipes that do not run code. The model runs where you choose
 in **Model…**: Ollama on this computer (nothing leaves it), an OpenAI-compatible server, or Claude with
 your own API key. `geospax-server mcp` offers the same tools to Claude Desktop, Claude Code and other
-MCP clients. See [AI.md](AI.md).
+MCP clients.
+
+**Imagery › Embeddings** reads Google DeepMind's AlphaEarth satellite embeddings for your area: 64
+numbers per 10 m pixel that sum up a year of satellite observations. Use them to find places like
+your sample points, group the landscape, classify it from labelled points, or map change between two
+years. See [AI.md](AI.md).
 
 ## 6. Live sensors and phones
 
