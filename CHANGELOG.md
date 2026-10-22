@@ -8,6 +8,23 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — plan-B data: GEBCO, forest change, ecoregions, WoRMS
+- **Data › Online data › Ocean depth**: the GEBCO 2026 Grid (15″) for the area, cut cell for cell from a
+  cloud-optimised copy, drawn with a new sea-level style (ocean ramp below 0 m, terrain above, the legend
+  marking sea level at its middle); optionally GEBCO's Type Identifier as classes with GEBCO's labels and
+  each one's share. Public domain, credited "not for navigation".
+- **Forest change**: Hansen Global Forest Change v1.13 (2000–2025): tree cover 2000, loss year (stored as
+  years, legend 2001–2025, pink to purple as Global Forest Watch draws loss), gain, data mask; 10° tiles
+  mosaicked; areas up to 2°; the authors' pixel-count caveat in the methods. Maps draw loss over tree cover.
+- **Ecoregions**: RESOLVE Ecoregions 2017 clipped to the area, with geodesic areas (within 0.4 % of an
+  equal-area cross-check) and RESOLVE's own colours.
+- **Data › Check species names** (`taxa.worms`): WoRMS name matching, 50 names a request, with a verdict per
+  name (ok, synonym, check spelling, ambiguous, not in WoRMS), `within` a group to settle homonyms, answers
+  kept 30 days. Checked live (synonyms, a misspelling, the *Acropora* coral/bryozoan homonym).
+- OBIS checked against the live service (1,077 *Chelonia mydas* records near Papua New Guinea, paged).
+- `test-plan-b.py` (31 checks, offline mirrors with known answers, in CI); the online-data UI test covers the
+  new forms.
+
 ### Changed — the twelve domain plugins of 2.0 are default plugins
 - The GSX tools reach the app as GeoSpaX 2.0's twelve domain plugins (Conservation, Agriculture,
   Biodiversity, Environment, Forestry, Marine, Climate, Disaster, Geoscience, Hydrology, Land use and
