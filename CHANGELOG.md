@@ -20,6 +20,17 @@ design.
   the Copernicus DEM (0.61 if the bottom-up files were read unflipped); `test-embeddings.py` checks every
   step against known landscapes offline.
 
+### Added — your own ONNX model (object detection and segmentation)
+- **Imagery › Detect objects** runs an ONNX model you add (**Imagery › Models…**, with its classes, licence and
+  source) over an image in tiles, on this computer: YOLOv5/v8/v11-style detection → a polygon layer (class,
+  score, area), segmentation → a class raster with areas. Pure-Rust inference (tract): no Python or runtime
+  to install, and nothing in a model file is executed. GeoSpaX ships no model; the licence you state is in
+  the methods of every report. Step `ai.detect`; `/api/models`.
+- `scripts/test-detect.py` (25 checks, in CI) with tiny fixture models (`tests/fixtures/onnx`, made by
+  `scripts/make-onnx-fixtures.py`): the segmentation hits exactly the 400 roof pixels, every box lands
+  where the model put it to 1 cm in both YOLO layouts, the licence reaches the methods.
+- Runs that make only rasters now frame their result on the map, like runs that make layers.
+
 ### Fixed — results join Contents
 - Analysis results now always appear in **Contents**, switched on and on top, like ArcGIS Pro and QGIS:
   vector layers and, newly, **rasters** (classifications, hot-spot surfaces, similarity, DEMs, indices),

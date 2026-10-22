@@ -2,7 +2,7 @@
 //! parameters, does its work synchronously on the run's thread and returns outputs (for `${…}`
 //! references in later steps) plus plain-language "why" lines for the run log and the report.
 
-use super::{data_steps, embed_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps};
+use super::{data_steps, detect_steps, embed_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps};
 use super::automap;
 use super::cartography::{self, Layout, MapLayer, MapSpec};
 use super::features::{self, Feat, FeatureSet, LocalProj, Val};
@@ -238,6 +238,14 @@ pub const CATALOGUE: &[StepSpec] = &[
         running: "Fetching elevation",
         params: &[("aoi", false, "[west, south, east, north], a layer/raster id, or auto"), ("buffer", false, "margin in metres (default 10 %)"), ("source", false, "copernicus (30 m), copernicus-90, or a DEM path/URL"), ("resolution", false, "metres (default 30)"), ("epsg", false, "output CRS (default: the UTM zone)"), ("max_km", false, "largest area side (default 120)"), ("title", false, ""), ("name", false, "")],
         borrowed: "ArcGIS Living Atlas terrain, QGIS SRTM Downloader, GRASS r.in.srtm, ERDAS terrain preparation",
+    },
+    StepSpec {
+        name: "ai.detect",
+        family: "AI models",
+        summary: "Run your own ONNX model over an image in tiles, on this computer: object detection (YOLOv5/v8/v11 outputs) → a polygon layer with class, score and area; segmentation → a class raster. The model's licence goes into the methods.",
+        running: "Running the model",
+        params: &[("model", true, "model name in Imagery › Models, or an .onnx path"), ("raster", true, "the image (raster id)"), ("task", false, "detect or segment (default: from the model)"), ("threshold", false, "lowest score kept (default 0.25)"), ("iou", false, "overlap merged by non-maximum suppression (default 0.45)"), ("bands", false, "image bands fed to the model (default 1, 2, 3…)"), ("scale", false, "values are divided by this (default 255 for 8-bit, 10000 for 16-bit)"), ("mean", false, "per band, after scaling"), ("std", false, "per band, after scaling"), ("tile", false, "tile size for models of any size (default 512)"), ("overlap", false, "detection tile overlap in px (default 1/8 of the tile)"), ("format", false, "auto, yolov8, yolov5 or boxes"), ("title", false, ""), ("name", false, "")],
+        borrowed: "ArcGIS Pro Detect Objects / Classify Pixels Using Deep Learning; QGIS Deepness plugin; Ultralytics YOLO; ERDAS IMAGINE deep learning",
     },
     StepSpec {
         name: "embeddings.fetch",
@@ -716,6 +724,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "export.pdf" => export_map(sc, p, Some("pdf")),
         "export.series" => export_series(sc, p),
         "dem.fetch" => raster_steps::dem_fetch(sc, p),
+        "ai.detect" => detect_steps::detect(sc, p),
         "embeddings.fetch" => embed_steps::fetch(sc, p),
         "embeddings.similar" => embed_steps::similar(sc, p),
         "embeddings.cluster" => embed_steps::cluster(sc, p),

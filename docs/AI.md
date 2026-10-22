@@ -8,8 +8,7 @@ model, and with Ollama nothing leaves your computer.
 | **Ask** (right pane) | Answers questions about your data in plain words, selects features, starts recipes | Ollama on this computer, any OpenAI-compatible server, or Claude with your API key |
 | **MCP server** (`geospax-server mcp`) | Gives AI assistants (Claude Desktop, Claude Code, editors) GeoSpaX's tools | On this computer; the assistant you connect decides where its model runs |
 | **Satellite embeddings** (*Imagery › Embeddings*) | Finds places like your samples, groups the landscape, classifies from labelled points, maps change between years | On this computer; the embeddings are read once from a public copy |
-
-Object detection and segmentation with ONNX models are not in GeoSpaX yet; see §4.
+| **Your own model** (*Imagery › Detect objects*) | Runs an ONNX object-detection or segmentation model you add over an image | On this computer; GeoSpaX ships no model |
 
 ## 1. Ask
 
@@ -145,14 +144,37 @@ are listed in [AUTOMATION.md](AUTOMATION.md).
 - A mirror or a local copy in the same layout works too: set `GEOSPAX_AEF_BASE` to its address or
   folder.
 
-## 4. Object detection and segmentation (not yet)
+## 4. Your own model: object detection and segmentation
 
-Finding buildings, trees, or ships in imagery needs a trained model. No permissively licensed,
-ready-made ONNX model for satellite or drone imagery was found that GeoSpaX could ship. Repositories
-that publish code under MIT or Apache rarely license their trained weights the same way, and their
-training data often has its own terms. Planned: run *your own* ONNX model on a raster or drone image,
-with its licence stated on the result. The satellite-embedding classification above already maps
-land-cover classes without a model.
+**Imagery › Detect objects** runs a model *you* add over an image, on your computer. An image is a drone
+orthophoto, aerial photo or satellite image in a data folder. Two kinds of model work:
+
+| Model | Output it must have | You get |
+| --- | --- | --- |
+| **Object detection**: YOLOv5, YOLOv8, YOLO11 and models with the same output | `[1, 4+classes, boxes]` (v8/11), `[1, boxes, 5+classes]` (v5), or `[1, boxes, 6]` boxes already decided (x0, y0, x1, y1, score, class) | A polygon layer: one box per object with `class`, `score` and `area_m2` |
+| **Segmentation** (U-Net, DeepLab, SegFormer exported with a per-pixel output) | `[1, classes, height, width]`, or one channel for yes/no | A class raster with the area of each class |
+
+**Adding a model.** Use **Imagery › Models…**, choose the `.onnx` file, and give its classes (read from the
+file when it has them, as Ultralytics exports do), its **licence** and where it comes from. Export a
+YOLO model with `yolo export model=yourmodel.pt format=onnx`, or PyTorch with `torch.onnx.export`.
+GeoSpaX **ships no model**. Many popular pretrained weights have licences of their own: Ultralytics
+YOLO is AGPL-3.0 or needs a commercial licence, and SAM is Apache-2.0. Some are trained on data with
+other terms. The licence you state is printed in the methods of every report made with the model;
+without one the report says "licence not stated".
+
+**How it runs.** The image is read in tiles of the model's input size (512 px for models of any
+size), at the image's own resolution. Use imagery close to the resolution the model was trained on.
+Values are divided by 255 for 8-bit images and by 10,000 for 16-bit ones; per-band `mean`/`std`,
+other bands (`bands: [4, 3, 2]`) and other scaling can be set per model or per run. Detection tiles
+overlap by 1/8. Overlapping boxes of a class are merged (non-maximum suppression, IoU 0.45), and boxes
+scoring below 0.25 are dropped. The model is data, not code: GeoSpaX evaluates it with
+[tract](https://github.com/sonos/tract) (pure Rust), so nothing in the file runs, and there is no
+Python or runtime to install. On a laptop CPU a small YOLO model takes roughly 0.1–0.5 s per 640 px
+tile.
+
+In recipes the step is `ai.detect` ([AUTOMATION.md](AUTOMATION.md)). The models API is
+`GET /api/models`, `POST /api/models?name=FILE.onnx`, `PUT /api/models/NAME`
+(`labels`, `licence`, `source`, `task`, `bands`, `scale`, `mean`, `std`) and `DELETE /api/models/NAME`.
 
 ## 5. Safety
 
