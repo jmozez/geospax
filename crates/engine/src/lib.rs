@@ -7,6 +7,7 @@
 //! URI scheme / `invoke` (desktop edition).
 
 #[cfg(feature = "arrow")]
+pub mod ai;
 pub mod arrow_export;
 pub mod automation;
 pub mod browse;
@@ -519,6 +520,11 @@ impl Engine {
         F: FnOnce(router::ApiResponse) + Send + 'static,
     {
         let e = Arc::clone(self);
+        // the assistant waits on a model for up to minutes: its own thread, never a pool worker
+        if req.path.trim_matches('/') == "api/ask" {
+            std::thread::spawn(move || done(e.handle(req)));
+            return;
+        }
         let lane = if req.is_heavy() { &self.pool } else { &self.ctl_pool };
         lane.spawn(move || done(e.handle(req)));
     }

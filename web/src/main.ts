@@ -18,6 +18,7 @@ import { onContextMenu, showMenu, type MenuItem } from './contextmenu';
 import { BASEMAPS, basemapDef, checkTileUrl, onlineBasemap } from './basemaps';
 import { Workbench } from './workbench';
 import { ProjectPane } from './projectpane';
+import { AskPane } from './ask';
 import { PluginsPane } from './plugins';
 import { inspectorHtml } from './inspector';
 import { Toolbox } from './toolbox';
@@ -1638,6 +1639,7 @@ async function main() {
       { label: 'Attribute table', run: () => edit('table') },
       { label: 'Symbology…', run: () => workbench?.showTab('right', 'symbology') },
       { label: 'Style automatically (AutoMap)', run: () => void autostyleLayer(id, { keepVisibility: true }) },
+      { label: 'Ask about this layer…', hint: 'The assistant describes the layer and its fields', run: () => void document.dispatchEvent(new CustomEvent('geospax:ask', { detail: `Describe the layer "${l.name}" (id ${id}): what it holds and what its main fields tell us.` })) },
       { label: project.layers[id]?.visible ? 'Hide' : 'Show', run: () => setLayerStyle(id, { ...project.layers[id], visible: !project.layers[id]?.visible }) },
       { sep: true },
       { label: 'Select by attributes…', run: () => edit('select-attributes') },
@@ -1757,6 +1759,19 @@ async function main() {
   }, $('#project-pane'));
   projectPane.render();
   map.on('moveend', () => { if (document.querySelector('#dock-left section[data-tab="project"].on')) projectPane?.render(); });
+  const askPane = new AskPane({
+    backend,
+    select: (layer, fids) => { panel.open(layer); editor?.setSelection(layer, fids); fitLayer(layer); },
+    zoom: (layer) => fitLayer(layer),
+    showRun: () => workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'history'),
+    layerName: (id) => layerById(id)?.name ?? id,
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  }, $('#ask'));
+  document.addEventListener('geospax:ask-settings', () => void askPane.openSettings());
+  document.addEventListener('geospax:ask', (e) => {
+    workbench?.showTab('right', 'ask');
+    void askPane.ask((e as CustomEvent<string>).detail);
+  });
   document.addEventListener('geospax:bookmark', () => void projectPane?.addBookmark());
   document.addEventListener('geospax:added', (e) => {
     const r = (e as CustomEvent<{ layers: string[]; rasters: string[] }>).detail;

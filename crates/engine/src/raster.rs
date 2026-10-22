@@ -177,14 +177,19 @@ unsafe extern "C" {
 
 /// GET (or POST a JSON body) and return the response bytes.
 pub fn http(url: &str, post_json: Option<&str>, timeout_s: u32) -> Result<Vec<u8>, String> {
+    http_with(url, post_json, &[], timeout_s)
+}
+
+/// `http` with extra request headers (API keys for the assistant's model servers).
+pub fn http_with(url: &str, post_json: Option<&str>, extra: &[(&str, &str)], timeout_s: u32) -> Result<Vec<u8>, String> {
     let mut opts = vec![format!("TIMEOUT={timeout_s}"), format!("USERAGENT=GeoSpaX/{}", env!("CARGO_PKG_VERSION")), "MAX_RETRY=2".into(), "RETRY_DELAY=1".into()];
-    match post_json {
-        Some(body) => {
-            opts.push(format!("POSTFIELDS={body}"));
-            opts.push("HEADERS=Content-Type: application/json\r\nAccept: application/geo+json, application/json".into());
-        }
-        None => opts.push("HEADERS=Accept: application/geo+json, application/json".into()),
+    let mut hdr: Vec<String> = extra.iter().map(|(k, v)| format!("{k}: {v}")).collect();
+    if let Some(body) = post_json {
+        opts.push(format!("POSTFIELDS={body}"));
+        hdr.insert(0, "Content-Type: application/json".into());
     }
+    hdr.push("Accept: application/geo+json, application/json".into());
+    opts.push(format!("HEADERS={}", hdr.join("\r\n")));
     let a = argv(&opts)?;
     let url_c = CString::new(url).map_err(|e| e.to_string())?;
     unsafe {
