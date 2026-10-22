@@ -1204,14 +1204,24 @@ fn raster_legend(svg: &mut String, rasters: &[&MapRaster], x: f64, mut y: f64, m
                 let colors: Vec<&str> = lg["colors"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
                 let n = colors.len().max(2) - 1;
                 let _ = write!(svg, "<defs><linearGradient id=\"rl{i}\" x1=\"0\" x2=\"1\" y1=\"0\" y2=\"0\">");
+                let offsets: Vec<f64> = lg["offsets"].as_array().into_iter().flatten().filter_map(Value::as_f64).collect();
                 for (k, c) in colors.iter().enumerate() {
-                    let _ = write!(svg, "<stop offset=\"{:.3}\" stop-color=\"{c}\"/>", k as f64 / n as f64);
+                    let off = if offsets.len() == colors.len() { offsets[k] } else { k as f64 / n as f64 };
+                    let _ = write!(svg, "<stop offset=\"{off:.3}\" stop-color=\"{c}\"/>");
                 }
                 let _ = write!(svg, "</linearGradient></defs><rect x=\"{x:.1}\" y=\"{:.1}\" width=\"220\" height=\"13\" fill=\"url(#rl{i})\" stroke=\"#8a96a3\" stroke-width=\"0.6\"/>", y - 10.0);
                 let u = lg["units"].as_str().unwrap_or("");
                 let lab = |v: &Value| v.as_f64().map(|f| format!("{}{}", fmt_num(round_sig(f, 3)), if u.is_empty() { String::new() } else if u == "°" { u.to_string() } else { format!(" {u}") })).unwrap_or_default();
                 y += 15.0;
-                let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"11\" fill=\"#33414e\">{}</text><text x=\"{:.1}\" y=\"{y:.1}\" font-size=\"11\" fill=\"#33414e\" text-anchor=\"end\">{}</text>", esc(&lab(&lg["min"])), x + 220.0, esc(&lab(&lg["max"])));
+                let (lo, hi) = match lg["labels"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>()) {
+                    Some(a) if a.len() == 2 => (a[0].to_string(), a[1].to_string()),
+                    _ => (lab(&lg["min"]), lab(&lg["max"])),
+                };
+                let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"11\" fill=\"#33414e\">{}</text><text x=\"{:.1}\" y=\"{y:.1}\" font-size=\"11\" fill=\"#33414e\" text-anchor=\"end\">{}</text>", esc(&lo), x + 220.0, esc(&hi));
+                // a split ramp (sea level): a tick and its label at the middle
+                if let Some(m) = lg["mid"]["label"].as_str() {
+                    let _ = write!(svg, "<line x1=\"{0:.1}\" x2=\"{0:.1}\" y1=\"{1:.1}\" y2=\"{2:.1}\" stroke=\"#33414e\" stroke-width=\"1\"/><text x=\"{0:.1}\" y=\"{3:.1}\" font-size=\"11\" fill=\"#33414e\" text-anchor=\"middle\">{4}</text>", x + 110.0, y - 28.0, y - 12.0, y, esc(m));
+                }
                 y += row;
             }
             "classes" => {

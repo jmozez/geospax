@@ -394,7 +394,7 @@ impl Recipe {
             .steps
             .iter()
             .map(|s| s.uses.as_str())
-            .filter(|u| matches!(*u, "data.fetch" | "dem.fetch" | "rs.search" | "rs.index" | "rs.fetch" | "embeddings.fetch"))
+            .filter(|u| matches!(*u, "data.fetch" | "dem.fetch" | "rs.search" | "rs.index" | "rs.fetch" | "embeddings.fetch" | "taxa.worms"))
             .collect();
         v.dedup();
         v

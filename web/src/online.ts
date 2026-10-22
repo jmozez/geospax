@@ -78,6 +78,27 @@ const FORMS: Record<string, { title: string; lead: string; body: () => string }>
       <label><span>Country (ISO code)</span><input name="country" required maxlength="3" placeholder="e.g. PNG" style="text-transform: uppercase" /></label>
       <label><span>Level</span>${sel('level', [['0', '0 · country'], ['1', '1 · provinces / states'], ['2', '2 · districts'], ['3', '3 · local level']], '1')}</label>`,
   },
+  gebco: {
+    title: 'Ocean depth',
+    lead: 'GEBCO 2026 Grid: depth of the sea and height of the land in one surface, 15 arc-seconds (~450 m). Public domain; not for navigation.',
+    body: () => `<input type="hidden" name="source" value="gebco" />
+      <label class="ck"><input type="checkbox" name="layers" value="elevation" checked /> Depth and height (m, negative below sea level)</label>
+      <label class="ck"><input type="checkbox" name="layers" value="tid" /> How each depth was obtained (multibeam, single beam, satellite gravity, interpolation …)</label>`,
+  },
+  hansen: {
+    title: 'Forest change',
+    lead: 'Hansen Global Forest Change v1.13 (University of Maryland): tree cover in 2000 and the year of loss 2001–2025 at 30 m, for areas up to about 220 km a side. A relative indicator of loss: do not estimate areas from pixel counts.',
+    body: () => `<input type="hidden" name="source" value="hansen" />
+      <label class="ck"><input type="checkbox" name="layers" value="treecover" checked /> Tree canopy cover in 2000 (%)</label>
+      <label class="ck"><input type="checkbox" name="layers" value="lossyear" checked /> Year of forest loss (2001–2025)</label>
+      <label class="ck"><input type="checkbox" name="layers" value="gain" /> Forest gain (2000–2012)</label>
+      <label class="ck"><input type="checkbox" name="layers" value="datamask" /> Land and water</label>`,
+  },
+  ecoregions: {
+    title: 'Ecoregions',
+    lead: 'RESOLVE Ecoregions 2017 (the WWF terrestrial ecoregions, updated; Dinerstein et al. 2017, CC-BY 4.0): 846 ecoregions in 14 biomes, clipped to the area, in their published colours. The 149 MB file is downloaded once.',
+    body: () => `<input type="hidden" name="source" value="ecoregions" />`,
+  },
   dem: {
     title: 'Elevation',
     lead: 'Copernicus DEM, read as windows of its cloud-optimised tiles and reprojected to the local UTM zone.',
@@ -166,6 +187,9 @@ export class OnlineData {
           ${card('gbif', 'GBIF, OBIS and iNaturalist records')}
           ${card('gadm', 'GADM administrative areas')}
           ${card('dem', 'Copernicus 30 m / 90 m DEM')}
+          ${card('gebco', 'GEBCO 2026 sea depth and land height')}
+          ${card('hansen', 'Hansen tree cover 2000 and loss 2001–2025')}
+          ${card('ecoregions', 'RESOLVE / WWF terrestrial ecoregions')}
         </div></div>
     </div>`;
     this.el.hidden = false;
@@ -215,6 +239,11 @@ export class OnlineData {
       const bio = f.getAll('bio').map(Number);
       if (!bio.length) return 'Tick at least one bioclimatic variable';
       w.variables = bio;
+    }
+    if (source === 'gebco' || source === 'hansen') {
+      const layers = f.getAll('layers').map(String);
+      if (!layers.length) return `Tick at least one ${source === 'gebco' ? 'GEBCO' : 'Hansen'} layer`;
+      w.layers = layers;
     }
     if (source === 'gadm') w.country = String(w.country ?? '').toUpperCase();
     return { use: 'data.fetch', with: w };

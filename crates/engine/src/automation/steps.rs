@@ -2,7 +2,7 @@
 //! parameters, does its work synchronously on the run's thread and returns outputs (for `${…}`
 //! references in later steps) plus plain-language "why" lines for the run log and the report.
 
-use super::{data_steps, detect_steps, embed_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps};
+use super::{data_steps, detect_steps, embed_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps, taxa_steps};
 use super::automap;
 use super::cartography::{self, Layout, MapLayer, MapSpec};
 use super::features::{self, Feat, FeatureSet, LocalProj, Val};
@@ -238,6 +238,14 @@ pub const CATALOGUE: &[StepSpec] = &[
         running: "Fetching elevation",
         params: &[("aoi", false, "[west, south, east, north], a layer/raster id, or auto"), ("buffer", false, "margin in metres (default 10 %)"), ("source", false, "copernicus (30 m), copernicus-90, or a DEM path/URL"), ("resolution", false, "metres (default 30)"), ("epsg", false, "output CRS (default: the UTM zone)"), ("max_km", false, "largest area side (default 120)"), ("title", false, ""), ("name", false, "")],
         borrowed: "ArcGIS Living Atlas terrain, QGIS SRTM Downloader, GRASS r.in.srtm, ERDAS terrain preparation",
+    },
+    StepSpec {
+        name: "taxa.worms",
+        family: "Data",
+        summary: "Check a layer's scientific names against the World Register of Marine Species (WoRMS): adds the AphiaID, how each name matched, its status, the accepted name for synonyms, the classification and habitat, and a verdict to review (ok, synonym, check spelling, ambiguous, not in WoRMS). The names themselves are kept.",
+        running: "Checking names with WoRMS",
+        params: &[("layer", true, "the layer with scientific names"), ("field", false, "the names' field (default: species, scientificName, taxon or name)"), ("within", false, "keep candidates inside a group, e.g. Cnidaria or Animalia (settles homonyms)"), ("base", false, "a WoRMS mirror (default https://www.marinespecies.org)"), ("name", false, "")],
+        borrowed: "WoRMS Taxon match tool; worrms (R) wm_records_names; obistools match_taxa; GBIF species matching",
     },
     StepSpec {
         name: "ai.detect",
@@ -725,6 +733,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "export.series" => export_series(sc, p),
         "dem.fetch" => raster_steps::dem_fetch(sc, p),
         "ai.detect" => detect_steps::detect(sc, p),
+        "taxa.worms" => taxa_steps::worms(sc, p),
         "embeddings.fetch" => embed_steps::fetch(sc, p),
         "embeddings.similar" => embed_steps::similar(sc, p),
         "embeddings.cluster" => embed_steps::cluster(sc, p),
@@ -2031,6 +2040,12 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         _ if raster_ids.is_empty() => {
             let touched: Vec<Arc<crate::raster::RasterHandle>> = sc.rasters.iter().filter_map(|id| sc.engine.raster(id)).collect();
             if let Some(base) = touched.iter().rev().find(|r| r.info.kind != "hillshade") {
+                // forest loss is drawn over the tree cover it was lost from (its no-loss cells are clear)
+                if base.info.kind == "lossyear" {
+                    if let Some(tc) = touched.iter().rev().find(|r| r.info.kind == "treecover") {
+                        raster_ids.push(tc.info.id.clone());
+                    }
+                }
                 raster_ids.push(base.info.id.clone());
                 if base.info.kind != "rgb" {
                     if let Some(hs) = touched.iter().rev().find(|r| r.info.kind == "hillshade") {
