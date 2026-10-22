@@ -1,0 +1,193 @@
+// Help › User guide, Automation, Credits … and About: the guides are built into the program
+// (GET api/docs/<name>) and shown here, so they open the same in a browser, the desktop window and
+// on a phone. A small Markdown renderer: everything is escaped first, then headings, lists, tables,
+// code, links, bold and italics are added back. Links to other guides open in place.
+
+export interface DocsBackend {
+  json<T>(path: string, init?: RequestInit): Promise<T>;
+}
+
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Inline Markdown on already-escaped text. */
+function inline(s: string): string {
+  const codes: string[] = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => `\u0000${codes.push(c) - 1}\u0000`);
+  s = s
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1') // images: alt text only (the guides are text)
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, text, href) => {
+      const doc = /^(?:\.\.?\/)*(?:docs\/)?([A-Za-z_]+)\.md(#.*)?$/.exec(href);
+      if (doc) return `<a href="#" data-doc="${doc[1]}">${text}</a>`;
+      if (/^https?:\/\//.test(href)) return `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+      if (href.startsWith('#')) return `<a href="#" data-anchor="${href.slice(1)}">${text}</a>`;
+      return text;
+    })
+    .replace(/&lt;(https?:\/\/[^\s&]+)&gt;/g, '<a href="$1" target="_blank" rel="noopener">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>')
+    .replace(/(^|\W)_([^_\s][^_]*)_(?=\W|$)/g, '$1<i>$2</i>');
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[Number(i)]}</code>`);
+}
+
+const slug = (s: string) => s.toLowerCase().replace(/<[^>]+>/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+
+export function renderMarkdown(md: string): string {
+  const lines = esc(md.replace(/\r/g, '')).split('\n');
+  const out: string[] = [];
+  let i = 0;
+  const cells = (l: string) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()));
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^```/.test(l)) {
+      const code: string[] = [];
+      for (i++; i < lines.length && !/^```/.test(lines[i]); i++) code.push(lines[i]);
+      out.push(`<pre><code>${code.join('\n')}</code></pre>`);
+      i++;
+      continue;
+    }
+    const h = /^(#{1,6})\s+(.*)$/.exec(l);
+    if (h) {
+      const text = inline(h[2]);
+      out.push(`<h${h[1].length} id="${slug(text)}">${text}</h${h[1].length}>`);
+      i++;
+      continue;
+    }
+    if (/^\s*\|/.test(l) && i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) {
+      const head = cells(l);
+      const rows: string[][] = [];
+      for (i += 2; i < lines.length && /^\s*\|/.test(lines[i]); i++) rows.push(cells(lines[i]));
+      out.push(`<div class="doc-table"><table><thead><tr>${head.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows
+        .map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`)
+        .join('')}</tbody></table></div>`);
+      continue;
+    }
+    if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+      const ordered = /^\s*\d+\./.test(l);
+      const items: string[] = [];
+      while (i < lines.length && (/^\s*([-*]|\d+\.)\s+/.test(lines[i]) || (/^\s{2,}\S/.test(lines[i]) && items.length))) {
+        const m = /^\s*(?:[-*]|\d+\.)\s+(.*)$/.exec(lines[i]);
+        if (m && !/^\s{4,}/.test(lines[i])) items.push(m[1]);
+        else items[items.length - 1] += ' ' + lines[i].trim();
+        i++;
+      }
+      const tag = ordered ? 'ol' : 'ul';
+      out.push(`<${tag}>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</${tag}>`);
+      continue;
+    }
+    if (/^&gt;\s?/.test(l)) {
+      const q: string[] = [];
+      for (; i < lines.length && /^&gt;\s?/.test(lines[i]); i++) q.push(lines[i].replace(/^&gt;\s?/, ''));
+      out.push(`<blockquote>${inline(q.join(' '))}</blockquote>`);
+      continue;
+    }
+    if (/^\s*(---+|\*\*\*+)\s*$/.test(l)) {
+      out.push('<hr>');
+      i++;
+      continue;
+    }
+    if (!l.trim() || /^&lt;\/?(p|div|img|br|picture|source)\b/.test(l.trim())) {
+      i++;
+      continue;
+    }
+    const para: string[] = [];
+    while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|```|\s*\||\s*([-*]|\d+\.)\s+|&gt;)/.test(lines[i])) para.push(lines[i++]);
+    if (para.length) out.push(`<p>${inline(para.join(' '))}</p>`);
+    else i++;
+  }
+  return out.join('\n');
+}
+
+export class DocsViewer {
+  private modal: HTMLElement;
+  private body: HTMLElement;
+  private title: HTMLElement;
+  private history: string[] = [];
+
+  constructor(private backend: DocsBackend) {
+    this.modal = document.createElement('div');
+    this.modal.className = 'modal docs-modal';
+    this.modal.hidden = true;
+    this.modal.innerHTML = `<div class="sheet docs-sheet" role="dialog" aria-modal="true" aria-label="Help">
+      <header><button type="button" class="docs-back" aria-label="Back" hidden>←</button><b class="docs-title">Help</b>
+      <button type="button" data-close aria-label="Close">✕</button></header>
+      <div class="body docs-body"></div></div>`;
+    document.body.append(this.modal);
+    this.body = this.modal.querySelector('.docs-body')!;
+    this.title = this.modal.querySelector('.docs-title')!;
+    const back = this.modal.querySelector<HTMLButtonElement>('.docs-back')!;
+    this.modal.addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      if (t === this.modal || t.closest('[data-close]')) return this.close();
+      if (t === back) {
+        this.history.pop();
+        const prev = this.history.pop();
+        if (prev) void this.open(prev);
+        return;
+      }
+      const a = t.closest('a') as HTMLAnchorElement | null;
+      if (a?.dataset.doc) {
+        e.preventDefault();
+        void this.open(a.dataset.doc);
+      } else if (a?.dataset.anchor) {
+        e.preventDefault();
+        this.body.querySelector(`#${CSS.escape(a.dataset.anchor)}`)?.scrollIntoView({ block: 'start' });
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !this.modal.hidden) this.close();
+    });
+  }
+
+  close() {
+    this.modal.hidden = true;
+    this.history = [];
+  }
+
+  private show(title: string, html: string) {
+    this.title.textContent = title;
+    this.body.innerHTML = html;
+    this.body.scrollTop = 0;
+    this.modal.querySelector<HTMLButtonElement>('.docs-back')!.hidden = this.history.length < 2;
+    this.modal.hidden = false;
+  }
+
+  /** Open a guide by name or link (`USER_GUIDE`, `docs/AUTOMATION.md`, `THIRD_PARTY_NOTICES.md`). */
+  async open(name: string) {
+    const key = name.replace(/^.*\//, '').replace(/\.md(#.*)?$/, '');
+    this.history.push(key);
+    this.show('Help', '<p class="muted">Loading…</p>');
+    try {
+      const d = await this.backend.json<{ title: string; markdown: string }>(`api/docs/${encodeURIComponent(key)}`);
+      this.show(d.title, `<article class="doc">${renderMarkdown(d.markdown)}</article>`);
+    } catch (err) {
+      this.show('Help', `<p>This guide could not be opened: ${esc(String((err as Error).message ?? err))}</p>`);
+    }
+  }
+
+  /** Help › About GeoSpaX. */
+  async about(edition: string) {
+    let version = '';
+    try {
+      version = (await this.backend.json<{ version: string }>('api/health')).version;
+    } catch {
+      /* offline: show the rest */
+    }
+    this.history = ['about'];
+    this.show(
+      'About GeoSpaX',
+      `<div class="about">
+        <img src="geospax-logo.png" alt="GeoSpaX logo" class="about-logo" onerror="this.remove()">
+        <h2>GeoSpaX${version ? ` <span class="muted">${esc(version)}</span>` : ''}</h2>
+        <p>Spatial analysis and automatic mapping: data in, a finished map and report out. Desktop, web and phone, from one engine (Rust, GDAL).</p>
+        <table class="about-table">
+          <tr><th>Edition</th><td>${esc(edition || 'web')}</td></tr>
+          <tr><th>Author</th><td>J. Moses</td></tr>
+          <tr><th>Licence</th><td>MIT</td></tr>
+          <tr><th>Source</th><td><a href="https://github.com/jmozez/geospax" target="_blank" rel="noopener">github.com/jmozez/geospax</a></td></tr>
+          <tr><th>Earlier versions</th><td>GeoSpaX 2.0 (<a href="https://github.com/jm0535/GeoSpaX" target="_blank" rel="noopener">jm0535/GeoSpaX</a>) and 1.4.2 (<a href="https://github.com/jm0535/map-kit" target="_blank" rel="noopener">jm0535/map-kit</a>)</td></tr>
+        </table>
+        <p class="about-links"><a href="#" data-doc="USER_GUIDE">User guide</a> · <a href="#" data-doc="CHANGELOG">What's new</a> · <a href="#" data-doc="THIRD_PARTY_NOTICES">Credits and licences</a> · <a href="#" data-doc="SECURITY">Security</a></p>
+      </div>`,
+    );
+  }
+}
