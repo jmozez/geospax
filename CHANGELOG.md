@@ -8,6 +8,29 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 GeoSpaX 3.0 in the making: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this
 design.
 
+### Added — symbology like ArcGIS Pro and QGIS, labels, raster styling, About
+- **Point symbols**: circle, square, triangle, diamond, star, cross, X, pentagon, hexagon, pin; size (fixed
+  or proportional to a field), fill, outline colour and width, opacity, rotation. Drawn on the map (SDF
+  icons) and in exported maps and legends.
+- **Lines**: colour, width, opacity, solid/dashed/dotted/dash-dot, caps and joins, and a casing (outline)
+  in its own colour and width. **Polygons**: fill on or off (hollow), fill opacity, outline colour, width,
+  dash and opacity.
+- **Labels** for every layer: field, font (regular, bold, italic, bold italic; DejaVu Sans), size, colour,
+  halo colour and width, upper/lower case, placement (nine positions around a point with an offset clear of
+  the symbol; along or above lines; the centre of polygons), wrap width, overlap and minimum zoom. The same
+  labels are drawn in exported maps, with road names following the road.
+- **Raster symbology** (⚙ on a raster in Contents or the Rasters pane, or right-click › Symbology):
+  renderer (stretch, unique values, split at a value, RGB composite), band, colour ramp, min/max with
+  2–98 %, full-range and mean ± 2 SD presets, invert, leave clear below a value, class colours and labels,
+  RGB bands with their ranges and gamma, resampling and opacity. The engine keeps the style
+  (`PUT /api/rasters/{id}/style`, `<state>/raster-styles.json`) so the map, exports and reports agree;
+  **Reset to automatic** goes back to AutoMap's choice.
+- **About** laid out like GeoLibre's: version and edition, **Check for updates** (the latest GitHub
+  release: up to date, or the new version with its notes and a download link), and a General list of
+  links (home page, downloads, report a problem, user guide, what's new, credits).
+- The app opens on the **globe** and flies to your data (the projection switch on View still offers
+  Mercator, and remembers it).
+
 ### Added — plan-B data: GEBCO, forest change, ecoregions, WoRMS
 - **Data › Online data › Ocean depth**: the GEBCO 2026 Grid (15″) for the area, cut cell for cell from a
   cloud-optimised copy, drawn with a new sea-level style (ocean ramp below 0 m, terrain above, the legend

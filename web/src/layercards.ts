@@ -10,6 +10,7 @@
 // main.ts owns the project and wires the events.
 import type { Job, LayerInfo } from './backend';
 import { fmtNum, legendItems, primaryColor, type LayerStyle, type Symbology } from './symbology';
+import { swatchSvg } from './symbols';
 
 export type UiMode = 'lazy' | 'pro';
 
@@ -170,7 +171,7 @@ export function proRow(r: RowState): string {
   return `<div class="layer pro${r.selected ? ' selected' : ''}" data-id="${esc(l.id)}" draggable="true" role="treeitem" aria-level="${(r.depth ?? 0) + 2}" aria-expanded="${open}" aria-selected="${r.selected}" style="--c:${esc(primaryColor(st.symbology))};--d:${r.depth ?? 0}">
     <button class="pr-tw" data-act="twisty" aria-label="${open ? 'Collapse' : 'Expand'} legend" ${items.length ? '' : 'disabled'}>${items.length ? (open ? '▾' : '▸') : ''}</button>
     <input type="checkbox" ${st.visible ? 'checked' : ''} aria-label="Toggle ${esc(l.id)}" />
-    <span class="swatch ${l.geometry}" style="--c:${esc(primaryColor(st.symbology))}"></span>
+    <span class="swatch sym-sw" aria-hidden="true">${swatchSvg(l.geometry, st, primaryColor(st.symbology))}</span>
     <b class="name" title="Open symbology">${esc(ext ? l.id.slice(0, -ext.length) : l.id)}<em>${esc(ext)}</em></b>
     <span class="pr-n">${fmt(l.feature_count)}</span>
     <input class="pr-op" type="range" min="0" max="100" step="5" value="${Math.round(st.opacity * 100)}" data-act="opacity" title="Opacity ${Math.round(st.opacity * 100)}%" aria-label="Opacity" />
@@ -184,7 +185,7 @@ export function proRow(r: RowState): string {
       items.length && open
         ? `<div class="legend">${items
             .slice(0, 10)
-            .map((it) => `<div><i style="background:${esc(it.color)}"></i>${esc(it.label)}<span>${it.count != null ? fmt(it.count) : ''}</span></div>`)
+            .map((it) => `<div><i class="sym-sw">${swatchSvg(l.geometry, st, it.color, 14)}</i>${esc(it.label)}<span>${it.count != null ? fmt(it.count) : ''}</span></div>`)
             .join('')}${items.length > 10 ? `<div class="more">… ${items.length - 10} more</div>` : ''}</div>`
         : ''
     }

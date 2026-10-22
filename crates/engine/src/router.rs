@@ -402,6 +402,7 @@ impl Engine {
             },
             // ---- automation (docs/AUTOMATION.md §9)
             ("GET", ["api", "rasters"]) => ApiResponse::json(200, &self.rasters_json()),
+            ("GET", ["api", "raster", "ramps"]) => ApiResponse::json(200, &crate::raster::ramps_json()),
             ("GET", ["api", "rasters", id]) => match self.raster(id) {
                 Some(r) => ApiResponse::json(200, &r.json()),
                 None => ApiResponse::error(404, format!("unknown raster '{id}'")),
@@ -417,12 +418,17 @@ impl Engine {
                 None => ApiResponse::error(404, format!("unknown raster '{id}'")),
             },
             ("PUT", ["api", "rasters", id, "style"]) => match (self.raster(id), serde_json::from_slice::<serde_json::Value>(&req.body)) {
-                (Some(r), Ok(v)) if v.is_object() => {
-                    r.set_style(v);
-                    ApiResponse::json(200, &r.json())
-                }
+                (Some(_), Ok(v)) if v.is_object() => match self.set_raster_style(id, Some(v)) {
+                    Ok(r) => ApiResponse::json(200, &r.json()),
+                    Err(e) => ApiResponse::error(400, e),
+                },
                 (None, _) => ApiResponse::error(404, format!("unknown raster '{id}'")),
                 _ => ApiResponse::error(400, "style must be a JSON object"),
+            },
+            // back to the automatic style
+            ("DELETE", ["api", "rasters", id, "style"]) => match self.set_raster_style(id, None) {
+                Ok(r) => ApiResponse::json(200, &r.json()),
+                Err(e) => ApiResponse::error(404, e),
             },
             // R (docs/R.md): is R there, which packages, and install what is missing
             ("GET", ["api", "r"]) => ApiResponse::json(200, &crate::rsetup::status()),

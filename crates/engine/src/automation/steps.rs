@@ -2170,9 +2170,15 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
                 }
             },
         };
+        // labels set in the app (on or off) replace the automatic label field
+        let label = match style.get("labels").filter(|v| v.is_object()) {
+            Some(lb) if lb["on"].as_bool() == Some(true) => lb["field"].as_str().map(str::to_string),
+            Some(_) => None,
+            None => label,
+        };
         let mut want: Vec<usize> = Vec::new();
         // the facet field too: a map split by a field needs it even when the layer is not styled by it
-        for f in [style["symbology"]["field"].as_str().map(str::to_string), label.clone(), p_str(p, "facet").map(str::to_string), Some("direction".to_string()), Some("length_m".to_string()), Some("area_m2".to_string()), Some("index".to_string())].into_iter().flatten() {
+        for f in [style["symbology"]["field"].as_str().map(str::to_string), style["point"]["sizeBy"]["field"].as_str().map(str::to_string), label.clone(), p_str(p, "facet").map(str::to_string), Some("direction".to_string()), Some("length_m".to_string()), Some("area_m2".to_string()), Some("index".to_string())].into_iter().flatten() {
             if let Some(i) = l.field_index(&f) {
                 if !want.contains(&i) {
                     want.push(i);
