@@ -14,6 +14,7 @@ import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
 import { Editor } from './editing';
 import { Measure } from './measure';
+import { onContextMenu, showMenu, type MenuItem } from './contextmenu';
 import { BASEMAPS, basemapDef, checkTileUrl, onlineBasemap } from './basemaps';
 import { Workbench } from './workbench';
 import { PluginsPane } from './plugins';
@@ -900,6 +901,22 @@ function wireContents() {
   });
 }
 
+/** Layer › Properties: where it comes from and what it holds. */
+async function layerProperties(id: string) {
+  const l = layerById(id);
+  if (!l) return;
+  const { dialog } = await import('./editing');
+  const e = (x: unknown) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const rows: [string, string][] = [
+    ['Name', l.name], ['Id', l.id], ['Source', l.source], ['Format', l.driver], ['Geometry', l.geometry],
+    ['Features', l.feature_count.toLocaleString() + (l.filter ? ` (definition query: ${l.filter})` : '')],
+    ['Coordinate system', l.crs], ['Extent (WGS 84)', l.bounds.map((v) => v.toFixed(5)).join(', ')],
+    ['Edits', l.edited ? 'saved to a GeoPackage copy; the original file is unchanged' : 'none'],
+    ['Fields', l.fields.map((f) => `${f.name} (${f.kind})`).join(', ') || 'none'],
+  ];
+  await dialog(`Properties · ${l.name}`, `<table class="props">${rows.map(([k, v]) => `<tr><th>${e(k)}</th><td>${e(v)}</td></tr>`).join('')}</table>`, [['', 'Close']], { wide: true });
+}
+
 /** Data › Sample data: pick a set; it is copied into the data folder and mapped. */
 async function openSamples() {
   const { dialog, say } = await import('./editing');
@@ -1562,6 +1579,129 @@ async function main() {
     workbench?.setStatus(mapProjection === 'globe' ? 'Globe: zoom out to see the whole Earth' : 'Web Mercator');
   });
   document.body.dataset.projection = mapProjection;
+  // ---- phones: the map fills the screen; these open the panes over it (style.css, max-width 900px)
+  {
+    const bar = document.createElement('div');
+    bar.className = 'mobile-bar';
+    bar.innerHTML = '<button data-m="left">Layers</button><button data-m="bottom">Tools</button><button data-m="right">Panel</button>';
+    $('#center').append(bar);
+    const docks: Record<string, HTMLElement | null> = { left: document.querySelector('#dock-left'), right: document.querySelector('#dock-right') };
+    const sync = () => {
+      bar.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+        const d = b.dataset.m!;
+        b.classList.toggle('on', d === 'bottom' ? $('#center').classList.contains('bottom-open') : !!docks[d]?.classList.contains('mobile-open'));
+      });
+      map.resize();
+    };
+    bar.addEventListener('click', (e) => {
+      const d = (e.target as HTMLElement).closest<HTMLButtonElement>('button')?.dataset.m;
+      if (!d) return;
+      if (d === 'bottom') $('#center').classList.toggle('bottom-open');
+      else {
+        const open = !docks[d]?.classList.contains('mobile-open');
+        Object.values(docks).forEach((x) => x?.classList.remove('mobile-open'));
+        if (open) docks[d]?.classList.add('mobile-open');
+      }
+      sync();
+    });
+    // a tap on the map closes the side panes
+    map.on('click', () => { if (Object.values(docks).some((x) => x?.classList.contains('mobile-open'))) { Object.values(docks).forEach((x) => x?.classList.remove('mobile-open')); sync(); } });
+    // opening a pane from the ribbon on a phone slides it in
+    document.addEventListener('geospax:show-pane', (e) => {
+      if (innerWidth > 900) return;
+      const d = (e as CustomEvent<string>).detail;
+      if (d === 'bottom') $('#center').classList.add('bottom-open');
+      else { Object.values(docks).forEach((x) => x?.classList.remove('mobile-open')); docks[d]?.classList.add('mobile-open'); }
+      sync();
+    });
+  }
+
+  // ---- right-click menus (long press on touch): layers, catalog items, the map (web/src/contextmenu.ts)
+  const edit = (a: string): void => void document.dispatchEvent(new CustomEvent('geospax:edit', { detail: a }));
+  const layerMenu = (id: string, x: number, y: number) => {
+    const l = layerById(id);
+    if (!l) return false;
+    panel.open(id);
+    renderContents();
+    document.dispatchEvent(new CustomEvent('geospax:active', { detail: id }));
+    const nsel = editor?.selected(id).length ?? 0;
+    const items: MenuItem[] = [
+      { label: 'Zoom to layer', run: () => fitLayer(id) },
+      { label: nsel ? `Zoom to selected (${nsel})` : 'Zoom to selected', disabled: !nsel, run: () => void editor?.zoomToSelection(id) },
+      { sep: true },
+      { label: 'Attribute table', run: () => edit('table') },
+      { label: 'Symbology…', run: () => workbench?.showTab('right', 'symbology') },
+      { label: 'Style automatically (AutoMap)', run: () => void autostyleLayer(id, { keepVisibility: true }) },
+      { label: project.layers[id]?.visible ? 'Hide' : 'Show', run: () => setLayerStyle(id, { ...project.layers[id], visible: !project.layers[id]?.visible }) },
+      { sep: true },
+      { label: 'Select by attributes…', run: () => edit('select-attributes') },
+      { label: 'Select by location…', run: () => edit('select-location') },
+      { label: nsel ? `Clear selection (${nsel})` : 'Clear selection', disabled: !nsel, run: () => editor?.clearSelection(id) },
+      { label: l.filter ? 'Definition query (on)…' : 'Definition query…', run: () => edit('definition-query') },
+      { sep: true },
+      { label: 'Calculate field…', run: () => edit('calculate') },
+      { label: 'Add field…', run: () => edit('add-field') },
+      { label: 'Export features…', run: () => edit('export') },
+      { label: 'Discard edits…', disabled: !l.edited, danger: true, run: () => edit('discard') },
+      { sep: true },
+      { label: 'Remove from map', danger: true, hint: 'The file is not touched; it opens again at the next start', run: async () => {
+        await backend.json(`api/layers/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null);
+        editor?.clearSelection(id);
+        await reloadLayers();
+        workbench?.setStatus(`${l.name} removed from the map (the file is kept)`);
+      } },
+      { label: 'Properties…', run: () => void layerProperties(id) },
+    ];
+    showMenu(x, y, l.name, items);
+    return true;
+  };
+  onContextMenu($('#contents'), (t, x, y) => {
+    const row = t.closest<HTMLElement>('[data-id]');
+    return row?.dataset.id ? layerMenu(row.dataset.id, x, y) : false;
+  });
+  onContextMenu($('#catalog'), (t, x, y) => {
+    const row = t.closest<HTMLElement>('[data-layer]');
+    if (row?.dataset.layer) return layerMenu(row.dataset.layer, x, y);
+    if (t.closest('.node.source')) {
+      showMenu(x, y, 'Catalog', [
+        { label: 'Add files…', run: () => void document.dispatchEvent(new CustomEvent('geospax:browse')) },
+        { label: 'Sample data…', run: () => void openSamples() },
+        { label: 'New layer…', run: () => edit('new-layer') },
+        { label: 'Refresh', run: () => void reloadLayers() },
+      ]);
+      return true;
+    }
+    return false;
+  });
+  onContextMenu(map.getContainer(), (t, x, y) => {
+    if (!t.closest('canvas')) return false;
+    const r = map.getCanvas().getBoundingClientRect();
+    const ll = map.unproject([x - r.left, y - r.top]);
+    const c = `${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)}`;
+    const ids = layers.flatMap((l) => [`${l.id}#fill`, `${l.id}#line`, `${l.id}#circle`].filter((x) => map.getLayer(x)));
+    const hit = ids.length ? map.queryRenderedFeatures([x - r.left, y - r.top], { layers: ids })[0] : undefined;
+    const hitLayer = hit?.layer.id.replace(/#.*$/, '');
+    const items: MenuItem[] = [
+      { label: `Copy coordinates (${c})`, run: () => void navigator.clipboard?.writeText(c).then(() => workbench?.setStatus(`Copied ${c}`)) },
+      { label: 'Centre the map here', run: () => void map.easeTo({ center: ll }) },
+      { label: 'Zoom in here', run: () => void map.easeTo({ center: ll, zoom: map.getZoom() + 2 }) },
+      { sep: true },
+      { label: 'Measure distance', run: () => void document.dispatchEvent(new CustomEvent('geospax:measure', { detail: 'distance' })) },
+      { label: 'Measure area', run: () => void document.dispatchEvent(new CustomEvent('geospax:measure', { detail: 'area' })) },
+    ];
+    if (hit && hitLayer && Number.isFinite(Number(hit.id))) {
+      const name = layerById(hitLayer)?.name ?? hitLayer;
+      items.push(
+        { sep: true },
+        { label: `Select this feature (${name})`, run: () => { panel.open(hitLayer); editor?.setSelection(hitLayer, [Number(hit.id)]); } },
+        { label: 'Edit its attributes…', run: () => { panel.open(hitLayer); void editor?.editAttributes(hitLayer, Number(hit.id)); } },
+        { label: `${name}: layer options…`, run: () => void layerMenu(hitLayer, x, y) },
+      );
+    }
+    showMenu(x, y, c, items);
+    return true;
+  });
+
   // Data › Sample data: the sets that ship with GeoSpaX (crates/engine/src/samples.rs)
   document.addEventListener('geospax:samples', () => void openSamples());
   // Map › Measure: distance and area (web/src/measure.ts)

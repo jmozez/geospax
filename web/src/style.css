@@ -136,10 +136,17 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .fatal { position: fixed; inset: auto 10px 10px 350px; background: color-mix(in srgb, var(--err) 18%, var(--panel)); color: var(--err); padding: 10px; white-space: pre-wrap; }
 @media (max-width: 900px) {
   /* Phone/tablet: the map takes the screen, panes become taps on the ribbon. */
-  #shell { grid-template-columns: 0 0 1fr 0 0 !important; }
-  #shell > #dock-left.mobile-open { position: absolute; z-index: 20; left: 0; top: 0; bottom: 0; width: 78%; box-shadow: 0 0 40px var(--shadow); }
-  #shell > #dock-right.mobile-open { position: absolute; z-index: 20; right: 0; top: 0; bottom: 0; width: 88%; box-shadow: 0 0 40px var(--shadow); }
+  /* the map owns the screen; Layers / Panel buttons slide the panes over it (web/src/main.ts) */
+  #shell { grid-template-columns: minmax(0, 1fr) !important; }
+  #shell > #center { grid-column: 1; grid-row: 1; }
+  #shell > #dock-left, #shell > #dock-right { display: none; }
+  #shell > #dock-left.mobile-open, #shell > #dock-right.mobile-open { display: flex; position: absolute; z-index: 20; top: 0; bottom: 0; box-shadow: 0 0 40px var(--shadow); background: var(--panel); }
+  #shell > #dock-left.mobile-open { left: 0; width: min(88%, 380px); }
+  #shell > #dock-right.mobile-open { right: 0; width: min(92%, 420px); }
+  #center { grid-template-rows: minmax(0, 1fr) 0 var(--bottom-m, 0px) !important; }
+  #center.bottom-open { --bottom-m: 45vh; }
   .splitter { display: none; }
+  .mobile-bar { display: flex; }
 }
 
 /* Devices section (docs/DEVICES.md) */
@@ -1074,3 +1081,23 @@ body[data-projection='mercator'] [data-cmd='view.projMercator'], body[data-proje
 .gx-dialog label.sample input { width: auto; margin-top: 3px; }
 .gx-dialog .bm-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 10px 0 6px; }
 .gx-dialog .bm-custom { margin-top: 8px; }
+
+/* right-click menus (web/src/contextmenu.ts) */
+.ctx-menu { position: fixed; z-index: 90; min-width: 210px; max-width: min(340px, calc(100vw - 8px)); max-height: calc(100vh - 8px); overflow: auto; padding: 4px; background: var(--raised); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); font-size: 13px; }
+.ctx-menu .ctx-title { padding: 6px 10px 4px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctx-menu button { display: block; width: 100%; text-align: left; font: inherit; color: var(--fg); background: none; border: 0; border-radius: 5px; padding: 7px 10px; cursor: pointer; }
+.ctx-menu button:hover:not(:disabled), .ctx-menu button:focus-visible { background: var(--hover); outline: none; }
+.ctx-menu button:disabled { color: var(--muted); opacity: 0.6; cursor: default; }
+.ctx-menu button.danger { color: #ff7b72; }
+:root[data-theme='light'] .ctx-menu button.danger { color: #cf222e; }
+.ctx-menu .ctx-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+@media (pointer: coarse) { .ctx-menu button { padding: 11px 12px; } }
+table.props { border-collapse: collapse; font-size: 13px; width: 100%; }
+table.props th { text-align: left; color: var(--muted); font-weight: 500; padding: 5px 12px 5px 0; vertical-align: top; white-space: nowrap; }
+table.props td { padding: 5px 0; word-break: break-word; }
+
+/* phone: buttons over the map that open the panes */
+.mobile-bar { display: none; position: absolute; z-index: 15; left: 50%; transform: translateX(-50%); bottom: 46px; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 4px; box-shadow: 0 6px 20px var(--shadow); }
+.mobile-bar button { font: inherit; font-size: 13.5px; color: var(--fg); background: none; border: 0; border-radius: 18px; padding: 9px 16px; cursor: pointer; }
+.mobile-bar button.on { background: var(--accent); color: #000; font-weight: 600; }
+@media (max-width: 900px) { .mobile-bar { display: flex; } }

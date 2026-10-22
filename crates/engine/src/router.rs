@@ -147,6 +147,14 @@ impl Engine {
             ("GET", ["api", "layers", layer, "unique"]) => self.with_layer(layer, |l| self.unique_response(l, q)),
             // Attribute table (web/src/attributes.ts): a page of rows with a bbox each.
             // ---- editing, selection and the attribute table (edit.rs)
+            // remove from the map for this session (the file is not touched; it opens again at the next start)
+            ("DELETE", ["api", "layers", layer]) => {
+                if self.remove_layer(layer) {
+                    ApiResponse::json(200, &json!({ "removed": layer }))
+                } else {
+                    ApiResponse::error(404, format!("unknown layer '{layer}'"))
+                }
+            }
             ("POST", ["api", "layers", "new"]) => {
                 let b = body_json(&req.body);
                 let fields: Vec<(String, String)> = b["fields"]
