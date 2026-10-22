@@ -13,6 +13,7 @@ pub mod catalog;
 pub mod classify;
 pub mod devices;
 pub mod docs;
+pub mod edit;
 pub mod geostats;
 pub mod sensors;
 pub mod sta;
@@ -23,10 +24,12 @@ pub mod overview;
 pub mod phone;
 pub mod plugins;
 pub mod pmtiles_io;
+pub mod project_import;
 pub mod raster;
 pub mod reader;
 pub mod router;
 pub mod rsetup;
+pub mod samples;
 pub mod scene3d;
 pub mod tile;
 pub mod upload;
@@ -383,7 +386,7 @@ impl Engine {
         let automation = automation::Automation::new(automation_cfg, &state_dir);
         automation::sidecar::set_r_library(state_dir.join("r-library"));
         let phone = phone::PhoneLink::new(&state_dir, cfg.phone.clone());
-        Ok(Engine {
+        let engine = Engine {
             reg: RwLock::new(Registry { layers, by_id }),
             devices,
             automation,
@@ -405,7 +408,10 @@ impl Engine {
             bench_log: cfg.bench_log,
             project_lock: Mutex::new(()),
             warnings,
-        })
+        };
+        // layers edited (or made) in earlier sessions read their copies again
+        engine.load_edits();
+        Ok(engine)
     }
 
     /// Snapshot of all layers (the registry can grow at runtime, e.g. device imports).
@@ -452,6 +458,21 @@ impl Engine {
         ids
     }
 
+    /// Take a layer off the map (its file stays). Returns whether it was there.
+    pub fn remove_layer(&self, id: &str) -> bool {
+        let removed = {
+            let mut r = self.reg.write().unwrap();
+            let Some(i) = r.by_id.remove(id) else { return false };
+            r.layers.remove(i);
+            let ids: Vec<(String, usize)> = r.layers.iter().enumerate().map(|(i, l)| (l.info.id.clone(), i)).collect();
+            r.by_id = ids.into_iter().collect();
+            true
+        };
+        // tile cache keys hold registry indices, which just shifted
+        self.clear_cache();
+        removed
+    }
+
     /// Background services: the device watcher, live GNSS sources and the automation triggers
     /// (device, folder, schedule, after). Adapters call this once after wrapping the engine in an `Arc`.
     pub fn start_services(self: &Arc<Self>) {
@@ -475,6 +496,9 @@ impl Engine {
         };
         v["overview_suggested"] = overview::suggested_max_zoom(&l.info).map(serde_json::Value::from).unwrap_or_default();
         v["overview_job"] = self.jobs.active("overviews", &l.info.id).map(|j| j.json()).unwrap_or_default();
+        // editing and definition query state (edit.rs)
+        v["edited"] = self.is_edited(l).into();
+        v["filter"] = l.filter().map(serde_json::Value::from).unwrap_or_default();
         v
     }
 
@@ -536,7 +560,7 @@ impl Engine {
             return Err(format!("invalid tile {z}/{x}/{y}"));
         }
         let layer = &layer;
-        if let Some(ov) = layer.overview().filter(|o| z <= o.meta.max_zoom) {
+        if let Some(ov) = layer.overview().filter(|o| z <= o.meta.max_zoom && layer.filter().is_none()) {
             let t0 = Instant::now();
             let bytes = ov.reader.get(z, x, y)?.unwrap_or_default();
             let t = ms(t0);
@@ -713,7 +737,14 @@ impl Engine {
         } else {
             lyr.set_spatial_filter_rect(r[0], r[1], r[2], r[3]);
         }
-        reader::set_ignored_fields(&lyr, field_idx, false)?;
+        if layer.filter().is_some() {
+            // a definition query may test any field: drivers evaluating it themselves need the
+            // fields it names, so read them all (still only `field_idx` goes into the tile)
+            let all: Vec<usize> = (0..layer.info.fields.len()).collect();
+            reader::set_ignored_fields(&lyr, &all, false)?;
+        } else {
+            reader::set_ignored_fields(&lyr, field_idx, false)?;
+        }
         rt.setup_ms = ms(ts);
         let to_wgs84 = h.to_wgs84.as_ref();
         let (mut read_ms, mut proc_ms, mut truncated) = (0.0, 0.0, false);

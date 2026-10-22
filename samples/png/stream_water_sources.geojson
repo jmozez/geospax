@@ -1,0 +1,426 @@
+{
+  "type": "FeatureCollection",
+  "name": "Stream_water_sources",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.41064,
+          -6.69932
+        ]
+      },
+      "properties": {
+        "stream_order": 3,
+        "flow_m3s": 0.694,
+        "dist_to_road_km": 2.25
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.45863,
+          -6.86977
+        ]
+      },
+      "properties": {
+        "stream_order": 3,
+        "flow_m3s": 1.67,
+        "dist_to_road_km": 6.65
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.65912,
+          -6.94962
+        ]
+      },
+      "properties": {
+        "stream_order": 3,
+        "flow_m3s": 3.469,
+        "dist_to_road_km": 5.12
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.15382,
+          -6.79339
+        ]
+      },
+      "properties": {
+        "stream_order": 1,
+        "flow_m3s": 0.533,
+        "dist_to_road_km": 10.64
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.5502,
+          -6.77114
+        ]
+      },
+      "properties": {
+        "stream_order": 5,
+        "flow_m3s": 1.018,
+        "dist_to_road_km": 1.07
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.1948,
+          -7.06998
+        ]
+      },
+      "properties": {
+        "stream_order": 2,
+        "flow_m3s": 0.238,
+        "dist_to_road_km": 4.14
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.31487,
+          -6.27413
+        ]
+      },
+      "properties": {
+        "stream_order": 5,
+        "flow_m3s": 2.143,
+        "dist_to_road_km": 2.35
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.50964,
+          -6.34565
+        ]
+      },
+      "properties": {
+        "stream_order": 4,
+        "flow_m3s": 2.508,
+        "dist_to_road_km": 4.52
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.22546,
+          -7.03732
+        ]
+      },
+      "properties": {
+        "stream_order": 4,
+        "flow_m3s": 2.806,
+        "dist_to_road_km": 4.8
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.35639,
+          -6.85097
+        ]
+      },
+      "properties": {
+        "stream_order": 4,
+        "flow_m3s": 1.01,
+        "dist_to_road_km": 1.52
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.46303,
+          -6.94935
+        ]
+      },
+      "properties": {
+        "stream_order": 1,
+        "flow_m3s": 10.062,
+        "dist_to_road_km": 2.95
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.61983,
+          -6.92861
+        ]
+      },
+      "properties": {
+        "stream_order": 3,
+        "flow_m3s": 0.807,
+        "dist_to_road_km": 2.24
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.31307,
+          -6.48686
+        ]
+      },
+      "properties": {
+        "stream_order": 1,
+        "flow_m3s": 0.767,
+        "dist_to_road_km": 7.29
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.15944,
+          -6.39254
+        ]
+      },
+      "properties": {
+        "stream_order": 4,
+        "flow_m3s": 1.598,
+        "dist_to_road_km": 4.53
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.07341,
+          -6.19526
+        ]
+      },
+      "properties": {
+        "stream_order": 3,
+        "flow_m3s": 0.502,
+        "dist_to_road_km": 12.74
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.34512,
+          -6.85736
+        ]
+      },
+      "properties": {
+        "stream_order": 2,
+        "flow_m3s": 0.651,
+        "dist_to_road_km": 1.59
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.36712,
+          -6.22532
+        ]
+      },
+      "properties": {
+        "stream_order": 4,
+        "flow_m3s": 1.224,
+        "dist_to_road_km": 2.8
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.16332,
+          -6.52778
+        ]
+      },
+      "properties": {
+        "stream_order": 5,
+        "flow_m3s": 0.494,
+        "dist_to_road_km": 0.75
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.41026,
+          -6.46257
+        ]
+      },
+      "properties": {
+        "stream_order": 5,
+        "flow_m3s": 1.529,
+        "dist_to_road_km": 2.75
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.63767,
+          -6.16136
+        ]
+      },
+      "properties": {
+        "stream_order": 4,
+        "flow_m3s": 0.302,
+        "dist_to_road_km": 5.87
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.54787,
+          -6.43589
+        ]
+      },
+      "properties": {
+        "stream_order": 1,
+        "flow_m3s": 0.631,
+        "dist_to_road_km": 8.63
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.51504,
+          -7.05178
+        ]
+      },
+      "properties": {
+        "stream_order": 4,
+        "flow_m3s": 4.215,
+        "dist_to_road_km": 2.5
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.09847,
+          -6.3095
+        ]
+      },
+      "properties": {
+        "stream_order": 1,
+        "flow_m3s": 0.577,
+        "dist_to_road_km": 1.28
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.37771,
+          -6.15479
+        ]
+      },
+      "properties": {
+        "stream_order": 2,
+        "flow_m3s": 0.041,
+        "dist_to_road_km": 0.58
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.35402,
+          -6.50002
+        ]
+      },
+      "properties": {
+        "stream_order": 4,
+        "flow_m3s": 3.76,
+        "dist_to_road_km": 9.88
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.39339,
+          -6.99809
+        ]
+      },
+      "properties": {
+        "stream_order": 5,
+        "flow_m3s": 0.592,
+        "dist_to_road_km": 2.27
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.71681,
+          -6.29143
+        ]
+      },
+      "properties": {
+        "stream_order": 3,
+        "flow_m3s": 0.67,
+        "dist_to_road_km": 3.74
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.4617,
+          -6.52481
+        ]
+      },
+      "properties": {
+        "stream_order": 4,
+        "flow_m3s": 0.727,
+        "dist_to_road_km": 5.96
+      }
+    }
+  ]
+}

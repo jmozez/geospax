@@ -1,0 +1,566 @@
+{
+  "type": "FeatureCollection",
+  "name": "Forest_patch_survey",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.36755,
+          -6.77049
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 11.7,
+        "connectivity_score": 0.53,
+        "disturbance": "Low",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.50845,
+          -6.93369
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 520.8,
+        "connectivity_score": 0.543,
+        "disturbance": "Low",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.36129,
+          -6.33611
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 2.0,
+        "connectivity_score": 0.901,
+        "disturbance": "Moderate",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.3287,
+          -6.28981
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 16.0,
+        "connectivity_score": 0.43,
+        "disturbance": "None",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.60076,
+          -6.34357
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 4.6,
+        "connectivity_score": 0.39,
+        "disturbance": "None",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.46047,
+          -6.91305
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 2.6,
+        "connectivity_score": 0.665,
+        "disturbance": "Moderate",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.74127,
+          -6.64022
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 35.7,
+        "connectivity_score": 0.339,
+        "disturbance": "None",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.0604,
+          -6.88998
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 10.3,
+        "connectivity_score": 0.63,
+        "disturbance": "High",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.57197,
+          -6.57625
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 53.5,
+        "connectivity_score": 0.658,
+        "disturbance": "None",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.40269,
+          -7.04542
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 74.9,
+        "connectivity_score": 0.102,
+        "disturbance": "None",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.64311,
+          -6.52627
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 7.7,
+        "connectivity_score": 0.734,
+        "disturbance": "Moderate",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.09598,
+          -6.37502
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 33.3,
+        "connectivity_score": 0.306,
+        "disturbance": "Moderate",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.40389,
+          -6.5302
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 35.4,
+        "connectivity_score": 1.176,
+        "disturbance": "Low",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.36609,
+          -6.32849
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 12.1,
+        "connectivity_score": 0.523,
+        "disturbance": "High",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.51558,
+          -6.4743
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 177.0,
+        "connectivity_score": 0.645,
+        "disturbance": "None",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.51901,
+          -6.51081
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 4.2,
+        "connectivity_score": 0.756,
+        "disturbance": "Moderate",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.12252,
+          -6.60741
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 6.4,
+        "connectivity_score": 0.652,
+        "disturbance": "None",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.64176,
+          -6.46756
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 57.8,
+        "connectivity_score": 0.736,
+        "disturbance": "None",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.07027,
+          -6.37327
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 14.7,
+        "connectivity_score": 0.238,
+        "disturbance": "Low",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.09871,
+          -6.84097
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 21.8,
+        "connectivity_score": 0.488,
+        "disturbance": "Moderate",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.59378,
+          -6.66759
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 4.3,
+        "connectivity_score": 0.634,
+        "disturbance": "None",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.36018,
+          -6.52401
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 27.5,
+        "connectivity_score": 0.651,
+        "disturbance": "Moderate",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.12762,
+          -6.77822
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 28.2,
+        "connectivity_score": 0.834,
+        "disturbance": "Moderate",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.20436,
+          -7.08445
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 38.0,
+        "connectivity_score": 0.771,
+        "disturbance": "High",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.14043,
+          -6.63258
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 7.0,
+        "connectivity_score": 0.761,
+        "disturbance": "Moderate",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32795,
+          -6.84204
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 16.4,
+        "connectivity_score": 0.753,
+        "disturbance": "High",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.54665,
+          -6.51769
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 4.4,
+        "connectivity_score": 0.681,
+        "disturbance": "High",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.11169,
+          -6.94448
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 6.9,
+        "connectivity_score": 0.402,
+        "disturbance": "Moderate",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.2051,
+          -6.87912
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 2.8,
+        "connectivity_score": 0.57,
+        "disturbance": "Low",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.29577,
+          -7.05822
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 26.9,
+        "connectivity_score": 0.723,
+        "disturbance": "Low",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.58215,
+          -6.75551
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 19.3,
+        "connectivity_score": 0.693,
+        "disturbance": "High",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.65497,
+          -6.72722
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 17.4,
+        "connectivity_score": 0.589,
+        "disturbance": "None",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.37322,
+          -6.13761
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 14.6,
+        "connectivity_score": 0.667,
+        "disturbance": "None",
+        "protected": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.3739,
+          -6.65432
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 12.8,
+        "connectivity_score": 0.498,
+        "disturbance": "High",
+        "protected": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.72041,
+          -6.55052
+        ]
+      },
+      "properties": {
+        "patch_area_ha": 26.1,
+        "connectivity_score": 0.456,
+        "disturbance": "High",
+        "protected": false
+      }
+    }
+  ]
+}

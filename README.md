@@ -363,6 +363,7 @@ Names follow `setup-*`, `data-*`, `demo-*`, `test-*`, `bench-*` (`test-web-*` fo
 | `test-gsx.mjs BASE` | new | Every GSX tool through the engine (`POST /api/plugins/gsx/tools/…/run`) on the sample layers: answers and adds its layers |
 | `test-web-online.mjs BASE` | new | The 3.0 ribbon tabs; every Online data form saves the right `data.fetch` recipe (request intercepted, no internet); Lazy's Online data chooser |
 | `test-web-controls.mjs [BASE] [OUT]` | new | Every control in both modes: every ribbon command on every tab, the contextual Layer tab, the layer tree (groups, group switch, twisties, filter, basemap), every dock tab, the Toolbox, the task bar, Inspector chips, card buttons, and one analysis from a card to its report; fails on any page error, console error or 5xx |
+| `test-edit.py [BASE]` | new | Editing and queries on GeoJSON, Shapefile and a projected GeoPackage (`test-edit-data.py` makes the data): sorted and searched table pages, select by attributes and location, definition queries, add/move/delete features in the layer's CRS, typed attributes, fields, SQL and geodesic calculations, feature ids kept by the edit copy, export, revert (44 checks, in CI) |
 | `test-web-workbench.mjs [BASE] [OUT]` | new | The 1.7 workbench: ribbon tabs and buttons, dock tabs, attribute table (rows/fields/chart), command palette, splitter drag and reset, pane collapse, layout persistence across a reload; 29 checks, screenshots |
 | `test-web-scene.mjs OUT NAME=scene.html…` | new | The 3D viewer in Playwright Chromium with the network blocked: ready, framing, turn, zoom, pan, compass, reset, layer switches; screenshots |
 | `validate-gltf.mjs FILE.glb…` | new | The Khronos glTF-Validator (npm `gltf-validator`, installed by `setup-linux.sh --test-tools`); exits 1 on any error |
@@ -439,6 +440,9 @@ bench/           RESULTS.md · engine-*.json · reader-*.json · overviews.json 
 | `GET /api/project` · `PUT /api/project` | The project document (styles with AutoMap's reason, draw order, group layers, view, basemap) |
 | `POST /api/upload?name=FILE` | Body = the file. Saved in `Uploads/` of the data folder (unique name), zips unpacked safely, vector layers and GeoTIFF rasters added to the map: `{"layers", "rasters", "point_clouds", "skipped", "saved"}` (201); unsupported types → 400 with the accepted list |
 | `GET /api/plugins` · `POST /api/plugins/{id}/tools/{tool}/run` | Plugins (source, kind, runnable, tools with forms) · run a tool (`{"params": {…}}`); the reply lists the layers and rasters its `outputs` added (`"added"`) |
+| `POST /api/layers/{layer}/table` · `…/select` | Attribute table page (`offset`, `limit`, `sort`, `desc`, `where`, `fids`) · select by attributes (`where`) and/or location (`location: {layer, relation, distance_m, fids}`) → `fids` |
+| `GET/POST/PUT/DELETE /api/layers/{layer}/features[/{fid}]` · `POST …/features/delete` | One feature as GeoJSON · add · change geometry and/or properties · delete (edits go to the layer's GeoPackage copy; `POST …/edit` makes it, `POST …/revert` drops it) |
+| `POST /api/layers/{layer}/fields` · `DELETE …/fields/{name}` · `POST …/calculate` · `PUT …/filter` · `POST …/export` · `POST /api/layers/new` | Add/delete a field · field calculator (`expression` in SQL, or `geometry`: area_ha, length_m, x …) · definition query (`where`) · selection to a new layer · new empty layer |
 | `GET /api/layers/{layer}/arrow[?bbox=w,s,e,n&limit=n]` | Arrow IPC stream (`geoarrow.point`) |
 | `GET /api/stats` · `POST /api/cache/clear` · `POST/GET /api/bench` | Engine stats (reader, GDAL, live vs pyramid tiles) · clear the LRU tile cache · benchmark reports |
 
@@ -447,7 +451,6 @@ bench/           RESULTS.md · engine-*.json · reader-*.json · overviews.json 
 - **Bottom-up pyramid builds.** The builder re-reads the source at every zoom; z6–12 take 3–4.5 s each. Aggregating density counts from the zoom below would cut build time for point-like data.
 - **Symbol editing beyond colour, CIM import/export.** (Automatic point labels exist in exported maps; interactive labels don't yet.)
 - **Raster tiles** (rasters are served as one overlay image each; tiles matter for very large rasters).
-- **Editing.**
 - **CEF on Linux.** Waiting for Tauri 3 to stabilize.
 - **Web-map export, `for_each`, the step cache, OGC SensorThings, cloud-free composites, land-cover classification, more providers (Whitebox, OTB, SNAP, ODM), the optional AI recipe writer.** Specified in [docs/AUTOMATION.md](docs/AUTOMATION.md); Phase 2 onwards.
 

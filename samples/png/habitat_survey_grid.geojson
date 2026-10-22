@@ -1,0 +1,1716 @@
+{
+  "type": "FeatureCollection",
+  "name": "Habitat_survey_grid",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.02,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 12,
+        "rainfall_mm": 2851,
+        "ndvi": 0.683,
+        "temp_mean_c": 28.0,
+        "habitat_type": "Lowland rainforest",
+        "canopy_pct": 65,
+        "site_id": "H0000"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.02,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 182,
+        "rainfall_mm": 2540,
+        "ndvi": 0.705,
+        "temp_mean_c": 27.9,
+        "habitat_type": "Lowland rainforest",
+        "canopy_pct": 72,
+        "site_id": "H0001"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.02,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 433,
+        "rainfall_mm": 2780,
+        "ndvi": 0.674,
+        "temp_mean_c": 24.5,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 56,
+        "site_id": "H0002"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.02,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 544,
+        "rainfall_mm": 2754,
+        "ndvi": 0.767,
+        "temp_mean_c": 25.3,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 75,
+        "site_id": "H0003"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.02,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 780,
+        "rainfall_mm": 2537,
+        "ndvi": 0.611,
+        "temp_mean_c": 23.0,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 59,
+        "site_id": "H0004"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.02,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 1084,
+        "rainfall_mm": 2334,
+        "ndvi": 0.743,
+        "temp_mean_c": 22.2,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 70,
+        "site_id": "H0005"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.02,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 1211,
+        "rainfall_mm": 2125,
+        "ndvi": 0.896,
+        "temp_mean_c": 20.9,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 87,
+        "site_id": "H0006"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.02,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 1422,
+        "rainfall_mm": 2168,
+        "ndvi": 0.806,
+        "temp_mean_c": 18.4,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 73,
+        "site_id": "H0007"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.02,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 1558,
+        "rainfall_mm": 2316,
+        "ndvi": 0.727,
+        "temp_mean_c": 19.0,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 66,
+        "site_id": "H0008"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.095,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 136,
+        "rainfall_mm": 2765,
+        "ndvi": 0.608,
+        "temp_mean_c": 26.6,
+        "habitat_type": "Lowland rainforest",
+        "canopy_pct": 66,
+        "site_id": "H0100"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.095,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 289,
+        "rainfall_mm": 3002,
+        "ndvi": 0.705,
+        "temp_mean_c": 26.3,
+        "habitat_type": "Lowland rainforest",
+        "canopy_pct": 76,
+        "site_id": "H0101"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.095,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 514,
+        "rainfall_mm": 2482,
+        "ndvi": 0.795,
+        "temp_mean_c": 25.2,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 80,
+        "site_id": "H0102"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.095,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 777,
+        "rainfall_mm": 2537,
+        "ndvi": 0.674,
+        "temp_mean_c": 24.2,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 62,
+        "site_id": "H0103"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.095,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 918,
+        "rainfall_mm": 2458,
+        "ndvi": 0.775,
+        "temp_mean_c": 22.4,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 76,
+        "site_id": "H0104"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.095,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 1031,
+        "rainfall_mm": 2401,
+        "ndvi": 0.679,
+        "temp_mean_c": 21.2,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 63,
+        "site_id": "H0105"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.095,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 1287,
+        "rainfall_mm": 2208,
+        "ndvi": 0.801,
+        "temp_mean_c": 21.5,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 77,
+        "site_id": "H0106"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.095,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 1534,
+        "rainfall_mm": 1968,
+        "ndvi": 0.754,
+        "temp_mean_c": 17.6,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 79,
+        "site_id": "H0107"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.095,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 1594,
+        "rainfall_mm": 2407,
+        "ndvi": 0.725,
+        "temp_mean_c": 19.0,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 74,
+        "site_id": "H0108"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 346,
+        "rainfall_mm": 2824,
+        "ndvi": 0.701,
+        "temp_mean_c": 26.0,
+        "habitat_type": "Lowland rainforest",
+        "canopy_pct": 66,
+        "site_id": "H0200"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 514,
+        "rainfall_mm": 2796,
+        "ndvi": 0.654,
+        "temp_mean_c": 22.8,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 61,
+        "site_id": "H0201"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 672,
+        "rainfall_mm": 2626,
+        "ndvi": 0.731,
+        "temp_mean_c": 24.0,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 76,
+        "site_id": "H0202"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 933,
+        "rainfall_mm": 2446,
+        "ndvi": 0.729,
+        "temp_mean_c": 24.5,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 65,
+        "site_id": "H0203"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 1009,
+        "rainfall_mm": 2650,
+        "ndvi": 0.853,
+        "temp_mean_c": 20.3,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 85,
+        "site_id": "H0204"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 1159,
+        "rainfall_mm": 2245,
+        "ndvi": 0.757,
+        "temp_mean_c": 21.2,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 86,
+        "site_id": "H0205"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 1445,
+        "rainfall_mm": 1890,
+        "ndvi": 0.773,
+        "temp_mean_c": 19.1,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 78,
+        "site_id": "H0206"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 1566,
+        "rainfall_mm": 2130,
+        "ndvi": 0.782,
+        "temp_mean_c": 19.4,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 72,
+        "site_id": "H0207"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.17,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 1940,
+        "rainfall_mm": 2249,
+        "ndvi": 0.74,
+        "temp_mean_c": 15.2,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 68,
+        "site_id": "H0208"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.245,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 451,
+        "rainfall_mm": 2835,
+        "ndvi": 0.607,
+        "temp_mean_c": 25.6,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 70,
+        "site_id": "H0300"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.245,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 479,
+        "rainfall_mm": 2522,
+        "ndvi": 0.752,
+        "temp_mean_c": 24.1,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 69,
+        "site_id": "H0301"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.245,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 838,
+        "rainfall_mm": 2425,
+        "ndvi": 0.758,
+        "temp_mean_c": 24.1,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 77,
+        "site_id": "H0302"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.245,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 1010,
+        "rainfall_mm": 2407,
+        "ndvi": 0.769,
+        "temp_mean_c": 20.9,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 78,
+        "site_id": "H0303"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.245,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 1148,
+        "rainfall_mm": 2467,
+        "ndvi": 0.766,
+        "temp_mean_c": 19.9,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 69,
+        "site_id": "H0304"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.245,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 1366,
+        "rainfall_mm": 2535,
+        "ndvi": 0.722,
+        "temp_mean_c": 19.0,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 66,
+        "site_id": "H0305"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.245,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 1577,
+        "rainfall_mm": 2092,
+        "ndvi": 0.651,
+        "temp_mean_c": 18.2,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 72,
+        "site_id": "H0306"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.245,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 1638,
+        "rainfall_mm": 2242,
+        "ndvi": 0.739,
+        "temp_mean_c": 17.7,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 81,
+        "site_id": "H0307"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.245,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 1835,
+        "rainfall_mm": 2003,
+        "ndvi": 0.754,
+        "temp_mean_c": 17.9,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 71,
+        "site_id": "H0308"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 423,
+        "rainfall_mm": 2420,
+        "ndvi": 0.664,
+        "temp_mean_c": 25.7,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 67,
+        "site_id": "H0400"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 691,
+        "rainfall_mm": 2589,
+        "ndvi": 0.711,
+        "temp_mean_c": 24.2,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 80,
+        "site_id": "H0401"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 892,
+        "rainfall_mm": 2049,
+        "ndvi": 0.679,
+        "temp_mean_c": 23.8,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 67,
+        "site_id": "H0402"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 1097,
+        "rainfall_mm": 2412,
+        "ndvi": 0.785,
+        "temp_mean_c": 20.5,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 72,
+        "site_id": "H0403"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 1171,
+        "rainfall_mm": 2431,
+        "ndvi": 0.867,
+        "temp_mean_c": 20.4,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 82,
+        "site_id": "H0404"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 1506,
+        "rainfall_mm": 2287,
+        "ndvi": 0.702,
+        "temp_mean_c": 20.0,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 73,
+        "site_id": "H0405"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 1598,
+        "rainfall_mm": 2109,
+        "ndvi": 0.684,
+        "temp_mean_c": 19.8,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 65,
+        "site_id": "H0406"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 1757,
+        "rainfall_mm": 2035,
+        "ndvi": 0.682,
+        "temp_mean_c": 18.1,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 73,
+        "site_id": "H0407"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.32,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 1988,
+        "rainfall_mm": 1471,
+        "ndvi": 0.646,
+        "temp_mean_c": 15.5,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 59,
+        "site_id": "H0408"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.395,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 646,
+        "rainfall_mm": 2601,
+        "ndvi": 0.638,
+        "temp_mean_c": 25.2,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 57,
+        "site_id": "H0500"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.395,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 788,
+        "rainfall_mm": 2550,
+        "ndvi": 0.8,
+        "temp_mean_c": 24.0,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 77,
+        "site_id": "H0501"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.395,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 1030,
+        "rainfall_mm": 2301,
+        "ndvi": 0.851,
+        "temp_mean_c": 21.6,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 85,
+        "site_id": "H0502"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.395,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 1255,
+        "rainfall_mm": 2081,
+        "ndvi": 0.766,
+        "temp_mean_c": 22.5,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 85,
+        "site_id": "H0503"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.395,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 1457,
+        "rainfall_mm": 2113,
+        "ndvi": 0.839,
+        "temp_mean_c": 20.3,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 75,
+        "site_id": "H0504"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.395,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 1580,
+        "rainfall_mm": 2024,
+        "ndvi": 0.731,
+        "temp_mean_c": 19.7,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 61,
+        "site_id": "H0505"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.395,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 1762,
+        "rainfall_mm": 2322,
+        "ndvi": 0.601,
+        "temp_mean_c": 18.6,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 49,
+        "site_id": "H0506"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.395,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 1933,
+        "rainfall_mm": 2121,
+        "ndvi": 0.635,
+        "temp_mean_c": 16.6,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 58,
+        "site_id": "H0507"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.395,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 2185,
+        "rainfall_mm": 1839,
+        "ndvi": 0.649,
+        "temp_mean_c": 14.3,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 62,
+        "site_id": "H0508"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 876,
+        "rainfall_mm": 2658,
+        "ndvi": 0.743,
+        "temp_mean_c": 23.3,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 79,
+        "site_id": "H0600"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 937,
+        "rainfall_mm": 2613,
+        "ndvi": 0.69,
+        "temp_mean_c": 22.1,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 67,
+        "site_id": "H0601"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 1194,
+        "rainfall_mm": 2246,
+        "ndvi": 0.725,
+        "temp_mean_c": 21.0,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 81,
+        "site_id": "H0602"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 1435,
+        "rainfall_mm": 2306,
+        "ndvi": 0.728,
+        "temp_mean_c": 18.0,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 67,
+        "site_id": "H0603"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 1578,
+        "rainfall_mm": 2386,
+        "ndvi": 0.582,
+        "temp_mean_c": 18.3,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 58,
+        "site_id": "H0604"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 1619,
+        "rainfall_mm": 2148,
+        "ndvi": 0.81,
+        "temp_mean_c": 17.1,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 75,
+        "site_id": "H0605"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 1906,
+        "rainfall_mm": 1759,
+        "ndvi": 0.702,
+        "temp_mean_c": 15.6,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 74,
+        "site_id": "H0606"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 2098,
+        "rainfall_mm": 2127,
+        "ndvi": 0.696,
+        "temp_mean_c": 15.3,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 67,
+        "site_id": "H0607"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.47,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 2158,
+        "rainfall_mm": 2146,
+        "ndvi": 0.538,
+        "temp_mean_c": 15.5,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 50,
+        "site_id": "H0608"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.545,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 881,
+        "rainfall_mm": 2709,
+        "ndvi": 0.751,
+        "temp_mean_c": 21.1,
+        "habitat_type": "Hill forest",
+        "canopy_pct": 76,
+        "site_id": "H0700"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.545,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 1105,
+        "rainfall_mm": 2082,
+        "ndvi": 0.684,
+        "temp_mean_c": 22.7,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 68,
+        "site_id": "H0701"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.545,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 1255,
+        "rainfall_mm": 2331,
+        "ndvi": 0.709,
+        "temp_mean_c": 19.3,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 63,
+        "site_id": "H0702"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.545,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 1491,
+        "rainfall_mm": 2248,
+        "ndvi": 0.739,
+        "temp_mean_c": 19.2,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 69,
+        "site_id": "H0703"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.545,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 1616,
+        "rainfall_mm": 2225,
+        "ndvi": 0.651,
+        "temp_mean_c": 18.1,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 65,
+        "site_id": "H0704"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.545,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 1784,
+        "rainfall_mm": 2406,
+        "ndvi": 0.756,
+        "temp_mean_c": 16.9,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 73,
+        "site_id": "H0705"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.545,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 2028,
+        "rainfall_mm": 1936,
+        "ndvi": 0.611,
+        "temp_mean_c": 16.0,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 61,
+        "site_id": "H0706"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.545,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 2188,
+        "rainfall_mm": 2055,
+        "ndvi": 0.506,
+        "temp_mean_c": 14.7,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 47,
+        "site_id": "H0707"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.545,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 2308,
+        "rainfall_mm": 1936,
+        "ndvi": 0.533,
+        "temp_mean_c": 13.6,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 49,
+        "site_id": "H0708"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.62,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 1060,
+        "rainfall_mm": 2443,
+        "ndvi": 0.742,
+        "temp_mean_c": 21.0,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 78,
+        "site_id": "H0800"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.62,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 1226,
+        "rainfall_mm": 2543,
+        "ndvi": 0.628,
+        "temp_mean_c": 19.5,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 58,
+        "site_id": "H0801"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.62,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 1559,
+        "rainfall_mm": 2097,
+        "ndvi": 0.697,
+        "temp_mean_c": 17.5,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 66,
+        "site_id": "H0802"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.62,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 1579,
+        "rainfall_mm": 2111,
+        "ndvi": 0.679,
+        "temp_mean_c": 17.9,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 71,
+        "site_id": "H0803"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.62,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 1732,
+        "rainfall_mm": 2181,
+        "ndvi": 0.629,
+        "temp_mean_c": 16.9,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 68,
+        "site_id": "H0804"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.62,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 1874,
+        "rainfall_mm": 1863,
+        "ndvi": 0.666,
+        "temp_mean_c": 15.6,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 70,
+        "site_id": "H0805"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.62,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 2048,
+        "rainfall_mm": 2193,
+        "ndvi": 0.602,
+        "temp_mean_c": 15.4,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 65,
+        "site_id": "H0806"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.62,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 2214,
+        "rainfall_mm": 1774,
+        "ndvi": 0.665,
+        "temp_mean_c": 15.1,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 66,
+        "site_id": "H0807"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.62,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 2442,
+        "rainfall_mm": 1974,
+        "ndvi": 0.638,
+        "temp_mean_c": 14.3,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 62,
+        "site_id": "H0808"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.695,
+          -6.08
+        ]
+      },
+      "properties": {
+        "elevation_m": 1256,
+        "rainfall_mm": 2122,
+        "ndvi": 0.785,
+        "temp_mean_c": 22.0,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 69,
+        "site_id": "H0900"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.695,
+          -6.2
+        ]
+      },
+      "properties": {
+        "elevation_m": 1352,
+        "rainfall_mm": 2255,
+        "ndvi": 0.719,
+        "temp_mean_c": 21.4,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 80,
+        "site_id": "H0901"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.695,
+          -6.32
+        ]
+      },
+      "properties": {
+        "elevation_m": 1619,
+        "rainfall_mm": 2515,
+        "ndvi": 0.788,
+        "temp_mean_c": 17.3,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 91,
+        "site_id": "H0902"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.695,
+          -6.44
+        ]
+      },
+      "properties": {
+        "elevation_m": 1680,
+        "rainfall_mm": 2185,
+        "ndvi": 0.662,
+        "temp_mean_c": 18.0,
+        "habitat_type": "Lower montane forest",
+        "canopy_pct": 65,
+        "site_id": "H0903"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.695,
+          -6.56
+        ]
+      },
+      "properties": {
+        "elevation_m": 1815,
+        "rainfall_mm": 2028,
+        "ndvi": 0.651,
+        "temp_mean_c": 16.1,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 57,
+        "site_id": "H0904"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.695,
+          -6.68
+        ]
+      },
+      "properties": {
+        "elevation_m": 2003,
+        "rainfall_mm": 2079,
+        "ndvi": 0.649,
+        "temp_mean_c": 16.0,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 66,
+        "site_id": "H0905"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.695,
+          -6.8
+        ]
+      },
+      "properties": {
+        "elevation_m": 2297,
+        "rainfall_mm": 1727,
+        "ndvi": 0.645,
+        "temp_mean_c": 13.9,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 73,
+        "site_id": "H0906"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.695,
+          -6.92
+        ]
+      },
+      "properties": {
+        "elevation_m": 2463,
+        "rainfall_mm": 1943,
+        "ndvi": 0.552,
+        "temp_mean_c": 12.9,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 56,
+        "site_id": "H0907"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          146.695,
+          -7.04
+        ]
+      },
+      "properties": {
+        "elevation_m": 2648,
+        "rainfall_mm": 1689,
+        "ndvi": 0.519,
+        "temp_mean_c": 12.1,
+        "habitat_type": "Upper montane forest",
+        "canopy_pct": 53,
+        "site_id": "H0908"
+      }
+    }
+  ]
+}

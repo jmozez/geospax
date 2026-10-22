@@ -5,6 +5,7 @@ import type { Feature } from 'geojson';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import * as A from './analysis';
 import { RASTER_TOOLS, TAB_OF_RASTER } from './rastertools';
+import { LEGACY_TOOLS, TAB_OF_LEGACY } from './legacytools';
 
 export interface Param {
   name: string;
@@ -63,6 +64,8 @@ export interface Out {
   rasters?: OutGrid[];
   table?: [string, string | number][];
   notes?: string[];
+  /** charts shown with the result (SVG, drawn on white) */
+  figures?: { title: string; svg: string }[];
 }
 
 export interface Tool {
@@ -529,3 +532,5 @@ const TAB_OF: Record<string, string> = { [PLAN]: 'modelling', [LAND]: 'analyze',
 for (const t of TOOLS) t.tab ??= TAB_OF[t.group];
 // phase B: rasters and species distribution models (src/rastertools.ts)
 for (const t of RASTER_TOOLS) TOOLS.push({ ...t, tab: t.tab ?? TAB_OF_RASTER[t.group] });
+// from 1.4.2: LISA and elevation profiles (src/legacytools.ts)
+for (const t of LEGACY_TOOLS) TOOLS.push({ ...t, tab: t.tab ?? TAB_OF_LEGACY[t.group] });

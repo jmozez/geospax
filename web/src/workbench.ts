@@ -598,6 +598,7 @@ export class Workbench {
     if (this.layout.collapsed.includes(dock)) this.layout.collapsed = this.layout.collapsed.filter((d) => d !== dock);
     this.saveLayout();
     this.applyLayout();
+    document.dispatchEvent(new CustomEvent('geospax:show-pane', { detail: dock }));
   }
 
   toggleDock(dock: Dock) {
@@ -931,8 +932,11 @@ export class Workbench {
     // Pro's "Identify": click a feature, get its attributes in a popup.
     let popup: maplibregl.Popup | null = null;
     this.host.map.on('click', (e) => {
+      // an edit tool owns the click (web/src/editing.ts); drawing handles (td-*) are not data
+      const tool = document.body.dataset.editTool;
+      if ((tool && tool !== 'idle') || document.body.dataset.measure) return;
       const feats = this.host.map.queryRenderedFeatures(e.point);
-      const f = feats.find((x) => x.properties && Object.keys(x.properties).length);
+      const f = feats.find((x) => !x.layer.id.startsWith('td-') && !x.layer.id.endsWith('#sel') && x.properties && Object.keys(x.properties).length);
       if (!f) return;
       popup?.remove();
       const rows = Object.entries(f.properties as Record<string, unknown>)

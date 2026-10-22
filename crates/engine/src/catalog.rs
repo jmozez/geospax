@@ -67,6 +67,9 @@ pub struct LayerHandle {
     pool: Mutex<Vec<Handle>>,
     /// Pre-built overview pyramid serving z0..=max_zoom, if any.
     overview: RwLock<Option<Arc<Overview>>>,
+    /// Definition query (an OGR SQL WHERE clause): only matching features are drawn, listed in
+    /// the table and analysed, as ArcGIS Pro's definition query and QGIS's layer filter.
+    filter: RwLock<Option<String>>,
 }
 
 pub const MAX_ZOOM: u8 = 14;
@@ -77,14 +80,63 @@ const PREFERRED_FIELDS: &[&str] = &[
     "name", "type", "kind", "class", "height", "pop_max", "pop_est", "iso_a3", "continent", "scalerank", "featurecla",
 ];
 const MAX_TILE_FIELDS: usize = 6;
-const EXTENSIONS: &[&str] = &["gpkg", "fgb", "shp", "geojson", "json", "gdb", "sqlite", "gml", "kml"];
+const EXTENSIONS: &[&str] = &["gpkg", "fgb", "shp", "geojson", "json", "gdb", "sqlite", "gml", "kml", "gspx"];
 
 impl LayerHandle {
     pub(crate) fn checkout(&self) -> Result<Handle, String> {
-        if let Some(h) = self.pool.lock().unwrap().pop() {
-            return Ok(h);
+        let h = match self.pool.lock().unwrap().pop() {
+            Some(h) => h,
+            None => open_handle(&self.path, &self.layer_name, self.needs_transform)?,
+        };
+        // pooled handles keep their OGR layer state: set (or clear) the definition query each time
+        if let Ok(mut lyr) = h.ds.layer_by_name(&self.layer_name) {
+            match self.filter().as_deref() {
+                Some(w) => lyr.set_attribute_filter(w).map_err(|e| format!("definition query: {e}"))?,
+                None => lyr.clear_attribute_filter(),
+            }
         }
-        open_handle(&self.path, &self.layer_name, self.needs_transform)
+        Ok(h)
+    }
+
+    /// The definition query, if any.
+    pub fn filter(&self) -> Option<String> {
+        self.filter.read().unwrap().clone()
+    }
+
+    /// Set or clear the definition query. Checked against the data first, so a typo is an
+    /// error here rather than an empty map.
+    pub fn set_filter(&self, filter: Option<String>) -> Result<(), String> {
+        let filter = filter.map(|f| f.trim().to_string()).filter(|f| !f.is_empty());
+        if let Some(w) = &filter {
+            let ds = open_vector(&self.path)?;
+            let mut lyr = ds.layer_by_name(&self.layer_name).map_err(|e| e.to_string())?;
+            lyr.set_attribute_filter(w).map_err(|e| format!("'{w}' is not a valid query: {}", crate::edit::tidy(&e.to_string())))?;
+        }
+        *self.filter.write().unwrap() = filter;
+        Ok(())
+    }
+
+    /// Features passing the definition query (all features when there is none).
+    pub fn filtered_count(&self) -> u64 {
+        if self.filter().is_none() {
+            return self.info.feature_count;
+        }
+        let Ok(h) = self.checkout() else { return self.info.feature_count };
+        let n = h.ds.layer_by_name(&self.layer_name).map(|mut l| {
+            l.clear_spatial_filter();
+            l.feature_count()
+        });
+        self.checkin(h);
+        n.unwrap_or(self.info.feature_count)
+    }
+
+    /// The file this layer reads (an edit copy once the layer has been edited).
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn layer_name(&self) -> &str {
+        &self.layer_name
     }
 
     pub(crate) fn checkin(&self, h: Handle) {
@@ -158,13 +210,13 @@ pub(crate) fn open_vector(path: &Path) -> Result<Dataset, String> {
     Dataset::open_ex(path, opts).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn wgs84() -> Result<SpatialRef, String> {
+pub(crate) fn wgs84() -> Result<SpatialRef, String> {
     let mut s = SpatialRef::from_epsg(4326).map_err(|e| e.to_string())?;
     s.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
     Ok(s)
 }
 
-fn transforms(src: &SpatialRef) -> Result<(SendCt, SendCt), String> {
+pub(crate) fn transforms(src: &SpatialRef) -> Result<(SendCt, SendCt), String> {
     let mut src = src.clone();
     src.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
     let dst = wgs84()?;
@@ -216,7 +268,7 @@ pub fn discover(paths: &[PathBuf]) -> Vec<PathBuf> {
     out
 }
 
-fn sanitize(s: &str) -> String {
+pub(crate) fn sanitize(s: &str) -> String {
     s.chars()
         .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-' { c.to_ascii_lowercase() } else { '_' })
         .collect()
@@ -241,7 +293,7 @@ fn geom_kind(t: u32) -> GeomKind {
     }
 }
 
-fn is_wgs84(srs: &SpatialRef) -> bool {
+pub(crate) fn is_wgs84(srs: &SpatialRef) -> bool {
     let code = srs.auth_code().ok();
     match srs.auth_name().as_deref() {
         Some("EPSG") => code == Some(4326),
@@ -259,6 +311,15 @@ fn auto_minzoom(count: u64, b: [f64; 4]) -> u8 {
 
 /// Read every vector layer of one dataset.
 pub fn load_layers(path: &Path) -> Result<Vec<LayerHandle>, String> {
+    // projects from GeoSpaX 1.4.2 (.gspx) and 2.0 (.geolibre.json): their embedded layers
+    if crate::project_import::is_project(path) {
+        return crate::project_import::load(path);
+    }
+    load_layers_plain(path)
+}
+
+/// Every layer GDAL finds in a file.
+pub(crate) fn load_layers_plain(path: &Path) -> Result<Vec<LayerHandle>, String> {
     let ds = open_vector(path)?;
     let driver = ds.driver().short_name();
     let stem = sanitize(path.file_stem().and_then(|s| s.to_str()).unwrap_or("data"));
@@ -352,6 +413,7 @@ pub fn load_layers(path: &Path) -> Result<Vec<LayerHandle>, String> {
             field_idx,
             pool: Mutex::new(Vec::new()),
             overview: RwLock::new(None),
+            filter: RwLock::new(None),
         });
     }
     Ok(out)

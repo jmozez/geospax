@@ -8,7 +8,7 @@ import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
 
 /** 'layer' is the contextual tab (Pro mode), shown while a layer is selected. */
-export type TabId = 'home' | 'data' | 'style' | 'analyze' | 'imagery' | 'modelling' | 'r' | 'view' | 'automate' | 'help' | 'plugins' | 'layer';
+export type TabId = 'home' | 'data' | 'style' | 'edit' | 'analyze' | 'imagery' | 'modelling' | 'r' | 'view' | 'automate' | 'help' | 'plugins' | 'layer';
 
 /** What a command can reach: the map, layers, the backend and a few host actions. */
 export interface CommandHost {
@@ -87,6 +87,25 @@ export const ICONS: Record<string, string> = {
   grid: 'M3 3h18v18H3zm2 2v4h4V5zm6 0v4h4V5zm6 0v4h2V5zM5 11v4h4v-4zm6 0v4h4v-4zm6 0v4h2v-4zM5 17v2h4v-2zm6 0v2h4v-2zm6 0v2h2v-2z',
   rlogo: 'M12 3C6.5 3 2 5.9 2 9.6c0 3.1 3.2 5.7 7.5 6.4V21h3v-4.4h1.6l2.6 4.4h3.4l-3-4.9c2.3-.9 3.9-2.6 3.9-4.6 0-3.7-4.5-6.6-10-6.6zm.5 3.2c4.3 0 7.3 1.5 7.3 3.6 0 1.4-1.3 2.5-3.4 3.1V10c0-1.5-1.3-2.4-3.2-2.4H9.5v6.1C6.5 13 4.6 11.5 4.6 9.7c0-2 3.4-3.5 7.9-3.5zm0 4h1.6c.7 0 1.1.3 1.1.9s-.4.9-1.1.9h-1.6z',
   check: 'M4 12l5 5L20 6l-1.5-1.5L9 13.5 5.5 10z',
+  // editing
+  point: 'M12 2a6 6 0 0 0-6 6c0 4.5 6 12 6 12s6-7.5 6-12a6 6 0 0 0-6-6zm0 8.2A2.2 2.2 0 1 1 12 5.8a2.2 2.2 0 0 1 0 4.4z',
+  line: 'M4 18.6L9.2 9l5 5.5L19 5.4l1.7 1-6.2 11.4-5-5.5-3.8 7.3zM4 17a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm16-14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+  polygon: 'M12 2l9 6.5-3.4 11.5H6.4L3 8.5zm0 2.5L5.3 9.3 7.9 18h8.2l2.6-8.7z',
+  vertices: 'M5 4h4v4H5zM15 4h4v4h-4zM15 16h4v4h-4zM5 16h4v4H5zM7 8h2v8H7zm2-3h6v2H9zm8 3h2v8h-2zM9 17h6v2H9z',
+  select: 'M5 3l13 7.5-5.5 1.6 3.8 6.6-2.4 1.4-3.8-6.6L6 17.5z',
+  box: 'M3 3h4v2H5v2H3zm6 0h6v2H9zm8 0h4v4h-2V5h-2zM3 9h2v6H3zm16 0h2v6h-2zM3 17h2v2h2v2H3zm16 0h2v4h-4v-2h2zM9 19h6v2H9z',
+  trash: 'M9 3h6l1 2h4v2H4V5h4zM6 8h12l-1 13H7zm4 2v9h1.5v-9zm3 0v9h1.5v-9z',
+  undo: 'M8 5L3 10l5 5v-3.5h6a4 4 0 0 1 0 8h-3V22h3a6.5 6.5 0 0 0 0-13H8z',
+  redo: 'M16 5l5 5-5 5v-3.5h-6a4 4 0 0 0 0 8h3V22h-3a6.5 6.5 0 0 1 0-13h6z',
+  magnet: 'M5 3h4v8a3 3 0 0 0 6 0V3h4v8a7 7 0 0 1-14 0zm0 0v3h4V3zm10 0v3h4V3z',
+  plus: 'M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z',
+  filter: 'M3 4h18l-7 8.5V19l-4 2v-8.5z',
+  calc: 'M5 2h14v20H5zm2 2v4h10V4zm0 6v2h2v-2zm4 0v2h2v-2zm4 0v6h2v-6zM7 14v2h2v-2zm4 0v2h2v-2zm-4 4v2h2v-2zm4 0v2h6v-2z',
+  clear: 'M6 5l6 6 6-6 1.4 1.4-6 6 6 6L18 19.8l-6-6-6 6L4.6 18.4l6-6-6-6z',
+  export: 'M12 3l5 5h-3.5v7h-3V8H7zM4 17h16v4H4z',
+  form: 'M4 3h16v18H4zm3 4v2h10V7zm0 4v2h10v-2zm0 4v2h6v-2z',
+  ruler: 'M2 15.5L15.5 2 22 8.5 8.5 22zm3 0l3.5 3.5 1-1-1.5-1.5 1-1 1.5 1.5 1-1-1.5-1.5 1-1L12 15l1-1-1.5-1.5 1-1L14 13l1-1-1.5-1.5 1-1L16 11l1-1-3.5-3.5z',
+  area: 'M3 5l7-2 11 4-2 12-9 2-7-6zm2 1.6l1.8 7 5.3 4.6 5.5-1.2 1.4-8.6-8.1-3z',
 };
 
 export function icon(name: string, size = 20): string {
@@ -99,6 +118,7 @@ export const TABS: { id: TabId; label: string }[] = [
   { id: 'home', label: 'Home' },
   { id: 'data', label: 'Data' },
   { id: 'style', label: 'Map' },
+  { id: 'edit', label: 'Edit' },
   { id: 'analyze', label: 'Analysis' },
   { id: 'imagery', label: 'Imagery' },
   { id: 'modelling', label: 'Modelling' },
@@ -155,7 +175,48 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 export interface LayerStyleLite { symbology?: { kind?: string } }
 
+/** Editing and selection commands are handled by web/src/editing.ts via this event. */
+const editCmd = (action: string) => () => { document.dispatchEvent(new CustomEvent('geospax:edit', { detail: action })); };
+
+const measureCmd = (mode: string) => () => { document.dispatchEvent(new CustomEvent('geospax:measure', { detail: mode })); };
+const MEASURE: Command[] = [
+  { id: 'measure.distance', tab: 'style', group: 'Measure', title: 'Distance', icon: 'ruler', big: true, hint: 'Click points on the map: total and segment lengths (geodesic)', run: measureCmd('distance') },
+  { id: 'measure.area', tab: 'style', group: 'Measure', title: 'Area', icon: 'area', big: true, hint: 'Click points on the map: area and perimeter (geodesic)', run: measureCmd('area') },
+  { id: 'measure.clear', tab: 'style', group: 'Measure', title: 'Clear', icon: 'clear', run: measureCmd('clear') },
+];
+
+const SELECTION: Command[] = [
+  { id: 'sel.attributes', tab: 'edit', group: 'Selection', title: 'By attributes', icon: 'filter', big: true, hint: 'Select features with an SQL query (field, operator, value)', run: editCmd('select-attributes') },
+  { id: 'sel.location', tab: 'edit', group: 'Selection', title: 'By location', icon: 'hotspot', big: true, hint: 'Select features that intersect, lie within, contain or are near another layer', run: editCmd('select-location') },
+  { id: 'sel.zoom', tab: 'edit', group: 'Selection', title: 'Zoom to selected', icon: 'zoomTo', run: editCmd('zoom-selection') },
+  { id: 'sel.clear', tab: 'edit', group: 'Selection', title: 'Clear selection', icon: 'clear', run: editCmd('clear-selection') },
+];
+
 export const COMMANDS: Command[] = [
+  // ---- Edit (ArcGIS Pro's Edit tab): create, modify, selection, fields, manage edits
+  { id: 'edit.point', tab: 'edit', group: 'Create', title: 'Point', icon: 'point', big: true, hint: 'Click to add points to the active layer', run: editCmd('point') },
+  { id: 'edit.line', tab: 'edit', group: 'Create', title: 'Line', icon: 'line', big: true, hint: 'Click vertices, double-click to finish', run: editCmd('line') },
+  { id: 'edit.polygon', tab: 'edit', group: 'Create', title: 'Polygon', icon: 'polygon', big: true, hint: 'Click vertices, double-click or click the first point to close', run: editCmd('polygon') },
+  { id: 'edit.select', tab: 'edit', group: 'Modify', title: 'Select', icon: 'select', big: true, keys: 'S', hint: 'Click features to select them (Shift adds, Ctrl removes)', run: editCmd('select') },
+  { id: 'edit.box', tab: 'edit', group: 'Modify', title: 'Select by rectangle', icon: 'box', hint: 'Select the active layer\'s features inside a box', run: editCmd('box') },
+  { id: 'edit.vertices', tab: 'edit', group: 'Modify', title: 'Edit vertices', icon: 'vertices', hint: 'Reshape or move the selected feature; Enter saves', run: editCmd('vertices') },
+  { id: 'edit.attributes', tab: 'edit', group: 'Modify', title: 'Attributes', icon: 'form', hint: 'Edit the selected feature\'s attributes', run: editCmd('attributes') },
+  { id: 'edit.delete', tab: 'edit', group: 'Modify', title: 'Delete', icon: 'trash', keys: 'Del', hint: 'Delete the selected features', run: editCmd('delete') },
+  ...SELECTION,
+  { id: 'edit.calculate', tab: 'edit', group: 'Fields', title: 'Calculate field', icon: 'calc', big: true, hint: 'Field calculator: SQL expressions and geodesic area, length, x, y', run: editCmd('calculate') },
+  { id: 'edit.addField', tab: 'edit', group: 'Fields', title: 'Add field', icon: 'plus', run: editCmd('add-field') },
+  { id: 'edit.table', tab: 'edit', group: 'Fields', title: 'Attribute table', icon: 'table', run: editCmd('table') },
+  { id: 'edit.defquery', tab: 'edit', group: 'Fields', title: 'Definition query', icon: 'filter', hint: 'Show and analyse only the features that match a query', run: editCmd('definition-query') },
+  { id: 'edit.undo', tab: 'edit', group: 'Manage edits', title: 'Undo', icon: 'undo', keys: 'Ctrl+Z', run: editCmd('undo') },
+  { id: 'edit.redo', tab: 'edit', group: 'Manage edits', title: 'Redo', icon: 'redo', keys: 'Ctrl+Y', run: editCmd('redo') },
+  { id: 'edit.snap', tab: 'edit', group: 'Manage edits', title: 'Snapping', icon: 'magnet', hint: 'Snap new vertices to visible features (on/off)', run: editCmd('snapping') },
+  { id: 'edit.new', tab: 'edit', group: 'Manage edits', title: 'New layer', icon: 'plus', hint: 'An empty point, line or polygon layer to draw into', run: editCmd('new-layer') },
+  { id: 'edit.export', tab: 'edit', group: 'Manage edits', title: 'Export features', icon: 'export', hint: 'Save the selection (or the layer) as a new layer', run: editCmd('export') },
+  { id: 'edit.discard', tab: 'edit', group: 'Manage edits', title: 'Discard edits', icon: 'refresh', hint: 'Go back to the layer\'s original file', run: editCmd('discard') },
+  // the same selection tools on the Map tab, where ArcGIS Pro also has them
+  ...SELECTION.map((c) => ({ ...c, id: c.id.replace('sel.', 'map.sel.'), tab: 'style' as TabId })),
+  ...MEASURE,
+  ...MEASURE.map((c) => ({ ...c, id: c.id.replace('measure.', 'edit.measure.'), tab: 'edit' as TabId })),
   // ---- Layer (contextual tab: acts on the selected layer)
   {
     id: 'layer.zoom', tab: 'layer', group: 'Layer', title: 'Zoom to', icon: 'zoomTo', big: true,
@@ -218,6 +279,11 @@ export const COMMANDS: Command[] = [
     id: 'home.start', tab: 'home', group: 'Project', title: 'Start', icon: 'layout', big: true,
     hint: 'The start screen: drop data, plug in a device, your finished maps',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:start')); },
+  },
+  {
+    id: 'data.samples', tab: 'data', group: 'Add data', title: 'Sample data', icon: 'layers',
+    hint: 'Ready-made data to try the tools (Papua New Guinea survey, species, climate and tree cover)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:samples')); },
   },
   {
     id: 'data.add', tab: 'data', group: 'Add data', title: 'Add files', icon: 'download', big: true,
@@ -374,6 +440,16 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:theme', { detail: 'system' })); },
   },
   {
+    id: 'view.projMercator', tab: 'view', group: 'Projection', title: 'Mercator', icon: 'grid',
+    hint: 'Web Mercator: the flat web map (shapes kept, areas grow towards the poles)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:projection', { detail: 'mercator' })); },
+  },
+  {
+    id: 'view.projGlobe', tab: 'view', group: 'Projection', title: 'Globe', icon: 'globe',
+    hint: '3D globe when zoomed out (true areas and directions at world scale), flat when zoomed in',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:projection', { detail: 'globe' })); },
+  },
+  {
     id: 'view.basemapOffline', tab: 'view', group: 'Basemap', title: 'World (offline)', icon: 'globe',
     hint: 'Natural Earth land, lakes and borders, bundled with GeoSpaX: works without internet',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:basemap', { detail: 'offline' })); },
@@ -382,6 +458,11 @@ export const COMMANDS: Command[] = [
     id: 'view.basemapOsm', tab: 'view', group: 'Basemap', title: 'OpenStreetMap (online)', icon: 'image',
     hint: 'Streets and places from openstreetmap.org (needs internet)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:basemap', { detail: 'osm' })); },
+  },
+  {
+    id: 'view.basemapGallery', tab: 'view', group: 'Basemap', title: 'Basemap gallery', icon: 'gallery', big: true,
+    hint: 'Streets, topography, imagery, light and dark canvas, or your own XYZ tiles',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:basemap', { detail: 'gallery' })); },
   },
   {
     id: 'view.basemapNone', tab: 'view', group: 'Basemap', title: 'No basemap', icon: 'layout',

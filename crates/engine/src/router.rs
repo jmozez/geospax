@@ -87,6 +87,15 @@ pub fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
     query.split('&').filter_map(|kv| kv.split_once('=')).find(|(k, _)| *k == key).map(|(_, v)| v)
 }
 
+fn body_json(body: &[u8]) -> serde_json::Value {
+    serde_json::from_slice(body).unwrap_or_default()
+}
+
+/// `[1, 2, 3]` (or absent/null → None).
+fn fid_list(v: &serde_json::Value) -> Option<Vec<u64>> {
+    v.as_array().map(|a| a.iter().filter_map(|x| x.as_u64()).collect())
+}
+
 fn param(query: &str, key: &str) -> Option<String> {
     query_param(query, key).map(pct_decode)
 }
@@ -104,6 +113,11 @@ impl Engine {
             ("GET", ["api", "docs", name]) => match crate::docs::find(name) {
                 Some((n, t, md)) => ApiResponse::json(200, &json!({ "name": n, "title": t, "markdown": md, "version": env!("CARGO_PKG_VERSION") })),
                 None => ApiResponse::error(404, format!("there is no guide '{name}'")),
+            },
+            ("GET", ["api", "samples"]) => ApiResponse::json(200, &json!({ "samples": crate::samples::list() })),
+            ("POST", ["api", "samples", set]) => match crate::samples::open(self, set) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
             },
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
             ("GET", ["api", "layers"]) => {
@@ -132,6 +146,136 @@ impl Engine {
             ("GET", ["api", "layers", layer, "classify"]) => self.with_layer(layer, |l| self.classify_response(l, q)),
             ("GET", ["api", "layers", layer, "unique"]) => self.with_layer(layer, |l| self.unique_response(l, q)),
             // Attribute table (web/src/attributes.ts): a page of rows with a bbox each.
+            // ---- editing, selection and the attribute table (edit.rs)
+            // remove from the map for this session (the file is not touched; it opens again at the next start)
+            ("DELETE", ["api", "layers", layer]) => {
+                if self.remove_layer(layer) {
+                    ApiResponse::json(200, &json!({ "removed": layer }))
+                } else {
+                    ApiResponse::error(404, format!("unknown layer '{layer}'"))
+                }
+            }
+            ("POST", ["api", "layers", "new"]) => {
+                let b = body_json(&req.body);
+                let fields: Vec<(String, String)> = b["fields"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|f| Some((f["name"].as_str()?.to_string(), f["kind"].as_str().unwrap_or("text").to_string())))
+                    .collect();
+                match self.create_layer(b["name"].as_str().unwrap_or(""), b["geometry"].as_str().unwrap_or("point"), &fields) {
+                    Ok(id) => self.layer_reply(&id, 201, json!({})),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
+            ("POST", ["api", "layers", layer, "edit"]) => match self.edit_layer(layer) {
+                Ok(l) => ApiResponse::json(200, &json!({ "layer": self.layer_json(&l) })),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("POST", ["api", "layers", layer, "revert"]) => match self.revert_edits(layer) {
+                Ok(Some(l)) => ApiResponse::json(200, &json!({ "layer": self.layer_json(&l) })),
+                Ok(None) => ApiResponse::json(200, &json!({ "removed": layer })),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("GET", ["api", "layers", layer, "features", fid]) => self.with_layer(layer, |l| match fid.parse::<u64>() {
+                Ok(fid) => match self.feature_json(l, fid) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(404, e),
+                },
+                Err(_) => ApiResponse::error(400, "bad feature id"),
+            }),
+            ("POST", ["api", "layers", layer, "features"]) => match self.feature_add(layer, &body_json(&req.body)) {
+                Ok((fid, l)) => ApiResponse::json(201, &json!({ "fid": fid, "layer": self.layer_json(&l) })),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("PUT", ["api", "layers", layer, "features", fid]) => match fid.parse::<u64>() {
+                Ok(fid) => match self.feature_update(layer, fid, &body_json(&req.body)) {
+                    Ok(l) => ApiResponse::json(200, &json!({ "fid": fid, "layer": self.layer_json(&l) })),
+                    Err(e) => ApiResponse::error(400, e),
+                },
+                Err(_) => ApiResponse::error(400, "bad feature id"),
+            },
+            ("DELETE", ["api", "layers", layer, "features", fid]) => match fid.parse::<u64>() {
+                Ok(fid) => self.delete_reply(layer, &[fid]),
+                Err(_) => ApiResponse::error(400, "bad feature id"),
+            },
+            ("POST", ["api", "layers", layer, "features", "delete"]) => {
+                let fids = fid_list(&body_json(&req.body)["fids"]).unwrap_or_default();
+                self.delete_reply(layer, &fids)
+            }
+            ("POST", ["api", "layers", layer, "fields"]) => {
+                let b = body_json(&req.body);
+                match self.field_add(layer, b["name"].as_str().unwrap_or(""), b["kind"].as_str().unwrap_or("text")) {
+                    Ok(l) => ApiResponse::json(201, &json!({ "layer": self.layer_json(&l) })),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
+            ("DELETE", ["api", "layers", layer, "fields", name]) => match self.field_delete(layer, name) {
+                Ok(l) => ApiResponse::json(200, &json!({ "layer": self.layer_json(&l) })),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("POST", ["api", "layers", layer, "calculate"]) => {
+                let b = body_json(&req.body);
+                let field = b["field"].as_str().unwrap_or("").trim().to_string();
+                let fids = fid_list(&b["fids"]);
+                let r = match b["geometry"].as_str() {
+                    Some(what) => self.calculate_geometry(layer, &field, what, fids.as_deref()),
+                    None => self.calculate(layer, &field, b["expression"].as_str().unwrap_or(""), b["kind"].as_str(), b["where"].as_str(), fids.as_deref()),
+                };
+                match r {
+                    Ok((n, l)) => ApiResponse::json(200, &json!({ "updated": n, "layer": self.layer_json(&l) })),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
+            ("POST", ["api", "layers", layer, "select"]) => self.with_layer(layer, |l| {
+                let b = body_json(&req.body);
+                let loc = b.get("location").filter(|v| v.is_object()).map(|v| crate::edit::Location {
+                    layer: v["layer"].as_str().unwrap_or("").to_string(),
+                    relation: v["relation"].as_str().unwrap_or("intersects").to_string(),
+                    distance_m: v["distance_m"].as_f64().unwrap_or(0.0),
+                    fids: fid_list(&v["fids"]),
+                });
+                let within = fid_list(&b["within"]);
+                match self.select(l, b["where"].as_str(), loc.as_ref(), within.as_deref()) {
+                    Ok(fids) => ApiResponse::json(200, &json!({ "count": fids.len(), "fids": fids, "capped": fids.len() >= crate::edit::MAX_SELECT })),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }),
+            ("PUT", ["api", "layers", layer, "filter"]) => self.with_layer(layer, |l| {
+                let b = body_json(&req.body);
+                match l.set_filter(b["where"].as_str().map(String::from)) {
+                    Ok(()) => {
+                        self.clear_cache();
+                        let mut v = self.layer_json(l);
+                        v["filtered_count"] = l.filtered_count().into();
+                        ApiResponse::json(200, &json!({ "layer": v }))
+                    }
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }),
+            ("POST", ["api", "layers", layer, "table"]) => self.with_layer(layer, |l| {
+                let b = body_json(&req.body);
+                let tq = crate::edit::TableQuery {
+                    offset: b["offset"].as_u64().unwrap_or(0) as usize,
+                    limit: b["limit"].as_u64().unwrap_or(200) as usize,
+                    sort: b["sort"].as_str().map(String::from),
+                    desc: b["desc"].as_bool().unwrap_or(false),
+                    where_: b["where"].as_str().map(String::from),
+                    fids: fid_list(&b["fids"]),
+                };
+                match self.table(l, &tq) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }),
+            ("POST", ["api", "layers", layer, "export"]) => self.with_layer(layer, |l| {
+                let b = body_json(&req.body);
+                let fids = fid_list(&b["fids"]);
+                match self.export_features(l, b["name"].as_str().unwrap_or(""), b["where"].as_str(), fids.as_deref()) {
+                    Ok(id) => self.layer_reply(&id, 201, json!({})),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }),
             ("GET", ["api", "layers", layer, "rows"]) => self.with_layer(layer, |l| {
                 let offset = param(q, "offset").and_then(|s| s.parse().ok()).unwrap_or(0usize);
                 let limit = param(q, "limit").and_then(|s| s.parse().ok()).unwrap_or(250usize).clamp(1, 2000);
@@ -369,6 +513,23 @@ impl Engine {
             ("PUT", ["api", "project"]) => self.project_put(&req.body),
             ("OPTIONS", _) => ApiResponse { status: 204, content_type: "text/plain", headers: vec![], body: vec![] },
             _ => ApiResponse::error(404, format!("no route for {} {}", req.method, req.path)),
+        }
+    }
+
+    fn layer_reply(&self, id: &str, status: u16, mut extra: serde_json::Value) -> ApiResponse {
+        match self.layer(id) {
+            Some(l) => {
+                extra["layer"] = self.layer_json(&l);
+                ApiResponse::json(status, &extra)
+            }
+            None => ApiResponse::error(500, format!("layer {id} was not added")),
+        }
+    }
+
+    fn delete_reply(&self, layer: &str, fids: &[u64]) -> ApiResponse {
+        match self.features_delete(layer, fids) {
+            Ok((n, l)) => ApiResponse::json(200, &json!({ "deleted": n, "layer": self.layer_json(&l) })),
+            Err(e) => ApiResponse::error(400, e),
         }
     }
 
