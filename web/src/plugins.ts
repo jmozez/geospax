@@ -2,6 +2,7 @@
 // for every tool. GeoSpaX reads five manifest formats, so a tool written for RustGIS,
 // GeoLibre, QGIS or ArcGIS Pro shows up here next to a native one — with an honest note
 // when its runtime is missing (a QGIS UI plugin needs PyQt; a Pro add-in needs .NET).
+import { pickField, pickLayers, pickRasters } from './prefill';
 import type { Backend } from './backend';
 import { icon } from './commands';
 
@@ -81,7 +82,9 @@ export const SOURCE_LABEL: Record<string, string> = {
 export interface PluginsHost {
   log: (line: string) => void;
   setStatus: (text: string, ms?: number) => void;
-  layers: () => { id: string; name: string; fields?: { name: string; kind: string }[] }[];
+  layers: () => { id: string; name: string; geometry?: string; fields?: { name: string; kind: string }[] }[];
+  /** the layer selected in Contents: tool dialogs start from it when it fits */
+  active?: () => string | null;
   onChanged: (state: PluginsState) => void;
 }
 
@@ -283,26 +286,34 @@ export class PluginsPane {
       : [];
     const field = (l: { fields?: { name: string; kind: string }[] }) => l.fields ?? [];
     const params = tool.params ?? [];
+    // fitting inputs chosen up front, as ArcGIS Pro does (prefill.ts)
+    const chosen = pickLayers(params, layers, this.host.active?.());
+    const firstLayer = layers.find((l) => l.id === Object.values(chosen)[0]);
+    const chosenRasters = pickRasters(params, rasters);
+    const sel = (on: boolean) => (on ? ' selected' : '');
     const inputs = params
       .map((prm) => {
         const v = prm.default ?? '';
         if (prm.kind === 'layer') {
           return `<label class="pf"><span>${esc(prm.label || prm.name)}</span><select data-p="${esc(prm.name)}">
-            <option value="">auto</option>
-            ${layers.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}
+            <option value="">${prm.required ? '(choose)' : '(none)'}</option>
+            ${layers.map((l) => `<option value="${esc(l.id)}"${sel(chosen[prm.name] === l.id)}>${esc(l.name)}</option>`).join('')}
           </select></label>`;
         }
         if (prm.kind === 'raster' || prm.kind === 'rasters') {
           const multi = prm.kind === 'rasters';
-          const opts = rasters.map((r) => `<option value="${esc(r.id)}">${esc(r.title || r.id)}${r.bands > 1 ? ` (${r.bands} bands)` : ''}</option>`).join('');
+          const want = chosenRasters[prm.name];
+          const opts = rasters.map((r) => `<option value="${esc(r.id)}"${sel(Array.isArray(want) ? want.includes(r.id) : want === r.id)}>${esc(r.title || r.id)}${r.bands > 1 ? ` (${r.bands} bands)` : ''}</option>`).join('');
           return `<label class="pf"><span>${esc(prm.label || prm.name)}${multi ? ' <small class="dim">(Ctrl/⌘-click for several)</small>' : ''}</span><select data-p="${esc(prm.name)}" ${multi ? `multiple size="${Math.min(6, Math.max(3, rasters.length))}"` : ''}>
             ${multi ? '' : '<option value="">(choose)</option>'}${opts || '<option value="" disabled>No rasters on the map yet: add one (Data › Online data, Imagery)</option>'}
           </select></label>`;
         }
         if (prm.kind === 'field') {
-          const all = [...new Set(layers.flatMap((l) => field(l).map((f) => f.name)))];
+          // the chosen layer's fields first, then the others
+          const all = [...new Set([...field(firstLayer ?? {}), ...layers.flatMap(field)].map((f) => f.name))];
+          const f0 = pickField(prm, firstLayer);
           return `<label class="pf"><span>${esc(prm.label || prm.name)}</span><select data-p="${esc(prm.name)}">
-            <option value="">(none)</option>${all.map((f) => `<option>${esc(f)}</option>`).join('')}
+            <option value="">(none)</option>${all.map((f) => `<option${sel(f === f0)}>${esc(f)}</option>`).join('')}
           </select></label>`;
         }
         if (prm.kind === 'bool') {

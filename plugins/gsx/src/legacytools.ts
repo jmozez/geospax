@@ -1,3 +1,4 @@
+import { maxOf, minOf } from './analysis/extent';
 // Tools from GeoSpaX 1.4.2 (jm0535/map-kit) rebuilt for GeoSpaX 3: local Moran's I (LISA) with the
 // global Moran's I and its scatterplot, and the elevation profile (along lines over a DEM, or through
 // points with an elevation field). Same methods as 1.4.2's documentation (Anselin 1995; conditional
@@ -214,16 +215,16 @@ function profileStats(p: Profile) {
     if (dd > 0) steep = Math.max(steep, Math.abs(Math.atan2(dz, dd)) / rad);
   }
   const zs = ok.map(([, z]) => z);
-  return { length: p.d[p.d.length - 1] ?? 0, min: Math.min(...zs), max: Math.max(...zs), up, down, steep, n: ok.length };
+  return { length: p.d[p.d.length - 1] ?? 0, min: minOf(zs), max: maxOf(zs), up, down, steep, n: ok.length };
 }
 
 function profileSvg(profiles: Profile[], unit: string): string {
   const W = 640, H = 300, ml = 56, mr = 16, mt = 18, mb = 40;
   const all = profiles.flatMap((p) => p.z.filter(Number.isFinite));
-  const zmin = Math.min(...all), zmax = Math.max(...all);
+  const zmin = minOf(all), zmax = maxOf(all);
   const pad = (zmax - zmin) * 0.06 || 1;
   const z0 = zmin - pad, z1 = zmax + pad;
-  const dmax = Math.max(...profiles.map((p) => p.d[p.d.length - 1] ?? 0)) || 1;
+  const dmax = maxOf(profiles.map((p) => p.d[p.d.length - 1] ?? 0)) || 1;
   const km = dmax >= 2000;
   const sx = (d: number) => ml + (d / dmax) * (W - ml - mr);
   const sy = (z: number) => H - mb - ((z - z0) / (z1 - z0)) * (H - mt - mb);

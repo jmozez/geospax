@@ -238,7 +238,7 @@ export class RConsole {
       if (t === this.el || t.closest('[data-close]')) this.close();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !this.el.hidden) this.close();
+      if (e.key === 'Escape') this.close(); // also cancels a window still waiting to open
     });
     document.addEventListener('geospax:r', (e) => {
       const what = String((e as CustomEvent).detail ?? 'blank');
@@ -246,7 +246,11 @@ export class RConsole {
     });
   }
 
+  /** Bumped on every open and close: a window still loading when you close it (or open another) stays shut. */
+  private seq = 0;
+
   close() {
+    this.seq++;
     this.el.hidden = true;
   }
 
@@ -348,8 +352,10 @@ export class RConsole {
   /** The R console, opened on a template. */
   async console(kind: string) {
     const t = TEMPLATES[kind] ?? TEMPLATES.blank;
+    const my = ++this.seq;
     const layers = this.host.layers();
     const rasters = await this.host.rasters().catch(() => [] as string[]);
+    if (my !== this.seq) return;
     const pick = (name: 'layer' | 'raster', ids: string[]) =>
       `<label><span>${name === 'layer' ? 'Layer (sf) → <code>layer</code>' : 'Raster (terra) → <code>raster</code>'}</span><select name="${name}">
         ${t.needs.includes(name) ? '' : '<option value="">none</option>'}${ids.map((i) => `<option value="${esc(i)}">${esc(i)}</option>`).join('')}</select></label>`;

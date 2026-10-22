@@ -26,6 +26,21 @@ Imagery or Modelling tabs, which hold GeoSpaX's own tools. All twelve run the sa
 **GSX library** in `plugins/gsx` (`library: true`: not listed, but recipes, the API and MCP call its
 tools as `gsx/<tool>`, so a tool gives the same answer from every domain).
 
+A tool's dialog opens with its inputs already chosen, as in ArcGIS Pro's geoprocessing pane:
+- **Layers:** the layer selected in Contents when it fits, unless another layer fits the input better
+  by name (a *habitat* layer for "Habitat", a layer with a species column for diversity). Points,
+  lines and polygons go only to inputs that take them; a second input (B, protected areas) gets a
+  different layer, and the second date of a pair the layer's later version (habitat → habitat_2024).
+- **Fields:** a field of the right type from that layer, its name matching the input's
+  (`dist_to_road_km` for "Distance field", `species` for "Species"); identifiers such as `site` are
+  never taken as values. Optional inputs (a constraint field, a second layer) stay empty unless their
+  own name names the field, since a wrong constraint would change the result.
+- **Rasters:** a multiband image for "Image", a raster named as a DEM for "Elevation" (never a
+  temperature or other surface), the earlier and later of two dated rasters for change, and the
+  climate rasters as species-model covariates.
+- **Never earlier results**, unless you select one: a tool starts from your data.
+When nothing fits, the input stays empty and the tool says what it needs ("Choose a DEM").
+
 The analysis code (`plugins/gsx/src/analysis`, about 5,000 lines of TypeScript on Turf and proj4) is
 GeoSpaX 2.0's `@geospax/analysis`, unchanged, so its golden-value tests run as they did (103 of them,
 in CI). It needs **Node.js 18+** and nothing else; no tool here goes online.
