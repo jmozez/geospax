@@ -49,6 +49,15 @@ ArcGIS `…/MapServer` or `…/FeatureServer`). Open it to see its layers. A map
 **web layer** (Contents › Web layers, with opacity); a feature layer is downloaded for the map view and becomes
 a normal layer you can style, analyse and export. The ✕ next to a service removes the connection.
 
+### How do I find satellite imagery (Sentinel-2, Landsat) for my area?
+
+In the **Explorer**, under *Web services*, press **＋ Add** and pick one of the public STAC catalogs (Earth
+Search, Planetary Computer, Copernicus Data Space), or paste another STAC API address. Open it and click a
+collection: a search panel opens beside the map. Choose the map view or draw a box, set the dates and the most
+cloud you accept, and press **Search**. Click a result to see its bands: **Stream** puts a band on the map
+without copying it (good for a look); **Download** saves it cut to your area (`~/GeoSpaX/Data/.geospax/stac/`
+on a desktop), with a progress gauge. Large scenes stream far faster than they download.
+
 ### Lazy or Pro?
 
 **Lazy** shows layer cards, a task bar ("What do you want to do?") and plain-language next steps. **Pro** shows

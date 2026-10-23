@@ -19,6 +19,7 @@ export class DownloadGauge {
   private el: HTMLElement;
   private hideTimer = 0;
   private current: string | null = null;
+  private cancelUrl: string | null = null;
 
   constructor(private backend: Backend, private openRun: (id: string) => void) {
     this.el = document.createElement('div');
@@ -29,18 +30,19 @@ export class DownloadGauge {
     document.body.appendChild(this.el);
     this.el.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
-      if (t.closest('[data-dl-stop]') && this.current) void this.backend.json(`api/runs/${this.current}/cancel`, { method: 'POST' }).catch(() => undefined);
+      if (t.closest('[data-dl-stop]') && this.current) void this.backend.json(this.cancelUrl ?? `api/runs/${this.current}/cancel`, { method: 'POST' }).catch(() => undefined);
       if (t.closest('[data-dl-close]')) this.el.hidden = true;
       const open = t.closest<HTMLElement>('[data-dl-open]')?.dataset.dlOpen;
       if (open) this.openRun(open);
     });
-    document.addEventListener('geospax:run-progress', (e) => this.show((e as CustomEvent<RunInfo>).detail));
+    document.addEventListener('geospax:run-progress', (e) => this.show((e as CustomEvent<RunInfo & { cancel_url?: string }>).detail));
   }
 
-  private show(run: RunInfo) {
+  private show(run: RunInfo & { cancel_url?: string }) {
     // the gauge is for downloads: Online data runs, and any run while it reports a transfer
     if (run.recipe !== ONLINE_RECIPE && !run.transfer && this.current !== run.id) return;
     this.current = run.id;
+    this.cancelUrl = run.cancel_url ?? null;
     clearTimeout(this.hideTimer);
     const t = run.transfer;
     const running = run.status === 'running' || run.status === 'queued';
@@ -61,7 +63,7 @@ export class DownloadGauge {
       this.el.className = 'dl-gauge done';
       this.el.innerHTML = `<div class="dl-head"><b>✓ Downloaded</b><span>${esc(run.title)}</span></div>
         <p class="dl-note">${added ? `${added} layer${added === 1 ? '' : 's'} added to Contents.` : 'Finished.'}</p>
-        <div class="dl-acts"><button data-dl-open="${esc(run.id)}">Details</button><button data-dl-close>OK</button></div>`;
+        <div class="dl-acts">${run.cancel_url ? '' : `<button data-dl-open="${esc(run.id)}">Details</button>`}<button data-dl-close>OK</button></div>`;
       this.hideTimer = window.setTimeout(() => (this.el.hidden = true), 8000);
     } else {
       this.el.className = 'dl-gauge failed';

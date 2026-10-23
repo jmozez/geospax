@@ -28,6 +28,7 @@ import { Toolbox } from './toolbox';
 import { StartScreen } from './start';
 import { FinishMap, FINISH_RECIPE } from './finish';
 import { OnlineData } from './online';
+import { StacSearch } from './stac';
 import { RConsole } from './rconsole';
 import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
 import {
@@ -295,6 +296,7 @@ paintTheme();
 systemDark?.addEventListener?.('change', () => theme === 'system' && setTheme('system'));
 
 let footprint: GeoJSON.Feature | null = null;
+let stacFootprints: GeoJSON.FeatureCollection | null = null;
 
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
@@ -361,6 +363,11 @@ function buildStyle(): maplibregl.StyleSpecification {
     }
   }
   // the file selected in the Explorer: its outline
+  if (stacFootprints) {
+    sources['stac-footprints'] = { type: 'geojson', data: stacFootprints };
+    out.push({ id: 'stac-footprints-fill', type: 'fill', source: 'stac-footprints', paint: { 'fill-color': '#4cc2ff', 'fill-opacity': ['case', ['==', ['get', 'hl'], 1], 0.18, 0.03] } } as maplibregl.LayerSpecification,
+      { id: 'stac-footprints', type: 'line', source: 'stac-footprints', paint: { 'line-color': ['case', ['==', ['get', 'hl'], 1], '#ffd166', '#4cc2ff'], 'line-width': ['case', ['==', ['get', 'hl'], 1], 2.5, 1] } } as maplibregl.LayerSpecification);
+  }
   if (footprint) {
     sources['explorer-footprint'] = { type: 'geojson', data: footprint };
     out.push({ id: 'explorer-footprint-fill', type: 'fill', source: 'explorer-footprint', paint: { 'fill-color': '#ff7a45', 'fill-opacity': 0.08 } } as maplibregl.LayerSpecification,
@@ -2007,6 +2014,11 @@ async function main() {
     applyStyle();
     if (b) map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 80, maxZoom: 14, duration: 400 });
   });
+  // STAC search results outlined on the map (the opened item highlighted)
+  document.addEventListener('geospax:stac-footprints', (e) => {
+    stacFootprints = (e as CustomEvent<GeoJSON.FeatureCollection | null>).detail;
+    applyStyle();
+  });
   // features from a web service, for the area on the map, become a layer
   document.addEventListener('geospax:ws-fetch', async (e) => {
     const d = (e as CustomEvent<{ sid: string; layer: string; title: string }>).detail;
@@ -2448,6 +2460,16 @@ async function main() {
   });
   // Data › Online data: climate, soil, species, boundaries and elevation for the area (online.ts)
   new DownloadGauge(backend, (id) => void openRunReport(id));
+  // Explorer › a STAC catalog › a collection: search imagery for the area (stac.ts)
+  new StacSearch({
+    backend,
+    view: () => {
+      const [w, so, e, n] = map.getBounds().toArray().flat();
+      return [Math.max(-180, w), Math.max(-85, so), Math.min(180, e), Math.min(85, n)];
+    },
+    drawBox: () => drawBoxOnMap(),
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  });
   new OnlineData({
     backend,
     // a globe zoomed out can report bounds past the poles or the date line: keep them on the Earth

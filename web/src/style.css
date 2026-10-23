@@ -1378,3 +1378,25 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .cat-mini { padding: 0 6px; font-size: 11px; text-transform: none; letter-spacing: 0; }
 .ws-field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; font-size: 12px; }
 .ws-field input, .ws-field select { width: 100%; }
+
+/* STAC search panel (stac.ts): beside the map, so the map stays usable */
+.stac-panel { position: fixed; right: 12px; top: 120px; bottom: 60px; z-index: 65; width: min(360px, calc(100vw - 32px)); display: flex; flex-direction: column; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 13px; }
+.stac-panel[hidden] { display: none; }
+.stac-panel header { display: flex; gap: 8px; align-items: baseline; padding: 10px 12px; border-bottom: 1px solid var(--line); min-width: 0; }
+.stac-panel header .dim { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stac-panel header button { background: none; border: 0; color: var(--muted); cursor: pointer; }
+.stac-form { padding: 10px 12px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); }
+.stac-area, .stac-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.stac-area > span { color: var(--muted); }
+.stac-acts { display: flex; justify-content: flex-end; }
+.stac-results { flex: 1; overflow: auto; padding: 8px 12px; }
+.stac-item { border: 1px solid var(--line); border-radius: 4px; margin-bottom: 6px; }
+.stac-item.open { border-color: #ffd166; }
+.si-head { display: flex; gap: 8px; padding: 6px; cursor: pointer; align-items: center; }
+.si-head img { width: 48px; height: 48px; object-fit: cover; border-radius: 3px; background: var(--sunken); }
+.si-head > div { display: flex; flex-direction: column; min-width: 0; }
+.si-id { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.si-assets { padding: 4px 6px 8px; display: grid; gap: 4px; }
+.si-asset { display: flex; gap: 6px; align-items: center; }
+.si-asset span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-known { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
