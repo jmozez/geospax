@@ -806,7 +806,8 @@ export class Workbench {
   /** web service connections and their layers */
   private services: { id: string; kind: string; url: string; title: string }[] | null = null;
   private serviceKinds: { id: string; title: string }[] = [];
-  private serviceLayers = new Map<string, { id: string; title: string; type: 'tiles' | 'features' }[] | string>();
+  private stacCatalogs: { title: string; url: string }[] = [];
+  private serviceLayers = new Map<string, { id: string; title: string; type: 'tiles' | 'features' | 'collection' }[] | string>();
   /** the file or layer selected in the Explorer, with its preview */
   private sel: { path: string; layer?: string; name: string; data?: Preview; error?: string } | null = null;
   private favourites: { path: string; name: string; folder: boolean }[] = (() => {
@@ -934,6 +935,7 @@ export class Workbench {
       const wl = t.closest<HTMLElement>('[data-ws-layer]');
       if (wl) {
         const d = { sid: wl.dataset.wsSid!, layer: wl.dataset.wsLayer!, title: wl.dataset.wsTitle! };
+        if (wl.dataset.wsType === 'collection') return void document.dispatchEvent(new CustomEvent('geospax:stac-search', { detail: { sid: d.sid, collection: d.layer, title: d.title } }));
         return void document.dispatchEvent(new CustomEvent(wl.dataset.wsType === 'features' ? 'geospax:ws-fetch' : 'geospax:add-web-layer', { detail: d }));
       }
       const gx = t.closest<HTMLElement>('[data-gx]')?.dataset.gx;
@@ -1064,14 +1066,15 @@ export class Workbench {
   /** Web services (WMS, WMTS, XYZ, ArcGIS, WFS, OGC API): connections and their layers. */
   private servicesSection(): string {
     if (!this.services) {
-      void this.host.backend.json<{ services: { id: string; kind: string; url: string; title: string }[]; kinds: { id: string; title: string }[] }>('api/services').then((r) => {
+      void this.host.backend.json<{ services: { id: string; kind: string; url: string; title: string }[]; kinds: { id: string; title: string }[]; stac_catalogs?: { title: string; url: string }[] }>('api/services').then((r) => {
         this.services = r.services;
         this.serviceKinds = r.kinds;
+        this.stacCatalogs = r.stac_catalogs ?? [];
         this.renderCatalog();
       }).catch(() => { this.services = []; });
       return '<div class="pane-empty">Reading…</div>';
     }
-    if (!this.services.length) return `<div class="pane-empty">No web services yet.${this.canConnect ? ' <b>＋ Add</b> connects a WMS, WMTS, XYZ, WFS, OGC API or ArcGIS service.' : ''}</div>`;
+    if (!this.services.length) return `<div class="pane-empty">No web services yet.${this.canConnect ? ' <b>＋ Add</b> connects a WMS, WMTS, XYZ, WFS, OGC API, ArcGIS service or a STAC imagery catalog.' : ''}</div>`;
     const kindTitle = (k: string) => this.serviceKinds.find((x) => x.id === k)?.title ?? k;
     return this.services.map((sv) => {
       const open = this.browseOpen.has(`ws:${sv.id}`);
@@ -1080,7 +1083,7 @@ export class Workbench {
       const ls = this.serviceLayers.get(sv.id);
       if (ls === undefined) return `${head}<div class="pane-empty" style="padding-left:32px">Asking the service…</div>`;
       if (typeof ls === 'string') return `${head}<div class="pane-empty err" style="padding-left:32px">${esc(ls)}</div>`;
-      return head + ls.map((l) => `<div class="node gx-leaf" data-ws-layer="${esc(l.id)}" data-ws-sid="${esc(sv.id)}" data-ws-title="${esc(l.title)}" data-ws-type="${l.type}" style="padding-left:32px" title="${esc(l.type === 'features' ? 'Click to download its features for the map view' : 'Click to add it to the map')}">${icon(l.type === 'features' ? 'layers' : 'image', 13)}<span class="nm">${esc(l.title)}</span><span class="ct dim">${l.type === 'features' ? 'features' : 'map image'}</span></div>`).join('');
+      return head + ls.map((l) => `<div class="node gx-leaf" data-ws-layer="${esc(l.id)}" data-ws-sid="${esc(sv.id)}" data-ws-title="${esc(l.title)}" data-ws-type="${l.type}" style="padding-left:32px" title="${esc(l.type === 'collection' ? 'Click to search it for imagery of the map area' : l.type === 'features' ? 'Click to download its features for the map view' : 'Click to add it to the map')}">${icon(l.type === 'features' ? 'layers' : l.type === 'collection' ? 'search' : 'image', 13)}<span class="nm">${esc(l.title)}</span><span class="ct dim">${l.type === 'collection' ? 'search' : l.type === 'features' ? 'features' : 'map image'}</span></div>`).join('');
     }).join('');
   }
 
@@ -1091,7 +1094,7 @@ export class Workbench {
     this.renderCatalog();
     if (!this.serviceLayers.has(id) || typeof this.serviceLayers.get(id) === 'string') {
       try {
-        this.serviceLayers.set(id, (await this.host.backend.json<{ layers: { id: string; title: string; type: 'tiles' | 'features' }[] }>(`api/services/${encodeURIComponent(id)}/layers`)).layers);
+        this.serviceLayers.set(id, (await this.host.backend.json<{ layers: { id: string; title: string; type: 'tiles' | 'features' | 'collection' }[] }>(`api/services/${encodeURIComponent(id)}/layers`)).layers);
       } catch (e) {
         this.serviceLayers.set(id, `The service did not answer: ${e instanceof Error ? e.message : e}`);
       }
@@ -1111,8 +1114,9 @@ export class Workbench {
     const kinds = this.serviceKinds.length ? this.serviceKinds : [{ id: 'wms', title: 'WMS' }];
     const hints: Record<string, string> = {
       xyz: 'https://tile.example.org/{z}/{x}/{y}.png', wms: 'https://example.org/geoserver/wms', wmts: 'https://example.org/wmts/1.0.0/WMTSCapabilities.xml',
-      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer',
+      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer', stac: 'https://earth-search.aws.element84.com/v1',
     };
+    const known = this.stacCatalogs;
     const modal = document.createElement('div');
     modal.className = 'modal folder-pick';
     modal.innerHTML = `<form class="sheet fp" role="dialog" aria-label="Add a web service">
@@ -1121,14 +1125,24 @@ export class Workbench {
         <label class="ws-field"><span>Type</span><select name="kind">${kinds.map((k) => `<option value="${esc(k.id)}">${esc(k.title)}</option>`).join('')}</select></label>
         <label class="ws-field"><span>Address</span><input name="url" required spellcheck="false" placeholder="${esc(hints[kinds[0].id] ?? 'https://')}" /></label>
         <label class="ws-field"><span>Name (optional)</span><input name="title" /></label>
-        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer.</p>
+        ${known.length ? `<div class="ws-field ws-known"><span>Or a public STAC catalog</span>${known.map((k) => `<button type="button" data-known="${esc(k.url)}" data-known-title="${esc(k.title)}">${esc(k.title)}</button>`).join('')}</div>` : ''}
+        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud.</p>
         <p class="err" data-msg></p>
       </div>
       <footer><button type="button" data-x>Cancel</button><button class="primary" type="submit">Connect</button></footer></form>`;
     document.body.appendChild(modal);
     const form = modal.querySelector('form')!;
     const close = () => modal.remove();
-    modal.addEventListener('click', (e) => { if (e.target === modal || (e.target as HTMLElement).closest('[data-x]')) close(); });
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || (e.target as HTMLElement).closest('[data-x]')) close();
+      const k = (e.target as HTMLElement).closest<HTMLElement>('[data-known]');
+      if (k) {
+        (form.kind as HTMLSelectElement).value = 'stac';
+        (form.url as HTMLInputElement).value = k.dataset.known!;
+        (form.elements.namedItem('title') as HTMLInputElement).value = k.dataset.knownTitle!;
+        form.requestSubmit();
+      }
+    });
     form.kind.addEventListener('change', () => { (form.url as HTMLInputElement).placeholder = hints[(form.kind as HTMLSelectElement).value] ?? 'https://'; });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
