@@ -18,7 +18,7 @@ const ok = (name, cond, extra = '') => {
   else { fails.push(name); console.log(`  FAIL ${name}${extra ? ` (${extra})` : ''}`); }
 };
 // long or environment-bound: run separately (bench, deck, full screen, docs in new tabs)
-const SKIP = new Set(['analyze.bench', 'analyze.deck', 'view.fullscreen', 'home.exportPng', 'home.copyLink']);
+const SKIP = new Set(['analyze.bench', 'analyze.deck', 'view.fullscreen', 'home.exportPng', 'home.copyLink', 'layer.remove']);
 // switches: clicked twice, so the next command finds the window as it was
 const TOGGLES = new Set(['view.dockLeft', 'view.dockRight', 'view.dockBottom', 'view.ribbonAutoHide', 'home.contents']);
 // online basemap tiles fail where the network is closed (CI, sandboxes): not a UI fault
@@ -53,6 +53,7 @@ const clickAll = async (label, selector) => {
   for (let i = 0; i < n; i++) {
     const el = page.locator(selector).nth(i);
     if (!(await el.isVisible().catch(() => false)) || !(await el.isEnabled().catch(() => false))) continue;
+    if (SKIP.has(await el.getAttribute('data-cmd').catch(() => null))) continue;
     where = `${label} #${i} ${((await el.innerText().catch(() => '')) || (await el.getAttribute('title')) || '').replace(/\s+/g, ' ').slice(0, 40)}`;
     const before = problems.length;
     await el.click({ timeout: 3000 }).catch((e) => problems.push(`[${where}] click failed: ${e.message.split('\n')[0]}${(e.message.match(/<[^\n]*intercepts pointer events/) ?? [''])[0].slice(0, 160)}`));

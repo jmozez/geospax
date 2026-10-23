@@ -85,7 +85,7 @@ export function renderMarkdown(md: string): string {
       i++;
       continue;
     }
-    if (!l.trim() || /^&lt;\/?(p|div|img|br|picture|source)\b/.test(l.trim())) {
+    if (!l.trim() || /^&lt;\/?(p|div|img|br|picture|source|h1|a)\b/.test(l.trim())) {
       i++;
       continue;
     }
@@ -95,6 +95,30 @@ export function renderMarkdown(md: string): string {
     else i++;
   }
   return out.join('\n');
+}
+
+/** Open the help page on a guide (`USER_GUIDE`, `FAQ/installing`); false when it could not open. */
+export async function openHelpPage(route: string, edition?: string): Promise<boolean> {
+  const url = `help.html#${route}`;
+  if (edition === 'desktop') {
+    try {
+      const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+      const open = await WebviewWindow.getByLabel('help');
+      if (open) {
+        await open.emit('geospax:help', route).catch(() => undefined);
+        await open.setFocus();
+        return true;
+      }
+      const w = new WebviewWindow('help', { url, title: 'GeoSpaX Help', width: 1200, height: 860 });
+      return await new Promise<boolean>((resolve) => {
+        void w.once('tauri://created', () => resolve(true));
+        void w.once('tauri://error', () => resolve(false));
+      });
+    } catch {
+      return false;
+    }
+  }
+  return !!window.open(url, 'geospax-help');
 }
 
 export class DocsViewer {
@@ -151,9 +175,20 @@ export class DocsViewer {
     this.modal.hidden = false;
   }
 
-  /** Open a guide by name or link (`USER_GUIDE`, `docs/AUTOMATION.md`, `THIRD_PARTY_NOTICES.md`). */
+  /** Open a guide by name or link (`USER_GUIDE`, `docs/AUTOMATION.md#2-recipes`): on the help page
+   *  (help.html) in a browser tab or, on the desktop, its own window; in this viewer if that fails. */
   async open(name: string) {
     const key = name.replace(/^.*\//, '').replace(/\.md(#.*)?$/, '');
+    const anchor = /#(.+)$/.exec(name)?.[1];
+    if (await openHelpPage(key + (anchor ? `/${anchor}` : ''), (this.backend as { edition?: string }).edition)) {
+      this.close();
+      return;
+    }
+    return this.openHere(key);
+  }
+
+  /** The guide inside the app (the fallback when no help page can open). */
+  async openHere(key: string) {
     this.history.push(key);
     this.show('Help', '<p class="muted">Loading…</p>');
     try {

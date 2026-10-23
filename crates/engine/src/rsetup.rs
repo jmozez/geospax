@@ -175,18 +175,27 @@ fn install_packages(job: &Job, packages: &[String]) -> Result<String, String> {
     let list: Vec<String> = packages.iter().map(|p| rs(p)).collect();
     // one package at a time so the job can show progress; failures are collected, not fatal
     let script = format!(
-        r#"lib <- {lib}
+        r#"sink(stdout(), type = "message")
+lib <- {lib}
 .libPaths(c(lib, .libPaths()))
 options(repos = c(CRAN = {repo}), HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(), paste(getRversion(), R.version$platform, R.version$arch, R.version$os)), timeout = 600)
 pk <- c({list})
 failed <- character()
+ver <- function(p) tryCatch(as.character(utils::packageVersion(p)), error = function(e) "")
+if (length(pk)) {{
+  ok <- tryCatch({{ nrow(utils::available.packages()) > 0 }}, error = function(e) FALSE, warning = function(w) FALSE)
+  if (!ok) cat("GSXNOREPO", getOption("repos")[["CRAN"]], "\n")
+}}
 for (i in seq_along(pk)) {{
   cat("GSX", i, length(pk), pk[i], "\n")
-  if (!requireNamespace(pk[i], quietly = TRUE)) {{
-    tryCatch(utils::install.packages(pk[i], lib = lib, dependencies = c("Depends", "Imports", "LinkingTo"), quiet = TRUE),
-      error = function(e) message(conditionMessage(e)), warning = function(w) message(conditionMessage(w)))
-    if (!requireNamespace(pk[i], quietly = TRUE)) failed <- c(failed, pk[i])
+  if (nzchar(ver(pk[i]))) {{
+    cat("GSXOK", pk[i], ver(pk[i]), "already\n")
+    next
   }}
+  tryCatch(utils::install.packages(pk[i], lib = lib, dependencies = c("Depends", "Imports", "LinkingTo")),
+    error = function(e) message("ERROR: ", conditionMessage(e)), warning = function(w) message("WARNING: ", conditionMessage(w)))
+  if (nzchar(ver(pk[i])) && requireNamespace(pk[i], quietly = TRUE)) cat("GSXOK", pk[i], ver(pk[i]), "installed\n")
+  else {{ failed <- c(failed, pk[i]); cat("GSXFAIL", pk[i], "\n") }}
 }}
 cat("GSXFAILED", failed, "\n")
 "#,
@@ -194,8 +203,22 @@ cat("GSXFAILED", failed, "\n")
         repo = rs(&repo()),
         list = list.join(", ")
     );
-    let mut child = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().map_err(|e| format!("could not start {cmd}: {e}"))?;
+    job.log(format!("$ Rscript (library {}, packages from {})", lib.display(), repo()));
+    let mut child = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| format!("could not start {cmd}: {e}"))?;
     let stdout = child.stdout.take().ok_or("no output from R")?;
+    // R's own errors (before the sink takes over, or from the compiler) go to the log too
+    let mut stderr_lines: Option<std::sync::Arc<std::sync::Mutex<Vec<String>>>> = None;
+    if let Some(err) = child.stderr.take() {
+        let lines: std::sync::Arc<std::sync::Mutex<Vec<String>>> = Default::default();
+        let sink = lines.clone();
+        std::thread::spawn(move || {
+            for l in BufReader::new(err).lines().map_while(Result::ok) {
+                sink.lock().unwrap().push(l);
+            }
+        });
+        stderr_lines = Some(lines);
+    }
+    let mut no_repo: Option<String> = None;
     let base = job.json()["done"].as_u64().unwrap_or(0);
     let mut failed: Vec<String> = Vec::new();
     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
@@ -204,21 +227,43 @@ cat("GSXFAILED", failed, "\n")
             let _ = child.wait();
             return Err("cancelled".into());
         }
+        if let Some(lines) = &stderr_lines {
+            for l in lines.lock().unwrap().drain(..) {
+                job.log(l);
+            }
+        }
         let parts: Vec<&str> = line.split_whitespace().collect();
         match parts.first() {
             Some(&"GSX") if parts.len() >= 4 => {
                 let i: u64 = parts[1].parse().unwrap_or(1);
                 let p = parts[3].to_string();
+                job.log(format!("— {p} ({i} of {})", parts[2]));
                 job.update(|s| {
                     s.done = base + i - 1;
                     s.message = format!("Installing {p} ({i} of {})", parts[2]);
                 });
             }
+            Some(&"GSXOK") if parts.len() >= 4 => {
+                job.log(if parts[3] == "already" { format!("✓ {} {} was already installed", parts[1], parts[2]) } else { format!("✓ {} {} installed", parts[1], parts[2]) });
+            }
+            Some(&"GSXFAIL") if parts.len() >= 2 => job.log(format!("✗ {} could not be installed", parts[1])),
+            Some(&"GSXNOREPO") => {
+                let url = parts.get(1).unwrap_or(&"CRAN").to_string();
+                job.log(format!("✗ cannot reach the package repository {url}: check the internet connection or proxy"));
+                no_repo = Some(url);
+            }
             Some(&"GSXFAILED") => failed = parts[1..].iter().map(|s| s.to_string()).collect(),
+            _ if !line.trim().is_empty() => job.log(line.clone()),
             _ => {}
         }
     }
     let st = child.wait().map_err(|e| e.to_string())?;
+    if let Some(lines) = &stderr_lines {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        for l in lines.lock().unwrap().drain(..) {
+            job.log(l);
+        }
+    }
     if !st.success() {
         return Err(format!("R exited with {st}"));
     }
@@ -226,7 +271,10 @@ cat("GSXFAILED", failed, "\n")
     if failed.is_empty() {
         Ok(format!("{} R package(s) ready in {}", packages.len(), lib.display()))
     } else {
-        Err(format!("could not install {} (see the R console for details; some need system libraries or an internet connection)", failed.join(", ")))
+        match no_repo {
+            Some(url) => Err(format!("could not install {}: the package repository {url} cannot be reached (internet connection or proxy)", failed.join(", "))),
+            None => Err(format!("could not install {} (the log above says why; some packages need system libraries)", failed.join(", "))),
+        }
     }
 }
 

@@ -7,7 +7,7 @@ import type { Backend, LayerInfo } from './backend';
 import { DocsViewer } from './docs';
 import type { RecipeInfo } from './automate';
 import type { PluginsPane } from './plugins';
-import { groupItemsHtml, COMMANDS, TABS, commandHtml, groupsFor, icon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
+import { groupItemsHtml, COMMANDS, TABS, commandHtml, groupsFor, icon, pluginIcon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
 import type { PluginInfo, PluginsState } from './plugins';
 
 const LS_KEY = 'geospax.workbench.v1';
@@ -105,6 +105,15 @@ export class Workbench {
 
   constructor(private host: WorkbenchHost) {
     this.loadLayout();
+    // a narrower or wider window: lay the ribbon out again (groups collapse or open up)
+    let t: number | undefined;
+    let w = window.innerWidth;
+    window.addEventListener('resize', () => {
+      if (Math.abs(window.innerWidth - w) < 8) return;
+      w = window.innerWidth;
+      clearTimeout(t);
+      t = window.setTimeout(() => this.buildRibbon(), 200);
+    });
   }
 
   // ---------------------------------------------------------------- mount
@@ -213,6 +222,8 @@ export class Workbench {
     document.querySelector<HTMLElement>('#ribbon')?.classList.toggle('lazy', lazy);
     const active = this.host.activeId();
     if (this.layout.ribbon === 'layer' && !active) this.layout.ribbon = 'home';
+    // a tab that no longer exists (Modelling went into Analysis in 3.0.1) falls back to Home
+    if (this.layout.ribbon !== 'layer' && !TABS.some((t) => t.id === this.layout.ribbon)) this.layout.ribbon = 'home';
     // contextual tab, coloured like Pro's: only while a layer is selected
     const ctx = active
       ? `<button class="rb-ctx${this.layout.ribbon === 'layer' ? ' on' : ''}" data-tab="layer" title="Tools for the selected layer"><span>Layer</span> ${esc(this.host.layerName(active))}</button>`
@@ -323,7 +334,7 @@ export class Workbench {
         ${task('data-cmd="home.start"', 'phone', 'Add data', 'Drop files, a phone, a GPS, a drone card')}
         ${task('data-cmd="data.online"', 'globe', 'Online data', 'Climate, soil, species, boundaries')}
         ${task('data-cmd="style.autoAll"', 'wand', 'Make it look good', 'Style every layer for you')}
-        ${task('data-menu="recipes"', 'hotspot', 'Find patterns', `${this.recipes.length} ready-made analyses`)}
+        ${task('data-menu="recipes"', 'hotspot', 'Find patterns', `${this.generalRecipes().length} ready-made analyses`)}
         ${task('data-cmd="analyze.toolbox"', 'search', 'All tools', 'Search every tool by name')}
         ${task('data-cmd="home.finish"', 'print', 'Finish my map', 'Legend, scale bar, PDF and report')}
       </div>
@@ -376,8 +387,8 @@ export class Workbench {
     // default (Pro collapses a gallery the same way) so the ribbon stays one row tall.
     if (this.layout.ribbon === 'analyze') {
       try {
-        const r = await this.host.backend.json<{ recipes: RecipeInfo[] }>('api/recipes');
-        this.recipes = r.recipes;
+        this.recipes = (await this.host.backend.json<{ recipes: RecipeInfo[] }>('api/recipes')).recipes;
+        const r = { recipes: this.generalRecipes() };
         if (this.layout.compact) {
           parts.unshift(
             `<div class="rb-group" data-group="recipes"><div class="rb-items">${this.comboHtml({
@@ -414,7 +425,18 @@ export class Workbench {
     // tab go to the Plugins tab (like ArcGIS Pro's Add-In tab).
     const tab = this.layout.ribbon;
     const before = parts.length;
+    // the default domain plugins (GSX: Agriculture, Biodiversity …) are one grid of buttons, each
+    // opening its tools and its kit, so twelve domains fit the ribbon without scrolling
+    const domains = this.pluginTools().filter((p) => p.default && (p.tools[0]?.tab ?? 'plugins') === 'plugins');
+    if (tab === 'plugins' && domains.length) {
+      const btns = domains
+        .map((p) => `<button class="rb-btn small" data-menu="plugin:${esc(p.id)}" title="${esc(p.name)}: ${p.tools.length} tools — ${esc(p.description)}" aria-haspopup="true">
+            <span class="rb-ico">${icon(pluginIcon(p), 16)}</span><span class="rb-label">${esc(p.name)}</span><span class="rb-caret">${icon('caret', 10)}</span></button>`)
+        .join('');
+      parts.push(`<div class="rb-group" data-group="domains"><div class="rb-items grid3">${btns}</div><div class="rb-title">Domain plugins (GSX)</div></div>`);
+    }
     for (const p of this.pluginTools()) {
+      if (tab === 'plugins' && domains.includes(p)) continue;
       // a built-in library (1,000+ raster, terrain, hydrology … tools) lives in the Toolbox, by task
       if (p.builtin && p.tools.length > 40) continue;
       if (p.tools.length > 40) {
@@ -454,6 +476,7 @@ export class Workbench {
       parts.push(`<div class="rb-group"><div class="rb-items"><span class="dim rb-empty">No plugin tools here yet. Tools of plugins that name no other tab show here.</span></div><div class="rb-title">Plugins</div></div>`);
     }
     bodyEl.innerHTML = parts.join('') + `<div class="rb-spacer"></div>`;
+    this.fitRibbon(bodyEl);
   }
 
   // ------------------------------------------------- compact galleries (dropdowns)
@@ -484,8 +507,34 @@ export class Workbench {
       : `<button class="rb-title-btn" data-gallery="collapse" title="Collapse these into a list">${icon('grid', 10)}</button>`;
   }
 
+  /** Groups collapsed to one button when the window is too narrow (their buttons, by group index). */
+  private collapsed = new Map<string, { title: string; html: string }>();
+
+  /** ArcGIS Pro's ribbon scaling: while the tab is wider than the window, the rightmost group with
+   *  several buttons becomes one button that drops its buttons down, so nothing is cut off. */
+  private fitRibbon(body: HTMLElement) {
+    this.collapsed.clear();
+    if (body.clientWidth === 0) return;
+    const groups = [...body.querySelectorAll<HTMLElement>(':scope > .rb-group')];
+    for (let i = groups.length - 1; i >= 0 && body.scrollWidth > body.clientWidth + 1; i--) {
+      const g = groups[i];
+      const items = g.querySelector<HTMLElement>('.rb-items');
+      const n = items?.querySelectorAll('button').length ?? 0;
+      // an expanded gallery stays open: the user asked for it, so other groups fold first
+      if (!items || n < 2 || g.querySelector('.rb-recipe')) continue;
+      const title = g.querySelector('.rb-title')?.textContent?.trim() || 'More';
+      const key = `group:${i}`;
+      this.collapsed.set(key, { title, html: items.innerHTML });
+      const ico = items.querySelector('.rb-ico svg')?.outerHTML ?? icon('grid', 20);
+      items.innerHTML = `<button class="rb-btn big rb-collapsed" data-menu="${key}" title="${esc(title)}: ${n} commands" aria-haspopup="true">
+        <span class="rb-ico">${ico}</span><span class="rb-label">${esc(title)} ▾</span></button>`;
+      g.classList.add('collapsed');
+    }
+  }
+
   private openMenu(anchor: HTMLElement, kind: string) {
-    const rows = kind === 'recipes' ? this.recipeRows() : kind.startsWith('plugin:') ? this.pluginRows(kind.slice(7).split(':')[0], kind.split(':').slice(2).join(':') || undefined) : '';
+    const group = this.collapsed.get(kind);
+    const rows = group ? `<div class="rb-menu-head"><span>${esc(group.title)}</span></div><div class="rb-menu-group">${group.html}</div>` : kind === 'recipes' ? this.recipeRows() : kind.startsWith('plugin:') ? this.pluginRows(kind.slice(7).split(':')[0], kind.split(':').slice(2).join(':') || undefined) : '';
     if (!rows) return;
     const el = document.createElement('div');
     el.className = 'rb-menu';
@@ -500,6 +549,27 @@ export class Workbench {
     el.style.maxHeight = `${Math.max(180, Math.min(window.innerHeight - r.bottom - 24, window.innerHeight * 0.62))}px`;
     el.onclick = (e) => {
       const t = e.target as HTMLElement;
+      // a collapsed group's buttons: commands, plugin menus, the Toolbox
+      const sub = t.closest<HTMLElement>('.rb-menu-group [data-menu]');
+      if (sub) {
+        const k = sub.dataset.menu!;
+        this.closeMenu();
+        this.openMenu(anchor, k);
+        return;
+      }
+      const cmd = t.closest<HTMLElement>('.rb-menu-group [data-cmd]')?.dataset.cmd;
+      if (cmd) {
+        this.closeMenu();
+        void this.run(cmd);
+        return;
+      }
+      const tbx = t.closest<HTMLElement>('.rb-menu-group [data-toolbox]')?.dataset.toolbox;
+      if (tbx) {
+        this.closeMenu();
+        this.showTab('right', 'toolbox');
+        document.dispatchEvent(new CustomEvent('geospax:toolbox-search', { detail: tbx }));
+        return;
+      }
       const rec = t.closest<HTMLElement>('[data-recipe]');
       if (rec?.dataset.recipe) {
         this.closeMenu();
@@ -533,24 +603,40 @@ export class Workbench {
     });
   }
 
+  /** The domain plugins (GSX) a recipe belongs to: a domain kit ("Biodiversity", "Disaster and
+   *  geoscience" …) is listed with its plugins on the Plugins tab, not with the general recipes. */
+  private kitDomains(x: RecipeInfo): PluginInfo[] {
+    const k = x.kit?.toLowerCase();
+    if (!k) return [];
+    return (this.host.plugins()?.plugins ?? []).filter((p) => p.default && k.includes(p.name.toLowerCase()));
+  }
+
+  /** Recipes that are not a domain plugin's kit (Analysis, Lazy's Find patterns). */
+  private generalRecipes(): RecipeInfo[] {
+    return this.recipes.filter((x) => !this.kitDomains(x).length);
+  }
+
+  private recipeRow(x: RecipeInfo): string {
+    const desc = (x.description ?? '').replace(/\s+/g, ' ').trim();
+    return `<button class="rb-menu-row" data-recipe="${esc(x.id)}" title="${esc(desc)}">
+        <span class="rm-ico">${icon(recipeIcon(x), 16)}</span>
+        <span class="rm-txt"><span class="rm-name">${esc(x.title ?? x.id)}</span>${
+          desc ? `<span class="rm-desc">${esc(desc.length > 90 ? `${desc.slice(0, 90)}…` : desc)}</span>` : ''
+        }</span></button>`;
+  }
+
   private recipeRows(): string {
-    const head = `<div class="rb-menu-head"><span>Recipes</span><span class="dim">${this.recipes.length} — click to run</span></div>`;
-    const row = (x: RecipeInfo) => {
-      const desc = (x.description ?? '').replace(/\s+/g, ' ').trim();
-      return `<button class="rb-menu-row" data-recipe="${esc(x.id)}" title="${esc(desc)}">
-          <span class="rm-ico">${icon(recipeIcon(x), 16)}</span>
-          <span class="rm-txt"><span class="rm-name">${esc(x.title ?? x.id)}</span>${
-            desc ? `<span class="rm-desc">${esc(desc.length > 90 ? `${desc.slice(0, 90)}…` : desc)}</span>` : ''
-          }</span></button>`;
-    };
-    // domain kits first, under their domain, then the general recipes
-    const kits = [...new Set(this.recipes.map((x) => x.kit).filter((k): k is string => !!k))].sort();
+    const recipes = this.generalRecipes();
+    const head = `<div class="rb-menu-head"><span>Recipes</span><span class="dim">${recipes.length} — click to run</span></div>`;
+    const row = (x: RecipeInfo) => this.recipeRow(x);
+    // kits that are not a domain plugin's (satellite embeddings) first, then the general recipes
+    const kits = [...new Set(recipes.map((x) => x.kit).filter((k): k is string => !!k))].sort();
     const sub = (t: string) => `<div class="rb-menu-sub">${esc(t)}</div>`;
     return (
       head +
-      kits.map((k) => sub(`${k} kit`) + this.recipes.filter((x) => x.kit === k).map(row).join('')).join('') +
+      kits.map((k) => sub(`${k} kit`) + recipes.filter((x) => x.kit === k).map(row).join('')).join('') +
       (kits.length ? sub('General') : '') +
-      this.recipes.filter((x) => !x.kit).map(row).join('')
+      recipes.filter((x) => !x.kit).map(row).join('')
     );
   }
 
@@ -568,7 +654,10 @@ export class Workbench {
           }</span></button>`,
       )
       .join('');
-    return head + rows || head + '<div class="rb-menu-empty">no tools</div>';
+    // a domain plugin's ready-made analyses (its kit recipes) come with its tools
+    const kits = group ? [] : this.recipes.filter((x) => this.kitDomains(x).some((d) => d.id === p.id));
+    const kitRows = kits.length ? `<div class="rb-menu-sub">Ready-made analyses (kit)</div>${kits.map((x) => this.recipeRow(x)).join('')}` : '';
+    return rows || kitRows ? head + rows + kitRows : head + '<div class="rb-menu-empty">no tools</div>';
   }
 
   private async run(id: string) {
@@ -1122,7 +1211,10 @@ export class Workbench {
     const seq = ++this.paletteSeq;
     const items: typeof this.paletteItems = [];
     const host = this.cmdHost();
+    // R & Python is a Pro tab: Lazy's search does not offer its commands
+    const lazy = this.host.mode() === 'lazy';
     for (const c of COMMANDS) {
+      if (lazy && c.tab === 'r') continue;
       items.push({
         id: c.id,
         label: c.title,

@@ -172,6 +172,8 @@ impl Engine {
                 Err(e) => ApiResponse::error(404, e),
             },
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
+            // Settings › About this installation: where the data and the results live
+            ("GET", ["api", "about"]) => ApiResponse::json(200, &json!({ "version": env!("CARGO_PKG_VERSION"), "data": self.data_dirs, "state": self.state_dir })),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();
                 ApiResponse::json(200, &json!({ "layers": layers, "warnings": self.warnings, "reader": self.read_mode.as_str() }))

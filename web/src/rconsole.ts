@@ -202,7 +202,7 @@ interface RStatus {
   install_note?: string;
 }
 
-interface JobInfo { id: number; status: string; message: string; progress: number; done: number; total: number }
+interface JobInfo { id: number; status: string; message: string; progress: number; done: number; total: number; log?: string[] }
 
 interface RunOut {
   figures?: Record<string, string[]>;
@@ -260,6 +260,32 @@ export class RConsole {
   }
 
   /** R setup: R itself and package kits, installed into GeoSpaX's own library. */
+  private missing: string[] = [];
+
+  /** The kits with each package marked installed (its version) or not. */
+  private kitsHtml(s: RStatus, missing: string[]): string {
+    const have = (p: string) => !!s.packages[p];
+    return s.kits
+      .map((k) => {
+        const n = k.packages.filter(have).length;
+        const all = n === k.packages.length;
+        // only kits with something missing that the user needs are ticked: nothing is "installed" twice
+        const want = !all && (k.packages.some((p) => missing.includes(p)) || (!missing.length && ['spatial', 'maps', 'stats'].includes(k.id)));
+        return `<label class="ck rc-kit ${all ? 'ok' : ''}"><input type="checkbox" name="kit" value="${esc(k.id)}" ${want ? 'checked' : ''} ${all ? 'disabled' : ''} />
+        <span><b>${esc(k.title)}</b> <span class="dim">${all ? '✓ installed' : `${n} of ${k.packages.length} installed`}</span><br /><small class="dim">${k.packages
+          .map((p) => `<span class="${have(p) ? 'rc-have' : 'rc-miss'}" title="${have(p) ? `${esc(p)} ${esc(s.packages[p])}` : 'not installed'}">${have(p) ? '✓' : '○'} ${esc(p)}</span>`)
+          .join(' · ')}</small></span></label>`;
+      })
+      .join('');
+  }
+
+  /** Re-read what is installed and redraw the kit list (after an install). */
+  private async refreshPackages() {
+    const s = await this.loadStatus().catch(() => null);
+    const list = this.el.querySelector<HTMLElement>('.rc-kitlist');
+    if (s && list) list.innerHTML = this.kitsHtml(s, this.missing);
+  }
+
   async setup(missing: string[] = []) {
     this.el.innerHTML = `<div class="sheet fin rc"><header><b>R setup</b><button type="button" data-close aria-label="Close">✕</button></header><div class="body"><p class="dim">Checking for R…</p></div></div>`;
     this.el.hidden = false;
@@ -270,16 +296,7 @@ export class RConsole {
       this.body(`<p class="err">${esc((err as Error).message ?? err)}</p>`);
       return;
     }
-    const have = (p: string) => !!s.packages[p];
-    const kitRow = (k: RStatus['kits'][number]) => {
-      const n = k.packages.filter(have).length;
-      const all = n === k.packages.length;
-      const want = all || ['spatial', 'maps', 'stats'].includes(k.id) || k.packages.some((p) => missing.includes(p));
-      return `<label class="ck rc-kit ${all ? 'ok' : ''}"><input type="checkbox" name="kit" value="${esc(k.id)}" ${want ? 'checked' : ''} ${all ? 'disabled' : ''} />
-        <span><b>${esc(k.title)}</b> <span class="dim">${all ? 'installed' : `${n} of ${k.packages.length} installed`}</span><br /><small class="dim">${k.packages
-          .map((p) => `<span class="${have(p) ? 'rc-have' : ''}" title="${esc(s.packages[p] ?? 'not installed')}">${esc(p)}</span>`)
-          .join(' · ')}</small></span></label>`;
-    };
+    this.missing = missing;
     const extra = missing.filter((p) => !s.kits.some((k) => k.packages.includes(p)));
     this.body(`
       <p class="fin-lead">${
@@ -289,11 +306,12 @@ export class RConsole {
             ? 'R is not installed on this computer. GeoSpaX can install it now (the official CRAN build), then the packages you tick.'
             : `R is not installed. ${esc(s.install_note ?? '')}`
       }</p>
-      <form class="rc-kits">${s.kits.map(kitRow).join('')}
+      <form class="rc-kits"><div class="rc-kitlist">${this.kitsHtml(s, missing)}</div>
         ${extra.length ? `<label class="ck"><input type="checkbox" name="pkg" value="${esc(extra.join(','))}" checked /> Also: ${esc(extra.join(', '))}</label>` : ''}
         <label><span>Other packages</span><input name="more" placeholder="e.g. lidR, landscapemetrics, sdmTMB" /></label>
       </form>
-      <div class="rc-progress" hidden><progress max="1" value="0"></progress><span class="dim"></span></div>
+      <div class="rc-progress" hidden><progress max="1" value="0"></progress><span class="dim"></span>
+        <pre class="rc-log" aria-live="polite" aria-label="Installation log"></pre></div>
       <p class="dim">Packages are ready-built binaries (CRAN on Windows and macOS, Posit Package Manager on Linux): nothing is compiled. Needs internet.${
         s.library ? ` Library: <code>${esc(s.library)}</code>` : ''
       }</p>`,
@@ -331,16 +349,26 @@ export class RConsole {
         headers: { 'content-type': 'application/json' },
       });
       prog.hidden = false;
+      const log = prog.querySelector<HTMLElement>('.rc-log')!;
+      const show = (j: JobInfo) => {
+        const atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
+        log.textContent = (j.log ?? []).join('\n');
+        if (atEnd) log.scrollTop = log.scrollHeight;
+      };
       while (job.status === 'queued' || job.status === 'running') {
         bar.value = job.progress;
-        label.textContent = job.message || 'Starting…';
-        await new Promise((r) => setTimeout(r, 1000));
+        label.textContent = job.message || 'Starting R…';
+        show(job);
+        await new Promise((r) => setTimeout(r, 700));
         job = await this.host.backend.json<JobInfo>(`api/jobs/${job.id}`);
       }
       bar.value = 1;
-      label.textContent = job.message;
+      show(job);
+      label.textContent = job.status === 'done' ? `✓ ${job.message}` : `✗ ${job.message}`;
+      label.className = job.status === 'done' ? 'ok' : 'err';
       this.host.setStatus(job.status === 'done' ? job.message : `R setup: ${job.message}`, 8000);
-      if (job.status === 'done') await this.setup();
+      // the package list is refreshed under the log, which stays open to read
+      if (job.status === 'done') await this.refreshPackages();
     } catch (err) {
       msg.textContent = String((err as Error).message ?? err);
     } finally {
