@@ -294,11 +294,20 @@ function setTheme(t: Theme) {
 paintTheme();
 systemDark?.addEventListener?.('change', () => theme === 'system' && setTheme('system'));
 
+let footprint: GeoJSON.Feature | null = null;
+
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
   const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': css('map-bg') || '#0b0b0b' } }];
   const labelLayers: maplibregl.LayerSpecification[] = [];
   addBasemap(sources, out);
+  // web map images (WMS, WMTS, XYZ, ArcGIS MapServer) over the basemap, through the engine's relay
+  for (const w of project.web ?? []) {
+    if (!w.visible) continue;
+    const sid = `web:${w.id}`;
+    sources[sid] = { type: 'raster', tileSize: 256, tiles: [backend.url(`api/services/${encodeURIComponent(w.sid)}/tile/{z}/{x}/{y}.png?layer=${encodeURIComponent(w.layer)}`)] };
+    out.push({ id: sid, type: 'raster', source: sid, paint: { 'raster-opacity': w.opacity, 'raster-fade-duration': 0 } } as maplibregl.LayerSpecification);
+  }
   for (const id of project.order) {
     if (id.startsWith('r:')) {
       if (groupOf_(id) && !groupOf_(id)!.visible) continue;
@@ -350,6 +359,12 @@ function buildStyle(): maplibregl.StyleSpecification {
       else
         out.push({ ...base, id: `${id}#sel`, type: 'circle', filter, minzoom: 0, paint: { 'circle-color': 'rgba(0,0,0,0)', 'circle-radius': 7, 'circle-stroke-color': hi, 'circle-stroke-width': 2.5 } } as maplibregl.LayerSpecification);
     }
+  }
+  // the file selected in the Explorer: its outline
+  if (footprint) {
+    sources['explorer-footprint'] = { type: 'geojson', data: footprint };
+    out.push({ id: 'explorer-footprint-fill', type: 'fill', source: 'explorer-footprint', paint: { 'fill-color': '#ff7a45', 'fill-opacity': 0.08 } } as maplibregl.LayerSpecification,
+      { id: 'explorer-footprint', type: 'line', source: 'explorer-footprint', paint: { 'line-color': '#ff7a45', 'line-width': 2, 'line-dasharray': [2, 2] } } as maplibregl.LayerSpecification);
   }
   // Live GNSS devices (phone page, NMEA, gpsd): recent track + current position, always on top.
   sources.live = { type: 'geojson', data: liveData as unknown as GeoJSON.FeatureCollection };
@@ -622,6 +637,19 @@ function renderModeSwitch() {
   if (el) el.innerHTML = modeSwitch(uiMode);
 }
 
+
+const webRows = () => {
+  const ws = project.web ?? [];
+  if (!ws.length) return '';
+  const e = (x: unknown) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  return `<div class="${uiMode === 'lazy' ? 'lc-group' : 'pr-webhead'}"><span>Web layers</span><span>${ws.length}</span></div>${ws
+    .map((w) => `<div class="web-row" data-web="${e(w.id)}"><label class="lc-switch"><input type="checkbox" data-web-vis ${w.visible ? 'checked' : ''} aria-label="Show ${e(w.title)}"></label>
+      <span class="web-name" title="${e(w.title)}">${e(w.title)}</span>
+      <input type="range" min="0" max="100" step="5" value="${Math.round(w.opacity * 100)}" data-web-op aria-label="Opacity of ${e(w.title)}">
+      <button data-web-rm title="Remove from the map" aria-label="Remove ${e(w.title)}">✕</button></div>`)
+    .join('')}`;
+};
+
 function renderContents() {
   const el = $('#contents');
   document.body.dataset.mode = uiMode;
@@ -658,6 +686,7 @@ function renderContents() {
       const rows = groups.get(g);
       if (rows) body += `<div class="lc-group"><span>${GROUP_TITLE[g]}</span><span>${rows.length}</span></div>${rows.join('')}`;
     }
+    body += webRows();
     const b = basemap();
     body += `<div class="lc-group"><span>Background</span></div>
       <div class="card basemap" style="--c:#4f7468"><div class="lc-top"><span class="lc-glyph">🌍</span>
@@ -687,6 +716,7 @@ function renderContents() {
         if (g.expanded) body += `<div class="pr-kids${g.visible ? '' : ' off'}">${members.map((m) => row(m, list.indexOf(m), 1)).join('')}</div>`;
       });
     }
+    body += webRows();
     const b = basemap();
     body += `<div class="pr-base" role="treeitem" aria-level="2"><span class="pr-gico">🌍</span><b>Basemap</b>
       <select data-tree="basemap" aria-label="Basemap">${BASEMAPS.map((d) => `<option value="${d.id}" ${b === d.id ? 'selected' : ''}>${d.title}</option>`).join('')}</select>
@@ -1014,6 +1044,31 @@ function moveLayer(id: string, dir: 'up' | 'down') {
 }
 
 function wireContents() {
+  // web layers: show/hide, opacity, remove (before the layer handlers below)
+  const webOf = (t: HTMLElement) => { const id = t.closest<HTMLElement>('[data-web]')?.dataset.web; return id ? project.web?.find((w) => w.id === id) : undefined; };
+  $('#contents').addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    const w = webOf(t);
+    if (!w) return;
+    e.stopPropagation();
+    if (t.closest('[data-web-rm]')) {
+      project.web = (project.web ?? []).filter((x) => x !== w);
+      workbench?.setStatus(`${w.title} removed from the map`, 4000);
+    } else if (t.matches('[data-web-vis]')) w.visible = (t as HTMLInputElement).checked;
+    else return;
+    applyStyle();
+    renderContents();
+    saveProject();
+  }, true);
+  $('#contents').addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement;
+    const w = webOf(t);
+    if (!w || !t.matches('[data-web-op]')) return;
+    e.stopPropagation();
+    w.opacity = Number(t.value) / 100;
+    if (map.getLayer(`web:${w.id}`)) map.setPaintProperty(`web:${w.id}`, 'raster-opacity', w.opacity);
+    saveProject();
+  }, true);
   const el = $('#contents');
   el.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
@@ -1948,15 +2003,32 @@ async function main() {
   // the selected Explorer file's outline on the map (a dashed box; cleared when nothing is selected)
   document.addEventListener('geospax:footprint', (e) => {
     const b = (e as CustomEvent<[number, number, number, number] | null>).detail;
-    const data = b ? { type: 'Feature' as const, properties: {}, geometry: { type: 'Polygon' as const, coordinates: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]] } } : { type: 'FeatureCollection' as const, features: [] };
-    const src = map.getSource('explorer-footprint') as maplibregl.GeoJSONSource | undefined;
-    if (src) src.setData(data);
-    else if (map.isStyleLoaded()) {
-      map.addSource('explorer-footprint', { type: 'geojson', data });
-      map.addLayer({ id: 'explorer-footprint-fill', type: 'fill', source: 'explorer-footprint', paint: { 'fill-color': '#ff7a45', 'fill-opacity': 0.08 } });
-      map.addLayer({ id: 'explorer-footprint', type: 'line', source: 'explorer-footprint', paint: { 'line-color': '#ff7a45', 'line-width': 2, 'line-dasharray': [2, 2] } });
-    }
+    footprint = b ? { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]] } } : null;
+    applyStyle();
     if (b) map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 80, maxZoom: 14, duration: 400 });
+  });
+  // features from a web service, for the area on the map, become a layer
+  document.addEventListener('geospax:ws-fetch', async (e) => {
+    const d = (e as CustomEvent<{ sid: string; layer: string; title: string }>).detail;
+    const [w, so, ea, n] = map.getBounds().toArray().flat();
+    const bbox = [Math.max(-180, w), Math.max(-85, so), Math.min(180, ea), Math.min(85, n)].map((v) => v.toFixed(5)).join(',');
+    workbench?.setStatus(`Downloading ${d.title} for the map view…`);
+    try {
+      const r = await backend.json<{ layers: string[]; features: number }>(`api/services/${encodeURIComponent(d.sid)}/fetch?layer=${encodeURIComponent(d.layer)}&bbox=${bbox}`, { method: 'POST' });
+      document.dispatchEvent(new CustomEvent('geospax:added', { detail: { layers: r.layers, rasters: [] } }));
+      workbench?.setStatus(`${d.title}: ${r.features.toLocaleString()} features added`, 6000);
+    } catch (err) {
+      workbench?.setStatus(`${d.title}: ${err instanceof Error ? err.message : err}`, 10000);
+    }
+  });
+  document.addEventListener('geospax:add-web-layer', (e) => {
+    const d = (e as CustomEvent<{ sid: string; layer: string; title: string }>).detail;
+    project.web = project.web ?? [];
+    if (!project.web.some((w) => w.sid === d.sid && w.layer === d.layer)) project.web.push({ id: `${d.sid}-${project.web.length + 1}-${Date.now() % 100000}`, sid: d.sid, layer: d.layer, title: d.title, opacity: 0.85, visible: true });
+    applyStyle();
+    renderContents();
+    saveProject();
+    workbench?.setStatus(`${d.title} is on the map (Contents › Web layers)`, 5000);
   });
   // drag a file from the Explorer onto the map to add it
   const mapEl = document.querySelector<HTMLElement>('#map');

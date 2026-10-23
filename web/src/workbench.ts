@@ -803,6 +803,10 @@ export class Workbench {
   /** GeoSpaX section: open nodes and their lists */
   private gxOpen = new Set<string>();
   private gxData: { recipes?: RecipeInfo[]; models?: { name: string }[]; plugins?: PluginInfo[] } = {};
+  /** web service connections and their layers */
+  private services: { id: string; kind: string; url: string; title: string }[] | null = null;
+  private serviceKinds: { id: string; title: string }[] = [];
+  private serviceLayers = new Map<string, { id: string; title: string; type: 'tiles' | 'features' }[] | string>();
   /** the file or layer selected in the Explorer, with its preview */
   private sel: { path: string; layer?: string; name: string; data?: Preview; error?: string } | null = null;
   private favourites: { path: string; name: string; folder: boolean }[] = (() => {
@@ -902,6 +906,8 @@ export class Workbench {
         ${roots || '<div class="pane-empty">No data folder. Add files with Data › Add data, or open sample data.</div>'}
         <div class="cat-head">On the map</div>
         ${tree || '<div class="pane-empty">No layers yet. Add a file above, open sample data, or run a recipe.</div>'}
+        <div class="cat-head cat-head-row"><span>Web services</span>${this.canConnect ? '<button class="cat-mini" data-ws-add title="Add a web service: WMS, WMTS, XYZ, WFS, OGC API, ArcGIS">＋ Add</button>' : ''}</div>
+        ${this.servicesSection()}
         <div class="cat-head">GeoSpaX</div>
         ${this.gxSection()}
       </div>
@@ -920,6 +926,16 @@ export class Workbench {
       if (t.closest('[data-pv-close]')) { this.select(null); return; }
       const pvAdd = t.closest<HTMLElement>('[data-pv-add]');
       if (pvAdd && this.sel) return void this.addFile(this.sel.path, this.sel.layer);
+      if (t.closest('[data-ws-add]')) return void this.addService();
+      const wsRm = t.closest<HTMLElement>('[data-ws-rm]')?.dataset.wsRm;
+      if (wsRm) { e.stopPropagation(); return void this.removeService(wsRm); }
+      const ws = t.closest<HTMLElement>('[data-ws]')?.dataset.ws;
+      if (ws) return void this.toggleService(ws);
+      const wl = t.closest<HTMLElement>('[data-ws-layer]');
+      if (wl) {
+        const d = { sid: wl.dataset.wsSid!, layer: wl.dataset.wsLayer!, title: wl.dataset.wsTitle! };
+        return void document.dispatchEvent(new CustomEvent(wl.dataset.wsType === 'features' ? 'geospax:ws-fetch' : 'geospax:add-web-layer', { detail: d }));
+      }
       const gx = t.closest<HTMLElement>('[data-gx]')?.dataset.gx;
       if (gx) return void this.gxToggle(gx);
       const gxRun = t.closest<HTMLElement>('[data-gx-act]');
@@ -1043,6 +1059,95 @@ export class Workbench {
       ${d?.bounds ? '<p class="dim">Its outline is drawn on the map.</p>' : ''}
       <div class="pv-acts"><button class="primary" data-pv-add>Add to the map</button></div>
     </div>`;
+  }
+
+  /** Web services (WMS, WMTS, XYZ, ArcGIS, WFS, OGC API): connections and their layers. */
+  private servicesSection(): string {
+    if (!this.services) {
+      void this.host.backend.json<{ services: { id: string; kind: string; url: string; title: string }[]; kinds: { id: string; title: string }[] }>('api/services').then((r) => {
+        this.services = r.services;
+        this.serviceKinds = r.kinds;
+        this.renderCatalog();
+      }).catch(() => { this.services = []; });
+      return '<div class="pane-empty">Reading…</div>';
+    }
+    if (!this.services.length) return `<div class="pane-empty">No web services yet.${this.canConnect ? ' <b>＋ Add</b> connects a WMS, WMTS, XYZ, WFS, OGC API or ArcGIS service.' : ''}</div>`;
+    const kindTitle = (k: string) => this.serviceKinds.find((x) => x.id === k)?.title ?? k;
+    return this.services.map((sv) => {
+      const open = this.browseOpen.has(`ws:${sv.id}`);
+      const head = `<div class="node source folder" data-ws="${esc(sv.id)}" title="${esc(`${kindTitle(sv.kind)} · ${sv.url}`)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon('globe', 14)}<span class="nm">${esc(sv.title)}</span><span class="ct dim">${esc(kindTitle(sv.kind))}</span><button class="ct disc" data-ws-rm="${esc(sv.id)}" title="Remove this connection" aria-label="Remove ${esc(sv.title)}">✕</button></div>`;
+      if (!open) return head;
+      const ls = this.serviceLayers.get(sv.id);
+      if (ls === undefined) return `${head}<div class="pane-empty" style="padding-left:32px">Asking the service…</div>`;
+      if (typeof ls === 'string') return `${head}<div class="pane-empty err" style="padding-left:32px">${esc(ls)}</div>`;
+      return head + ls.map((l) => `<div class="node gx-leaf" data-ws-layer="${esc(l.id)}" data-ws-sid="${esc(sv.id)}" data-ws-title="${esc(l.title)}" data-ws-type="${l.type}" style="padding-left:32px" title="${esc(l.type === 'features' ? 'Click to download its features for the map view' : 'Click to add it to the map')}">${icon(l.type === 'features' ? 'layers' : 'image', 13)}<span class="nm">${esc(l.title)}</span><span class="ct dim">${l.type === 'features' ? 'features' : 'map image'}</span></div>`).join('');
+    }).join('');
+  }
+
+  private async toggleService(id: string) {
+    const k = `ws:${id}`;
+    if (this.browseOpen.has(k)) { this.browseOpen.delete(k); return this.renderCatalog(); }
+    this.browseOpen.add(k);
+    this.renderCatalog();
+    if (!this.serviceLayers.has(id) || typeof this.serviceLayers.get(id) === 'string') {
+      try {
+        this.serviceLayers.set(id, (await this.host.backend.json<{ layers: { id: string; title: string; type: 'tiles' | 'features' }[] }>(`api/services/${encodeURIComponent(id)}/layers`)).layers);
+      } catch (e) {
+        this.serviceLayers.set(id, `The service did not answer: ${e instanceof Error ? e.message : e}`);
+      }
+      this.renderCatalog();
+    }
+  }
+
+  private async removeService(id: string) {
+    try { await this.host.backend.json(`api/services/${encodeURIComponent(id)}`, { method: 'DELETE' }); } catch { /* already gone */ }
+    this.services = null;
+    this.serviceLayers.delete(id);
+    this.renderCatalog();
+  }
+
+  /** "＋ Add" under Web services: type, address and an optional name; the engine checks it answers. */
+  async addService() {
+    const kinds = this.serviceKinds.length ? this.serviceKinds : [{ id: 'wms', title: 'WMS' }];
+    const hints: Record<string, string> = {
+      xyz: 'https://tile.example.org/{z}/{x}/{y}.png', wms: 'https://example.org/geoserver/wms', wmts: 'https://example.org/wmts/1.0.0/WMTSCapabilities.xml',
+      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer',
+    };
+    const modal = document.createElement('div');
+    modal.className = 'modal folder-pick';
+    modal.innerHTML = `<form class="sheet fp" role="dialog" aria-label="Add a web service">
+      <header><b>Add a web service</b><button type="button" data-x aria-label="Close">✕</button></header>
+      <div class="body">
+        <label class="ws-field"><span>Type</span><select name="kind">${kinds.map((k) => `<option value="${esc(k.id)}">${esc(k.title)}</option>`).join('')}</select></label>
+        <label class="ws-field"><span>Address</span><input name="url" required spellcheck="false" placeholder="${esc(hints[kinds[0].id] ?? 'https://')}" /></label>
+        <label class="ws-field"><span>Name (optional)</span><input name="title" /></label>
+        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer.</p>
+        <p class="err" data-msg></p>
+      </div>
+      <footer><button type="button" data-x>Cancel</button><button class="primary" type="submit">Connect</button></footer></form>`;
+    document.body.appendChild(modal);
+    const form = modal.querySelector('form')!;
+    const close = () => modal.remove();
+    modal.addEventListener('click', (e) => { if (e.target === modal || (e.target as HTMLElement).closest('[data-x]')) close(); });
+    form.kind.addEventListener('change', () => { (form.url as HTMLInputElement).placeholder = hints[(form.kind as HTMLSelectElement).value] ?? 'https://'; });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = modal.querySelector<HTMLElement>('[data-msg]')!;
+      msg.textContent = 'Asking the service…';
+      const q = `kind=${encodeURIComponent(form.kind.value)}&url=${encodeURIComponent((form.url as HTMLInputElement).value)}&title=${encodeURIComponent((form.elements.namedItem('title') as HTMLInputElement).value)}`;
+      try {
+        const r = await this.host.backend.json<{ service: { id: string; title: string }; layers: number }>(`api/services?${q}`, { method: 'POST' });
+        close();
+        this.services = null;
+        this.setStatus(`Connected ${r.service.title}: ${r.layers} layer${r.layers === 1 ? '' : 's'}`, 6000);
+        this.serviceLayers.delete(r.service.id);
+        this.browseOpen.delete(`ws:${r.service.id}`);
+        void this.toggleService(r.service.id);
+      } catch (err) {
+        msg.textContent = err instanceof Error ? err.message : String(err);
+      }
+    });
+    (form.url as HTMLInputElement).focus();
   }
 
   /** Favourite folders and files (right-click › Add to Favourites), kept in this browser. */

@@ -1367,3 +1367,14 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .pv-acts { display: flex; justify-content: flex-end; }
 .node.gx-leaf { cursor: pointer; }
 .node.gx-leaf .ct.dim, .node.file .ct.dim { color: var(--muted); font-size: 11px; margin-left: auto; }
+
+/* web layers in Contents */
+.web-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.web-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.web-row input[type=range] { width: 70px; }
+.web-row button { padding: 0 6px; }
+.pr-webhead { display: flex; justify-content: space-between; padding: 6px 10px 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.cat-head-row { display: flex; align-items: center; justify-content: space-between; }
+.cat-mini { padding: 0 6px; font-size: 11px; text-transform: none; letter-spacing: 0; }
+.ws-field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; font-size: 12px; }
+.ws-field input, .ws-field select { width: 100%; }
