@@ -16,7 +16,7 @@ new services.
 """
 import argparse, json, os, struct, subprocess, sys, tempfile, threading, time, urllib.request, urllib.error, zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote, unquote
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -46,8 +46,16 @@ STAC_ITEMS = [
                 "metadata": {"href": "BASE/stac/meta.xml", "type": "application/xml"}}}
     for d, c in (("09-01", 5.0), ("10-01", 60.0), ("08-01", 12.0))]
 
-def bucket():
-    """The mock S3 bucket "geo": key -> bytes (the scene is read when first asked for)."""
+FIXTURE = os.path.join(HERE, "fixtures", "overture-buildings.parquet")  # 3 row groups of 4 buildings
+
+
+def bucket(name="geo"):
+    """The mock S3 buckets: "geo" (a scene and a GeoJSON) and "ovt" (Overture's layout, two releases)."""
+    if name == "ovt":
+        part = open(FIXTURE, "rb").read()
+        return {f"release/{r}/theme=buildings/type=building/part-00000.parquet": part for r in ("2026-01-01.0", "2026-09-17.0")}
+    if name != "geo":
+        return None
     return {"scene.tif": open(SCENE["path"], "rb").read(), "vectors/plots.geojson": json.dumps(FEATURES).encode(), "vectors/readme.txt": b"notes"}
 
 
@@ -90,9 +98,10 @@ class Mock(BaseHTTPRequestHandler):
     def object(self, head):
         """An object of the mock S3 bucket, with byte ranges; None when the path is not one."""
         p = urlparse(self.path).path
-        if not p.startswith("/geo/") or p.rstrip("/") == "/geo":
+        parts = unquote(p).lstrip("/").split("/", 1)
+        if len(parts) < 2 or not parts[1] or bucket(parts[0]) is None:
             return None
-        data = bucket().get(p[len("/geo/"):])
+        data = bucket(parts[0]).get(parts[1])
         if data is None:
             self.send_response(404)
             self.send_header("Content-Length", "0")
@@ -142,14 +151,15 @@ class Mock(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k.lower(): v[0] for k, v in parse_qs(u.query).items()}
         p = u.path
-        if p.rstrip("/") == "/geo":  # S3 ListObjects (path style): one level, folders as CommonPrefixes
+        if p.strip("/") in ("geo", "ovt"):  # S3 ListObjects (path style): one level, folders as CommonPrefixes
+            objs = bucket(p.strip("/"))
             prefix = q.get("prefix", "")
-            keys = [k for k in bucket() if k.startswith(prefix)]
+            keys = [k for k in objs if k.startswith(prefix)]
             files = [k for k in keys if "/" not in k[len(prefix):]]
             dirs = sorted({prefix + k[len(prefix):].split("/")[0] + "/" for k in keys if "/" in k[len(prefix):]})
             body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>geo</Name>"
             body += f"<Prefix>{prefix}</Prefix><KeyCount>{len(files) + len(dirs)}</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>"
-            body += "".join(f"<Contents><Key>{k}</Key><LastModified>2026-01-01T00:00:00.000Z</LastModified><Size>{len(bucket()[k])}</Size></Contents>" for k in files)
+            body += "".join(f"<Contents><Key>{k}</Key><LastModified>2026-01-01T00:00:00.000Z</LastModified><Size>{len(objs[k])}</Size></Contents>" for k in files)
             body += "".join(f"<CommonPrefixes><Prefix>{d}</Prefix></CommonPrefixes>" for d in dirs) + "</ListBucketResult>"
             return self.send(body, "application/xml")
         if self.object(False):
@@ -221,8 +231,8 @@ def call(base, method, path, timeout=60, body=None):
         return e.code, e.read(), e.headers.get("Content-Type", "")
 
 
-def start(bin, data, state, port, host="127.0.0.1"):
-    env = dict(os.environ, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost")
+def start(bin, data, state, port, host="127.0.0.1", extra_env=None):
+    env = dict(os.environ, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost", **(extra_env or {}))
     args = [bin, "--data", data, "--state-dir", state, "--port", str(port), "--no-device-mounts", "--no-triggers"]
     if host != "127.0.0.1":
         args += ["--host", host, "--token", "t0ken"]
@@ -252,7 +262,7 @@ def main():
     base = f"http://127.0.0.1:{port}"
     srv = start(a.bin, data, os.path.join(tmp, "state"), port)
     try:
-        from urllib.parse import quote
+        pass
         cases = [
             ("xyz", f"{m}/xyz/{{z}}/{{x}}/{{y}}.png", "tiles", 1),
             ("wms", f"{m}/wms", "forest:cover", 2),
@@ -354,6 +364,38 @@ def main():
         check(code == 200, "a connection is removed")
     finally:
         srv.kill()
+    # Overture Maps from an S3 bucket in Overture's layout (two releases; the newest is used): the job
+    # reads the footer, keeps the one row group in the area, and puts 3 buildings on the map
+    ovt = start(a.bin, data, os.path.join(tmp, "state3"), port + 2, extra_env={
+        "GEOSPAX_OVERTURE_ROOT": "/vsis3/ovt/release", "AWS_S3_ENDPOINT": f"127.0.0.1:{mock.server_port}", "AWS_HTTPS": "NO",
+        "AWS_VIRTUAL_HOSTING": "FALSE", "AWS_NO_SIGN_REQUEST": "YES"})
+    try:
+        ob = f"http://127.0.0.1:{port + 2}"
+        code, body, _ = call(ob, "GET", "/api/overture")
+        check(code == 200 and any(t["id"] == "buildings" for t in json.loads(body)["themes"]), "overture: themes listed")
+        code, body, _ = call(ob, "POST", "/api/overture?theme=buildings&bbox=9.99,4.99,10.025,5.1")
+        job = json.loads(body).get("job") if code == 200 else None
+        j = {}
+        for _ in range(120):
+            if job is None:
+                break
+            j = json.loads(call(ob, "GET", f"/api/jobs/{job}")[1])
+            if j["status"] in ("done", "failed", "cancelled"):
+                break
+            time.sleep(0.25)
+        r = j.get("result") or {}
+        check(j.get("status") == "done" and r.get("features") == 3 and r.get("release") == "2026-09-17.0" and r.get("layers"),
+              f"overture: buildings for the area from the newest release ({j.get('status')} {j.get('message')} {r})")
+        code, body, _ = call(ob, "POST", "/api/overture?theme=buildings&bbox=0,0,5,5")
+        check(code == 400 and b"zoom in" in body, f"overture: a too-large area is refused ({code})")
+        # a .parquet file in a data folder opens as a layer too
+        import shutil
+        shutil.copy(FIXTURE, os.path.join(data, "buildings.parquet"))
+        code, body, _ = call(ob, "POST", f"/api/browse/add?path={quote(os.path.join(data, 'buildings.parquet'), safe='')}")
+        r = json.loads(body) if body else {}
+        check(code == 200 and len(r.get("layers", [])) == 1, f"geoparquet: a file in a data folder becomes a layer ({code} {r})")
+    finally:
+        ovt.kill()
     # open to other devices: no new services (the engine would fetch any address for them)
     shared = start(a.bin, data, os.path.join(tmp, "state2"), port + 1, host="0.0.0.0")
     try:

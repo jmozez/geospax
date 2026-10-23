@@ -122,6 +122,7 @@ pub fn open(engine: &Arc<Engine>, svc: &Value, sub: &str) -> Result<Value, Strin
             let h = engine.register_raster(p, &crate::raster::sanitize(&stem))?;
             Ok(json!({ "layers": [], "rasters": [h.info.id.clone()] }))
         }
+        Some("vector") if path.to_lowercase().ends_with(".parquet") => crate::geoparquet::open_file(engine, &path, None),
         Some("vector") => {
             let hs = crate::catalog::load_layers(p)?;
             if hs.is_empty() {

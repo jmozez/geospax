@@ -67,6 +67,15 @@ or `AWS_*` variables, `gcloud auth application-default login`, `az login`). GeoS
 MinIO or other S3-compatible storage, fill in the endpoint. Open the folders and click a file: GeoTIFFs are read
 in place (only the part on screen is fetched), vector files become layers.
 
+### How do I get buildings, roads or places for my study area?
+
+Zoom the map to your area (up to about 50 km across), then in the **Explorer** open **GeoSpaX › Overture
+Maps** and click a theme: Buildings, Roads and paths, Places, Water, Land use, Land cover, Boundaries or
+Addresses. GeoSpaX reads the newest [Overture Maps](https://overturemaps.org) release straight from its public
+cloud storage, fetching only the parts that cover your area, and adds the layer to Contents (saved under
+`~/GeoSpaX/Data/.geospax/overture/`). Overture data is open (ODbL for most themes, CDLA for some); cite it
+as "© OpenStreetMap contributors, Overture Maps Foundation".
+
 ### Lazy or Pro?
 
 **Lazy** shows layer cards, a task bar ("What do you want to do?") and plain-language next steps. **Pro** shows

@@ -4,7 +4,7 @@
 // downloads (GET api/runs/{id} → transfer); when the run ends the panel says what was added to
 // Contents, or why it failed.
 import type { Backend } from './backend';
-import type { RunInfo } from './automate';
+import type { RunInfo, Transfer } from './automate';
 import { ONLINE_RECIPE } from './online';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -40,7 +40,7 @@ export class DownloadGauge {
 
   private show(run: RunInfo & { cancel_url?: string }) {
     // the gauge is for downloads: Online data runs, and any run while it reports a transfer
-    if (run.recipe !== ONLINE_RECIPE && !run.transfer && this.current !== run.id) return;
+    if (run.recipe !== ONLINE_RECIPE && run.recipe !== 'download' && !run.transfer && this.current !== run.id) return;
     this.current = run.id;
     this.cancelUrl = run.cancel_url ?? null;
     clearTimeout(this.hideTimer);
@@ -73,5 +73,31 @@ export class DownloadGauge {
     }
     this.el.hidden = false;
     this.current = null;
+  }
+}
+
+/** Follow a background download job (api/jobs/{id}): feed the download gauge until it ends, then put
+ *  what it made on the map. Used by the STAC search and Overture Maps. */
+export async function followJob(backend: Backend, job: number, label: string, setStatus: (t: string, ms?: number) => void) {
+  const runId = `job-${job}`;
+  for (;;) {
+    let j: { status: string; message: string; elapsed_ms: number; result: { layers?: string[]; rasters?: string[] } | null; transfer: Transfer | null };
+    try { j = await backend.json(`api/jobs/${job}`); } catch { return; }
+    const layers = j.result?.layers ?? [];
+    const rasters = j.result?.rasters ?? [];
+    const failed = j.status === 'failed' || j.status === 'cancelled';
+    document.dispatchEvent(new CustomEvent('geospax:run-progress', {
+      detail: { id: runId, recipe: 'download', title: label, status: j.status, progress: 0, elapsed_ms: j.elapsed_ms, current: label, steps: [], artifacts: [], layers, rasters, styles: {}, extent: null, error: failed ? j.message : null, transfer: j.transfer ?? null, cancel_url: `api/jobs/${job}/cancel` },
+    }));
+    if (j.status === 'done') {
+      document.dispatchEvent(new CustomEvent('geospax:added', { detail: { layers, rasters } }));
+      setStatus(`${j.message || label}: added to the map`, 6000);
+      return;
+    }
+    if (failed) {
+      setStatus(`${label}: ${j.message}`, 10000);
+      return;
+    }
+    await new Promise((res) => setTimeout(res, 500));
   }
 }

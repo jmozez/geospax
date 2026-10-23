@@ -100,6 +100,12 @@ pub fn register_files(engine: &Arc<Engine>, files: &[PathBuf]) -> (Vec<String>, 
                 Ok(h) => rasters.push(h.info.id.clone()),
                 Err(err) => skipped.push(format!("{}: {err}", f.display())),
             }
+        } else if e == "parquet" {
+            // GeoParquet: read here (the GDAL builds GeoSpaX ships with have no Parquet driver)
+            match crate::geoparquet::open_file(engine, &f.to_string_lossy(), None) {
+                Ok(v) => layers.extend(v["layers"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(str::to_string))),
+                Err(err) => skipped.push(format!("{}: {err}", f.display())),
+            }
         } else if matches!(e.as_str(), "las" | "laz") {
             // point clouds are a job for lidar-to-terrain, which finds them in the data folder
             kept.push(f.display().to_string());

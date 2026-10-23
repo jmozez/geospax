@@ -14,6 +14,7 @@ pub mod browse;
 pub mod services;
 pub mod stac;
 pub mod cloud;
+pub mod geoparquet;
 pub mod catalog;
 pub mod classify;
 pub mod devices;

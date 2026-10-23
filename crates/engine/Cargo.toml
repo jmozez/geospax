@@ -33,6 +33,8 @@ arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-ipc = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
+parquet.workspace = true
+bytes.workspace = true
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rcgen = { version = "0.14.10", default-features = false, features = ["ring", "crypto"] }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
