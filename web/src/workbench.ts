@@ -996,7 +996,8 @@ export class Workbench {
       const [ico, word] = st[r.status] ?? ['•', r.status];
       return `<div class="act-item ${esc(r.status)}"><span class="act-ico">${ico}</span>
         <span class="act-txt"><b>${esc(r.title || r.recipe)}</b><small>${esc(word)}${r.trigger?.text ? ` · ${esc(r.trigger.text)}` : ''} · ${(r.elapsed_ms / 1000).toFixed(1)} s</small></span>
-        ${r.status === 'done' ? `<button data-act-open="${esc(r.id)}">Open report</button>` : ''}</div>`;
+        ${r.status === 'done' ? `<button data-act-open="${esc(r.id)}">Open report</button>` : ''}
+        ${r.status === 'failed' && r.error ? `<p class="act-why">${esc(r.error.replace(/^step '[^']*' \([^)]*\) failed: /, ''))}</p>` : ''}</div>`;
     });
     const notes = [...this.logs].reverse().slice(0, 5).map((l) => `<div class="act-note ${l.level}"><span>${esc(l.t)}</span>${esc(l.text)}</div>`);
     el.innerHTML = `<div class="act">

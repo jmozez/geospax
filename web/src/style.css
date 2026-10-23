@@ -1271,3 +1271,7 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .rb-menu-group .rb-btn .rb-label br { display: none; }
 .rb-menu-group .rb-items, .rb-menu-group .rb-items.grid3 { display: grid; grid-auto-flow: row; grid-template-rows: none; }
 .rb-menu-group .rb-ico svg { width: 16px; height: 16px; }
+
+/* Lazy Activity: why a run failed, in the engine's own words */
+.act-item { flex-wrap: wrap; }
+.act-why { flex-basis: 100%; margin: 4px 0 0 30px; font-size: 12px; color: var(--muted); line-height: 1.4; }

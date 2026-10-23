@@ -243,7 +243,8 @@ pub(super) fn hotspots(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         let b = bbox(&xy);
         let max_extent = (b[2] - b[0]).max(b[3] - b[1]).max(1.0);
         let rand_ann = 0.5 * (area / xy.len() as f64).sqrt();
-        let (cell, cell_why) = match p_f64(p, "cell").filter(|c| *c > 0.0) {
+        let set_by_recipe = p_f64(p, "cell").filter(|c| *c > 0.0);
+        let (cell, mut cell_why) = match set_by_recipe {
             Some(c) => (c, "set by the recipe".to_string()),
             None if 2.0 * rand_ann < max_extent / 100.0 => (
                 max_extent / 100.0,
@@ -251,12 +252,37 @@ pub(super) fn hotspots(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             ),
             None => (2.0 * ann.max(mnn), format!("twice the larger of the average ({}) and median ({}) nearest-neighbour distance", dist_text(ann), dist_text(mnn))),
         };
-        let cell = cell.max(0.5);
-        let hr = cell * (2.0 / (3.0 * SQRT3)).sqrt(); // hexagon with the area of a cell × cell square
-        let mut counts: HashMap<(i64, i64), u32> = HashMap::new();
-        for q in &xy {
-            let k = if shape == "hexagon" { hex_of(*q, hr) } else { ((q[0] / cell).floor() as i64, (q[1] / cell).floor() as i64) };
-            *counts.entry(k).or_insert(0) += 1;
+        if ul.len() < 30 {
+            return Err(format!(
+                "the {} incidents in {} sit at only {} distinct places, and hot spot analysis needs at least 30. Records at the same coordinates (common in GBIF and survey data, where many sightings share a site) count as one place. Try Make a surface with a value field, or add records from more places.",
+                xy.len(),
+                l.info.id,
+                ul.len()
+            ));
+        }
+        let count_cells = |cell: f64| {
+            let hr = cell * (2.0 / (3.0 * SQRT3)).sqrt(); // hexagon with the area of a cell × cell square
+            let mut counts: HashMap<(i64, i64), u32> = HashMap::new();
+            for q in &xy {
+                let k = if shape == "hexagon" { hex_of(*q, hr) } else { ((q[0] / cell).floor() as i64, (q[1] / cell).floor() as i64) };
+                *counts.entry(k).or_insert(0) += 1;
+            }
+            (hr, counts)
+        };
+        let mut cell = cell.max(0.5);
+        let (mut hr, mut counts) = count_cells(cell);
+        // clustered records (many at few sites) leave too few cells at the automatic size: make the
+        // cells smaller until there are 30, as long as there are places left to separate
+        if set_by_recipe.is_none() && counts.len() < 30 {
+            let first = cell;
+            for _ in 0..40 {
+                if counts.len() >= 30 || cell <= 0.5 {
+                    break;
+                }
+                cell = (cell / 1.25).max(0.5);
+                (hr, counts) = count_cells(cell);
+            }
+            cell_why = format!("{cell_why} gave {}, too few cells for the test, so the cells were made smaller until there were at least 30", dist_text(first));
         }
         let mut keys: Vec<(i64, i64)> = counts.keys().copied().collect();
         keys.sort();

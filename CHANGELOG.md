@@ -5,6 +5,12 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Fixed
+- **Hot spots on occurrence records** (GBIF, surveys) no longer fail when many records share a site:
+  the cells are made smaller until there are enough to test, and when there are fewer than 30
+  distinct places GeoSpaX says so in plain words.
+- **Lazy mode's Activity list shows why a run failed**, not just "Failed".
+
 ## [3.0.1] — 2026-10-23
 
 ### Changed
