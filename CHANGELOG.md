@@ -19,6 +19,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   map stay.
 
 ### Fixed
+- **Online data: Climate (WorldClim), Boundaries (GADM) and Ecoregions downloads failed** with "the provider moved
+  the file": GDAL was only allowed to open remote .tif/.vrt/.jp2 files, and these sources are .zip files.
 - The left pane no longer gets so narrow that its tabs and layer names are cut off (240 px at least; a
   narrower width saved earlier is widened), and pane tabs scroll instead of hiding.
 - **Hot spots on occurrence records** (GBIF, surveys) no longer fail when many records share a site:

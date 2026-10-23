@@ -39,7 +39,11 @@ pub fn configure_gdal() {
     }
     for (k, v) in [
         ("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR"),
-        ("CPL_VSIL_CURL_ALLOWED_EXTENSIONS", ".tif,.tiff,.TIF,.vrt,.jp2"),
+        // every file type the online sources are read from: WorldClim, GADM and the ecoregions come
+        // as .zip (read through /vsizip//vsicurl/); leaving one out makes GDAL treat it as missing
+        ("CPL_VSIL_CURL_ALLOWED_EXTENSIONS", ".tif,.tiff,.TIF,.vrt,.jp2,.zip,.json,.geojson,.gpkg,.shp,.shx,.dbf,.prj,.fgb,.parquet"),
+        // byte counts for the download gauge (VSINetworkStatsGetAsSerializedJSON)
+        ("CPL_VSIL_NETWORK_STATS_ENABLED", "YES"),
         ("GDAL_HTTP_MERGE_CONSECUTIVE_RANGES", "YES"),
         ("GDAL_HTTP_MULTIPLEX", "YES"),
         ("VSI_CACHE", "TRUE"),
