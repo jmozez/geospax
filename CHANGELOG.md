@@ -5,6 +5,14 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Changed
+- **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
+
+### Added
+- **Delete finished maps and runs:** ✕ on each finished map on the start screen, on each item in Lazy's
+  Activity and in Pro's History, plus **Clear history**. The map, report and log go; layers already on the
+  map stay.
+
 ### Fixed
 - **Hot spots on occurrence records** (GBIF, surveys) no longer fail when many records share a site:
   the cells are made smaller until there are enough to test, and when there are fewer than 30
