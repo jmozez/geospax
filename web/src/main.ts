@@ -1211,7 +1211,7 @@ async function openSettings() {
       </section>
       <section><h3>Setup</h3>
         <div class="settings-btns">
-          <button type="button" data-go="ai">AI assistant…</button><button type="button" data-go="r">R and packages…</button>
+          <button type="button" data-go="ai">AI assistant…</button>${uiMode === 'pro' ? '<button type="button" data-go="r">R and packages…</button>' : ''}
           <button type="button" data-go="plugins">Plugins…</button><button type="button" data-go="layout">Reset window layout</button>
         </div>
       </section>

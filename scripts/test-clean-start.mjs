@@ -79,7 +79,7 @@ try {
     ok(`every tab fits at ${width} px`, !over.length, over.join(' '));
   }
   await page.setViewportSize({ width: 1400, height: 900 });
-  ok('tabs in ArcGIS Pro order, Help last', (await page.$$eval('#ribbon-tabs [data-tab]', (a) => a.map((x) => x.textContent.trim()))).join(',') === 'Home,Data,Analysis,View,Edit,Imagery,Share,R,Automate,Plugins,Help');
+  ok('tabs in ArcGIS Pro order, Help last', (await page.$$eval('#ribbon-tabs [data-tab]', (a) => a.map((x) => x.textContent.trim()))).join(',') === 'Home,Data,Analysis,View,Edit,Imagery,Share,R & Python,Automate,Plugins,Help');
   // icons: the same picture for two different commands confuses (same command on two tabs is fine)
   const icons = {};
   for (const t of await page.$$eval('#ribbon-tabs [data-tab]', (a) => a.map((x) => x.dataset.tab))) {
@@ -116,7 +116,9 @@ try {
   if (shots) {
     await page.click('#ribbon-tabs [data-tab="home"]');
     await page.evaluate(() => document.querySelector('#contents .layer:not(.raster) .name')?.click());
-    await page.waitForTimeout(1500);
+    await page.click('#ribbon-tabs [data-tab="home"]');
+    await page.click('[data-cmd="view.zoomAll"]');
+    await page.waitForTimeout(3500);
     await page.screenshot({ path: join(shots, 'screenshot-pro.png') });
   }
   const victim = rows.find((id) => !id.startsWith('r:'));
@@ -134,6 +136,12 @@ try {
   ok('the Delete key removes the focused layer', !(await page.$(`#contents .layer[data-id="${second}"]`)));
   await page.goto(`${base}/?mode=lazy&theme=light`);
   await page.waitForTimeout(3000);
+  ok('no ribbon tabs in Lazy (R & Python is Pro only)', !(await page.$('#ribbon-tabs [data-tab="r"]')));
+  await page.keyboard.press('Control+k');
+  await page.fill('#palette-input', 'R console');
+  await page.waitForTimeout(500);
+  ok('Lazy search does not offer R & Python', !(await page.$$eval('#palette-list .pal-row .pl', (a) => a.map((x) => x.textContent))).includes('R console'));
+  await page.keyboard.press('Escape');
   ok('Lazy cards have a remove button', (await page.$$('#contents .card [data-act="remove"]')).length > 0);
 
   console.log('settings and help');

@@ -45,7 +45,7 @@ ok('map is the largest pane', await page.evaluate(() => {
 await page.screenshot({ path: `${out}/workbench-01-home.png` });
 
 console.log('\n2 · ribbon tabs');
-for (const [tab, min] of [['data', 4], ['style', 3], ['analyze', 4], ['imagery', 4], ['modelling', 2], ['r', 8], ['view', 5], ['automate', 4], ['help', 4], ['plugins', 1]]) {
+for (const [tab, min] of [['data', 4], ['analyze', 4], ['view', 5], ['edit', 8], ['imagery', 4], ['share', 3], ['r', 8], ['automate', 3], ['plugins', 1], ['help', 4]]) {
   await page.click(`#ribbon-tabs [data-tab="${tab}"]`);
   await page.waitForTimeout(250);
   const n = (await page.$$('#ribbon-body .rb-btn')).length;

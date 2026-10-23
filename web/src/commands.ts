@@ -155,6 +155,7 @@ export const ICONS: Record<string, string> = {
   group: 'M1,1V5H2V19H1V23H5V22H19V23H23V19H22V5H23V1H19V2H5V1M5,4H19V5H20V19H19V20H5V19H4V5H5M6,6V14H9V18H18V9H14V6M8,8H12V12H8M14,11H16V16H11V14H14',
   palette2: 'M11.5 16C12.37 16 13.19 15.74 13.88 15.3L16.32 17.74L17.74 16.32L15.3 13.89C15.74 13.19 16 12.38 16 11.5C16 9 14 7 11.5 7S7 9 7 11.5 9 16 11.5 16M11.5 9C12.88 9 14 10.12 14 11.5S12.88 14 11.5 14 9 12.88 9 11.5 10.12 9 11.5 9M20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4M20 18H4V6H20V18Z',
   logfile: 'M5,3C3.89,3 3,3.89 3,5V19C3,20.11 3.89,21 5,21H19C20.11,21 21,20.11 21,19V5C21,3.89 20.11,3 19,3H5M5,5H19V19H5V5M7,7V9H17V7H7M7,11V13H17V11H7M7,15V17H14V15H7Z',
+  python: 'M19.14,7.5A2.86,2.86 0 0,1 22,10.36V14.14A2.86,2.86 0 0,1 19.14,17H12C12,17.39 12.32,17.96 12.71,17.96H17V19.64A2.86,2.86 0 0,1 14.14,22.5H9.86A2.86,2.86 0 0,1 7,19.64V15.89C7,14.31 8.28,13.04 9.86,13.04H15.11C16.69,13.04 17.96,11.76 17.96,10.18V7.5H19.14M14.86,19.29C14.46,19.29 14.14,19.59 14.14,20.18C14.14,20.77 14.46,20.89 14.86,20.89A0.71,0.71 0 0,0 15.57,20.18C15.57,19.59 15.25,19.29 14.86,19.29M4.86,17.5C3.28,17.5 2,16.22 2,14.64V10.86C2,9.28 3.28,8 4.86,8H12C12,7.61 11.68,7.04 11.29,7.04H7V5.36C7,3.78 8.28,2.5 9.86,2.5H14.14C15.72,2.5 17,3.78 17,5.36V9.11C17,10.69 15.72,11.96 14.14,11.96H8.89C7.31,11.96 6.04,13.24 6.04,14.82V17.5H4.86M9.14,5.71C9.54,5.71 9.86,5.41 9.86,4.82C9.86,4.23 9.54,4.11 9.14,4.11C8.75,4.11 8.43,4.23 8.43,4.82C8.43,5.41 8.75,5.71 9.14,5.71Z',
   code: 'M8,3A2,2 0 0,0 6,5V9A2,2 0 0,1 4,11H3V13H4A2,2 0 0,1 6,15V19A2,2 0 0,0 8,21H10V19H8V14A2,2 0 0,0 6,12A2,2 0 0,0 8,10V5H10V3M16,3A2,2 0 0,1 18,5V9A2,2 0 0,0 20,11H21V13H20A2,2 0 0,0 18,15V19A2,2 0 0,1 16,21H14V19H16V14A2,2 0 0,1 18,12A2,2 0 0,1 16,10V5H14V3H16Z',
   keyboard: 'M4,5A2,2 0 0,0 2,7V17A2,2 0 0,0 4,19H20A2,2 0 0,0 22,17V7A2,2 0 0,0 20,5H4M4,7H20V17H4V7M5,8V10H7V8H5M8,8V10H10V8H8M11,8V10H13V8H11M14,8V10H16V8H14M17,8V10H19V8H17M5,11V13H7V11H5M8,11V13H10V11H8M11,11V13H13V11H11M14,11V13H16V11H14M17,11V13H19V11H17M8,14V16H16V14H8Z',
   diagnostics: 'M19,8C19.56,8 20,8.43 20,9A1,1 0 0,1 19,10C18.43,10 18,9.55 18,9C18,8.43 18.43,8 19,8M2,2V11C2,13.96 4.19,16.5 7.14,16.91C7.76,19.92 10.42,22 13.5,22A6.5,6.5 0 0,0 20,15.5V11.81C21.16,11.39 22,10.29 22,9A3,3 0 0,0 19,6A3,3 0 0,0 16,9C16,10.29 16.84,11.4 18,11.81V15.41C18,17.91 16,19.91 13.5,19.91C11.5,19.91 9.82,18.7 9.22,16.9C12,16.3 14,13.8 14,11V2H10V5H12V11A4,4 0 0,1 8,15A4,4 0 0,1 4,11V5H6V2H2Z',
@@ -214,6 +215,7 @@ export const ICONS: Record<string, string> = {
   bellCum: 'M4 19V20H22V22H2V2H4V17C7 17 10 15 12.1 11.4C15.1 6.4 18.4 4 22 4V6C19.2 6 16.5 8.1 13.9 12.5C11.3 16.6 7.7 19 4 19Z',
   brain: 'M21.33,12.91C21.42,14.46 20.71,15.95 19.44,16.86L20.21,18.35C20.44,18.8 20.47,19.33 20.27,19.8C20.08,20.27 19.69,20.64 19.21,20.8L18.42,21.05C18.25,21.11 18.06,21.14 17.88,21.14C17.37,21.14 16.89,20.91 16.56,20.5L14.44,18C13.55,17.85 12.71,17.47 12,16.9C11.5,17.05 11,17.13 10.5,17.13C9.62,17.13 8.74,16.86 8,16.34C7.47,16.5 6.93,16.57 6.38,16.56C5.59,16.57 4.81,16.41 4.08,16.11C2.65,15.47 1.7,14.07 1.65,12.5C1.57,11.78 1.69,11.05 2,10.39C1.71,9.64 1.68,8.82 1.93,8.06C2.3,7.11 3,6.32 3.87,5.82C4.45,4.13 6.08,3 7.87,3.12C9.47,1.62 11.92,1.46 13.7,2.75C14.12,2.64 14.56,2.58 15,2.58C16.36,2.55 17.65,3.15 18.5,4.22C20.54,4.75 22,6.57 22.08,8.69C22.13,9.8 21.83,10.89 21.22,11.82C21.29,12.18 21.33,12.54 21.33,12.91M16.33,11.5C16.9,11.57 17.35,12 17.35,12.57A1,1 0 0,1 16.35,13.57H15.72C15.4,14.47 14.84,15.26 14.1,15.86C14.35,15.95 14.61,16 14.87,16.07C20,16 19.4,12.87 19.4,12.82C19.34,11.39 18.14,10.27 16.71,10.33A1,1 0 0,1 15.71,9.33A1,1 0 0,1 16.71,8.33C17.94,8.36 19.12,8.82 20.04,9.63C20.09,9.34 20.12,9.04 20.12,8.74C20.06,7.5 19.5,6.42 17.25,6.21C16,3.25 12.85,4.89 12.85,5.81V5.81C12.82,6.04 13.06,6.53 13.1,6.56A1,1 0 0,1 14.1,7.56C14.1,8.11 13.65,8.56 13.1,8.56V8.56C12.57,8.54 12.07,8.34 11.67,8C11.19,8.31 10.64,8.5 10.07,8.56V8.56C9.5,8.61 9.03,8.21 9,7.66C8.92,7.1 9.33,6.61 9.88,6.56C10.04,6.54 10.82,6.42 10.82,5.79V5.79C10.82,5.13 11.07,4.5 11.5,4C10.58,3.75 9.59,4.08 8.59,5.29C6.75,5 6,5.25 5.45,7.2C4.5,7.67 4,8 3.78,9C4.86,8.78 5.97,8.87 7,9.25C7.5,9.44 7.78,10 7.59,10.54C7.4,11.06 6.82,11.32 6.3,11.13C5.57,10.81 4.75,10.79 4,11.07C3.68,11.34 3.68,11.9 3.68,12.34C3.68,13.08 4.05,13.77 4.68,14.17C5.21,14.44 5.8,14.58 6.39,14.57C6.24,14.31 6.11,14.04 6,13.76C5.81,13.22 6.1,12.63 6.64,12.44C7.18,12.25 7.77,12.54 7.96,13.08C8.36,14.22 9.38,15 10.58,15.13C11.95,15.06 13.17,14.25 13.77,13C14,11.62 15.11,11.5 16.33,11.5M18.33,18.97L17.71,17.67L17,17.83L18,19.08L18.33,18.97M13.68,10.36C13.7,9.83 13.3,9.38 12.77,9.33C12.06,9.29 11.37,9.53 10.84,10C10.27,10.58 9.97,11.38 10,12.19A1,1 0 0,0 11,13.19C11.57,13.19 12,12.74 12,12.19C12,11.92 12.07,11.65 12.23,11.43C12.35,11.33 12.5,11.28 12.66,11.28C13.21,11.31 13.68,10.9 13.68,10.36Z',
   database: 'M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z',
+  slope: 'M22,13V22H2V19L22,13M21.68,7.06L16.86,4.46L17.7,7.24L7.58,10.24C6.63,8.95 4.82,8.67 3.53,9.62C2.24,10.57 1.96,12.38 2.91,13.67C3.85,14.97 5.67,15.24 6.96,14.29C7.67,13.78 8.1,12.97 8.14,12.09L18.26,9.09L19.1,11.87L21.68,7.06Z',
   earth: 'M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.78 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z',
 };
 
@@ -241,7 +243,7 @@ export const TABS: { id: TabId; label: string }[] = [
   { id: 'edit', label: 'Edit' },
   { id: 'imagery', label: 'Imagery' },
   { id: 'share', label: 'Share' },
-  { id: 'r', label: 'R' },
+  { id: 'r', label: 'R & Python' },
   { id: 'automate', label: 'Automate' },
   { id: 'plugins', label: 'Plugins' },
   { id: 'help', label: 'Help' },
@@ -263,6 +265,8 @@ const GROUP_ORDER: Partial<Record<TabId, string[]>> = {
   edit: ['Create', 'Modify', 'Selection', 'Fields', 'Manage edits', 'Measure'],
   share: ['Layout', 'Export'],
   help: ['Docs', 'Support', 'About', 'Diagnostics'],
+  // one tab for both scripting languages: R's groups first, then Python
+  r: ['R', 'R maps', 'R rasters', 'R species models', 'R machine learning', 'Python'],
 };
 
 /** A command that runs a gallery recipe by id. */
@@ -747,11 +751,6 @@ export const COMMANDS: Command[] = [
     id: 'automate.reload', tab: 'automate', group: 'Runs', title: 'Refresh runs', icon: 'refresh',
     run: (h) => { h.reload(); h.showTab('bottom', 'history'); },
   },
-  {
-    id: 'automate.scripts', tab: 'automate', group: 'Scripts', title: 'R / Python', icon: 'code',
-    hint: 'Recipe steps can call R or Python scripts',
-    run: (h) => { h.openUrl('docs/AUTOMATION.md'); },
-  },
 
   // ---- Help
   {
@@ -806,7 +805,7 @@ export const COMMANDS: Command[] = [
   onlineCmd('data.soil', 'Soil', 'd-soil', 'soilgrids', 'SoilGrids 2.0: pH, organic carbon, texture … by depth'),
   onlineCmd('data.species', 'Species', 'd-biodiversity', 'gbif', 'Occurrences from GBIF, OBIS or iNaturalist, with the citation', true),
   onlineCmd('data.boundaries', 'Boundaries', 'grid', 'gadm', 'GADM 4.1 administrative areas of a country'),
-  onlineCmd('data.elevation', 'Elevation', 'd-geoscience', 'dem', 'Copernicus GLO-30 / GLO-90 DEM for the map view'),
+  onlineCmd('data.elevation', 'Elevation', 'slope', 'dem', 'Copernicus GLO-30 / GLO-90 DEM for the map view'),
   {
     id: 'data.worms', tab: 'data', group: 'Online data', title: 'Check species names', icon: 'spell',
     hint: 'Match a layer\'s scientific names against WoRMS: accepted names for synonyms, spelling checks, classification',
@@ -873,17 +872,23 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:plugin-manager')); },
   },
   // ------------------------------------------------ R (rconsole.ts)
-  rCmd('r.console', 'Code', 'R console', 'rlogo', 'blank', 'Run R code on a layer (sf) and a raster (terra); results come back to the map', true),
-  rCmd('r.setup', 'Code', 'R setup', 'pkgDown', 'setup', 'Find or install R and package kits (sf, terra, tmap, biomod2 …)'),
-  rCmd('r.tmap', 'Maps', 'tmap map', 'layout', 'tmap', 'A thematic map with tmap, saved at print size', true),
-  rCmd('r.ggplot', 'Maps', 'ggplot2 map', 'lineChart', 'ggplot', 'A ggplot2 map (geom_sf) with scale bar and north arrow'),
-  rCmd('r.rayshader', 'Maps', 'Relief', 'cubeScan', 'rayshader', 'Shaded relief from a DEM with rayshader'),
-  rCmd('r.terrain', 'Rasters', 'Terrain', 'elevRise', 'terrain', 'Slope, aspect, hillshade and ruggedness with terra', true),
-  rCmd('r.gee', 'Rasters', 'Earth Engine', 'googleEarth', 'gee', 'Sentinel-2 NDVI from Google Earth Engine with rgee'),
-  rCmd('r.biomod2', 'Species models', 'biomod2', 'dna', 'biomod2', 'Ensemble species distribution model (GLM, RF, MaxNet) with biomod2', true),
-  rCmd('r.maxent', 'Species models', 'MaxEnt', 'bellCum', 'maxent', 'MaxEnt with maxnet: presences + background, cloglog suitability'),
-  rCmd('r.tidymodels', 'Machine learning', 'tidymodels', 'brain', 'tidymodels', 'Random forest with tidymodels, cross-validated', true),
-  rCmd('r.dbplyr', 'Machine learning', 'dbplyr', 'database', 'dbplyr', 'dplyr verbs run as SQL in DuckDB'),
+  rCmd('r.console', 'R', 'R console', 'rlogo', 'blank', 'Run R code on a layer (sf) and a raster (terra); results come back to the map', true),
+  rCmd('r.setup', 'R', 'R setup', 'pkgDown', 'setup', 'Find or install R and package kits (sf, terra, tmap, biomod2 …)'),
+  rCmd('r.tmap', 'R maps', 'tmap map', 'layout', 'tmap', 'A thematic map with tmap, saved at print size', true),
+  rCmd('r.ggplot', 'R maps', 'ggplot2 map', 'lineChart', 'ggplot', 'A ggplot2 map (geom_sf) with scale bar and north arrow'),
+  rCmd('r.rayshader', 'R maps', 'Relief', 'cubeScan', 'rayshader', 'Shaded relief from a DEM with rayshader'),
+  rCmd('r.terrain', 'R rasters', 'Terrain', 'elevRise', 'terrain', 'Slope, aspect, hillshade and ruggedness with terra', true),
+  rCmd('r.gee', 'R rasters', 'Earth Engine', 'googleEarth', 'gee', 'Sentinel-2 NDVI from Google Earth Engine with rgee'),
+  rCmd('r.biomod2', 'R species models', 'biomod2', 'dna', 'biomod2', 'Ensemble species distribution model (GLM, RF, MaxNet) with biomod2', true),
+  rCmd('r.maxent', 'R species models', 'MaxEnt', 'bellCum', 'maxent', 'MaxEnt with maxnet: presences + background, cloglog suitability'),
+  rCmd('r.tidymodels', 'R machine learning', 'tidymodels', 'brain', 'tidymodels', 'Random forest with tidymodels, cross-validated', true),
+  rCmd('r.dbplyr', 'R machine learning', 'dbplyr', 'database', 'dbplyr', 'dplyr verbs run as SQL in DuckDB'),
+  recipeCmd('py.stats', 'r', 'Python', 'Spatial statistics', 'python', 'python-spatial-stats', 'Mean centre, standard distance, ellipse and nearest-neighbour index in a Python step', true),
+  {
+    id: 'py.steps', tab: 'r', group: 'Python', title: 'Python steps', icon: 'code',
+    hint: 'Add your own Python (or R) code as a recipe step: inputs, parameters, outputs. Needs Python 3 (or GEOSPAX_PYTHON)',
+    run: (h) => { h.openUrl('docs/AUTOMATION.md'); },
+  },
 ];
 
 /** Render one ribbon button (shared by the ribbon and the palette footer). */

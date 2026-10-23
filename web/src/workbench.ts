@@ -520,7 +520,8 @@ export class Workbench {
       const g = groups[i];
       const items = g.querySelector<HTMLElement>('.rb-items');
       const n = items?.querySelectorAll('button').length ?? 0;
-      if (!items || n < 2) continue;
+      // an expanded gallery stays open: the user asked for it, so other groups fold first
+      if (!items || n < 2 || g.querySelector('.rb-recipe')) continue;
       const title = g.querySelector('.rb-title')?.textContent?.trim() || 'More';
       const key = `group:${i}`;
       this.collapsed.set(key, { title, html: items.innerHTML });
@@ -1210,7 +1211,10 @@ export class Workbench {
     const seq = ++this.paletteSeq;
     const items: typeof this.paletteItems = [];
     const host = this.cmdHost();
+    // R & Python is a Pro tab: Lazy's search does not offer its commands
+    const lazy = this.host.mode() === 'lazy';
     for (const c of COMMANDS) {
+      if (lazy && c.tab === 'r') continue;
       items.push({
         id: c.id,
         label: c.title,

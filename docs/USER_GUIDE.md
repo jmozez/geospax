@@ -167,17 +167,22 @@ default) changes the ribbon and the layer list together:
 
   | Tab | Groups |
   | --- | --- |
-  | **Home** | Project · Layers · Selection · Map (Finish my map, export) |
-  | **Data** | Add data · **Online data** (climate, future climate, soil, species, boundaries, elevation) · Sources |
-  | **Map** | Symbology · Fields |
-  | **Analysis** | Recipes · Toolbox · Spatial statistics · GeoLibre tools |
+  | **Home** | Project · Navigate (previous/next extent, go to XY, find place, basemap) · Layer (add data, remove) · Selection · Inquiry (measure, identify) · Symbology |
+  | **Data** | Add data · **Online data** (climate, future climate, soil, species, boundaries, elevation) · Sources · Sample data |
+  | **Analysis** | Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Tools · Spatial statistics · Interpolation · Assistant |
+  | **View** | Navigate · Projection · Theme · Basemap · Windows |
+  | **Edit** | Editing · Selection · Measure |
   | **Imagery** | Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools |
-  | **Modelling** | Interpolation (kriging, kriging in R) |
-  | **R** | R console · R setup · tmap, ggplot2 and rayshader maps · terra terrain · Earth Engine · biomod2 and MaxEnt species models · tidymodels · dbplyr ([R.md](R.md)) |
-  | **Automate** | Recipes · Runs · Scripts |
-  | **View** | Navigate · Theme · Basemap · Windows |
-  | **Help** | Docs · About · Diagnostics |
-  | **Plugins** | Plugin tools that name no tab |
+  | **Share** | Layout (Finish my map) · Export |
+  | **R & Python** | R: console · setup · tmap, ggplot2 and rayshader maps · terra terrain · Earth Engine · biomod2 and MaxEnt species models · tidymodels · dbplyr ([R.md](R.md)) · Python: spatial statistics · your own Python steps ([AUTOMATION.md](AUTOMATION.md)) |
+  | **Automate** | Recipes · Runs |
+  | **Plugins** | **Domain plugins (GSX)** (agriculture, biodiversity, climate, conservation …: each lists its tools and kits) · Manage · plugin tools that name no tab |
+  | **Help** | Docs (user guide, FAQ, what's new) · Support · About · Diagnostics |
+
+  The tabs follow ArcGIS Pro's order. When the window is too narrow for a tab, its rightmost groups fold
+  into **▾** menus instead of being cut off. **Settings** (Home tab, or the ⚙ at the top right) keeps theme,
+  mode, units, basemap and automation choices. **Help** opens the guides and the FAQ as a searchable web page
+  of its own (a new browser tab, or a window on the desktop).
 
   Every group has the same height: its main commands are large buttons, the others small buttons stacked
   three to a column, as in ArcGIS Pro. A plugin tool appears on the tab its manifest names
@@ -230,7 +235,7 @@ Both show the same project: switching never changes the map.
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ GeoSpaX   ⤓ ⟳ ⤢ ⌘                          Ctrl+K for any command    │  title bar
-│ Home  Data  Style  Analyze  View  Automate  Help                      │  ribbon tabs
+│ Home Data Analysis View Edit Imagery Share R&Py Automate Plugins Help│  ribbon tabs
 │ ┌ Refresh ┐ ┌ Contents ┐ ┌ Attribute ┐ ┌ Export ┐                     │  ribbon body
 │ └──Project┘ └── Layers ┘ └──Selection┘ └──  Map ┘                     │
 ├────────────┬──────────────────────────────────┬───────────────────────┤
@@ -246,7 +251,7 @@ Both show the same project: switching never changes the map.
 
 | Where | What it does |
 | --- | --- |
-| **Ribbon** | Seven tabs of commands with icons, tooltips and shortcuts. **Analyze** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The **pin** at the right of the tab strip (or `Ctrl+F1`) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map). |
+| **Ribbon** | Eleven tabs of commands with icons, tooltips and shortcuts. **Analysis** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The **pin** at the right of the tab strip (or `Ctrl+F1`) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map). |
 | **Contents** (left) | The layer list: visibility, draw order, legend, symbology. Rasters are listed with the vector layers. Every result of an analysis (a recipe, a Toolbox tool, the Ask assistant, a trigger) is added here by itself, switched on and on top, as in ArcGIS Pro and QGIS; drag it or use ▲ ▼ to change what draws over what. |
 | **Catalog** (left) | Your files on disk, as ArcGIS Pro's Catalog and QGIS's Browser: **Folders** lists the data folders (and *Edits*, the copies of layers you edited) with every map file in them; double-click a file or press **+** to add it to the map, a ✓ marks files already on it, right-click for *Add*, *Copy path* and *Refresh*. **On the map** lists the layers by the file they come from (click one to make it active); **More** opens sample data, recipes, devices, rasters and run history. Only the data folders can be browsed, never the rest of the computer. |
 | **Project** (left) | Your map as a whole: where it is saved (it saves itself after every change), its layers, basemap, projection and view; **Save a copy…** downloads it as a file to keep or share, **Open…** reads one back (also a 1.4.2 `.gspx` or a 2.0 `.geolibre.json`, whose layers are imported), **New** starts again. **Bookmarks** remember map views by name (also *View › Bookmark view*). The data stays in your files; the project only points at them. Developer controls (tile transport, engine cache, benchmark, Arrow → deck.gl) are folded away under *Diagnostics*, also opened by *Help › Engine diagnostics*. |
@@ -273,7 +278,7 @@ Pane sizes, which tab is open and which panes are collapsed are remembered per b
 
 ### The Toolbox: every tool in one place
 
-The **Toolbox** tab (right pane, both modes; **All tools** in the Lazy task bar, **Analyze → Toolbox** in
+The **Toolbox** tab (right pane, both modes; **All tools** in the Lazy task bar, **Analysis → Toolbox** in
 Pro) lists every tool GeoSpaX can run, with one search box:
 
 - **Ready-made analyses**: the recipes. A form, then **▶ Run**: the result joins the map, with a laid-out
@@ -413,11 +418,11 @@ The **Edit** tab works like ArcGIS Pro's (and QGIS's digitising and attribute to
 | --- | --- |
 | **Create** | **Point**, **Line**, **Polygon**: click to place vertices, double-click (or click the first point) to finish, then fill in the feature's attributes. New vertices **snap** to the vertices of visible features (Manage edits › Snapping turns it off). |
 | **Modify** | **Select** (click; Shift adds, Ctrl removes, Delete deletes), **Select by rectangle**, **Edit vertices** (drag a vertex or the whole shape, drag a midpoint to add a vertex, right-click a vertex to delete it; Enter saves, Esc cancels), **Attributes** (form for the selected feature), **Delete**. |
-| **Selection** | **By attributes**: a query builder (field, operator, value list, AND/OR) that writes an SQL WHERE clause you can edit and **Check** before selecting; new selection, add, remove or select from the current one. **By location**: features that intersect, lie completely within, contain or are within a distance (metres) of another layer's features, or only its selected ones. **Zoom to selected**, **Clear selection**. The same selection tools are on the Map tab. |
+| **Selection** | **By attributes**: a query builder (field, operator, value list, AND/OR) that writes an SQL WHERE clause you can edit and **Check** before selecting; new selection, add, remove or select from the current one. **By location**: features that intersect, lie completely within, contain or are within a distance (metres) of another layer's features, or only its selected ones. **Zoom to selected**, **Clear selection**. The same selection tools are on the Edit tab. |
 | **Fields** | **Calculate field**: an SQL expression (`"a" * 2`, `round("x", 2)`, `"a" \|\| ' ' \|\| "b"`, `CASE WHEN "x" > 10 THEN 'high' ELSE 'low' END`, `upper()`, `substr()`, `coalesce()` …) or a **geometry** measure (geodesic area in m², ha or km², length, perimeter, x, y), for all features or the selected ones; a new field is created with the type you choose. **Add field**, **Attribute table**, **Definition query** (only matching features are drawn, listed and analysed until you clear it; the data is not changed). |
 | **Manage edits** | **Undo**/**Redo** (Ctrl+Z, Ctrl+Y) step through whole edits, including deletions; **New layer** (empty points, lines or polygons with the fields you list); **Export features** (the selection or the layer as a new layer); **Discard edits**. |
 
-**Measure** (Map tab and Edit tab): **Distance** sums the segments you click; **Area** gives the area and
+**Measure** (Home tab and Edit tab): **Distance** sums the segments you click; **Area** gives the area and
 perimeter of the shape you click. Both are geodesic (measured on the globe, not on the flat map), in metric
 or imperial units (click the unit button); double-click or Enter finishes, Backspace removes the last
 point, Esc closes. **View › Projection** switches the map between Web Mercator and a **Globe**.

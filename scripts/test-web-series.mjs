@@ -45,7 +45,7 @@ await page.waitForTimeout(300);
 
 // ---- map series: a 2 × 2 grid
 const top0 = (await (await page.request.get(`${base}/api/runs`)).json()).runs[0]?.id;
-await page.click('#ribbon-tabs .rb-tab[data-tab="home"]');
+await page.click('#ribbon-tabs .rb-tab[data-tab="share"]');
 await page.locator('#ribbon-body [data-cmd="home.finish"]').first().click();
 await page.waitForTimeout(400);
 ok('Finish my map offers the layouts', (await page.locator('.fin-chips label').count()) >= 4);
@@ -91,7 +91,7 @@ const closeAll = async () => {
 };
 const openFinish = async () => {
   await closeAll();
-  await page.click('#ribbon-tabs .rb-tab[data-tab="home"]').catch(() => {});
+  await page.click('#ribbon-tabs .rb-tab[data-tab="share"]').catch(() => {});
   await page.locator('#ribbon-body [data-cmd="home.finish"]').first().click();
   await page.waitForTimeout(400);
 };

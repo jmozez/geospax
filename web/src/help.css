@@ -6,15 +6,15 @@ body.help-page { overflow: auto; height: auto; min-height: 100vh; background: va
 .hp-brand { display: flex; align-items: center; gap: 8px; color: var(--fg); text-decoration: none; font-weight: 650; font-size: 16px; white-space: nowrap; }
 .hp-brand .x { color: var(--accent); }
 .hp-search { flex: 1; max-width: 520px; margin-left: auto; }
-.hp-search input { width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: 14px; }
-#hp-theme, #hp-menu { background: none; border: 1px solid var(--line); color: var(--fg); border-radius: 8px; padding: 6px 10px; font-size: 14px; cursor: pointer; }
+.hp-search input { width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: 14px; }
+#hp-theme, #hp-menu { background: none; border: 1px solid var(--line); color: var(--fg); border-radius: 4px; padding: 6px 10px; font-size: 14px; cursor: pointer; }
 #hp-menu { display: none; }
 .hp-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 220px; gap: 0; max-width: 1400px; margin: 0 auto; }
 #hp-nav, #hp-toc { position: sticky; top: 57px; align-self: start; max-height: calc(100vh - 57px); overflow: auto; padding: 20px 16px; box-sizing: border-box; }
 #hp-nav { border-right: 1px solid var(--line); }
 .hp-sec { margin-bottom: 18px; }
 .hp-sec h2, #hp-toc h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
-#hp-nav a, #hp-toc a { display: block; padding: 5px 10px; border-radius: 6px; color: var(--fg); text-decoration: none; font-size: 14px; line-height: 1.35; }
+#hp-nav a, #hp-toc a { display: block; padding: 5px 10px; border-radius: 4px; color: var(--fg); text-decoration: none; font-size: 14px; line-height: 1.35; }
 #hp-nav a:hover, #hp-toc a:hover { background: var(--hover); }
 #hp-nav a.on { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 600; }
 #hp-toc a { font-size: 13px; color: var(--muted); padding: 3px 10px; }
@@ -25,7 +25,7 @@ body.help-page { overflow: auto; height: auto; min-height: 100vh; background: va
 #hp-main .doc h2 { font-size: 22px; margin: 36px 0 10px; padding-top: 6px; border-top: 1px solid var(--line); }
 #hp-main .doc h3 { font-size: 17px; margin: 26px 0 8px; }
 #hp-main .doc :is(h2, h3) { scroll-margin-top: 70px; }
-#hp-main .doc pre { overflow: auto; padding: 12px 14px; border-radius: 8px; background: var(--hover); border: 1px solid var(--line); font-size: 13px; }
+#hp-main .doc pre { overflow: auto; padding: 12px 14px; border-radius: 4px; background: var(--hover); border: 1px solid var(--line); font-size: 13px; }
 #hp-main .doc code { font-size: .9em; }
 #hp-main .doc .doc-table { overflow-x: auto; margin: 12px 0; }
 #hp-main .doc table { border-collapse: collapse; font-size: 14px; }
@@ -33,7 +33,7 @@ body.help-page { overflow: auto; height: auto; min-height: 100vh; background: va
 #hp-main .doc th { background: var(--hover); }
 #hp-main .doc a { color: var(--accent); }
 #hp-main .doc blockquote { margin: 12px 0; padding: 8px 14px; border-left: 3px solid var(--accent); background: var(--hover); border-radius: 0 6px 6px 0; }
-.hp-hit { display: block; padding: 12px 14px; margin: 8px 0; border: 1px solid var(--line); border-radius: 8px; color: var(--fg) !important; text-decoration: none; }
+.hp-hit { display: block; padding: 12px 14px; margin: 8px 0; border: 1px solid var(--line); border-radius: 4px; color: var(--fg) !important; text-decoration: none; }
 .hp-hit:hover { border-color: var(--accent); }
 .hp-hit p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
 .hp-hit mark { background: color-mix(in srgb, var(--accent) 30%, transparent); color: inherit; border-radius: 2px; }

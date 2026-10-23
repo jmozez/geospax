@@ -73,7 +73,7 @@ including the GSX tool library they share.
 
 ### How do I install R packages?
 
-**R › R setup** lists what is installed (✓) and what is missing (○). Tick what you need and press **Install
+**R & Python › R setup** lists what is installed (✓) and what is missing (○). Tick what you need and press **Install
 selected**. A log shows each step as it happens: which package is downloaded, which were already installed,
 and the exact reason when one fails (most often no internet connection or a proxy). Packages go into GeoSpaX's
 own library, so your R setup is not changed.
