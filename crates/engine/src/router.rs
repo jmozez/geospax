@@ -178,6 +178,21 @@ impl Engine {
                     Err(e) => ApiResponse::error(502, e),
                 }
             }
+            // Overture Maps: its themes, and one theme downloaded for an area (a job with the gauge)
+            ("GET", ["api", "overture"]) => ApiResponse::json(200, &json!({ "themes": crate::geoparquet::OVERTURE.iter().map(|t| json!({ "id": t.0, "title": t.1 })).collect::<Vec<_>>() })),
+            ("POST", ["api", "overture"]) => {
+                if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
+                    return ApiResponse::error(403, "this GeoSpaX is open to other devices: it does not download for them");
+                }
+                let b: Vec<f64> = param(q, "bbox").unwrap_or_default().split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                if b.len() != 4 {
+                    return ApiResponse::error(400, "bbox=west,south,east,north is needed");
+                }
+                match crate::geoparquet::overture(self, &param(q, "theme").unwrap_or_default(), [b[0], b[1], b[2], b[3]]) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
             // cloud storage: one folder of a connection, and a file of it put on the map
             ("GET", ["api", "services", id, "list"]) => match crate::services::get(self, id).and_then(|s| crate::cloud::list(&s, &param(q, "path").unwrap_or_default())) {
                 Ok(v) => ApiResponse::json(200, &json!({ "layers": v })),

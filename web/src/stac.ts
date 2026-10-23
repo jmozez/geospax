@@ -4,6 +4,7 @@
 // (read in place, a window at a time, nothing copied) or downloaded cut to the area, with the
 // download gauge. The panel sits beside the map so the map stays usable while it is open.
 import type { Backend } from './backend';
+import { followJob } from './downloads';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -141,31 +142,10 @@ export class StacSearch {
         document.dispatchEvent(new CustomEvent('geospax:added', { detail: { layers: [], rasters: r.rasters } }));
         this.host.setStatus(`${label} is on the map (streamed)`, 6000);
       } else if (r.job !== undefined) {
-        void this.follow(r.job, label);
+        void followJob(this.host.backend, r.job, label, this.host.setStatus);
       }
     } catch (err) {
       this.host.setStatus(`${label}: ${err instanceof Error ? err.message : err}`, 10000);
-    }
-  }
-
-  /** Poll the download job and feed the download gauge until it ends. */
-  private async follow(job: number, label: string) {
-    const runId = `stac-job-${job}`;
-    for (;;) {
-      let j: { status: string; message: string; elapsed_ms: number; result: { rasters?: string[] } | null; transfer: unknown };
-      try { j = await this.host.backend.json(`api/jobs/${job}`); } catch { return; }
-      const status = j.status;
-      const rasters = j.result?.rasters ?? [];
-      document.dispatchEvent(new CustomEvent('geospax:run-progress', {
-        detail: { id: runId, recipe: 'stac', title: label, status, progress: 0, elapsed_ms: j.elapsed_ms, current: label, steps: [], artifacts: [], layers: [], rasters, styles: {}, extent: null, error: status === 'failed' || status === 'cancelled' ? j.message : null, transfer: j.transfer ?? null, cancel_url: `api/jobs/${job}/cancel` },
-      }));
-      if (status === 'done') {
-        document.dispatchEvent(new CustomEvent('geospax:added', { detail: { layers: [], rasters } }));
-        this.host.setStatus(`${label} downloaded and added`, 6000);
-        return;
-      }
-      if (status === 'failed' || status === 'cancelled') return;
-      await new Promise((res) => setTimeout(res, 500));
     }
   }
 }

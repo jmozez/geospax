@@ -10,7 +10,13 @@ import type { PluginsPane } from './plugins';
 import { groupItemsHtml, COMMANDS, TABS, commandHtml, groupsFor, icon, pluginIcon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
 import type { PluginInfo, PluginsState } from './plugins';
 import { ONLINE_SOURCES } from './online';
-import { bytesText } from './downloads';
+import { bytesText, followJob } from './downloads';
+
+/** Overture Maps themes (the engine's geoparquet::OVERTURE). */
+const OVERTURE_THEMES: [string, string][] = [
+  ['buildings', 'Buildings'], ['roads', 'Roads and paths'], ['places', 'Places (shops, schools, clinics…)'], ['water', 'Water'],
+  ['land_use', 'Land use'], ['land_cover', 'Land cover'], ['boundaries', 'Boundaries'], ['addresses', 'Addresses'],
+];
 
 const LS_KEY = 'geospax.workbench.v1';
 const esc = (s: string) =>
@@ -1259,6 +1265,8 @@ export class Workbench {
     return [
       node('online', 'Online data', 'globe', ONLINE_SOURCES.length),
       kids('online', () => ONLINE_SOURCES.map((o) => leaf('online', o.id, o.title, 'download')).join('')),
+      node('overture', 'Overture Maps', 'layers', OVERTURE_THEMES.length),
+      kids('overture', () => OVERTURE_THEMES.map(([id, title]) => leaf('overture', id, title, 'download', 'for the map view')).join('')),
       node('recipes', 'Recipes', 'play', this.gxData.recipes?.length),
       kids('recipes', () => (this.gxData.recipes ? this.gxData.recipes.map((r) => leaf('recipe', r.id, r.title || r.id, recipeIcon(r))).join('') || '<div class="pane-empty">No recipes</div>' : '<div class="pane-empty">Reading…</div>')),
       node('results', 'Results', 'history', done.length),
@@ -1286,9 +1294,27 @@ export class Workbench {
     this.renderCatalog();
   }
 
+  /** Overture Maps: one theme (buildings, roads, places…) for the map view, as a download job. */
+  private async overture(theme: string) {
+    const title = OVERTURE_THEMES.find((t) => t[0] === theme)?.[1] ?? theme;
+    const [w, so, ea, n] = this.host.map.getBounds().toArray().flat();
+    const bbox = [Math.max(-180, w), Math.max(-85, so), Math.min(180, ea), Math.min(85, n)];
+    if (bbox[2] - bbox[0] > 0.5 || bbox[3] - bbox[1] > 0.5) {
+      this.setStatus(`Zoom in: Overture ${title.toLowerCase()} is fetched for an area up to about 50 km across`, 8000);
+      return;
+    }
+    try {
+      const r = await this.host.backend.json<{ job: number }>(`api/overture?theme=${encodeURIComponent(theme)}&bbox=${bbox.map((v) => v.toFixed(5)).join(',')}`, { method: 'POST' });
+      void followJob(this.host.backend, r.job, `Overture ${title}`, (t, ms) => this.setStatus(t, ms));
+    } catch (e) {
+      this.setStatus(`Overture ${title}: ${e instanceof Error ? e.message : e}`, 10000);
+    }
+  }
+
   private gxAct(act: string, id: string) {
     switch (act) {
       case 'online': return void document.dispatchEvent(new CustomEvent('geospax:online', { detail: id }));
+      case 'overture': return void this.overture(id);
       case 'recipe': return void document.dispatchEvent(new CustomEvent('geospax:run-recipe', { detail: id }));
       case 'run': return void this.host.openRun(id);
       case 'model': case 'models': return void document.dispatchEvent(new CustomEvent('geospax:models'));
