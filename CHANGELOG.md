@@ -10,6 +10,12 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **STAC imagery search in the Explorer:** connect a STAC catalog (one click for Earth Search, Microsoft
+  Planetary Computer or Copernicus Data Space) and open a collection, such as Sentinel-2 or Landsat, to search
+  it for the map view or a drawn box, a date range and a cloud limit. Results are listed newest first with
+  thumbnails and outlined on the map. Each GeoTIFF band can be **streamed** (read in place, nothing copied) or
+  **downloaded** cut to the area, with the download gauge (size, speed, time left, Stop). Planetary Computer
+  assets are signed automatically. Downloads are kept in `<state>/stac/`.
 - **Web services in the Explorer:** **＋ Add** under *Web services* connects a WMS, WMTS, XYZ tile service,
   ArcGIS MapServer, WFS, OGC API Features or ArcGIS FeatureServer (checked before it is saved; kept for the
   next start). Map images go on the map as **web layers** (Contents › Web layers: show, opacity, remove),

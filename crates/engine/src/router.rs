@@ -150,6 +150,33 @@ impl Engine {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(404, e),
             },
+            ("POST", ["api", "stac", "search"]) => {
+                let v: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let b: Vec<f64> = v["bbox"].as_array().into_iter().flatten().filter_map(|x| x.as_f64()).collect();
+                if b.len() != 4 {
+                    return ApiResponse::error(400, "bbox [west, south, east, north] is needed");
+                }
+                match crate::stac::search(self, v["service"].as_str().unwrap_or(""), v["collection"].as_str().unwrap_or(""), [b[0], b[1], b[2], b[3]], v["datetime"].as_str(), v["max_cloud"].as_f64(), v["limit"].as_u64().unwrap_or(40) as usize) {
+                    Ok(r) => ApiResponse::json(200, &r),
+                    Err(e) => ApiResponse::error(502, e),
+                }
+            }
+            ("POST", ["api", "stac", "add"]) => {
+                let v: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let b: Vec<f64> = v["bbox"].as_array().into_iter().flatten().filter_map(|x| x.as_f64()).collect();
+                let bbox = (b.len() == 4).then(|| [b[0], b[1], b[2], b[3]]);
+                let href = v["href"].as_str().unwrap_or("");
+                if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
+                    return ApiResponse::error(403, "this GeoSpaX is open to other devices: it does not fetch web addresses for them");
+                }
+                if !(href.starts_with("https://") || href.starts_with("http://")) {
+                    return ApiResponse::error(400, "the asset is not a web address");
+                }
+                match crate::stac::add_asset(self, v["href"].as_str().unwrap_or(""), v["id"].as_str().unwrap_or("stac_asset"), v["title"].as_str().unwrap_or("STAC asset"), v["stream"].as_bool().unwrap_or(false), bbox) {
+                    Ok(r) => ApiResponse::json(200, &r),
+                    Err(e) => ApiResponse::error(502, e),
+                }
+            }
             ("GET", ["api", "services", id, "layers"]) => match crate::services::layers(self, id) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(502, e),

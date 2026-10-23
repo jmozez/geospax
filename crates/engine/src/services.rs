@@ -20,6 +20,7 @@ pub const KINDS: &[(&str, &str)] = &[
     ("wfs", "WFS"),
     ("ogcapi", "OGC API Features"),
     ("arcgis-feature", "ArcGIS FeatureServer"),
+    ("stac", "STAC catalog"),
 ];
 
 fn file(state: &Path) -> PathBuf {
@@ -36,7 +37,11 @@ fn save(state: &Path, list: &[Value]) -> Result<(), String> {
 }
 
 pub fn list(engine: &Engine) -> Value {
-    json!({ "services": load(&engine.state_dir), "kinds": KINDS.iter().map(|(k, t)| json!({ "id": k, "title": t })).collect::<Vec<_>>() })
+    json!({
+        "services": load(&engine.state_dir),
+        "kinds": KINDS.iter().map(|(k, t)| json!({ "id": k, "title": t })).collect::<Vec<_>>(),
+        "stac_catalogs": crate::stac::KNOWN.iter().map(|(t, u)| json!({ "title": t, "url": u })).collect::<Vec<_>>(),
+    })
 }
 
 fn get(engine: &Engine, id: &str) -> Result<Value, String> {
@@ -109,6 +114,7 @@ fn layers_of(svc: &Value) -> Result<Vec<Value>, String> {
     let sep = if url.contains('?') { '&' } else { '?' };
     Ok(match kind {
         "xyz" => vec![json!({ "id": "tiles", "title": svc["title"].as_str().unwrap_or("Tiles"), "type": "tiles" })],
+        "stac" => crate::stac::collections(url)?,
         "wms" => {
             let raw = String::from_utf8_lossy(&crate::raster::http(&format!("{url}{sep}SERVICE=WMS&REQUEST=GetCapabilities"), None, 30)?).to_string();
             if !raw.contains("Capabilities") {
