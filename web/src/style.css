@@ -1400,3 +1400,6 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .si-asset { display: flex; gap: 6px; align-items: center; }
 .si-asset span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ws-known { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ws-cloud { display: grid; gap: 8px; }
+.ws-cloud[hidden] { display: none; }
+.ws-check { display: flex; gap: 6px; align-items: center; }

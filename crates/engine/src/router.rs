@@ -141,7 +141,8 @@ impl Engine {
                 if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
                     return ApiResponse::error(403, "GeoSpaX is open to other devices, so web services can only be added on a copy started for this computer alone");
                 }
-                match crate::services::add(self, &param(q, "kind").unwrap_or_default(), &param(q, "url").unwrap_or_default(), param(q, "title").as_deref()) {
+                let opts = json!({ "public": param(q, "public").map(|v| v != "0" && v != "false"), "endpoint": param(q, "endpoint"), "region": param(q, "region"), "account": param(q, "account") });
+                match crate::services::add(self, &param(q, "kind").unwrap_or_default(), &param(q, "url").unwrap_or_default(), param(q, "title").as_deref(), &opts) {
                     Ok(v) => ApiResponse::json(200, &v),
                     Err(e) => ApiResponse::error(400, e),
                 }
@@ -177,6 +178,15 @@ impl Engine {
                     Err(e) => ApiResponse::error(502, e),
                 }
             }
+            // cloud storage: one folder of a connection, and a file of it put on the map
+            ("GET", ["api", "services", id, "list"]) => match crate::services::get(self, id).and_then(|s| crate::cloud::list(&s, &param(q, "path").unwrap_or_default())) {
+                Ok(v) => ApiResponse::json(200, &json!({ "layers": v })),
+                Err(e) => ApiResponse::error(502, e),
+            },
+            ("POST", ["api", "services", id, "open"]) => match crate::services::get(self, id).and_then(|s| crate::cloud::open(self, &s, &param(q, "path").unwrap_or_default())) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(502, e),
+            },
             ("GET", ["api", "services", id, "layers"]) => match crate::services::layers(self, id) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(502, e),

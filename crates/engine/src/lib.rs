@@ -13,6 +13,7 @@ pub mod automation;
 pub mod browse;
 pub mod services;
 pub mod stac;
+pub mod cloud;
 pub mod catalog;
 pub mod classify;
 pub mod devices;

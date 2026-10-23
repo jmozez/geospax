@@ -10,6 +10,7 @@ import type { PluginsPane } from './plugins';
 import { groupItemsHtml, COMMANDS, TABS, commandHtml, groupsFor, icon, pluginIcon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
 import type { PluginInfo, PluginsState } from './plugins';
 import { ONLINE_SOURCES } from './online';
+import { bytesText } from './downloads';
 
 const LS_KEY = 'geospax.workbench.v1';
 const esc = (s: string) =>
@@ -807,7 +808,8 @@ export class Workbench {
   private services: { id: string; kind: string; url: string; title: string }[] | null = null;
   private serviceKinds: { id: string; title: string }[] = [];
   private stacCatalogs: { title: string; url: string }[] = [];
-  private serviceLayers = new Map<string, { id: string; title: string; type: 'tiles' | 'features' | 'collection' }[] | string>();
+  private serviceLayers = new Map<string, { id: string; title: string; type: 'tiles' | 'features' | 'collection' | 'folder' | 'file'; kind?: string; size?: number | null }[] | string>();
+  private cloudKids = new Map<string, { id: string; title: string; type: string; kind?: string; size?: number | null }[] | string>();
   /** the file or layer selected in the Explorer, with its preview */
   private sel: { path: string; layer?: string; name: string; data?: Preview; error?: string } | null = null;
   private favourites: { path: string; name: string; folder: boolean }[] = (() => {
@@ -833,6 +835,8 @@ export class Workbench {
         if (p.startsWith('in:')) {
           const c = p.slice(3);
           if (!this.insideCache.has(c)) this.insideCache.set(c, (await this.host.backend.json<{ items: InsideItem[] }>(`api/browse/inside?path=${encodeURIComponent(c)}`)).items);
+        } else if (p.startsWith('ws:') || p.startsWith('wsf:')) {
+          // web service and cloud folder rows: their state is kept here, but they are not disk folders
         } else if (!this.browseCache.has(p)) this.browseCache.set(p, await this.host.backend.json<BrowseListing>(`api/browse?path=${encodeURIComponent(p)}`));
       }
     } catch (e) {
@@ -932,6 +936,10 @@ export class Workbench {
       if (wsRm) { e.stopPropagation(); return void this.removeService(wsRm); }
       const ws = t.closest<HTMLElement>('[data-ws]')?.dataset.ws;
       if (ws) return void this.toggleService(ws);
+      const wf = t.closest<HTMLElement>('[data-ws-folder]');
+      if (wf) return void this.toggleCloudFolder(wf.dataset.wsSid!, wf.dataset.wsFolder!);
+      const wfile = t.closest<HTMLElement>('[data-ws-file]');
+      if (wfile) return void this.openCloudFile(wfile.dataset.wsSid!, wfile.dataset.wsFile!, wfile.dataset.wsTitle!);
       const wl = t.closest<HTMLElement>('[data-ws-layer]');
       if (wl) {
         const d = { sid: wl.dataset.wsSid!, layer: wl.dataset.wsLayer!, title: wl.dataset.wsTitle! };
@@ -1074,8 +1082,9 @@ export class Workbench {
       }).catch(() => { this.services = []; });
       return '<div class="pane-empty">Reading…</div>';
     }
-    if (!this.services.length) return `<div class="pane-empty">No web services yet.${this.canConnect ? ' <b>＋ Add</b> connects a WMS, WMTS, XYZ, WFS, OGC API, ArcGIS service or a STAC imagery catalog.' : ''}</div>`;
-    const kindTitle = (k: string) => this.serviceKinds.find((x) => x.id === k)?.title ?? k;
+    if (!this.services.length) return `<div class="pane-empty">No web services yet.${this.canConnect ? ' <b>＋ Add</b> connects a WMS, WMTS, XYZ, WFS, OGC API, ArcGIS service, a STAC imagery catalog or cloud storage (S3, Google Cloud, Azure).' : ''}</div>`;
+    // the short form in the tree ("Cloud storage (S3, …)" → "Cloud storage"); the full one is in the tooltip
+    const kindTitle = (k: string) => (this.serviceKinds.find((x) => x.id === k)?.title ?? k).replace(/ \(.*\)$/, '');
     return this.services.map((sv) => {
       const open = this.browseOpen.has(`ws:${sv.id}`);
       const head = `<div class="node source folder" data-ws="${esc(sv.id)}" title="${esc(`${kindTitle(sv.kind)} · ${sv.url}`)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon('globe', 14)}<span class="nm">${esc(sv.title)}</span><span class="ct dim">${esc(kindTitle(sv.kind))}</span><button class="ct disc" data-ws-rm="${esc(sv.id)}" title="Remove this connection" aria-label="Remove ${esc(sv.title)}">✕</button></div>`;
@@ -1083,8 +1092,55 @@ export class Workbench {
       const ls = this.serviceLayers.get(sv.id);
       if (ls === undefined) return `${head}<div class="pane-empty" style="padding-left:32px">Asking the service…</div>`;
       if (typeof ls === 'string') return `${head}<div class="pane-empty err" style="padding-left:32px">${esc(ls)}</div>`;
+      if (sv.kind === 'cloud') return head + this.cloudRows(sv.id, ls, 0);
       return head + ls.map((l) => `<div class="node gx-leaf" data-ws-layer="${esc(l.id)}" data-ws-sid="${esc(sv.id)}" data-ws-title="${esc(l.title)}" data-ws-type="${l.type}" style="padding-left:32px" title="${esc(l.type === 'collection' ? 'Click to search it for imagery of the map area' : l.type === 'features' ? 'Click to download its features for the map view' : 'Click to add it to the map')}">${icon(l.type === 'features' ? 'layers' : l.type === 'collection' ? 'search' : 'image', 13)}<span class="nm">${esc(l.title)}</span><span class="ct dim">${l.type === 'collection' ? 'search' : l.type === 'features' ? 'features' : 'map image'}</span></div>`).join('');
     }).join('');
+  }
+
+  /** A cloud storage folder's rows: sub-folders open in place, files go on the map when clicked. */
+  private cloudRows(sid: string, items: { id: string; title: string; type: string; kind?: string; size?: number | null }[], depth: number): string {
+    const pad = 32 + depth * 14;
+    if (!items.length) return `<div class="pane-empty" style="padding-left:${pad}px">Nothing GeoSpaX can open here</div>`;
+    return items.map((it) => {
+      if (it.type === 'folder') {
+        const key = `${sid}:${it.id}`;
+        const open = this.browseOpen.has(`wsf:${key}`);
+        const kids = this.cloudKids.get(key);
+        const row = `<div class="node folder" data-ws-folder="${esc(it.id)}" data-ws-sid="${esc(sid)}" style="padding-left:${pad - 14}px"><span class="tw">${open ? '▾' : '▸'}</span>${icon('folder', 14)}<span class="nm">${esc(it.title)}</span></div>`;
+        if (!open) return row;
+        if (kids === undefined) return `${row}<div class="pane-empty" style="padding-left:${pad + 14}px">Listing…</div>`;
+        if (typeof kids === 'string') return `${row}<div class="pane-empty err" style="padding-left:${pad + 14}px">${esc(kids)}</div>`;
+        return row + this.cloudRows(sid, kids, depth + 1);
+      }
+      const size = typeof it.size === 'number' ? bytesText(it.size) : '';
+      return `<div class="node gx-leaf" data-ws-file="${esc(it.id)}" data-ws-sid="${esc(sid)}" data-ws-title="${esc(it.title)}" style="padding-left:${pad}px" title="Click to put it on the map (${it.kind === 'raster' ? 'read in place, a window at a time' : 'read into a layer'})">${icon(it.kind === 'raster' ? 'image' : 'layers', 13)}<span class="nm">${esc(it.title)}</span><span class="ct dim">${esc(size)}</span></div>`;
+    }).join('');
+  }
+
+  private async toggleCloudFolder(sid: string, path: string) {
+    const key = `${sid}:${path}`;
+    if (this.browseOpen.has(`wsf:${key}`)) { this.browseOpen.delete(`wsf:${key}`); return this.renderCatalog(); }
+    this.browseOpen.add(`wsf:${key}`);
+    this.renderCatalog();
+    if (!this.cloudKids.has(key) || typeof this.cloudKids.get(key) === 'string') {
+      try {
+        this.cloudKids.set(key, (await this.host.backend.json<{ layers: { id: string; title: string; type: string; kind?: string; size?: number | null }[] }>(`api/services/${encodeURIComponent(sid)}/list?path=${encodeURIComponent(path)}`)).layers);
+      } catch (e) {
+        this.cloudKids.set(key, `Could not list it: ${e instanceof Error ? e.message : e}`);
+      }
+      this.renderCatalog();
+    }
+  }
+
+  private async openCloudFile(sid: string, path: string, title: string) {
+    this.setStatus(`Opening ${title} from cloud storage…`);
+    try {
+      const r = await this.host.backend.json<{ layers: string[]; rasters: string[] }>(`api/services/${encodeURIComponent(sid)}/open?path=${encodeURIComponent(path)}`, { method: 'POST' });
+      document.dispatchEvent(new CustomEvent('geospax:added', { detail: { layers: r.layers, rasters: r.rasters } }));
+      this.setStatus(`${title} is on the map`, 5000);
+    } catch (e) {
+      this.setStatus(`${title}: ${e instanceof Error ? e.message : e}`, 10000);
+    }
   }
 
   private async toggleService(id: string) {
@@ -1094,7 +1150,7 @@ export class Workbench {
     this.renderCatalog();
     if (!this.serviceLayers.has(id) || typeof this.serviceLayers.get(id) === 'string') {
       try {
-        this.serviceLayers.set(id, (await this.host.backend.json<{ layers: { id: string; title: string; type: 'tiles' | 'features' | 'collection' }[] }>(`api/services/${encodeURIComponent(id)}/layers`)).layers);
+        this.serviceLayers.set(id, (await this.host.backend.json<{ layers: { id: string; title: string; type: 'tiles' | 'features' | 'collection' | 'folder' | 'file'; kind?: string; size?: number | null }[] }>(`api/services/${encodeURIComponent(id)}/layers`)).layers);
       } catch (e) {
         this.serviceLayers.set(id, `The service did not answer: ${e instanceof Error ? e.message : e}`);
       }
@@ -1106,6 +1162,7 @@ export class Workbench {
     try { await this.host.backend.json(`api/services/${encodeURIComponent(id)}`, { method: 'DELETE' }); } catch { /* already gone */ }
     this.services = null;
     this.serviceLayers.delete(id);
+    for (const k of [...this.cloudKids.keys()]) if (k.startsWith(`${id}:`)) this.cloudKids.delete(k);
     this.renderCatalog();
   }
 
@@ -1114,7 +1171,7 @@ export class Workbench {
     const kinds = this.serviceKinds.length ? this.serviceKinds : [{ id: 'wms', title: 'WMS' }];
     const hints: Record<string, string> = {
       xyz: 'https://tile.example.org/{z}/{x}/{y}.png', wms: 'https://example.org/geoserver/wms', wmts: 'https://example.org/wmts/1.0.0/WMTSCapabilities.xml',
-      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer', stac: 'https://earth-search.aws.element84.com/v1',
+      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer', stac: 'https://earth-search.aws.element84.com/v1', cloud: 's3://bucket/folder  ·  gs://bucket  ·  az://container  ·  https://…/folder/',
     };
     const known = this.stacCatalogs;
     const modal = document.createElement('div');
@@ -1125,8 +1182,15 @@ export class Workbench {
         <label class="ws-field"><span>Type</span><select name="kind">${kinds.map((k) => `<option value="${esc(k.id)}">${esc(k.title)}</option>`).join('')}</select></label>
         <label class="ws-field"><span>Address</span><input name="url" required spellcheck="false" placeholder="${esc(hints[kinds[0].id] ?? 'https://')}" /></label>
         <label class="ws-field"><span>Name (optional)</span><input name="title" /></label>
+        <div class="ws-cloud" hidden>
+          <label class="ws-check"><input type="checkbox" name="public" checked /> Public (read without signing in)</label>
+          <p class="dim">Not public: GeoSpaX uses this computer's own cloud sign-in (AWS profile or environment, gcloud, az login). No key is stored by GeoSpaX.</p>
+          <label class="ws-field"><span>S3 endpoint (optional)</span><input name="endpoint" spellcheck="false" placeholder="for MinIO or other S3-compatible storage, e.g. https://minio.example.org" /></label>
+          <label class="ws-field"><span>S3 region (optional)</span><input name="region" spellcheck="false" placeholder="e.g. us-west-2" /></label>
+          <label class="ws-field"><span>Azure account (az:// only)</span><input name="account" spellcheck="false" /></label>
+        </div>
         ${known.length ? `<div class="ws-field ws-known"><span>Or a public STAC catalog</span>${known.map((k) => `<button type="button" data-known="${esc(k.url)}" data-known-title="${esc(k.title)}">${esc(k.title)}</button>`).join('')}</div>` : ''}
-        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud.</p>
+        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud; cloud storage is browsed like a folder.</p>
         <p class="err" data-msg></p>
       </div>
       <footer><button type="button" data-x>Cancel</button><button class="primary" type="submit">Connect</button></footer></form>`;
@@ -1143,12 +1207,18 @@ export class Workbench {
         form.requestSubmit();
       }
     });
-    form.kind.addEventListener('change', () => { (form.url as HTMLInputElement).placeholder = hints[(form.kind as HTMLSelectElement).value] ?? 'https://'; });
+    const cloudBox = modal.querySelector<HTMLElement>('.ws-cloud')!;
+    form.kind.addEventListener('change', () => {
+      const k = (form.kind as HTMLSelectElement).value;
+      (form.url as HTMLInputElement).placeholder = hints[k] ?? 'https://';
+      cloudBox.hidden = k !== 'cloud';
+    });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = modal.querySelector<HTMLElement>('[data-msg]')!;
       msg.textContent = 'Asking the service…';
-      const q = `kind=${encodeURIComponent(form.kind.value)}&url=${encodeURIComponent((form.url as HTMLInputElement).value)}&title=${encodeURIComponent((form.elements.namedItem('title') as HTMLInputElement).value)}`;
+      const q = `kind=${encodeURIComponent(form.kind.value)}&url=${encodeURIComponent((form.url as HTMLInputElement).value)}&title=${encodeURIComponent((form.elements.namedItem('title') as HTMLInputElement).value)}${
+        form.kind.value === 'cloud' ? `&public=${(form.elements.namedItem('public') as HTMLInputElement).checked ? 1 : 0}${['endpoint', 'region', 'account'].map((n) => `&${n}=${encodeURIComponent((form.elements.namedItem(n) as HTMLInputElement).value.trim())}`).join('')}` : ''}`;
       try {
         const r = await this.host.backend.json<{ service: { id: string; title: string }; layers: number }>(`api/services?${q}`, { method: 'POST' });
         close();

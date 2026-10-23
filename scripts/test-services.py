@@ -5,11 +5,12 @@ The mock speaks just enough of each protocol for GDAL and the engine: XYZ tiles,
 (GetCapabilities, GetMap), WMTS (GetCapabilities with a REST template), ArcGIS MapServer (?f=json,
 /export) and FeatureServer (?f=json, /0/query?f=geojson), and OGC API Features (landing page,
 conformance, collections, items), and a STAC API (collections, POST /search, a GeoTIFF asset served
-with byte ranges). Checks: each kind is added and lists its layers, map tiles come
+with byte ranges), and an S3 bucket (ListObjects with folders; objects with byte ranges). Checks: each kind is added and lists its layers, map tiles come
 back through the engine as images, features are downloaded for an area into a layer on the map, a
 broken address is refused with a reason, a STAC collection is searched by area, date and cloud and its
-asset is streamed and downloaded cut to an area (a job with the transfer gauge), and a server open to
-other devices refuses new services.
+asset is streamed and downloaded cut to an area (a job with the transfer gauge), cloud storage is browsed
+folder by folder and its GeoTIFF and GeoJSON go on the map, and a server open to other devices refuses
+new services.
 
     python3 scripts/test-services.py [--bin target/release/geospax-server]
 """
@@ -44,6 +45,11 @@ STAC_ITEMS = [
                 "thumbnail": {"href": "BASE/stac/thumb.png", "type": "image/png", "roles": ["thumbnail"]},
                 "metadata": {"href": "BASE/stac/meta.xml", "type": "application/xml"}}}
     for d, c in (("09-01", 5.0), ("10-01", 60.0), ("08-01", 12.0))]
+
+def bucket():
+    """The mock S3 bucket "geo": key -> bytes (the scene is read when first asked for)."""
+    return {"scene.tif": open(SCENE["path"], "rb").read(), "vectors/plots.geojson": json.dumps(FEATURES).encode(), "vectors/readme.txt": b"notes"}
+
 
 FEATURES = {"type": "FeatureCollection", "features": [
     {"type": "Feature", "id": i, "properties": {"name": f"plot {i}", "ha": i * 1.5}, "geometry": {"type": "Point", "coordinates": [145 + i * 0.1, -6 - i * 0.05]}} for i in range(1, 9)]}
@@ -81,7 +87,38 @@ class Mock(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def object(self, head):
+        """An object of the mock S3 bucket, with byte ranges; None when the path is not one."""
+        p = urlparse(self.path).path
+        if not p.startswith("/geo/") or p.rstrip("/") == "/geo":
+            return None
+        data = bucket().get(p[len("/geo/"):])
+        if data is None:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        rng = self.headers.get("Range")
+        if rng and rng.startswith("bytes=") and not head:
+            a, b = rng[6:].split("-")
+            a, b = int(a), min(int(b) if b else len(data) - 1, len(data) - 1)
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes {a}-{b}/{len(data)}")
+            chunk = data[a:b + 1]
+        else:
+            self.send_response(200)
+            chunk = data
+        self.send_header("Content-Length", str(len(chunk)))
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Last-Modified", "Mon, 01 Jan 2026 00:00:00 GMT")
+        self.end_headers()
+        if not head:
+            self.wfile.write(chunk)
+        return True
+
     def do_HEAD(self):
+        if self.object(True):
+            return
         if urlparse(self.path).path == "/stac/scene.tif":
             self.send_response(200)
             self.send_header("Content-Type", "image/tiff")
@@ -105,6 +142,18 @@ class Mock(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k.lower(): v[0] for k, v in parse_qs(u.query).items()}
         p = u.path
+        if p.rstrip("/") == "/geo":  # S3 ListObjects (path style): one level, folders as CommonPrefixes
+            prefix = q.get("prefix", "")
+            keys = [k for k in bucket() if k.startswith(prefix)]
+            files = [k for k in keys if "/" not in k[len(prefix):]]
+            dirs = sorted({prefix + k[len(prefix):].split("/")[0] + "/" for k in keys if "/" in k[len(prefix):]})
+            body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>geo</Name>"
+            body += f"<Prefix>{prefix}</Prefix><KeyCount>{len(files) + len(dirs)}</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>"
+            body += "".join(f"<Contents><Key>{k}</Key><LastModified>2026-01-01T00:00:00.000Z</LastModified><Size>{len(bucket()[k])}</Size></Contents>" for k in files)
+            body += "".join(f"<CommonPrefixes><Prefix>{d}</Prefix></CommonPrefixes>" for d in dirs) + "</ListBucketResult>"
+            return self.send(body, "application/xml")
+        if self.object(False):
+            return
         base = f"http://127.0.0.1:{self.server.server_port}"
         if p.startswith("/xyz/"):
             return self.send(TILE, "image/png")
@@ -272,12 +321,34 @@ def main():
             code, body, _ = call(base, "GET", f"/api/rasters/{rid}")
             b = (json.loads(body) if code == 200 else {}).get("bounds") or []
             check(code == 200 and b and b[0] >= -0.5 and b[2] <= 60.5 and b[3] <= 40.5, f"stac: the download covers the area asked for ({b})")
+        # cloud storage: an S3 bucket (S3-compatible endpoint), public, browsed by folder
+        code, body, _ = call(base, "POST", f"/api/services?kind=cloud&url=s3%3A%2F%2Fgeo&title=Bucket&endpoint={quote(m, safe='')}")
+        check(code == 200, f"cloud: S3 bucket connected ({code} {body[:200].decode(errors='replace')})")
+        cid = json.loads(body)["service"]["id"] if code == 200 else ""
+        code, body, _ = call(base, "GET", f"/api/services/{cid}/layers")
+        ls = json.loads(body).get("layers", []) if code == 200 else []
+        check([(l["id"], l["type"]) for l in ls] == [("vectors", "folder"), ("scene.tif", "file")], f"cloud: top folder lists folders then files ({code} {ls or body[:200]})")
+        code, body, _ = call(base, "GET", f"/api/services/{cid}/list?path=vectors")
+        ls = json.loads(body).get("layers", []) if code == 200 else []
+        check([l["id"] for l in ls] == ["vectors/plots.geojson"] and ls[0]["kind"] == "vector", f"cloud: a sub-folder, only files GeoSpaX opens ({code} {ls or body[:200]})")
+        code, body, _ = call(base, "POST", f"/api/services/{cid}/open?path=scene.tif")
+        r = json.loads(body) if body else {}
+        check(code == 200 and len(r.get("rasters", [])) == 1, f"cloud: a GeoTIFF goes on the map read in place ({code} {r})")
+        code, body, _ = call(base, "POST", f"/api/services/{cid}/open?path=vectors%2Fplots.geojson")
+        r = json.loads(body) if body else {}
+        lid = (r.get("layers") or [None])[0]
+        lays = json.loads(call(base, "GET", "/api/layers")[1])
+        lays = lays.get("layers", lays) if isinstance(lays, dict) else lays
+        n = next((l.get("feature_count") for l in lays if l.get("id") == lid), None)
+        check(code == 200 and n == 8, f"cloud: a GeoJSON becomes a layer ({code} {r} {n} features)")
+        code, _, _ = call(base, "GET", f"/api/services/{cid}/list?path=..%2Fother")
+        check(code == 502, f"cloud: paths outside the connection are refused ({code})")
         code, body, _ = call(base, "POST", "/api/stac/add", body={"href": "file:///etc/passwd", "id": "x", "title": "x", "stream": True})
         check(code == 400, f"stac: only web addresses are accepted ({code})")
         code, body, _ = call(base, "POST", f"/api/services?kind=wms&url={quote(m + '/nothing-here', safe='')}")
         check(code == 400 and b"error" in body, f"a broken address is refused with a reason ({code} {body[:120].decode(errors='replace')})")
         code, body, _ = call(base, "GET", "/api/services")
-        check(len(json.loads(body)["services"]) == len(cases) + 1, "the connections are listed (and kept in services.json)")
+        check(len(json.loads(body)["services"]) == len(cases) + 2, "the connections are listed (and kept in services.json)")
         sid = json.loads(body)["services"][0]["id"]
         code, _, _ = call(base, "DELETE", f"/api/services/{sid}")
         check(code == 200, "a connection is removed")

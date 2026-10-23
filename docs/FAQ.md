@@ -58,6 +58,15 @@ cloud you accept, and press **Search**. Click a result to see its bands: **Strea
 without copying it (good for a look); **Download** saves it cut to your area (`~/GeoSpaX/Data/.geospax/stac/`
 on a desktop), with a progress gauge. Large scenes stream far faster than they download.
 
+### Can I open data from an S3, Google Cloud or Azure bucket?
+
+Yes. In the **Explorer**, under *Web services*, press **＋ Add**, choose **Cloud storage** and type the address:
+`s3://bucket/folder`, `gs://bucket`, `az://container` or a web folder `https://…/`. Leave **Public** ticked for
+open data (for example Sentinel or NAIP buckets); untick it to use this computer's own sign-in (your AWS profile
+or `AWS_*` variables, `gcloud auth application-default login`, `az login`). GeoSpaX never stores your keys. For
+MinIO or other S3-compatible storage, fill in the endpoint. Open the folders and click a file: GeoTIFFs are read
+in place (only the part on screen is fetched), vector files become layers.
+
 ### Lazy or Pro?
 
 **Lazy** shows layer cards, a task bar ("What do you want to do?") and plain-language next steps. **Pro** shows
