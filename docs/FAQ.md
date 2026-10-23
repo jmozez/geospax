@@ -41,6 +41,14 @@ double-click or **+**. The **✕** next to it removes the connection; the folder
 When the web edition is opened to other devices (`--host 0.0.0.0`), folders cannot be connected from the
 app, so a phone on the Wi-Fi can never list your computer's folders; start it with `--data <folder>` instead.
 
+### How do I add a WMS, WMTS, WFS or ArcGIS service?
+
+In the **Explorer**, under *Web services*, press **＋ Add**, choose the type and paste the address (a WMS or
+WFS address, a WMTS capabilities URL, an XYZ template with `{z}/{x}/{y}`, an OGC API landing page, or an
+ArcGIS `…/MapServer` or `…/FeatureServer`). Open it to see its layers. A map-image layer goes on the map as a
+**web layer** (Contents › Web layers, with opacity); a feature layer is downloaded for the map view and becomes
+a normal layer you can style, analyse and export. The ✕ next to a service removes the connection.
+
 ### Lazy or Pro?
 
 **Lazy** shows layer cards, a task bar ("What do you want to do?") and plain-language next steps. **Pro** shows

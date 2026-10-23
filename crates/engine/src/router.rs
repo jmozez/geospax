@@ -28,6 +28,7 @@ impl ApiRequest {
     pub fn is_heavy(&self) -> bool {
         let p = self.path.trim_matches('/');
         p.starts_with("tiles/")
+            || (p.starts_with("api/services/") && p.contains("/tile/"))
             || (p.starts_with("api/layers/")
                 && (p.ends_with("/arrow") || p.ends_with("/classify") || p.ends_with("/unique") || p.ends_with("/autostyle")))
     }
@@ -135,7 +136,53 @@ impl Engine {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(404, e),
             },
-            ("POST", ["api", "browse", "add"]) => match crate::browse::add(self, &param(q, "path").unwrap_or_default()) {
+            ("GET", ["api", "services"]) => ApiResponse::json(200, &crate::services::list(self)),
+            ("POST", ["api", "services"]) => {
+                if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
+                    return ApiResponse::error(403, "GeoSpaX is open to other devices, so web services can only be added on a copy started for this computer alone");
+                }
+                match crate::services::add(self, &param(q, "kind").unwrap_or_default(), &param(q, "url").unwrap_or_default(), param(q, "title").as_deref()) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
+            ("DELETE", ["api", "services", id]) => match crate::services::remove(self, id) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(404, e),
+            },
+            ("GET", ["api", "services", id, "layers"]) => match crate::services::layers(self, id) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(502, e),
+            },
+            ("GET", ["api", "services", id, "tile", z, x, y]) => {
+                let n = |s: &str| s.trim_end_matches(".png").parse::<u32>().ok();
+                match (n(z), n(x), n(y)) {
+                    (Some(z), Some(x), Some(y)) => match crate::services::tile(self, id, &param(q, "layer").unwrap_or_default(), z, x, y) {
+                        Ok((body, ct)) => ApiResponse { status: 200, content_type: ct, headers: vec![("Cache-Control", "max-age=86400".to_string())], body },
+                        Err(e) => ApiResponse::error(502, e),
+                    },
+                    _ => ApiResponse::error(400, "bad tile address"),
+                }
+            }
+            ("POST", ["api", "services", id, "fetch"]) => {
+                let b: Vec<f64> = param(q, "bbox").unwrap_or_default().split(',').filter_map(|v| v.parse().ok()).collect();
+                if b.len() != 4 {
+                    return ApiResponse::error(400, "bbox=west,south,east,north is needed");
+                }
+                match crate::services::fetch(self, id, &param(q, "layer").unwrap_or_default(), [b[0], b[1], b[2], b[3]]) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(502, e),
+                }
+            }
+            ("GET", ["api", "browse", "inside"]) => match crate::browse::inside(self, &param(q, "path").unwrap_or_default()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("GET", ["api", "browse", "preview"]) => match crate::browse::preview(self, &param(q, "path").unwrap_or_default(), param(q, "layer").as_deref()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("POST", ["api", "browse", "add"]) => match crate::browse::add(self, &param(q, "path").unwrap_or_default(), param(q, "layer").as_deref()) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(400, e),
             },

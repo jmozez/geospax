@@ -319,3 +319,6 @@ export class OnlineData {
     }
   }
 }
+
+/** Every online source (the Explorer lists them under GeoSpaX › Online data). */
+export const ONLINE_SOURCES: { id: string; title: string }[] = Object.entries(FORMS).map(([id, f]) => ({ id, title: f.title }));

@@ -94,6 +94,8 @@ jobs:
           apt-get install -y -q --no-install-recommends r-cran-gstat 2>/dev/null \
             || Rscript -e 'install.packages("gstat", repos = "https://cloud.r-project.org", Ncpus = 4)'
           python3 scripts/test-stats.py --bin target/release/geospax-server --data /tmp/gx-data --quick --results /tmp/gx-out/stats-results.json
+      - name: Web services in the Explorer (WMS, WMTS, XYZ, ArcGIS, OGC API against a local mock)
+        run: python3 scripts/test-services.py --bin target/release/geospax-server
       - name: Package (.deb)
         run: scripts/package-linux.sh --no-build releases
       - name: Install test

@@ -10,7 +10,7 @@
 //   node scripts/test-clean-start.mjs [target/release/geospax-server] [screenshot dir]
 // Set KEEP=1 to keep the temporary folder.
 import { createRequire } from 'node:module';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -232,6 +232,23 @@ try {
   await page.waitForTimeout(2500);
   ok('a file from it goes on the map', (await (await fetch(`${base}/api/layers`)).json()).layers.some((l) => /plots/.test(l.source)));
   ok('the connection is kept for the next start', /field-data/.test(readFileSync(join(tmp, 'state', 'folders.json'), 'utf8')));
+  // a GeoPackage with two layers in the connected folder: it opens like a folder, with a preview
+  execFileSync('ogr2ogr', ['-f', 'GPKG', join(other, 'survey.gpkg'), join(other, 'plots.geojson'), '-nln', 'plots_a']);
+  execFileSync('ogr2ogr', ['-f', 'GPKG', '-update', join(other, 'survey.gpkg'), join(other, 'plots.geojson'), '-nln', 'plots_b']);
+  await page.click('#cat-refresh');
+  await page.waitForTimeout(1500);
+  await page.click(`#catalog [data-container="${join(other, 'survey.gpkg')}"]`);
+  await page.waitForTimeout(1200);
+  ok('a GeoPackage opens into its layers', (await page.$$('#catalog [data-layer-name]')).length === 2);
+  await page.click('#catalog [data-layer-name="plots_b"] .nm');
+  await page.waitForTimeout(1500);
+  ok('selecting a layer previews it (count, CRS, a row)', /1 points · EPSG:4326/.test(await page.textContent('.cat-preview')) && (await page.$$('.cat-preview tbody tr')).length === 1);
+  await page.click('.cat-preview [data-pv-add]');
+  await page.waitForTimeout(2000);
+  ok('one layer of a GeoPackage goes on the map', (await (await fetch(`${base}/api/layers`)).json()).layers.some((l) => l.id === 'survey.plots_b'));
+  await page.click('#catalog [data-gx="online"]');
+  await page.waitForTimeout(400);
+  ok('the GeoSpaX section lists the online sources', (await page.$$('#catalog [data-gx-act="online"]')).length >= 9);
   await page.click(`#catalog [data-disconnect="${other}"]`);
   await page.waitForTimeout(1500);
   ok('✕ removes the connection', !(await page.$(`#catalog .node.folder[data-folder="${other}"]`)));
