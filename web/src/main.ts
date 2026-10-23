@@ -41,6 +41,7 @@ import {
   type Project,
 } from './symbology';
 import { GLYPHS, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
+import { rasterAttributesHtml, rasterStoryHtml, valueHtml, type Histogram, type RasterValue } from './rasterview';
 import './style.css';
 
 maplibregl.setWorkerUrl(workerUrl);
@@ -713,13 +714,13 @@ function rasterRow(id: string, first: boolean, last: boolean, depth = 0): string
   const open = !closedLegends.has(id);
   const legend = on && open ? rasterPane!.legendHtml(rid) : '';
   if (uiMode === 'lazy') {
-    return `<div class="card raster-card" data-id="${e(id)}" style="--c:#7a8ea6"><div class="lc-top"><span class="lc-glyph">▦</span>
-      <span class="lc-title"><b>${e(r.title)}</b><small>${e(r.kind)} raster · ${r.pixel_m} m pixels</small></span>
+    return `<div class="card raster-card${rid === activeRaster ? ' selected' : ''}" data-id="${e(id)}" style="--c:#7a8ea6"><div class="lc-top"><span class="lc-glyph">▦</span>
+      <span class="lc-title"><b>${e(r.title)}</b><small>${r.kind === 'raster' ? 'Raster' : `${e(r.kind)} raster`} · ${e(Math.round(r.pixel_m).toLocaleString('en-US'))} m cells</small></span>
       <label class="lc-switch"><input type="checkbox" ${on ? 'checked' : ''} aria-label="Show ${e(r.title)}"> Show</label></div>
       ${legend ? `<div class="rlegend">${legend}</div>` : ''}
       <div class="lc-acts"><button data-act="zoom">Zoom to</button><button data-act="remove" class="lc-remove" title="Remove from the map (the file is kept)" aria-label="Remove from the map">✕</button><button data-act="props" title="Colours and legend" aria-label="Colours and legend">⋯</button></div></div>`;
   }
-  return `<div class="layer pro raster" data-id="${e(id)}" draggable="true" role="treeitem" aria-level="${depth + 2}" aria-expanded="${open}" aria-selected="false" style="--d:${depth}">
+  return `<div class="layer pro raster${rid === activeRaster ? ' selected' : ''}" data-id="${e(id)}" draggable="true" role="treeitem" aria-level="${depth + 2}" aria-expanded="${open}" aria-selected="${rid === activeRaster}" style="--d:${depth}">
     <button class="pr-tw" data-act="twisty" aria-label="${open ? 'Collapse' : 'Expand'} legend">${open ? '▾' : '▸'}</button>
     <input type="checkbox" ${on ? 'checked' : ''} aria-label="Toggle ${e(r.title)}" />
     <span class="swatch raster" aria-hidden="true"></span>
@@ -733,7 +734,7 @@ function rasterRow(id: string, first: boolean, last: boolean, depth = 0): string
       <button data-act="props" title="Symbology" aria-label="Symbology">⚙</button>
       <button data-act="remove" class="rm" title="Remove from the map (the file is kept)" aria-label="Remove from the map">✕</button>
     </span>
-    <small class="pr-sub">raster · ${e(r.kind)} · ${r.width}×${r.height} px · ${r.pixel_m} m · ${e(r.crs)}</small>
+    <small class="pr-sub">${r.kind === 'raster' ? 'raster' : `raster · ${e(r.kind)}`} · ${r.width}×${r.height} cells · ${Math.round(r.pixel_m)} m · ${e(r.crs)}</small>
     ${legend ? `<div class="legend rlegend">${legend}</div>` : ''}
   </div>`;
 }
@@ -766,7 +767,7 @@ async function rasterStyle(rid: string) {
   const { openRasterStyle } = await import('./rasterstyle');
   await openRasterStyle({
     backend,
-    updated: (info) => rasterPane!.replace(info),
+    updated: (info) => { rasterPane!.replace(info); if (activeRaster === info.id) renderRasterViews(); },
     opacity: (id) => rasterPane!.opacity(id),
     setOpacity: (id, o) => rasterPane!.setOpacity(id, o),
   }, r);
@@ -797,10 +798,106 @@ function rasterMenu(id: string, x: number, y: number): boolean {
   return true;
 }
 
+// ---- the selected raster: its story in the Inspector (Lazy) or Symbology (Pro), its statistics in
+// Attributes, and the value under a map click (web/src/rasterview.ts)
+let activeRaster: string | null = null;
+let rasterValue: RasterValue | null = null;
+const rasterHist = new Map<string, Histogram>();
+
+async function showRaster(rid: string) {
+  const r = rasterPane?.byId(rid);
+  if (!r) return;
+  if (activeRaster !== rid) rasterValue = null;
+  activeRaster = rid;
+  panel?.close();
+  renderRasterViews();
+  workbench?.showTab('right', uiMode === 'lazy' ? 'inspector' : 'symbology');
+  workbench?.setStatus(`${r.title}: click the map to read a value`, 4000);
+  if (!rasterHist.has(rid)) {
+    try {
+      rasterHist.set(rid, await backend.json<Histogram>(`api/rasters/${encodeURIComponent(rid)}/histogram?bins=24`));
+    } catch { /* the story shows without it */ }
+    if (activeRaster === rid) renderRasterViews();
+  }
+}
+
+function clearRaster() {
+  if (!activeRaster) return;
+  activeRaster = null;
+  rasterValue = null;
+  renderRasterViews();
+}
+
+function renderRasterViews() {
+  const sym = document.querySelector<HTMLElement>('#raster-sym');
+  const attr = document.querySelector<HTMLElement>('#raster-attr');
+  const r = activeRaster ? rasterPane?.byId(activeRaster) : undefined;
+  if (!r) activeRaster = null;
+  // Pro: the raster takes the Symbology and Attributes panes' place while it is selected
+  $('#panel').hidden = !!r || !panel?.current;
+  $('#attributes').hidden = !!r;
+  if (sym) {
+    sym.hidden = !r;
+    sym.innerHTML = r ? rasterStoryHtml(r, rasterHist.get(r.id) ?? null, rasterPane!.opacity(r.id), rasterValue, true) : '';
+  }
+  if (attr) {
+    attr.hidden = !r;
+    attr.innerHTML = r ? rasterAttributesHtml(r, rasterHist.get(r.id) ?? null, rasterValue) : '';
+  }
+  renderInspector();
+  renderContents();
+}
+
+/** Clicks and the opacity slider inside any raster view. */
+function wireRasterViews() {
+  for (const sel of ['#inspector', '#raster-sym', '#raster-attr']) {
+    const el = document.querySelector<HTMLElement>(sel);
+    el?.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-rv]');
+      const rid = activeRaster;
+      if (!b || !rid) return;
+      e.stopPropagation();
+      const r = rasterPane?.byId(rid);
+      switch (b.dataset.rv) {
+        case 'style': return void rasterStyle(rid);
+        case 'zoom': if (r) map.fitBounds([[r.bounds[0], r.bounds[1]], [r.bounds[2], r.bounds[3]]], { padding: 40, maxZoom: 16, duration: 300 }); return;
+        case 'attributes': return void workbench?.showTab(uiMode === 'lazy' ? 'right' : 'right', 'attributes');
+        case 'remove': return void removeLayer(`r:${rid}`);
+      }
+    });
+    el?.addEventListener('input', (e) => {
+      const t = e.target as HTMLInputElement;
+      if (t.dataset.rv !== 'opacity' || !activeRaster) return;
+      e.stopPropagation();
+      rasterPane?.setOpacity(activeRaster, Number(t.value) / 100);
+    });
+  }
+  // a click on the map reads the selected raster's value there
+  map.on('click', async (e) => {
+    const rid = activeRaster;
+    if (!rid || !rasterPane) return;
+    try {
+      rasterValue = await backend.json<RasterValue>(`api/rasters/${encodeURIComponent(rid)}/value?lon=${e.lngLat.lng}&lat=${e.lngLat.lat}`);
+    } catch {
+      return;
+    }
+    if (activeRaster !== rid) return;
+    const r = rasterPane.byId(rid)!;
+    document.querySelectorAll<HTMLElement>('.rv-value').forEach((b) => (b.innerHTML = valueHtml(rasterValue, r)));
+    const v = rasterValue.values[0];
+    workbench?.setStatus(rasterValue.inside ? `${r.title}: ${v === null ? 'no data' : `${+v.toPrecision(4)}${r.units ? ` ${r.units}` : ''}`}` : `${r.title}: outside the raster`, 5000);
+  });
+}
+
 /** Lazy mode's right pane: the selected layer as a story (web/src/inspector.ts). */
 function renderInspector() {
   const el = document.querySelector<HTMLElement>('#inspector');
   if (!el) return;
+  if (activeRaster) {
+    const r = rasterPane?.byId(activeRaster);
+    if (r) return void (el.innerHTML = rasterStoryHtml(r, rasterHist.get(r.id) ?? null, rasterPane!.opacity(r.id), rasterValue));
+    activeRaster = null;
+  }
   const id = panel?.current;
   const l = id ? layerById(id) : undefined;
   el.innerHTML = inspectorHtml(
@@ -924,7 +1021,7 @@ function wireContents() {
       const r = rasterPane?.byId(id.slice(2));
       if (act === 'zoom' && r) map.fitBounds([[r.bounds[0], r.bounds[1]], [r.bounds[2], r.bounds[3]]], { padding: 40, maxZoom: 16, duration: 300 });
       else if (act === 'props') void rasterStyle(id.slice(2));
-      else if (t.closest('.name')) workbench?.showTab('right', 'rasters');
+      else if (t.closest('.name') || !t.closest('button, input, label')) void showRaster(id.slice(2));
     } else if (act === 'zoom') fitLayer(id);
     else if (act === 'recipe' && actEl?.dataset.recipe) void automatePane?.run(actEl.dataset.recipe, { layer: id });
     else if (act === 'props' || t.classList.contains('name') || t.closest('.name')) {
@@ -1259,6 +1356,7 @@ async function removeLayer(id: string) {
   project.order = project.order.filter((x) => x !== id);
   if (project.member) delete project.member[id];
   if (id.startsWith('r:')) rasterPane?.setVisible(id.slice(2), false);
+  if (id === `r:${activeRaster}`) clearRaster();
   else {
     editor?.clearSelection(id);
     await backend.json(`api/layers/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null);
@@ -1607,6 +1705,9 @@ async function main() {
   });
   wireContents();
   wireInspector();
+  wireRasterViews();
+  // a vector layer selected anywhere takes the panes back from the raster
+  document.addEventListener('geospax:active', (e) => { if (!String((e as CustomEvent<string>).detail ?? '').startsWith('r:')) clearRaster(); });
   renderContents();
   renderModeSwitch();
   document.querySelector('#mode-switch')?.addEventListener('click', (e) => {

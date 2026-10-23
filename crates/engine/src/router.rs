@@ -409,6 +409,28 @@ impl Engine {
                 Some(r) => ApiResponse::json(200, &r.json()),
                 None => ApiResponse::error(404, format!("unknown raster '{id}'")),
             },
+            ("GET", ["api", "rasters", id, "value"]) => {
+                let q = req.query.as_str();
+                let num = |k: &str| query_param(q, k).and_then(|v| v.parse::<f64>().ok());
+                match (self.raster(id), num("lon"), num("lat")) {
+                    (None, _, _) => ApiResponse::error(404, format!("unknown raster '{id}'")),
+                    (Some(r), Some(lon), Some(lat)) => match r.value_at(lon, lat) {
+                        Ok(v) => ApiResponse::json(200, &v),
+                        Err(e) => ApiResponse::error(400, e),
+                    },
+                    _ => ApiResponse::error(400, "lon and lat are needed".to_string()),
+                }
+            }
+            ("GET", ["api", "rasters", id, "histogram"]) => match self.raster(id) {
+                Some(r) => {
+                    let bins = query_param(req.query.as_str(), "bins").and_then(|v| v.parse().ok()).unwrap_or(24);
+                    match r.histogram(bins) {
+                        Ok(v) => ApiResponse::json(200, &v),
+                        Err(e) => ApiResponse::error(500, e),
+                    }
+                }
+                None => ApiResponse::error(404, format!("unknown raster '{id}'")),
+            },
             ("GET", ["api", "rasters", id, "overlay.png"]) => match self.raster(id) {
                 Some(r) => {
                     let max = param(q, "max").and_then(|m| m.parse().ok()).unwrap_or(1600);

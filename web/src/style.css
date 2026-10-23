@@ -1284,3 +1284,32 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .st-map-del:hover, .act-del:hover, .run-del:hover { color: #fff; background: #c0392b; border-color: #c0392b; }
 .act-del, .run-del { padding: 2px 7px; font-size: 11px; }
 .run-clear { margin-left: auto; font-size: 11px; padding: 2px 8px; }
+
+/* raster story (Inspector, Pro Symbology) and raster statistics (Attributes): web/src/rasterview.ts */
+#raster-sym, #raster-attr { padding: 12px 14px; overflow: auto; height: 100%; }
+.rv-glyph { border-radius: 4px; }
+.rv-hist { display: block; width: 100%; height: 72px; margin: 6px 0 2px; background: var(--sunken); border: 1px solid var(--line); border-radius: 4px; }
+.rv-hist-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.rv-hint { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 4px 0; }
+.rv-read { margin: 4px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--sunken); font-size: 14px; }
+.rv-read small { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
+.rv-facts { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 12px; margin: 4px 0; }
+.rv-facts dt { color: var(--muted); }
+.rv-facts dd { margin: 0; overflow-wrap: anywhere; }
+.rv-bands { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
+.rv-bands th, .rv-bands td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.rv-bands th:first-child, .rv-bands td:first-child { text-align: left; }
+.rv-bands th { color: var(--muted); font-weight: 600; }
+.rv-attr h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 12px 0 2px; }
+
+/* narrow panes: tabs scroll instead of being cut off, and the layer tree drops its extras before the
+   layer name (the name always stays readable) */
+.dock-tabs { overflow-x: auto; scrollbar-width: thin; }
+.dock-tabs button { flex: none; }
+#dock-left, #dock-right { container-type: inline-size; }
+@container (max-width: 300px) {
+  .layer.pro .pr-op, .layer.pro .pr-n { display: none; }
+  .layer.pro .name { min-width: 60px; }
+}
+.rv-table { overflow-x: auto; }
+#contents .raster-card.selected { border-color: var(--accent); background: var(--hover); }

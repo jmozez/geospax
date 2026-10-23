@@ -871,6 +871,68 @@ impl RasterHandle {
         Ok(colorize(style, &bands, Some(&alpha), self.info.nodata))
     }
 
+    /// The pixel values under a lon/lat point, one per band (`null` for no data or outside): the
+    /// Identify tool and the Inspector's "click the map to read a value".
+    pub fn value_at(&self, lon: f64, lat: f64) -> Result<Value, String> {
+        let ds = open(&self.info.path)?;
+        let (mut x, mut y) = (vec![lon], vec![lat]);
+        if let Some(src) = srs_of(&ds) {
+            let ct = CoordTransform::new(&wgs84(), &src).map_err(|e| e.to_string())?;
+            let mut z = vec![0.0];
+            ct.transform_coords(&mut x, &mut y, &mut z).map_err(|e| e.to_string())?;
+        }
+        let gt = ds.geo_transform().map_err(|e| e.to_string())?;
+        // invert the affine transform (rotation terms included)
+        let det = gt[1] * gt[5] - gt[2] * gt[4];
+        if det == 0.0 {
+            return Err("the raster has no usable geotransform".into());
+        }
+        let (dx, dy) = (x[0] - gt[0], y[0] - gt[3]);
+        let col = ((gt[5] * dx - gt[2] * dy) / det).floor();
+        let row = ((-gt[4] * dx + gt[1] * dy) / det).floor();
+        let (w, h) = ds.raster_size();
+        let inside = col >= 0.0 && row >= 0.0 && (col as usize) < w && (row as usize) < h;
+        let mut values = Vec::new();
+        for b in 1..=self.info.bands {
+            if !inside {
+                values.push(Value::Null);
+                continue;
+            }
+            let band = ds.rasterband(b).map_err(|e| e.to_string())?;
+            let buf: Buffer<f64> = band.read_as::<f64>((col as isize, row as isize), (1, 1), (1, 1), None).map_err(|e| e.to_string())?;
+            let v = buf.into_shape_and_vec().1[0];
+            values.push(if is_nodata(v as f32, self.info.nodata) { Value::Null } else { json!(v) });
+        }
+        let class = values.first().and_then(|v| v.as_f64()).and_then(|v| self.info.classes.iter().find(|c| (c.0 - v).abs() < 1e-9).map(|c| c.1.clone()));
+        Ok(json!({ "lon": lon, "lat": lat, "inside": inside, "col": col, "row": row, "values": values, "units": self.info.units, "class": class }))
+    }
+
+    /// A histogram of each band (`bins` equal bins between the band's min and max, from a sample of
+    /// up to 1024 px on the long side), for the Inspector and the Attributes pane.
+    pub fn histogram(&self, bins: usize) -> Result<Value, String> {
+        let ds = open(&self.info.path)?;
+        let bins = bins.clamp(2, 200);
+        let mut out = Vec::new();
+        for b in 1..=self.info.bands {
+            let (vals, _, _) = band_sample(&ds, b, 1024)?;
+            let st = self.info.stats.get(b - 1);
+            let (lo, hi) = st.map(|s| (s.min, s.max)).unwrap_or((0.0, 1.0));
+            let width = if hi > lo { (hi - lo) / bins as f64 } else { 1.0 };
+            let mut counts = vec![0u64; bins];
+            let mut nodata = 0u64;
+            for v in vals {
+                if is_nodata(v, self.info.nodata) {
+                    nodata += 1;
+                    continue;
+                }
+                let i = (((v as f64 - lo) / width).floor().max(0.0) as usize).min(bins - 1);
+                counts[i] += 1;
+            }
+            out.push(json!({ "band": b, "min": lo, "max": hi, "counts": counts, "nodata": nodata }));
+        }
+        Ok(json!({ "bins": bins, "bands": out }))
+    }
+
     /// The whole raster as a PNG in Web Mercator for the web map (cached per style and size).
     pub fn overlay_png(&self, max: usize) -> Result<Arc<Vec<u8>>, String> {
         let style = self.style();

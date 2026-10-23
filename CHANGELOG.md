@@ -9,11 +9,18 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Rasters have a story and statistics.** Selecting a raster (a bioclim GeoTIFF, a DEM …) shows, in
+  Lazy's Inspector and Pro's Symbology pane: the range and spread of its values, a histogram coloured like
+  the map, opacity, its band statistics, where it came from and **the value under any point clicked on the
+  map**. Pro's Attributes pane shows the band statistics and histograms (a raster has cells, not rows).
+  New engine endpoints: `api/rasters/{id}/value?lon=&lat=` and `api/rasters/{id}/histogram`.
 - **Delete finished maps and runs:** ✕ on each finished map on the start screen, on each item in Lazy's
   Activity and in Pro's History, plus **Clear history**. The map, report and log go; layers already on the
   map stay.
 
 ### Fixed
+- The left pane no longer gets so narrow that its tabs and layer names are cut off (240 px at least; a
+  narrower width saved earlier is widened), and pane tabs scroll instead of hiding.
 - **Hot spots on occurrence records** (GBIF, surveys) no longer fail when many records share a site:
   the cells are made smaller until there are enough to test, and when there are fewer than 30
   distinct places GeoSpaX says so in plain words.
