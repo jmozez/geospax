@@ -9,11 +9,27 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Download gauge for online data:** a panel over the map shows what is being downloaded, a progress bar,
+  how much has arrived out of the estimated total, the speed and the time left, with **Stop**. GDAL's own
+  network byte counts are used, so the numbers are real. When it ends it says how many layers were added
+  to Contents (or why it failed). The 149 MB ecoregions file is now downloaded in chunks with progress.
+- **Choose the area for online data:** the map view (its size shown), **a box drawn on the map**, or **a
+  layer's points, lines or polygons**, with **Only inside the polygons** to cut rasters to a polygon layer.
+- **Where a layer is saved:** the layer details show the folder of its file ("Saved in").
+- **Rasters have a story and statistics.** Selecting a raster (a bioclim GeoTIFF, a DEM …) shows, in
+  Lazy's Inspector and Pro's Symbology pane: the range and spread of its values, a histogram coloured like
+  the map, opacity, its band statistics, where it came from and **the value under any point clicked on the
+  map**. Pro's Attributes pane shows the band statistics and histograms (a raster has cells, not rows).
+  New engine endpoints: `api/rasters/{id}/value?lon=&lat=` and `api/rasters/{id}/histogram`.
 - **Delete finished maps and runs:** ✕ on each finished map on the start screen, on each item in Lazy's
   Activity and in Pro's History, plus **Clear history**. The map, report and log go; layers already on the
   map stay.
 
 ### Fixed
+- **Online data: Climate (WorldClim), Boundaries (GADM) and Ecoregions downloads failed** with "the provider moved
+  the file": GDAL was only allowed to open remote .tif/.vrt/.jp2 files, and these sources are .zip files.
+- The left pane no longer gets so narrow that its tabs and layer names are cut off (240 px at least; a
+  narrower width saved earlier is widened), and pane tabs scroll instead of hiding.
 - **Hot spots on occurrence records** (GBIF, surveys) no longer fail when many records share a site:
   the cells are made smaller until there are enough to test, and when there are fewer than 30
   distinct places GeoSpaX says so in plain words.

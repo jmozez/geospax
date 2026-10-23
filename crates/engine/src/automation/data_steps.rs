@@ -491,6 +491,54 @@ pub(super) fn data_fetch(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String>
     }
 }
 
+/// The download gauge on the run (bytes, estimated total, speed, ETA), cleared when dropped so a
+/// failed or cancelled download never leaves a stale gauge behind.
+struct Gauge {
+    job: Option<std::sync::Arc<crate::jobs::Job>>,
+    t0: Instant,
+    last: Instant,
+    label: String,
+}
+
+impl Gauge {
+    fn new(sc: &StepCtx, label: impl Into<String>) -> Self {
+        let g = Gauge { job: sc.job.clone(), t0: Instant::now(), last: Instant::now() - std::time::Duration::from_secs(1), label: label.into() };
+        g.set(0.0, 0, None, true);
+        g
+    }
+
+    /// `frac` 0–1 (of the whole step), `bytes` so far, `total` if known; at most ~3 updates a second.
+    fn update(&mut self, frac: f64, bytes: u64, total: Option<u64>) {
+        if self.last.elapsed().as_millis() < 300 {
+            return;
+        }
+        self.last = Instant::now();
+        self.set(frac, bytes, total, false);
+    }
+
+    fn set(&self, frac: f64, bytes: u64, total: Option<u64>, starting: bool) {
+        let Some(job) = &self.job else { return };
+        let secs = self.t0.elapsed().as_secs_f64().max(0.001);
+        let frac = frac.clamp(0.0, 1.0);
+        // the total: what the server said, else what the progress so far implies
+        let est = total.or_else(|| if frac > 0.03 && bytes > 0 { Some((bytes as f64 / frac) as u64) } else { None });
+        let eta = if frac > 0.02 { Some(secs * (1.0 - frac) / frac) } else { None };
+        let v = json!({
+            "label": self.label, "fraction": frac, "bytes": bytes, "total": est,
+            "rate": if starting { 0.0 } else { bytes as f64 / secs }, "eta_s": eta, "elapsed_s": secs,
+        });
+        job.update(|s| s.transfer = Some(v));
+    }
+}
+
+impl Drop for Gauge {
+    fn drop(&mut self) {
+        if let Some(j) = &self.job {
+            j.update(|s| s.transfer = None);
+        }
+    }
+}
+
 fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<StepOut, String> {
     let (list, citation) = raster_sources(source, p)?;
     let (b, what) = aoi(sc, p)?;
@@ -504,7 +552,14 @@ fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<Ste
     let prefix = p_str(p, "name").map(sanitize);
     let mut made = Vec::new();
     let mut why = vec![format!("area {:.3}–{:.3}°E, {:.3}–{:.3}°N ({what})", b[0], b[2], b[1], b[3])];
-    for r in &list {
+    raster::net_reset();
+    let mut gauge = Gauge::new(sc, format!("{} for the area", list.first().map(|r| r.title.split(" (").next().unwrap_or("").to_string()).unwrap_or_default()));
+    let n_items = list.len().max(1) as f64;
+    // a zip member must be streamed whole (WorldClim, GADM): the zip's size is the best estimate of
+    // what will be downloaded, so the gauge has a total and an ETA from the start
+    let zip_total: Option<u64> = list.first().and_then(|r| r.path.strip_prefix("/vsizip/")).and_then(|z| z.find(".zip").map(|i| z[..i + 4].to_string())).and_then(|z| raster::remote_size(&z));
+    for (k, r) in list.iter().enumerate() {
+        gauge.label = if list.len() > 1 { format!("{} ({} of {})", r.title, k + 1, list.len()) } else { r.title.clone() };
         if sc.cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return Err("cancelled".into());
         }
@@ -545,8 +600,27 @@ fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<Ste
             why.push(format!("{}: read at {:.4}° ({factor:.0} × the source cell) to keep the area under 16 million cells", r.title, res));
         }
         args.extend(["-tr".into(), res.to_string(), res.to_string()]);
+        // clip: true with a polygon layer as the area: cells outside its polygons are left empty
+        if p.get("clip").and_then(Value::as_bool) == Some(true) {
+            if let Some(Value::String(id)) = p.get("aoi") {
+                if let Ok(l) = sc.layer(id) {
+                    if l.info.geometry == GeomKind::Polygon {
+                        args.extend(["-cutline".into(), l.info.source.clone(), "-cl".into(), l.info.name.clone()]);
+                        if k == 0 {
+                            why.push(format!("cut to the polygons of {}", sc.title_of(&l)));
+                        }
+                    }
+                }
+            }
+        }
         let refs: Vec<&gdal::Dataset> = srcs.iter().collect();
-        drop(raster::warp(&refs, &tmp.to_string_lossy(), &args)?);
+        let cancel = sc.cancel;
+        drop(raster::warp_progress(&refs, &tmp.to_string_lossy(), &args, |f| {
+            let bytes = raster::net_bytes();
+            let by_bytes = zip_total.map(|t| (bytes as f64 / t as f64).min(0.97)).unwrap_or(0.0);
+            gauge.update(((k as f64 + f) / n_items).max(by_bytes), bytes, zip_total);
+            !cancel.load(std::sync::atomic::Ordering::Relaxed)
+        })?);
         // loss year: the year itself (2001–2025), no loss left empty, so the legend reads in years
         if r.kind == "lossyear" {
             recode(&tmp, |v| if v >= 1.0 && v <= 99.0 { 2000.0 + v } else { -9999.0 })?;
@@ -597,17 +671,21 @@ fn occurrences(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result
     .min(limit);
     let mut fs = FeatureSet::new(GeomKind::Point, occurrence_fields());
     let (mut page, mut after) = (0usize, None::<String>);
+    let mut gauge = Gauge::new(sc, format!("{species} records ({})", source.to_uppercase()));
+    let mut fetched_bytes = 0u64;
     loop {
         if sc.cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return Err("cancelled".into());
         }
         let url = occurrence_url(source, &species, b, page, page_size, after.as_deref());
         let body = raster::http(&url, None, 60).map_err(|e| format!("{source}: {e} (no internet?)"))?;
+        fetched_bytes += body.len() as u64;
         let v: Value = serde_json::from_slice(&body).map_err(|e| format!("{source}: unexpected answer ({e})"))?;
         let (feats, more, next) = parse_occurrences(source, &v);
         let got = feats.len();
         fs.feats.extend(feats);
         page += 1;
+        gauge.update((fs.feats.len() as f64 / limit as f64).min(0.95), fetched_bytes, None);
         after = next;
         if !more || got == 0 || fs.feats.len() >= limit || page > 200 {
             break;
@@ -649,15 +727,21 @@ fn ecoregions(sc: &mut StepCtx, p: &Value, t0: Instant) -> Result<StepOut, Strin
         Some(base) => gdal_path(base, "Ecoregions2017.zip", Some("Ecoregions2017.shp")),
         None => {
             if !local.exists() {
-                let body = raster::http(ECOREGIONS_URL, None, 900).map_err(|e| format!("ecoregions: {e} (no internet?)"))?;
-                if body.len() < 1_000_000 {
-                    return Err(format!("ecoregions: the download is only {} bytes (expected about 149 MB)", body.len()));
-                }
                 std::fs::create_dir_all(local.parent().unwrap()).map_err(|e| e.to_string())?;
-                let part = local.with_extension("part");
-                std::fs::write(&part, &body).map_err(|e| e.to_string())?;
-                std::fs::rename(&part, &local).map_err(|e| e.to_string())?;
-                why.push(format!("downloaded the ecoregions once ({:.0} MB), kept in {}", body.len() as f64 / 1e6, local.display()));
+                let total = raster::remote_size(&format!("/vsicurl/{ECOREGIONS_URL}")).or(Some(149_000_000));
+                let mut gauge = Gauge::new(sc, "RESOLVE ecoregions (downloaded once, then kept)");
+                let cancel = sc.cancel;
+                let got = raster::download_to(ECOREGIONS_URL, &local, total, |done, total| {
+                    gauge.update(total.map(|t| done as f64 / t as f64).unwrap_or(0.0), done, total);
+                    !cancel.load(std::sync::atomic::Ordering::Relaxed)
+                })
+                .map_err(|e| format!("ecoregions: {e} (no internet?)"))?;
+                drop(gauge);
+                if got < 1_000_000 {
+                    let _ = std::fs::remove_file(&local);
+                    return Err(format!("ecoregions: the download is only {got} bytes (expected about 149 MB)"));
+                }
+                why.push(format!("downloaded the ecoregions once ({:.0} MB), kept in {}", got as f64 / 1e6, local.display()));
             }
             format!("/vsizip/{}/Ecoregions2017.shp", local.display())
         }

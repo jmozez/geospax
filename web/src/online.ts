@@ -15,6 +15,10 @@ export interface OnlineHost {
   view: () => [number, number, number, number];
   /** layer ids (an area can come from a layer) */
   layers: () => string[];
+  /** a layer's name for people and what it holds (points, lines, polygons, raster) */
+  layerInfo: (id: string) => { label: string; kind: string };
+  /** let the user drag a box on the map; null when they press Esc */
+  drawBox: () => Promise<[number, number, number, number] | null>;
   run: (recipe: string) => Promise<void>;
   setStatus: (t: string, ms?: number) => void;
 }
@@ -117,8 +121,17 @@ export function parseRanges(text: string, lo: number, hi: number): number[] {
   return [...out].filter((n) => n >= lo && n <= hi).sort((a, b) => a - b);
 }
 
+/** The size of a lon/lat box in km (width × height at its middle latitude). */
+export function boxKm(b: number[]): [number, number] {
+  const lat = ((b[1] + b[3]) / 2) * (Math.PI / 180);
+  return [Math.abs(b[2] - b[0]) * 111.32 * Math.cos(lat), Math.abs(b[3] - b[1]) * 110.57];
+}
+const kmText = (b: number[]) => boxKm(b).map((v) => Math.round(v).toLocaleString('en-US')).join(' × ') + ' km';
+
 export class OnlineData {
   private el: HTMLElement;
+  /** the box drawn on the map (kept while the dialog is reopened for another source) */
+  private box: [number, number, number, number] | null = null;
 
   constructor(private host: OnlineHost) {
     this.el = document.createElement('div');
@@ -129,6 +142,7 @@ export class OnlineData {
     this.el.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       if (t === this.el || t.closest('[data-close]')) this.close();
+      if (t.closest('[data-draw]')) void this.draw();
       const quick = t.closest<HTMLElement>('[data-bio]')?.dataset.bio;
       if (quick) {
         this.el.querySelectorAll<HTMLInputElement>('input[name=bio]').forEach((c) => {
@@ -160,10 +174,17 @@ export class OnlineData {
         ${
           kind === 'gadm'
             ? ''
-            : `<fieldset><legend>Area</legend>
-          <label class="ck"><input type="radio" name="area" value="view" checked /> The map view</label>
-          ${layers.length ? `<label class="ck"><input type="radio" name="area" value="layer" /> Around a layer ${sel('aoi_layer', layers.map((l) => [l, l]))}</label>` : ''}
-          <label><span>Margin (km)</span><input name="buffer_km" type="number" value="0" min="0" step="1" /></label></fieldset>`
+            : `<fieldset class="ol-area"><legend>Area</legend>
+          <label class="ck"><input type="radio" name="area" value="view" ${this.box ? '' : 'checked'} /> The map view <span class="dim">(${esc(kmText(this.host.view()))})</span></label>
+          <div class="ol-area-row"><label class="ck"><input type="radio" name="area" value="box" ${this.box ? 'checked' : 'disabled'} /> A box drawn on the map ${this.box ? `<span class="dim">(${esc(kmText(this.box))})</span>` : ''}</label>
+            <button type="button" data-draw>${this.box ? 'Draw again' : 'Draw a box…'}</button></div>
+          <label class="ck"><input type="radio" name="area" value="layer" ${layers.length ? '' : 'disabled'} /> A layer's points, lines or polygons ${
+            layers.length
+              ? sel('aoi_layer', layers.map((l) => { const i = this.host.layerInfo(l); return [l, `${i.label} (${i.kind})`]; }))
+              : '<span class="dim">(add a layer first)</span>'
+          }</label>
+          <label class="ck ol-clip" hidden><input type="checkbox" name="clip" checked /> Only inside the polygons (rasters)</label>
+          <label><span>Margin around it (km)</span><input name="buffer_km" type="number" value="0" min="0" step="1" /></label></fieldset>`
         }
         <p class="dim">Needs internet. The citation goes into the run's methods and report.</p>
       </div>
@@ -197,12 +218,25 @@ export class OnlineData {
     this.el.querySelectorAll<HTMLElement>('[data-online]').forEach((b) => b.addEventListener('click', () => this.open(b.dataset.online!)));
   }
 
+  /** Hide the dialog, let the user drag a box on the map, then reopen it with the box chosen. */
+  private async draw() {
+    const kind = this.el.querySelector<HTMLFormElement>('form')?.dataset.kind ?? 'worldclim';
+    this.el.hidden = true;
+    const b = await this.host.drawBox();
+    if (b) this.box = b;
+    this.open(kind);
+  }
+
   close() {
     this.el.hidden = true;
   }
 
   /** show the fields that belong to the chosen dataset */
   private showFor() {
+    const lid = this.el.querySelector<HTMLSelectElement>('select[name=aoi_layer]')?.value;
+    const areaLayer = this.el.querySelector<HTMLInputElement>('input[name=area][value=layer]')?.checked;
+    const clip = this.el.querySelector<HTMLElement>('.ol-clip');
+    if (clip) clip.hidden = !(areaLayer && lid && this.host.layerInfo(lid).kind === 'polygons');
     const src = this.el.querySelector<HTMLSelectElement>('select[name=source]')?.value;
     this.el.querySelectorAll<HTMLElement>('[data-for]').forEach((d) => {
       const hide = !!src && !d.dataset.for!.split(' ').includes(src);
@@ -218,7 +252,11 @@ export class OnlineData {
     const kind = form.dataset.kind ?? 'worldclim';
     const w: Record<string, unknown> = {};
     if (kind !== 'gadm') {
-      if (f.get('area') === 'layer' && f.get('aoi_layer')) w.aoi = String(f.get('aoi_layer'));
+      const area = f.get('area');
+      if (area === 'layer' && f.get('aoi_layer')) {
+        w.aoi = String(f.get('aoi_layer'));
+        if (f.get('clip') && this.host.layerInfo(String(w.aoi)).kind === 'polygons') w.clip = true;
+      } else if (area === 'box' && this.box) w.aoi = this.box.map((v) => Math.round(v * 1e4) / 1e4);
       else w.aoi = this.host.view().map((v) => Math.round(v * 1e4) / 1e4);
       const km = Number(f.get('buffer_km') ?? 0);
       w.buffer = Number.isFinite(km) ? Math.max(0, km) * 1000 : 0;

@@ -39,7 +39,11 @@ pub fn configure_gdal() {
     }
     for (k, v) in [
         ("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR"),
-        ("CPL_VSIL_CURL_ALLOWED_EXTENSIONS", ".tif,.tiff,.TIF,.vrt,.jp2"),
+        // every file type the online sources are read from: WorldClim, GADM and the ecoregions come
+        // as .zip (read through /vsizip//vsicurl/); leaving one out makes GDAL treat it as missing
+        ("CPL_VSIL_CURL_ALLOWED_EXTENSIONS", ".tif,.tiff,.TIF,.vrt,.jp2,.zip,.json,.geojson,.gpkg,.shp,.shx,.dbf,.prj,.fgb,.parquet"),
+        // byte counts for the download gauge (VSINetworkStatsGetAsSerializedJSON)
+        ("CPL_VSIL_NETWORK_STATS_ENABLED", "YES"),
         ("GDAL_HTTP_MERGE_CONSECUTIVE_RANGES", "YES"),
         ("GDAL_HTTP_MULTIPLEX", "YES"),
         ("VSI_CACHE", "TRUE"),
@@ -104,6 +108,110 @@ pub fn warp(srcs: &[&Dataset], dest: &str, args: &[String]) -> Result<Dataset, S
         if opts.is_null() {
             return Err(format!("gdalwarp options: {}", last_error()));
         }
+        let mut handles: Vec<gdal_sys::GDALDatasetH> = srcs.iter().map(|d| d.c_dataset()).collect();
+        let mut usage: c_int = 0;
+        let out = gdal_sys::GDALWarp(dest_c.as_ptr(), std::ptr::null_mut(), handles.len() as c_int, handles.as_mut_ptr(), opts, &mut usage);
+        gdal_sys::GDALWarpAppOptionsFree(opts);
+        if out.is_null() {
+            return Err(format!("gdalwarp: {}", last_error()));
+        }
+        Ok(Dataset::from_c_dataset(out))
+    }
+}
+
+/// Bytes GDAL has downloaded over HTTP since the last `VSINetworkStatsReset` (needs
+/// CPL_VSIL_NETWORK_STATS_ENABLED, set in `configure_gdal`). 0 when GDAL keeps no statistics.
+pub fn net_bytes() -> u64 {
+    let raw = unsafe {
+        let p = gdal_sys::VSINetworkStatsGetAsSerializedJSON(std::ptr::null_mut());
+        if p.is_null() {
+            return 0;
+        }
+        let s = CStr::from_ptr(p).to_string_lossy().into_owned();
+        gdal_sys::VSIFree(p as *mut c_void);
+        s
+    };
+    let v: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
+    // {"methods": {"GET": {"count": n, "downloaded_bytes": b}, …}, "handlers": …}
+    v["methods"].as_object().map(|m| m.values().filter_map(|x| x["downloaded_bytes"].as_u64()).sum()).unwrap_or(0)
+}
+
+pub fn net_reset() {
+    unsafe { gdal_sys::VSINetworkStatsReset() }
+}
+
+/// The size of a file GDAL can reach (a /vsicurl/ URL is asked with a HEAD request), if known.
+pub fn remote_size(path: &str) -> Option<u64> {
+    let c = CString::new(path).ok()?;
+    let mode = CString::new("rb").ok()?;
+    unsafe {
+        let fp = gdal_sys::VSIFOpenL(c.as_ptr(), mode.as_ptr());
+        if fp.is_null() {
+            return None;
+        }
+        let ok = gdal_sys::VSIFSeekL(fp, 0, 2 /* SEEK_END */) == 0;
+        let n = gdal_sys::VSIFTellL(fp);
+        gdal_sys::VSIFCloseL(fp);
+        if ok && n > 0 { Some(n) } else { None }
+    }
+}
+
+/// Download a URL to a file in 1 MB chunks through GDAL (/vsicurl_streaming/, so proxies and
+/// certificates behave as for every other source), calling `cb(bytes so far, total if known)` after
+/// each chunk; `cb` returning false stops the download.
+pub fn download_to(url: &str, dest: &Path, total: Option<u64>, mut cb: impl FnMut(u64, Option<u64>) -> bool) -> Result<u64, String> {
+    use std::io::Write;
+    let src = CString::new(format!("/vsicurl_streaming/{url}")).map_err(|e| e.to_string())?;
+    let mode = CString::new("rb").unwrap();
+    let part = dest.with_extension("part");
+    let mut out = std::fs::File::create(&part).map_err(|e| format!("{}: {e}", part.display()))?;
+    let mut done = 0u64;
+    unsafe {
+        let fp = gdal_sys::VSIFOpenL(src.as_ptr(), mode.as_ptr());
+        if fp.is_null() {
+            return Err(format!("could not open {url} ({})", last_error()));
+        }
+        let mut buf = vec![0u8; 1 << 20];
+        loop {
+            let n = gdal_sys::VSIFReadL(buf.as_mut_ptr() as *mut c_void, 1, buf.len(), fp);
+            if n == 0 {
+                break;
+            }
+            if let Err(e) = out.write_all(&buf[..n]) {
+                gdal_sys::VSIFCloseL(fp);
+                return Err(e.to_string());
+            }
+            done += n as u64;
+            if !cb(done, total) {
+                gdal_sys::VSIFCloseL(fp);
+                let _ = std::fs::remove_file(&part);
+                return Err("cancelled".into());
+            }
+        }
+        gdal_sys::VSIFCloseL(fp);
+    }
+    drop(out);
+    std::fs::rename(&part, dest).map_err(|e| e.to_string())?;
+    Ok(done)
+}
+
+unsafe extern "C" fn progress_tramp(done: f64, _msg: *const c_char, arg: *mut c_void) -> c_int {
+    let f = unsafe { &mut *(arg as *mut &mut dyn FnMut(f64) -> bool) };
+    if f(done) { 1 } else { 0 }
+}
+
+/// `warp` with a progress callback (0–1); returning false cancels the warp.
+pub fn warp_progress(srcs: &[&Dataset], dest: &str, args: &[String], mut cb: impl FnMut(f64) -> bool) -> Result<Dataset, String> {
+    let a = argv(args)?;
+    let dest_c = CString::new(dest).map_err(|e| e.to_string())?;
+    let mut f: &mut dyn FnMut(f64) -> bool = &mut cb;
+    unsafe {
+        gdal_sys::CPLErrorReset();
+        let opts = gdal_sys::GDALWarpAppOptionsNew(a.ptrs.as_ptr() as *mut *mut c_char, std::ptr::null_mut());
+        if opts.is_null() {
+            return Err(format!("gdalwarp options: {}", last_error()));
+        }
+        gdal_sys::GDALWarpAppOptionsSetProgress(opts, Some(progress_tramp), &mut f as *mut _ as *mut c_void);
         let mut handles: Vec<gdal_sys::GDALDatasetH> = srcs.iter().map(|d| d.c_dataset()).collect();
         let mut usage: c_int = 0;
         let out = gdal_sys::GDALWarp(dest_c.as_ptr(), std::ptr::null_mut(), handles.len() as c_int, handles.as_mut_ptr(), opts, &mut usage);
@@ -869,6 +977,68 @@ impl RasterHandle {
         }
         let alpha = out.rasterband(nb + 1).map_err(|e| e.to_string())?.read_band_as::<f32>().map_err(|e| e.to_string())?.into_shape_and_vec().1;
         Ok(colorize(style, &bands, Some(&alpha), self.info.nodata))
+    }
+
+    /// The pixel values under a lon/lat point, one per band (`null` for no data or outside): the
+    /// Identify tool and the Inspector's "click the map to read a value".
+    pub fn value_at(&self, lon: f64, lat: f64) -> Result<Value, String> {
+        let ds = open(&self.info.path)?;
+        let (mut x, mut y) = (vec![lon], vec![lat]);
+        if let Some(src) = srs_of(&ds) {
+            let ct = CoordTransform::new(&wgs84(), &src).map_err(|e| e.to_string())?;
+            let mut z = vec![0.0];
+            ct.transform_coords(&mut x, &mut y, &mut z).map_err(|e| e.to_string())?;
+        }
+        let gt = ds.geo_transform().map_err(|e| e.to_string())?;
+        // invert the affine transform (rotation terms included)
+        let det = gt[1] * gt[5] - gt[2] * gt[4];
+        if det == 0.0 {
+            return Err("the raster has no usable geotransform".into());
+        }
+        let (dx, dy) = (x[0] - gt[0], y[0] - gt[3]);
+        let col = ((gt[5] * dx - gt[2] * dy) / det).floor();
+        let row = ((-gt[4] * dx + gt[1] * dy) / det).floor();
+        let (w, h) = ds.raster_size();
+        let inside = col >= 0.0 && row >= 0.0 && (col as usize) < w && (row as usize) < h;
+        let mut values = Vec::new();
+        for b in 1..=self.info.bands {
+            if !inside {
+                values.push(Value::Null);
+                continue;
+            }
+            let band = ds.rasterband(b).map_err(|e| e.to_string())?;
+            let buf: Buffer<f64> = band.read_as::<f64>((col as isize, row as isize), (1, 1), (1, 1), None).map_err(|e| e.to_string())?;
+            let v = buf.into_shape_and_vec().1[0];
+            values.push(if is_nodata(v as f32, self.info.nodata) { Value::Null } else { json!(v) });
+        }
+        let class = values.first().and_then(|v| v.as_f64()).and_then(|v| self.info.classes.iter().find(|c| (c.0 - v).abs() < 1e-9).map(|c| c.1.clone()));
+        Ok(json!({ "lon": lon, "lat": lat, "inside": inside, "col": col, "row": row, "values": values, "units": self.info.units, "class": class }))
+    }
+
+    /// A histogram of each band (`bins` equal bins between the band's min and max, from a sample of
+    /// up to 1024 px on the long side), for the Inspector and the Attributes pane.
+    pub fn histogram(&self, bins: usize) -> Result<Value, String> {
+        let ds = open(&self.info.path)?;
+        let bins = bins.clamp(2, 200);
+        let mut out = Vec::new();
+        for b in 1..=self.info.bands {
+            let (vals, _, _) = band_sample(&ds, b, 1024)?;
+            let st = self.info.stats.get(b - 1);
+            let (lo, hi) = st.map(|s| (s.min, s.max)).unwrap_or((0.0, 1.0));
+            let width = if hi > lo { (hi - lo) / bins as f64 } else { 1.0 };
+            let mut counts = vec![0u64; bins];
+            let mut nodata = 0u64;
+            for v in vals {
+                if is_nodata(v, self.info.nodata) {
+                    nodata += 1;
+                    continue;
+                }
+                let i = (((v as f64 - lo) / width).floor().max(0.0) as usize).min(bins - 1);
+                counts[i] += 1;
+            }
+            out.push(json!({ "band": b, "min": lo, "max": hi, "counts": counts, "nodata": nodata }));
+        }
+        Ok(json!({ "bins": bins, "bands": out }))
     }
 
     /// The whole raster as a PNG in Web Mercator for the web map (cached per style and size).

@@ -150,6 +150,7 @@ impl Run {
             "progress": j["progress"],
             "elapsed_ms": j["elapsed_ms"],
             "message": j["message"],
+            "transfer": j["transfer"],
             "current": current,
             "trigger": self.trigger,
             "inputs": self.inputs,
@@ -631,6 +632,7 @@ impl Automation {
         });
         let mut outs: HashMap<String, Value> = HashMap::new();
         let mut sc = steps::StepCtx::new(engine, &recipe.id, &recipe.title, &recipe.text, &run.id, &run.dir, &run.job.cancel, &run.trigger, &run.inputs);
+        sc.job = Some(run.job.clone());
         let total = order.len();
         let mut failure: Option<String> = None;
         for (n, &i) in order.iter().enumerate() {

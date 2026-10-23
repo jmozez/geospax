@@ -88,6 +88,9 @@ interface RunRow {
   error?: string | null;
 }
 
+/** The narrowest the left pane gets: its three tabs and a layer name still fit. */
+const MIN_LEFT = 240;
+
 export class Workbench {
   private layout: Layout = { ...DEFAULT_LAYOUT, tabs: { ...DEFAULT_LAYOUT.tabs } };
   private paletteOpen = false;
@@ -711,6 +714,8 @@ export class Workbench {
     const c = this.layout.collapsed;
     // A collapsed pane keeps a 30 px strip of vertical tabs, so it can always be reopened
     // without hunting for a ribbon command (ArcGIS/QGIS convention).
+    // a width saved by an older version (or dragged too narrow) never hides the pane's tabs and names
+    this.layout.left = Math.min(560, Math.max(MIN_LEFT, this.layout.left));
     shell.style.setProperty('--left', c.includes('left') ? '30px' : `${this.layout.left}px`);
     shell.style.setProperty('--right', c.includes('right') ? '30px' : `${this.layout.right}px`);
     shell.style.setProperty('--bottom', c.includes('bottom') ? '30px' : `${this.layout.bottom}px`);
@@ -759,7 +764,7 @@ export class Workbench {
         this.applyLayout();
       });
     };
-    drag('#splitter-left', (dx) => { this.layout.left = Math.min(560, Math.max(190, this.layout.left + dx)); this.applyLayout(); });
+    drag('#splitter-left', (dx) => { this.layout.left = Math.min(560, Math.max(MIN_LEFT, this.layout.left + dx)); this.applyLayout(); });
     drag('#splitter-right', (dx) => { this.layout.right = Math.min(640, Math.max(220, this.layout.right - dx)); this.applyLayout(); });
     drag('#splitter-bottom', (_dx, dy) => { this.layout.bottom = Math.min(560, Math.max(90, this.layout.bottom - dy)); this.applyLayout(); });
   }

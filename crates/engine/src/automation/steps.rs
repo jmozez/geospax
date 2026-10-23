@@ -525,9 +525,18 @@ pub struct StepCtx<'a> {
     pub charts: Vec<(String, String, String)>,
     /// Every exported map: (PNG file name if any, title); the report shows maps after the first.
     pub figures: Vec<(Option<String>, String)>,
+    /// The run's job, for live progress (downloads report bytes and an ETA through it).
+    pub job: Option<Arc<crate::jobs::Job>>,
 }
 
 impl<'a> StepCtx<'a> {
+    /// Show (or clear, with `None`) a download gauge on the run: the UI polls it.
+    pub fn transfer(&self, v: Option<Value>) {
+        if let Some(j) = &self.job {
+            j.update(|s| s.transfer = v);
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         engine: &'a Arc<Engine>,
@@ -572,6 +581,7 @@ impl<'a> StepCtx<'a> {
             views: Vec::new(),
             charts: Vec::new(),
             figures: Vec::new(),
+            job: None,
         }
     }
 }
