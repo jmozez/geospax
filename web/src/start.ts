@@ -64,6 +64,8 @@ export class StartScreen {
       this.input.value = '';
     });
     this.el.addEventListener('click', (e) => this.onClick(e));
+    // a map deleted here or in Activity / History leaves the gallery
+    document.addEventListener('geospax:runs-changed', () => { if (!this.el.hidden) void this.render(); });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.open) this.hide();
     });
@@ -99,9 +101,10 @@ export class StartScreen {
     }
     const thumb = (r: RunRow) => {
       const png = (r.artifacts ?? []).find((a) => /^map.*\.png$|\.png$/.test(a))!;
-      return `<button class="st-map" data-run="${esc(r.id)}" title="Open the report">
+      return `<div class="st-map-wrap"><button class="st-map" data-run="${esc(r.id)}" title="Open the report">
         <img src="${esc(this.host.backend.url(`api/runs/${r.id}/files/${png}`))}" alt="" loading="lazy" />
-        <span>${esc(r.title || r.recipe)}</span></button>`;
+        <span>${esc(r.title || r.recipe)}</span></button>
+        <button class="st-map-del" data-del-run="${esc(r.id)}" title="Delete this map and its report" aria-label="Delete">✕</button></div>`;
     };
     this.el.innerHTML = `<div class="st-card">
       <button class="st-close" data-st="close" title="Go to the map" aria-label="Close">✕</button>
@@ -124,6 +127,8 @@ export class StartScreen {
 
   private onClick(e: Event) {
     const t = e.target as HTMLElement;
+    const del = t.closest<HTMLElement>('[data-del-run]')?.dataset.delRun;
+    if (del) return void document.dispatchEvent(new CustomEvent('geospax:delete-runs', { detail: [del] }));
     const run = t.closest<HTMLElement>('[data-run]')?.dataset.run;
     if (run) return this.host.openRun(run);
     switch (t.closest<HTMLElement>('[data-st]')?.dataset.st) {

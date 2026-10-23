@@ -467,6 +467,28 @@ impl Automation {
         self.runs_json(200).into_iter().find(|r| r["recipe"] == recipe)
     }
 
+    /// Forget a finished run: its folder (map, report, log) and its row in the history. Layers it
+    /// added to the map are separate files and stay where they are.
+    pub fn delete_run(&self, id: &str) -> Result<(), String> {
+        if !safe_name(id) {
+            return Err("bad run id".into());
+        }
+        if self.active.lock().unwrap().values().any(|r| r.id == id) {
+            return Err("this run is still going: stop it first".into());
+        }
+        let dir = self.state_dir.join("runs").join(id);
+        let known = self.run_json(id).is_some() || dir.is_dir();
+        if !known {
+            return Err(format!("no run {id}"));
+        }
+        self.runs.lock().unwrap().retain(|r| r.id != id);
+        self.history.lock().unwrap().retain(|h| h["id"] != id);
+        if dir.is_dir() {
+            std::fs::remove_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        }
+        Ok(())
+    }
+
     /// Read an artifact of a run (`<state>/runs/<run>/<name>`).
     pub fn artifact(&self, run: &str, name: &str) -> Result<(Vec<u8>, &'static str), String> {
         if !safe_name(run) || !safe_name(name) {

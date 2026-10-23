@@ -299,6 +299,25 @@ def main():
         except Exception as e:  # noqa: BLE001
             check(False, f"R spdep cross-check ran: {e}")
 
+    # ---------------------------------------------------------------- 1b. records at a few sites
+    # GBIF-style occurrences: many records share a site's coordinates. With 40 sites the automatic
+    # cells are too coarse, so they must shrink until there are 30; with 20 sites it must explain.
+    print("1b. hot spots of records clustered at sites")
+    import random as _r
+    for n_sites, want in ((40, "done"), (20, "failed")):
+        rng = _r.Random(n_sites)
+        sites = [(146 + rng.random() * 2, -6.7 + rng.random() * 0.8) for _ in range(n_sites)]
+        d = os.path.join(tmp, f"sites{n_sites}")
+        os.makedirs(d, exist_ok=True)
+        feats = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": list(sites[i if i < n_sites else min(int(rng.expovariate(0.12)), n_sites - 1)])}, "properties": {}} for i in range(128)]
+        json.dump({"type": "FeatureCollection", "features": feats}, open(os.path.join(d, "occ.geojson"), "w"))
+        b = argparse.Namespace(**vars(a))
+        b.data_dirs = [d]
+        r, _ = run_cli(b, os.path.join(tmp, f"state{n_sites}"), "points-to-hotspots", {"layer": "occ.geojson"})
+        err = r.get("error") or ""
+        ok = r.get("status") == want and (want == "done" or "distinct places" in err)
+        check(ok, f"{n_sites} sites: {r.get('status')} (want {want}) {err[:160]}")
+
     # ---------------------------------------------------------------- 2. hot spots of values
     print("2. hot spots of values (stats.hotspots, field: ph)")
     rec = os.path.join(tmp, "values.yaml")
