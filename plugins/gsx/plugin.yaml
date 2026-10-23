@@ -2,7 +2,7 @@
 # The analysis comes from GeoSpaX 2.0 (jm0535/GeoSpaX) and 1.4.2 (jm0535/map-kit). The app shows it
 # through the twelve geospax-<domain> plugins; recipes, the API and MCP call it as gsx/<tool>.
 plugin: gsx
-version: 3.0.0
+version: 3.0.1
 title: GSX tool library
 description: "19 conservation, landscape and biodiversity tools shared by the twelve domain plugins. Runs on Node, offline."
 author: J. Moses (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
