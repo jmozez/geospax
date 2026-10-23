@@ -151,6 +151,7 @@ pub fn kind_of(p: &Path) -> Option<&'static str> {
         "tif" | "tiff" => "raster",
         "las" | "laz" => "point cloud",
         "geojson" | "json" | "gpkg" | "fgb" | "shp" | "kml" | "kmz" | "gpx" | "csv" | "gml" | "parquet" | "nmea" | "pmtiles" => "vector",
+        "zip" => "archive",
         "yaml" | "yml" => "recipe",
         _ => return None,
     })
@@ -197,7 +198,7 @@ pub fn list(engine: &Engine, path: Option<&str>) -> Result<Value, String> {
             folders.push(json!({ "name": name, "path": p.display().to_string() }));
         } else if let Some(kind) = kind_of(&p) {
             let size = e.metadata().map(|m| m.len()).unwrap_or(0);
-            files.push(json!({ "name": name, "path": p.display().to_string(), "kind": kind, "size": size, "on_map": on_map(engine, &p) }));
+            files.push(json!({ "name": name, "path": p.display().to_string(), "kind": kind, "size": size, "on_map": on_map(engine, &p), "container": is_container(&p) }));
         }
     }
     let by_name = |a: &Value, b: &Value| a["name"].as_str().unwrap_or("").to_lowercase().cmp(&b["name"].as_str().unwrap_or("").to_lowercase());
@@ -208,7 +209,25 @@ pub fn list(engine: &Engine, path: Option<&str>) -> Result<Value, String> {
 }
 
 /// Put one file from a data folder on the map.
-pub fn add(engine: &Arc<Engine>, path: &str) -> Result<Value, String> {
+pub fn add(engine: &Arc<Engine>, path: &str, layer: Option<&str>) -> Result<Value, String> {
+    // a file inside a zip, or one layer of a GeoPackage
+    if path.starts_with("/vsizip/") || layer.is_some() {
+        let p = resolve(engine, path)?;
+        if matches!(kind_of(&p), Some("raster")) {
+            let id = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            let h = engine.register_raster(&p, &id)?;
+            return Ok(json!({ "layers": [], "rasters": [h.info.id.clone()] }));
+        }
+        let mut hs = crate::catalog::load_layers(&p)?;
+        if let Some(name) = layer {
+            hs.retain(|h| h.info.name == name);
+        }
+        if hs.is_empty() {
+            return Err(format!("{}: no layer {}", p.display(), layer.unwrap_or("")));
+        }
+        let ids = engine.register_layers(hs);
+        return Ok(json!({ "layers": ids, "rasters": [] }));
+    }
     let p = inside_roots(engine, Path::new(path)).ok_or("that file is outside GeoSpaX's data folders")?;
     if !p.is_file() {
         return Err(format!("{} is not a file", p.display()));
@@ -223,6 +242,142 @@ pub fn add(engine: &Arc<Engine>, path: &str) -> Result<Value, String> {
         return Err(why.unwrap_or_else(|| format!("{}: nothing GeoSpaX can draw", p.display())));
     }
     Ok(json!({ "layers": layers, "rasters": rasters, "skipped": skipped }))
+}
+
+/// Files whose layers the Explorer can list one by one.
+pub fn is_container(p: &Path) -> bool {
+    matches!(p.extension().map(|e| e.to_string_lossy().to_lowercase()).as_deref(), Some("gpkg" | "zip" | "kmz"))
+}
+
+/// A path the Explorer may read: a file inside the roots, or a member of a zip inside them
+/// (`/vsizip/<zip>/<member>`).
+fn resolve(engine: &Engine, path: &str) -> Result<PathBuf, String> {
+    if let Some(rest) = path.strip_prefix("/vsizip/") {
+        let lower = rest.to_lowercase();
+        let end = lower.find(".zip").map(|i| i + 4).ok_or("not a zip path")?;
+        let zip = inside_roots(engine, Path::new(&rest[..end])).ok_or("that file is outside GeoSpaX's folders")?;
+        return Ok(PathBuf::from(format!("/vsizip/{}{}", zip.display(), &rest[end..])));
+    }
+    inside_roots(engine, Path::new(path)).ok_or_else(|| "that file is outside GeoSpaX's folders".to_string())
+}
+
+/// What is inside a container: the layers of a GeoPackage (name, geometry, count) or the map files
+/// in a zip (each readable in place as /vsizip/…).
+pub fn inside(engine: &Engine, path: &str) -> Result<Value, String> {
+    use gdal::vector::LayerAccess;
+    let p = resolve(engine, path)?;
+    let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let mut items = Vec::new();
+    if ext == "zip" {
+        let root = format!("/vsizip/{}", p.display());
+        let c = std::ffi::CString::new(root.clone()).map_err(|e| e.to_string())?;
+        unsafe {
+            let list = gdal_sys::VSIReadDirRecursive(c.as_ptr());
+            if !list.is_null() {
+                let mut i = 0;
+                loop {
+                    let item = *list.add(i);
+                    if item.is_null() {
+                        break;
+                    }
+                    let name = std::ffi::CStr::from_ptr(item).to_string_lossy().to_string();
+                    let member = format!("{root}/{name}");
+                    if let Some(kind) = kind_of(Path::new(&name)).filter(|k| *k != "archive" && *k != "recipe") {
+                        items.push(json!({ "name": name, "path": member, "kind": kind }));
+                    }
+                    i += 1;
+                }
+                gdal_sys::CSLDestroy(list);
+            }
+        }
+    } else {
+        let ds = crate::catalog::open_vector(&p)?;
+        for lyr in ds.layers() {
+            let geom = lyr.defn().geom_fields().next().map(|g| format!("{:?}", g.field_type())).unwrap_or_else(|| "table".into());
+            let name = lyr.name();
+            let cp = canonical(&p);
+            let on: Vec<String> = engine.layers().iter().filter(|l| l.info.name == name && canonical(Path::new(&l.info.source)) == cp).map(|l| l.info.id.clone()).collect();
+            items.push(json!({ "name": name, "path": p.display().to_string(), "layer": name, "kind": "vector", "geometry": geometry_word(&geom), "count": lyr.feature_count(), "on_map": on }));
+        }
+    }
+    Ok(json!({ "path": path, "items": items }))
+}
+
+fn geometry_word(t: &str) -> &'static str {
+    // OGRwkbGeometryType as a number (2.5D and ISO Z/M variants folded): 1/4 points, 2/5 lines, 3/6 polygons
+    if let Ok(n) = t.parse::<u64>() {
+        return match (n & 0x7fff_ffff) % 1000 {
+            1 | 4 => "points",
+            2 | 5 => "lines",
+            3 | 6 => "polygons",
+            100 => "table",
+            _ => "features",
+        };
+    }
+    let t = t.to_lowercase();
+    if t.contains("point") { "points" } else if t.contains("line") || t.contains("string") { "lines" } else if t.contains("polygon") || t.contains("surface") { "polygons" } else if t == "table" { "table" } else { "features" }
+}
+
+fn field_word(t: u32) -> &'static str {
+    match t {
+        0 | 12 => "whole numbers",
+        2 => "numbers",
+        4 => "text",
+        9 => "dates",
+        10 => "times",
+        11 => "date-times",
+        _ => "other",
+    }
+}
+
+/// A look before adding: where it is (lon/lat bounds), its CRS and size, its fields and a few rows
+/// (vectors) or its grid and bands (rasters). Nothing is registered.
+pub fn preview(engine: &Engine, path: &str, layer: Option<&str>) -> Result<Value, String> {
+    use gdal::vector::LayerAccess;
+    let p = resolve(engine, path)?;
+    if matches!(kind_of(&p), Some("raster")) {
+        let ds = crate::raster::open(&p)?;
+        let (w, h) = ds.raster_size();
+        let b = crate::raster::lonlat_bounds(&ds).ok();
+        let crs = crate::raster::srs_of(&ds).and_then(|s| s.auth_code().ok().map(|c| format!("EPSG:{c}"))).unwrap_or_else(|| "unknown".into());
+        return Ok(json!({ "kind": "raster", "bounds": b, "crs": crs, "width": w, "height": h, "bands": ds.raster_count() }));
+    }
+    let ds = crate::catalog::open_vector(&p)?;
+    let mut lyr = match layer {
+        Some(n) => ds.layer_by_name(n).map_err(|e| e.to_string())?,
+        None => ds.layer(0).map_err(|e| e.to_string())?,
+    };
+    let count = lyr.feature_count();
+    let fields: Vec<Value> = lyr.defn().fields().map(|f| json!({ "name": f.name(), "type": field_word(f.field_type()) })).collect();
+    let geom = lyr.defn().geom_fields().next().map(|g| format!("{:?}", g.field_type())).unwrap_or_else(|| "table".into());
+    let mut crs = "unknown (assumed EPSG:4326)".to_string();
+    let mut bounds = None;
+    if let Ok(env) = lyr.get_extent() {
+        let srs = lyr.spatial_ref();
+        if let Some(s) = &srs {
+            crs = s.auth_code().ok().map(|c| format!("EPSG:{c}")).unwrap_or_else(|| s.name().unwrap_or_default());
+        }
+        let (mut xs, mut ys) = (vec![env.MinX, env.MaxX, env.MinX, env.MaxX], vec![env.MinY, env.MinY, env.MaxY, env.MaxY]);
+        let ok = match srs {
+            Some(mut s) => {
+                s.set_axis_mapping_strategy(gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder);
+                let mut zs = vec![0.0; 4];
+                crate::catalog::wgs84().ok().and_then(|w| gdal::spatial_ref::CoordTransform::new(&s, &w).ok()).map(|ct| ct.transform_coords(&mut xs, &mut ys, &mut zs).is_ok()).unwrap_or(false)
+            }
+            None => true,
+        };
+        if ok {
+            let f = |v: &[f64], m: fn(f64, f64) -> f64| v.iter().copied().fold(v[0], m);
+            bounds = Some([f(&xs, f64::min), f(&ys, f64::min), f(&xs, f64::max), f(&ys, f64::max)]);
+        }
+    }
+    let names: Vec<String> = fields.iter().filter_map(|f| f["name"].as_str().map(String::from)).collect();
+    let mut rows = Vec::new();
+    for feat in lyr.features().take(5) {
+        let row: Vec<Value> = names.iter().map(|n| feat.field_index(n).ok().and_then(|i| feat.field_as_string(i).ok().flatten()).map(Value::String).unwrap_or(Value::Null)).collect();
+        rows.push(Value::Array(row));
+    }
+    Ok(json!({ "kind": "vector", "layer": lyr.name(), "geometry": geometry_word(&geom), "count": count, "crs": crs, "bounds": bounds, "fields": fields, "rows": rows }))
 }
 
 #[cfg(test)]

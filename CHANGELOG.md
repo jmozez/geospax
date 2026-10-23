@@ -10,6 +10,17 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Web services in the Explorer:** **＋ Add** under *Web services* connects a WMS, WMTS, XYZ tile service,
+  ArcGIS MapServer, WFS, OGC API Features or ArcGIS FeatureServer (checked before it is saved; kept for the
+  next start). Map images go on the map as **web layers** (Contents › Web layers: show, opacity, remove),
+  fetched through GeoSpaX so servers that block web pages still work; features are downloaded for the map
+  view and become a normal layer. Refused when the web edition is open to other devices.
+- **Explorer, phase 1:** GeoPackages and zips open like folders, listing each layer (with its count and
+  geometry) or each map file inside; add one layer, or a file straight from a zip. **Preview** before adding:
+  select a file or layer to see its count, CRS, fields and first rows, with its outline drawn on the map.
+  **Drag** a file or layer onto the map to add it. **Favourites** (right-click › Add to Favourites). A
+  **GeoSpaX** section lists Online data (each source opens its form), Recipes (click to run), Results,
+  AI models and Plugins.
 - **Folder connections:** **Connect a folder…** in the Explorer (also Data › Connect folder and the right-click
   menu) picks any folder of this computer with a folder chooser; it is listed under Folders, kept for the
   next start, and ✕ removes it. Refused when the web edition is open to other devices.

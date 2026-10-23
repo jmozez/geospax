@@ -11,6 +11,7 @@ pub mod ai;
 pub mod arrow_export;
 pub mod automation;
 pub mod browse;
+pub mod services;
 pub mod catalog;
 pub mod classify;
 pub mod devices;

@@ -64,6 +64,18 @@ export interface Project {
   /** layers taken off the map: their files stay in the data folders, but they are not shown again
    *  at the next start until they are added back (Catalog › Add to the map), as in ArcGIS Pro */
   removed?: string[];
+  /** map images from web services (WMS, WMTS, XYZ, ArcGIS MapServer), drawn over the basemap */
+  web?: WebLayer[];
+}
+
+export interface WebLayer {
+  id: string;
+  /** the web service connection (api/services) and its layer */
+  sid: string;
+  layer: string;
+  title: string;
+  opacity: number;
+  visible: boolean;
 }
 
 export interface LayerGroup {
