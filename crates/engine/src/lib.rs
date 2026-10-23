@@ -219,6 +219,12 @@ pub struct Engine {
     pub(crate) rasters: RwLock<Vec<Arc<raster::RasterHandle>>>,
     /// Data folders/files the engine was opened with (relative paths in recipes resolve here).
     pub(crate) data_dirs: Vec<PathBuf>,
+    /// Folder connections added in the Explorer (kept in `<state>/folders.json`): browsed like the
+    /// data folders, but nothing in them is put on the map until it is opened.
+    pub(crate) connections: RwLock<Vec<PathBuf>>,
+    /// The web edition answers other devices (`--host` not loopback): folder connections can then
+    /// not be added, since one would let those devices list any folder of this computer.
+    pub shared: std::sync::atomic::AtomicBool,
     cache: Option<Mutex<LruCache<CacheKey, Arc<TileResult>>>>,
     pool: rayon::ThreadPool,
     pub(crate) job_pool: rayon::ThreadPool,
@@ -396,6 +402,8 @@ impl Engine {
             phone,
             rasters: RwLock::new(rasters),
             data_dirs: cfg.data.clone(),
+            connections: RwLock::new(browse::load_connections(&state_dir)),
+            shared: std::sync::atomic::AtomicBool::new(false),
             cache,
             pool,
             job_pool,

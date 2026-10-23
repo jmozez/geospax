@@ -789,7 +789,9 @@ export class Workbench {
   private browseOpen = new Set<string>();
   private browseCache = new Map<string, BrowseListing>();
   private browseLoading = false;
-  private browseRoots: { title: string; path: string; about: string }[] | null = null;
+  private browseRoots: { title: string; path: string; about: string; connection?: boolean }[] | null = null;
+  /** false when GeoSpaX is open to other devices: no folder connections then */
+  private canConnect = true;
 
   /** Re-read the open folders (after an upload, an edit or "Refresh"). */
   async refreshCatalog() {
@@ -801,7 +803,11 @@ export class Workbench {
   private async loadBrowse() {
     this.browseLoading = true;
     try {
-      if (!this.browseRoots) this.browseRoots = (await this.host.backend.json<{ roots: { title: string; path: string; about: string }[] }>('api/browse')).roots;
+      if (!this.browseRoots) {
+        const r = await this.host.backend.json<{ roots: { title: string; path: string; about: string; connection?: boolean }[]; can_connect?: boolean }>('api/browse');
+        this.browseRoots = r.roots;
+        this.canConnect = r.can_connect !== false;
+      }
       for (const p of this.browseOpen)
         if (!this.browseCache.has(p)) this.browseCache.set(p, await this.host.backend.json<BrowseListing>(`api/browse?path=${encodeURIComponent(p)}`));
     } catch (e) {
@@ -825,10 +831,12 @@ export class Workbench {
     const f = this.catalogFilter.trim().toLowerCase();
     const KIND_ICON: Record<string, string> = { vector: 'layers', raster: 'image', project: 'save', 'point cloud': 'grid', recipe: 'play' };
     const size = (n: number) => (n >= 1 << 30 ? `${(n / (1 << 30)).toFixed(1)} GB` : n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
-    const folder = (title: string, path: string, about: string, depth: number): string => {
+    const folder = (title: string, path: string, about: string, depth: number, connection = false): string => {
       const open = this.browseOpen.has(path);
       const pad = `style="padding-left:${4 + depth * 14}px"`;
-      let html = `<div class="node source folder" data-folder="${esc(path)}" ${pad} title="${esc(about || path)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon('folder', 14)}<span class="nm">${esc(title)}</span></div>`;
+      let html = `<div class="node source folder${connection ? ' conn' : ''}" data-folder="${esc(path)}" ${pad} title="${esc(`${about ? `${about}\n` : ''}${path}`)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon('folder', 14)}<span class="nm">${esc(title)}</span>${
+        connection ? `<button class="ct disc" data-disconnect="${esc(path)}" title="Remove this folder connection (the folder is not touched)" aria-label="Remove the connection to ${esc(title)}">✕</button>` : ''
+      }</div>`;
       if (!open) return html;
       const l = this.browseCache.get(path);
       if (!l) return `${html}<div class="pane-empty" ${pad}>Reading…</div>`;
@@ -842,7 +850,7 @@ export class Workbench {
         .join('');
       return html + kids + (files || (l.folders.length ? '' : `<div class="pane-empty" style="padding-left:${18 + (depth + 1) * 14}px">${f ? 'No match' : 'No map files here'}</div>`));
     };
-    const roots = (this.browseRoots ?? []).map((r) => folder(r.title, r.path, r.about, 0)).join('');
+    const roots = (this.browseRoots ?? []).map((r) => folder(r.title, r.path, r.about, 0, !!r.connection)).join('');
 
     const layers = this.host.layers();
     const bySource = new Map<string, LayerInfo[]>();
@@ -870,6 +878,7 @@ export class Workbench {
       .join('');
     el.innerHTML = `<div class="pane-tools"><input id="cat-filter" type="search" placeholder="Find a file or layer…" value="${esc(this.catalogFilter)}" /><button id="cat-refresh" title="Read the folders again" aria-label="Refresh">${icon('refresh', 14)}</button></div>
       <p class="hint cat-intro">Your files on disk. Double-click a file (or <b>+</b>) to add it to the map; ${icon('check', 11)} means it is on the map. Right-click for more.</p>
+      ${this.canConnect ? `<button class="cat-connect" id="cat-connect" title="Show another folder of this computer here (like a folder connection in ArcGIS Pro)">${icon('folder', 14)} Connect a folder…</button>` : ''}
       <div class="tree">
         <div class="cat-head">Folders</div>
         ${roots || '<div class="pane-empty">No data folder. Add files with Data › Add data, or open sample data.</div>'}
@@ -885,6 +894,12 @@ export class Workbench {
     el.onclick = (e) => {
       const t = e.target as HTMLElement;
       if (t.closest('#cat-refresh')) return void this.refreshCatalog();
+      if (t.closest('#cat-connect')) return void this.connectFolder();
+      const disc = t.closest<HTMLElement>('[data-disconnect]')?.dataset.disconnect;
+      if (disc) {
+        e.stopPropagation();
+        return void this.disconnectFolder(disc);
+      }
       const add = t.closest<HTMLElement>('[data-add]')?.dataset.add;
       if (add) return void this.addFile(add);
       const sc = t.closest<HTMLElement>('[data-shortcut]')?.dataset.shortcut;
@@ -924,6 +939,82 @@ export class Workbench {
       const t = e.target as HTMLInputElement;
       if (t.id === 'cat-filter') { this.catalogFilter = t.value; this.renderCatalog(); const a = document.querySelector<HTMLInputElement>('#cat-filter'); if (a) { a.focus(); a.setSelectionRange(a.value.length, a.value.length); } }
     };
+  }
+
+  /** Remove a folder connection (nothing on disk changes; layers already on the map stay). */
+  async disconnectFolder(path: string) {
+    try {
+      await this.host.backend.json(`api/folders?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+      this.browseOpen.delete(path);
+      this.setStatus(`Removed the connection to ${path.split(/[\\/]/).pop()}`, 5000);
+    } catch (e) {
+      this.setStatus(`Could not remove it: ${e instanceof Error ? e.message : e}`, 8000);
+    }
+    await this.refreshCatalog();
+  }
+
+  /**
+   * "Connect a folder…": a folder chooser over this computer's folders (the browser cannot hand a
+   * web page a folder path, so the engine lists them), like Add Folder Connection in ArcGIS Pro or
+   * Add a directory in QGIS's Browser. The chosen folder joins the Explorer, kept across restarts.
+   */
+  async connectFolder(start?: string) {
+    type Pick = { path: string; parent: string | null; folders: { name: string; path: string }[]; places: { name: string; path: string }[]; map_files: number };
+    const modal = document.createElement('div');
+    modal.className = 'modal folder-pick';
+    document.body.appendChild(modal);
+    const close = () => { modal.remove(); document.removeEventListener('keydown', key, true); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+    document.addEventListener('keydown', key, true);
+    let cur: Pick | null = null;
+    const show = async (path?: string) => {
+      let msg = '';
+      try {
+        cur = await this.host.backend.json<Pick>(`api/folders/pick${path ? `?path=${encodeURIComponent(path)}` : ''}`);
+      } catch (e) {
+        msg = e instanceof Error ? e.message : String(e);
+      }
+      const c = cur;
+      modal.innerHTML = `<div class="sheet fp" role="dialog" aria-label="Connect a folder">
+        <header><b>Connect a folder</b><button type="button" data-fp="close" aria-label="Close">✕</button></header>
+        <div class="body">
+          <div class="fp-places">${(c?.places ?? []).map((p) => `<button type="button" data-fp-go="${esc(p.path)}">${esc(p.name)}</button>`).join('')}</div>
+          <form class="fp-path" data-fp-form><input name="path" value="${esc(c?.path ?? path ?? '')}" aria-label="Folder path" spellcheck="false" /><button type="submit">Go</button></form>
+          ${msg ? `<p class="err">${esc(msg)}</p>` : ''}
+          <div class="fp-list">
+            ${c?.parent ? `<button type="button" class="fp-row up" data-fp-go="${esc(c.parent)}">${icon('folder', 14)} ..</button>` : ''}
+            ${(c?.folders ?? []).map((d) => `<button type="button" class="fp-row" data-fp-go="${esc(d.path)}">${icon('folder', 14)} ${esc(d.name)}</button>`).join('') || '<p class="dim">No sub-folders.</p>'}
+          </div>
+          <p class="dim">${c ? `${c.map_files} map file${c.map_files === 1 ? '' : 's'} directly in this folder. Nothing is added to the map until you open it.` : ''}</p>
+        </div>
+        <footer><button type="button" data-fp="close">Cancel</button><button type="button" class="primary" data-fp="ok" ${c ? '' : 'disabled'}>Connect this folder</button></footer>
+      </div>`;
+    };
+    modal.addEventListener('click', async (e) => {
+      const t = e.target as HTMLElement;
+      if (t === modal || t.closest('[data-fp="close"]')) return close();
+      const go = t.closest<HTMLElement>('[data-fp-go]')?.dataset.fpGo;
+      if (go) return void show(go);
+      if (t.closest('[data-fp="ok"]') && cur) {
+        try {
+          const r = await this.host.backend.json<{ connected: string; title: string }>(`api/folders?path=${encodeURIComponent(cur.path)}`, { method: 'POST' });
+          close();
+          this.browseOpen.add(r.connected);
+          this.showTab('left', 'catalog');
+          this.setStatus(`Connected ${r.title}: its files are in the Explorer`, 6000);
+          await this.refreshCatalog();
+        } catch (err) {
+          const p = modal.querySelector('.fp-list');
+          p?.insertAdjacentHTML('beforebegin', `<p class="err">${esc(err instanceof Error ? err.message : String(err))}</p>`);
+        }
+      }
+    });
+    modal.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = (modal.querySelector('input[name=path]') as HTMLInputElement).value;
+      void show(v);
+    });
+    await show(start);
   }
 
   /** Put a file from a data folder on the map (Catalog double-click, + or right-click). */
