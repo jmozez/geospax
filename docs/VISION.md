@@ -5,7 +5,7 @@
 > runs the analysis, lays out the page and exports it. Every result is a **recipe** you can re-run, schedule
 > or attach to a trigger, so the next map makes itself.
 
-Status: positioning adopted October 2026. What exists today is listed in [README](../README.md#status); the plan is in
+Status: positioning adopted October 2026. What exists today is listed in [Development notes](DEVELOPMENT.md#status); the plan is in
 TECH_STACK.md §8.
 
 **The lazy loop runs today (automation engine v0 + Phase 2 slice 2 + sensor hub v1):**

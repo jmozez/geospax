@@ -53,7 +53,8 @@ fn data_files(dir: &Path) -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
-/// Copy a set into the data folder (once; later calls reuse the copy) and add it to the map.
+/// Copy a set into the state folder (once; later calls reuse the copy) and add it to the map for
+/// this session.
 pub fn open(engine: &Arc<Engine>, set: &str) -> Result<Value, String> {
     if set.is_empty() || !set.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
         return Err(format!("there is no sample set '{set}'"));
@@ -63,8 +64,9 @@ pub fn open(engine: &Arc<Engine>, set: &str) -> Result<Value, String> {
     if !src.join("sample.json").is_file() {
         return Err(format!("there is no sample set '{set}'"));
     }
-    // Uploads/ is the writable data folder; samples go beside it
-    let dest = crate::upload::upload_dir(engine).parent().map(|p| p.join("Samples").join(set)).ok_or("no writable data folder")?;
+    // samples are opened for this session only: they live in the state folder, which the start-up
+    // scan of the data folders never reads, so the next start is a clean map
+    let dest = engine.state_dir.join("samples").join(set);
     fs::create_dir_all(&dest).map_err(|e| format!("could not create {}: {e}", dest.display()))?;
     let mut files = Vec::new();
     for f in data_files(&src) {

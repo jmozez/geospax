@@ -61,6 +61,9 @@ export interface Project {
   groups?: LayerGroup[];
   /** layer id -> group id */
   member?: Record<string, string>;
+  /** layers taken off the map: their files stay in the data folders, but they are not shown again
+   *  at the next start until they are added back (Catalog › Add to the map), as in ArcGIS Pro */
+  removed?: string[];
 }
 
 export interface LayerGroup {

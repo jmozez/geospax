@@ -28,6 +28,8 @@ pub struct JobState {
     pub message: String,
     pub result: Option<Value>,
     pub finished_ms: Option<f64>,
+    /** what the job printed, newest last (R setup shows it like QGIS's plugin manager log) */
+    pub log: Vec<String>,
 }
 
 pub struct Job {
@@ -40,6 +42,16 @@ pub struct Job {
 }
 
 impl Job {
+    /// Add a line to the job's log (the last 400 lines are kept).
+    pub fn log(&self, line: impl Into<String>) {
+        let mut s = self.state.lock().unwrap();
+        s.log.push(line.into());
+        if s.log.len() > 400 {
+            let n = s.log.len() - 400;
+            s.log.drain(..n);
+        }
+    }
+
     pub fn update(&self, f: impl FnOnce(&mut JobState)) {
         f(&mut self.state.lock().unwrap());
     }
@@ -77,6 +89,7 @@ impl Job {
             "message": s.message,
             "elapsed_ms": elapsed,
             "result": s.result,
+            "log": s.log,
         })
     }
 }
@@ -102,6 +115,7 @@ impl Jobs {
                 message: String::new(),
                 result: None,
                 finished_ms: None,
+                log: Vec::new(),
             }),
         });
         let mut list = self.list.lock().unwrap();

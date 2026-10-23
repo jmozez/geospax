@@ -4,7 +4,7 @@
 // when its runtime is missing (a QGIS UI plugin needs PyQt; a Pro add-in needs .NET).
 import { pickField, pickLayers, pickRasters } from './prefill';
 import type { Backend } from './backend';
-import { icon } from './commands';
+import { icon, pluginIcon } from './commands';
 
 export interface ParamSpec {
   name: string;
@@ -143,7 +143,7 @@ export class PluginsPane {
       .map(([k]) => k)
       .join(', ');
     // built-in tool sets are part of GeoSpaX: their tools are in the Toolbox, not listed here
-    const added = this.state.plugins.filter((p) => !p.builtin && !p.library).sort((a, b) => Number(!!b.default) - Number(!!a.default));
+    const added = this.state.plugins.filter((p) => !p.builtin).sort((a, b) => Number(!!b.default) - Number(!!a.default));
     const head = `<div class="pane-head">
         <span class="pane-title">Plugins</span>
         <span class="pane-sub">${added.length} installed · runtimes: ${esc(rt || 'none found')}</span>
@@ -189,7 +189,7 @@ export class PluginsPane {
       : '';
     return `<div class="plugin ${p.runnable ? '' : 'off'}">
       <div class="p-head">
-        <span class="p-name">${esc(p.name)}</span>
+        <span class="p-ico">${icon(pluginIcon(p), 18)}</span><span class="p-name">${esc(p.name)}</span>
         <span class="p-ver">${esc(p.version ?? '')}</span>
         ${badge}${state}
       </div>

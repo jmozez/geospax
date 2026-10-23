@@ -19,6 +19,8 @@ acknowledges — including the two the workbench UI was modelled on.
   (BSD-3-Clause), deck.gl (MIT), Apache Arrow JS (Apache-2.0), terra-draw and its MapLibre adapter
   (MIT, drawing and vertex editing), Vite (MIT),
   TypeScript (Apache-2.0), Playwright (Apache-2.0, dev only).
+* **Icons** — Material Design Icons (`@mdi/js` 7.4.47, Apache-2.0, Pictogrammers): the ribbon and plugin
+  icons are path data copied from it into `web/src/commands.ts`.
 * **GeoLibre tools plugin** (`plugins/geolibre-tools/`) — downloads, on first use, the `geolibre-wasm`
   1.7.1 tool runner (MIT; opengeos/geolibre-rust, built on whitebox_next_gen by John Lindsay, MIT) from
   the npm registry and verifies its SHA-512. It is not redistributed in this repository or the installers.

@@ -156,6 +156,8 @@ function mergeProject(saved: Project | null): Project {
     order.splice(afterLand, 0, ...bottom.map((r) => `r:${r.id}`));
     order.push(...top.map((r) => `r:${r.id}`));
   }
+  // layers and rasters the user removed stay off the map
+  if (saved?.removed?.length) order.splice(0, order.length, ...order.filter((id) => !saved.removed!.includes(id)));
   const styles: Record<string, LayerStyle> = {};
   for (const l of layers) styles[l.id] = { ...defaultStyle(l), ...(saved?.layers?.[l.id] ?? {}) };
   const groups = saved?.groups ?? [];
@@ -362,14 +364,24 @@ function buildStyle(): maplibregl.StyleSpecification {
   } catch { /* first style: the map is not ready yet */ }
   // View › Projection (MapLibre's own projections: Web Mercator or a globe)
   out.push(...labelLayers);
-  return { version: 8, glyphs: new URL('fonts/', location.href).href + GLYPHS.slice('fonts/'.length), sources, layers: out, projection: { type: mapProjection } };
+  // the globe gets an atmosphere around it (space beyond), fading out as you zoom in, as in GeoLibre
+  const sky = {
+    'sky-color': css('map-space') || '#000000',
+    'horizon-color': css('map-glow') || '#3b6ea8',
+    'fog-color': css('map-glow') || '#3b6ea8',
+    'sky-horizon-blend': 0.6,
+    'horizon-fog-blend': 0.6,
+    'fog-ground-blend': 0.2,
+    'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0],
+  } as maplibregl.SkySpecification;
+  return { version: 8, glyphs: new URL('fonts/', location.href).href + GLYPHS.slice('fonts/'.length), sources, layers: out, projection: { type: mapProjection }, sky };
 }
 
 // ---------------------------------------------------------------- basemap
 // A map should never open on an empty void. 'offline' is Natural Earth 1:50m (public domain) shipped
 // with the app, so it works with no network; 'osm' is OpenStreetMap's raster tiles (needs internet).
 const basemapUrl = (f: string) => new URL(`basemap/${f}.geojson`, location.href).href;
-const basemap = (): Basemap => (params.get('basemap') as Basemap | null) ?? project.basemap ?? 'offline';
+const basemap = (): Basemap => (params.get('basemap') as Basemap | null) ?? project.basemap ?? prefs.basemap ?? 'offline';
 
 function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: maplibregl.LayerSpecification[]) {
   const b = basemap();
@@ -454,6 +466,12 @@ function fitLayer(id: string) {
 }
 
 /** Fit every visible layer — Pro's "Full extent". */
+/** The zoom at which the globe fills ~90 % of the map's height (MapLibre's globe is 512·2^z/π px across). */
+function globeZoom(): number {
+  const h = document.querySelector<HTMLElement>('#map')?.clientHeight || 600;
+  return Math.max(0, Math.min(3, Math.log2((h * 0.9 * Math.PI) / 512)));
+}
+
 function fitAll(duration = 450) {
   let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
   for (const id of project.order) {
@@ -481,7 +499,17 @@ async function autostyleLayer(id: string, opts: { keepVisibility?: boolean; quie
 
 /** The lazy-mapper automation (auto styles, auto overviews) is on unless ?<name>=0. Benchmarks and the
  *  UI tests (?bench, ?fresh) drive every step themselves, so it is off there unless ?<name>=1. */
-const lazyOn = (name: string) => params.has(name) ? params.get(name) !== '0' : !params.has('bench') && !params.has('fresh');
+// ---------------------------------------------------------------- settings (Home › Settings)
+interface Prefs { auto: boolean; autooverviews: boolean; units: 'metric' | 'imperial' | 'nautical'; basemap: Basemap }
+const PREFS_KEY = 'geospax.prefs';
+const prefs: Prefs = (() => {
+  const d: Prefs = { auto: true, autooverviews: true, units: 'metric', basemap: 'offline' };
+  try { return { ...d, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') }; } catch { return d; }
+})();
+const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* private mode */ } };
+
+/** An automation that is on unless switched off in Settings or the URL (?auto=0); benches and tests opt out. */
+const lazyOn = (name: string) => params.has(name) ? params.get(name) !== '0' : !params.has('bench') && !params.has('fresh') && prefs[name as 'auto' | 'autooverviews'] !== false;
 
 /** Layers seen for the first time get AutoMap's style instead of a grey default (opt out: ?auto=0). */
 async function autostyleNew(ids: string[]) {
@@ -687,7 +715,8 @@ function rasterRow(id: string, first: boolean, last: boolean, depth = 0): string
     return `<div class="card raster-card" data-id="${e(id)}" style="--c:#7a8ea6"><div class="lc-top"><span class="lc-glyph">▦</span>
       <span class="lc-title"><b>${e(r.title)}</b><small>${e(r.kind)} raster · ${r.pixel_m} m pixels</small></span>
       <label class="lc-switch"><input type="checkbox" ${on ? 'checked' : ''} aria-label="Show ${e(r.title)}"> Show</label></div>
-      ${legend ? `<div class="rlegend">${legend}</div>` : ''}</div>`;
+      ${legend ? `<div class="rlegend">${legend}</div>` : ''}
+      <div class="lc-acts"><button data-act="zoom">Zoom to</button><button data-act="remove" class="lc-remove" title="Remove from the map (the file is kept)" aria-label="Remove from the map">✕</button><button data-act="props" title="Colours and legend" aria-label="Colours and legend">⋯</button></div></div>`;
   }
   return `<div class="layer pro raster" data-id="${e(id)}" draggable="true" role="treeitem" aria-level="${depth + 2}" aria-expanded="${open}" aria-selected="false" style="--d:${depth}">
     <button class="pr-tw" data-act="twisty" aria-label="${open ? 'Collapse' : 'Expand'} legend">${open ? '▾' : '▸'}</button>
@@ -701,6 +730,7 @@ function rasterRow(id: string, first: boolean, last: boolean, depth = 0): string
       <button data-act="down" title="Move down" aria-label="Move down" ${last ? 'disabled' : ''}>▼</button>
       <button data-act="zoom" title="Zoom to" aria-label="Zoom to">⤢</button>
       <button data-act="props" title="Symbology" aria-label="Symbology">⚙</button>
+      <button data-act="remove" class="rm" title="Remove from the map (the file is kept)" aria-label="Remove from the map">✕</button>
     </span>
     <small class="pr-sub">raster · ${e(r.kind)} · ${r.width}×${r.height} px · ${r.pixel_m} m · ${e(r.crs)}</small>
     ${legend ? `<div class="legend rlegend">${legend}</div>` : ''}
@@ -754,6 +784,7 @@ function rasterMenu(id: string, x: number, y: number): boolean {
     { label: 'Symbology…', hint: 'Renderer, colours, stretch, opacity', run: () => void rasterStyle(rid) },
     ...[100, 75, 50, 25].map((o) => ({ label: `Opacity ${o} %`, disabled: Math.round(rasterPane!.opacity(rid) * 100) === o, run: () => rasterPane!.setOpacity(rid, o / 100) })),
     { sep: true },
+    { label: 'Remove from map', danger: true, hint: 'The file is kept; add it again from the Catalog', run: () => void removeLayer(id) },
     { label: 'Properties…', run: async () => {
       const { dialog } = await import('./editing');
       const e = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -877,7 +908,7 @@ function wireContents() {
       if (ga) groupAction(ga, gEl.dataset.group!);
       return;
     }
-    const id = t.closest<HTMLElement>('.layer')?.dataset.id;
+    const id = t.closest<HTMLElement>('.layer, .raster-card')?.dataset.id;
     if (!id) return;
     const actEl = t.closest<HTMLElement>('[data-act]');
     const act = actEl?.dataset.act;
@@ -886,6 +917,7 @@ function wireContents() {
       saveClosed();
       return renderContents();
     }
+    if (act === 'remove') return void removeLayer(id);
     if (act === 'up' || act === 'down') moveLayer(id, act);
     else if (id.startsWith('r:')) {
       const r = rasterPane?.byId(id.slice(2));
@@ -942,6 +974,7 @@ function wireContents() {
     } else if (e.key === ' ') item.querySelector<HTMLInputElement>('input[type=checkbox]')?.click();
     else if (e.key === 'Enter' && id) item.querySelector<HTMLElement>('.name')?.click();
     else if (e.key === 'F2' && gid) groupAction('rename', gid);
+    else if (e.key === 'Delete' && id) (go(items[i + 1] ?? items[i - 1]), void removeLayer(id));
     else done = false;
     if (done) e.preventDefault();
   });
@@ -1049,6 +1082,8 @@ async function openSamples() {
 
 /** New layers and rasters joined the map (upload, sample data): show them, fit, select the first. */
 async function addedToMap(ids: string[], rasterIds: string[]) {
+    // added back on purpose: no longer one of the removed layers
+    if (project.removed?.length) project.removed = project.removed.filter((id) => !ids.includes(id) && !rasterIds.includes(id.slice(2)));
     await reloadLayers();
     let rb: [number, number, number, number][] = [];
     if (rasterIds.length && rasterPane) {
@@ -1072,10 +1107,174 @@ async function addedToMap(ids: string[], rasterIds: string[]) {
     }
   }
 
+let scaleControl: maplibregl.ScaleControl | undefined;
+let pinMarker: maplibregl.Marker | undefined;
+
+/** Read "lat, lon", "lon lat", or degrees-minutes-seconds with N/S/E/W ("9°26'S 147°11'E"). */
+export function parseLatLon(text: string): [number, number] | null {
+  const t = text.trim().toUpperCase().replace(/,/g, ' ');
+  const dms = [...t.matchAll(/(-?\d+(?:\.\d+)?)\s*°?\s*(?:(\d+(?:\.\d+)?)\s*['′]\s*)?(?:(\d+(?:\.\d+)?)\s*["″]\s*)?([NSEW])?/g)].filter((m) => m[0].trim());
+  if (dms.length < 2) return null;
+  const val = (m: RegExpMatchArray) => {
+    const v = Math.abs(Number(m[1])) + Number(m[2] ?? 0) / 60 + Number(m[3] ?? 0) / 3600;
+    return (m[1].startsWith('-') || m[4] === 'S' || m[4] === 'W' ? -1 : 1) * v;
+  };
+  const [a, b] = dms;
+  let lat: number, lon: number;
+  if (a[4] === 'E' || a[4] === 'W' || b[4] === 'N' || b[4] === 'S') [lon, lat] = [val(a), val(b)];
+  else [lat, lon] = [val(a), val(b)];
+  // "147.2 -9.4" (lon lat, as GIS people often write it): a latitude cannot be beyond ±90
+  if (Math.abs(lat) > 90 && Math.abs(lon) <= 90) [lat, lon] = [lon, lat];
+  return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lon, lat] : null;
+}
+
+function dropPin(lonlat: [number, number], label: string) {
+  pinMarker?.remove();
+  pinMarker = new maplibregl.Marker({ color: '#e8590c' }).setLngLat(lonlat).setPopup(new maplibregl.Popup({ offset: 24 }).setText(label)).addTo(map);
+  pinMarker.togglePopup();
+}
+
+async function goToXY() {
+  const { dialog, say } = await import('./editing');
+  await dialog('Go To XY', `<label>Coordinates <input name="xy" placeholder="-9.44, 147.18  ·  9°26'S 147°11'E  ·  147.18 -9.44" autofocus></label>
+    <p class="hint">Latitude and longitude in decimal degrees or degrees-minutes-seconds, in either order with N/S/E/W.</p><div class="dlg-msg" data-msg></div>`, [['ok', 'Go'], ['', 'Cancel']], {
+    onButton: (b, v, root) => {
+      if (b !== 'ok') return true;
+      const p = parseLatLon(v.xy);
+      if (!p) return (say(root, 'Not a coordinate pair I can read', 'err'), false);
+      map.flyTo({ center: p, zoom: Math.max(map.getZoom(), 12), duration: 1200 });
+      dropPin(p, `${p[1].toFixed(5)}, ${p[0].toFixed(5)}`);
+      return true;
+    },
+  });
+}
+
+async function findPlace() {
+  const { dialog, say } = await import('./editing');
+  await dialog('Find place', `<label>Place or address <input name="q" placeholder="e.g. Port Moresby, or Waigani Drive" autofocus></label>
+    <div class="fp-results"></div><p class="hint">Search by OpenStreetMap Nominatim (needs internet). Coordinates work too.</p><div class="dlg-msg" data-msg></div>`, [['ok', 'Search'], ['', 'Close']], {
+    onOpen: (root) => root.addEventListener('click', (e) => {
+      const r = (e.target as HTMLElement).closest<HTMLElement>('[data-lon]');
+      if (!r) return;
+      const p: [number, number] = [Number(r.dataset.lon), Number(r.dataset.lat)];
+      const bb = r.dataset.bbox?.split(',').map(Number);
+      if (bb?.length === 4) map.fitBounds([[bb[2], bb[0]], [bb[3], bb[1]]], { padding: 60, maxZoom: 16, duration: 1200 });
+      else map.flyTo({ center: p, zoom: 14 });
+      dropPin(p, r.dataset.name ?? '');
+      root.closest('.modal')?.remove();
+    }),
+    onButton: async (b, v, root) => {
+      if (b !== 'ok') return true;
+      const xy = parseLatLon(v.q);
+      if (xy) {
+        map.flyTo({ center: xy, zoom: Math.max(map.getZoom(), 12) });
+        dropPin(xy, v.q);
+        return true;
+      }
+      say(root, 'Searching…');
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&q=${encodeURIComponent(v.q)}`, { headers: { accept: 'application/json' } });
+        const hits = (await r.json()) as { lat: string; lon: string; display_name: string; type: string; boundingbox?: string[] }[];
+        const e = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        root.querySelector('.fp-results')!.innerHTML = hits.length
+          ? hits.map((h) => `<button type="button" class="fp-hit" data-lon="${e(h.lon)}" data-lat="${e(h.lat)}" data-name="${e(h.display_name)}" data-bbox="${e((h.boundingbox ?? []).join(','))}"><b>${e(h.display_name.split(',')[0])}</b><small>${e(h.display_name)} · ${e(h.type)}</small></button>`).join('')
+          : '';
+        say(root, hits.length ? `${hits.length} places: click one` : 'Nothing found', hits.length ? 'ok' : 'err');
+      } catch {
+        say(root, 'The place search needs internet (OpenStreetMap Nominatim)', 'err');
+      }
+      return false;
+    },
+  });
+}
+
+/** Home › Settings (ArcGIS Pro's Options): appearance, map, automation, and the setup pages. */
+async function openSettings() {
+  const { dialog } = await import('./editing');
+  const e = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const opt = (v: string, label: string, cur: string) => `<option value="${e(v)}"${v === cur ? ' selected' : ''}>${e(label)}</option>`;
+  const health = await backend.json<{ version?: string; data?: string[]; state?: string }>('api/about').catch(() => ({} as { version?: string; data?: string[]; state?: string }));
+  const body = `
+    <div class="settings">
+      <section><h3>Appearance</h3>
+        <label>Mode <select name="mode">${opt('lazy', 'Lazy: cards, task bar, plain-language steps', uiMode)}${opt('pro', 'Pro: full ribbon, layer tree, every pane', uiMode)}</select></label>
+        <label>Theme <select name="theme">${opt('light', 'Light', theme)}${opt('dark', 'Dark', theme)}${opt('system', 'Follow the system', theme)}</select></label>
+      </section>
+      <section><h3>Map</h3>
+        <label>Projection <select name="projection">${opt('globe', 'Globe (zoom out to see the Earth)', mapProjection)}${opt('mercator', 'Flat (Web Mercator)', mapProjection)}</select></label>
+        <label>Basemap for new maps <select name="basemap">${BASEMAPS.filter((b) => b.id !== 'custom').map((b) => opt(b.id, b.title, prefs.basemap)).join('')}${opt('none', 'None', prefs.basemap)}</select></label>
+        <label>Units (scale bar, measuring) <select name="units">${opt('metric', 'Metric (km, m)', prefs.units)}${opt('imperial', 'Imperial (mi, ft)', prefs.units)}${opt('nautical', 'Nautical (nmi)', prefs.units)}</select></label>
+      </section>
+      <section><h3>Automation</h3>
+        <label class="chk"><input type="checkbox" name="auto" ${prefs.auto ? 'checked' : ''}> Style new layers automatically (AutoMap)</label>
+        <label class="chk"><input type="checkbox" name="autooverviews" ${prefs.autooverviews ? 'checked' : ''}> Build overviews for large layers in the background</label>
+      </section>
+      <section><h3>Setup</h3>
+        <div class="settings-btns">
+          <button type="button" data-go="ai">AI assistant…</button>${uiMode === 'pro' ? '<button type="button" data-go="r">R and packages…</button>' : ''}
+          <button type="button" data-go="plugins">Plugins…</button><button type="button" data-go="layout">Reset window layout</button>
+        </div>
+      </section>
+      <section><h3>About this installation</h3>
+        <table class="props"><tr><th>Version</th><td>${e(health.version ?? '')}</td></tr><tr><th>Edition</th><td>${backend.edition === 'web' ? 'Web' : 'Desktop'}</td></tr>
+        ${health.data?.length ? `<tr><th>Data folders</th><td>${health.data.map(e).join('<br>')}</td></tr>` : ''}${health.state ? `<tr><th>Projects and results</th><td>${e(health.state)}</td></tr>` : ''}</table>
+      </section>
+    </div>`;
+  await dialog('Settings', body, [['ok', 'Save'], ['', 'Cancel']], {
+    wide: true,
+    onOpen: (root) => root.addEventListener('click', (ev) => {
+      const go = (ev.target as HTMLElement).closest<HTMLElement>('[data-go]')?.dataset.go;
+      if (!go) return;
+      root.closest('.modal')?.remove();
+      if (go === 'ai') { workbench?.showTab('right', 'ask'); document.dispatchEvent(new CustomEvent('geospax:ask-settings')); }
+      else if (go === 'r') document.dispatchEvent(new CustomEvent('geospax:r', { detail: 'setup' }));
+      else if (go === 'plugins') document.dispatchEvent(new CustomEvent('geospax:plugin-manager'));
+      else if (go === 'layout') document.dispatchEvent(new CustomEvent('geospax:reset-layout'));
+    }),
+    onButton: (b, v) => {
+      if (b !== 'ok') return true;
+      if (v.mode !== uiMode) setMode(v.mode as UiMode);
+      if (v.theme !== theme) setTheme(v.theme as Theme);
+      if (v.projection !== mapProjection) document.dispatchEvent(new CustomEvent('geospax:projection', { detail: v.projection }));
+      prefs.auto = v.auto === 'on';
+      prefs.autooverviews = v.autooverviews === 'on';
+      prefs.basemap = v.basemap as Basemap;
+      if (v.units !== prefs.units) {
+        prefs.units = v.units as Prefs['units'];
+        scaleControl?.setUnit(prefs.units);
+      }
+      savePrefs();
+      workbench?.setStatus('Settings saved', 4000);
+      return true;
+    },
+  });
+}
+
+/** Remove a layer or raster from the map (ArcGIS Pro "Remove"): the file is kept and the layer
+ *  stays off at the next start, until it is added back from the Catalog. */
+async function removeLayer(id: string) {
+  const name = id.startsWith('r:') ? rasterPane?.byId(id.slice(2))?.title ?? id : layerById(id)?.name ?? id;
+  project.removed = [...new Set([...(project.removed ?? []), id])];
+  project.order = project.order.filter((x) => x !== id);
+  if (project.member) delete project.member[id];
+  if (id.startsWith('r:')) rasterPane?.setVisible(id.slice(2), false);
+  else {
+    editor?.clearSelection(id);
+    await backend.json(`api/layers/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null);
+    layers = layers.filter((l) => l.id !== id);
+    if (panel.current === id) panel.close();
+  }
+  saveProject();
+  applyStyle();
+  renderContents();
+  document.dispatchEvent(new CustomEvent('geospax:reload-views'));
+  workbench?.setStatus(`${name} removed from the map (the file is kept; add it again from the Catalog)`, 6000);
+}
+
 // ---------------------------------------------------------------- overview jobs
 async function reloadLayers() {
   const r = await backend.json<{ layers: LayerInfo[] }>('api/layers');
-  layers = r.layers;
+  layers = r.layers.filter((l) => !project.removed?.includes(l.id));
   // Layers that appeared at runtime (device imports) join the project with default styles, on top.
   const known = new Set(project.order);
   project = mergeProject(project);
@@ -1327,9 +1526,10 @@ async function main() {
     backend.json<{ layers: LayerInfo[] }>('api/layers'),
     backend.json<Project | null>('api/project').catch(() => null),
   ]);
-  layers = ls;
   // ?fresh ignores the saved project (benchmarks, smoke tests)
   const savedProject = params.has('fresh') || params.has('bench') ? null : saved;
+  // layers the user took off the map stay off (the file is kept), until they are added back
+  layers = ls.filter((l) => !savedProject?.removed?.includes(l.id));
   project = mergeProject(savedProject);
   const firstSeen = layers.map((l) => l.id).filter((id) => !savedProject?.layers?.[id]);
   $('#edition').textContent = backend.edition === 'web' ? 'Web edition · Axum' : 'Desktop edition · Tauri';
@@ -1342,6 +1542,8 @@ async function main() {
   const view = urlView ?? (!hasHashView && project.view ? project.view : { center: [144.25, -5.87] as [number, number], zoom: fitOnLoad ? 1 : 12.5 });
   // a fresh start opens on the whole globe, then flies to the project (not for links to a view,
   // reloads, benches or automated tests)
+  // an empty map (a clean start) opens on the whole Earth, the globe filling the map
+  const startEmpty = !urlView && !hasHashView && !project.view && !project.order.some((id) => layerById(id) || id.startsWith('r:'));
   const intro = !urlView && !hasHashView && !params.has('bench') && !params.has('nointro') && !navigator.webdriver && mapProjection === 'globe';
   const ua = navigator.userAgent;
   const webkitGtk = /Linux/.test(ua) && /AppleWebKit/.test(ua) && !/Chrom/.test(ua);
@@ -1350,9 +1552,9 @@ async function main() {
     container: 'map',
     style: buildStyle(),
     center: view.center,
-    zoom: intro ? 1.6 : view.zoom,
+    zoom: intro ? 1.6 : startEmpty ? globeZoom() : view.zoom,
     hash: params.has('bench') ? false : 'view',
-    attributionControl: { compact: true, customAttribution: 'GeoSpaX · Natural Earth (public domain) · synthetic buildings' },
+    attributionControl: { compact: true, customAttribution: 'GeoSpaX · Natural Earth (public domain)' },
     // WebKitGTK (Tauri on Linux) randomly drops whole tiles with the default drawing buffer:
     // MapLibre's tile state is complete and WebGL reports no errors, but some tiles never reach
     // the screen (README finding 17). preserveDrawingBuffer (or MSAA) avoids it. Elsewhere it stays
@@ -1360,7 +1562,8 @@ async function main() {
     canvasContextAttributes: { antialias: params.get('glaa') === '1', preserveDrawingBuffer: preserveBuffer },
   });
   map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
-  map.addControl(new maplibregl.ScaleControl({}), 'bottom-left');
+  scaleControl = new maplibregl.ScaleControl({ unit: prefs.units });
+  map.addControl(scaleControl, 'bottom-left');
   (window as unknown as { map: maplibregl.Map }).map = map;
   map.on('moveend', () => saveProject());
   // point shapes other than circles are SDF icons, made when a layer first asks for one
@@ -1778,12 +1981,7 @@ async function main() {
       { label: 'Export features…', run: () => edit('export') },
       { label: 'Discard edits…', disabled: !l.edited, danger: true, run: () => edit('discard') },
       { sep: true },
-      { label: 'Remove from map', danger: true, hint: 'The file is not touched; it opens again at the next start', run: async () => {
-        await backend.json(`api/layers/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null);
-        editor?.clearSelection(id);
-        await reloadLayers();
-        workbench?.setStatus(`${l.name} removed from the map (the file is kept)`);
-      } },
+      { label: 'Remove from map', danger: true, hint: 'The file is kept; add it again from the Catalog', run: () => void removeLayer(id) },
       { label: 'Properties…', run: () => void layerProperties(id) },
     ];
     showMenu(x, y, l.name, items);
@@ -1901,6 +2099,42 @@ async function main() {
     void askPane.ask((e as CustomEvent<string>).detail);
   });
   document.addEventListener('geospax:bookmark', () => void projectPane?.addBookmark());
+  document.addEventListener('geospax:settings', () => void openSettings());
+  document.addEventListener('geospax:basemap-gallery', () => void basemapGallery());
+  // Home › Navigate: previous and next extent (as ArcGIS Pro), from the views the map has shown
+  {
+    const views: { c: [number, number]; z: number }[] = [];
+    let at = -1;
+    let stepping = false;
+    map.on('moveend', () => {
+      if (stepping) return void (stepping = false);
+      const v = { c: map.getCenter().toArray() as [number, number], z: map.getZoom() };
+      const last = views[at];
+      if (last && Math.abs(last.z - v.z) < 1e-3 && Math.abs(last.c[0] - v.c[0]) < 1e-7 && Math.abs(last.c[1] - v.c[1]) < 1e-7) return;
+      views.splice(at + 1);
+      views.push(v);
+      if (views.length > 50) views.shift();
+      at = views.length - 1;
+    });
+    const step = (d: -1 | 1) => {
+      const to = views[at + d];
+      if (!to) return workbench?.setStatus(d < 0 ? 'No previous extent' : 'No next extent', 3000);
+      at += d;
+      stepping = true;
+      map.easeTo({ center: to.c, zoom: to.z, duration: 400 });
+    };
+    document.addEventListener('geospax:extent', (e) => step((e as CustomEvent<string>).detail === 'back' ? -1 : 1));
+    document.addEventListener('keydown', (e) => {
+      if (!e.altKey || (e.target as HTMLElement).closest('input, textarea, select')) return;
+      if (e.key === 'ArrowLeft') (e.preventDefault(), step(-1));
+      else if (e.key === 'ArrowRight') (e.preventDefault(), step(1));
+    });
+  }
+  // Home › Go To XY and Find place
+  document.addEventListener('geospax:goto', () => void goToXY());
+  document.addEventListener('geospax:find-place', () => void findPlace());
+  document.querySelector('#settings-btn')?.addEventListener('click', () => void openSettings());
+  document.addEventListener('geospax:remove-layer', (e) => void removeLayer((e as CustomEvent<string>).detail));
   document.addEventListener('geospax:added', (e) => {
     const r = (e as CustomEvent<{ layers: string[]; rasters: string[] }>).detail;
     void addedToMap(r.layers, r.rasters);
@@ -1919,7 +2153,8 @@ async function main() {
     renderContents();
   }
   (window as unknown as { workbench: Workbench | null }).workbench = workbench;
-  if (fitOnLoad) intro ? setTimeout(() => fitAll(3000), 700) : fitAll();
+  if (startEmpty) intro && setTimeout(() => map.easeTo({ zoom: globeZoom(), duration: 2000 }), 500);
+  else if (fitOnLoad) intro ? setTimeout(() => fitAll(3000), 700) : fitAll();
   else if (intro) setTimeout(() => map.flyTo({ center: view.center, zoom: view.zoom, duration: 3000, essential: true }), 700);
 
   // Stage 2 of the lazy path: a start screen with a drop zone, drag-and-drop anywhere, and

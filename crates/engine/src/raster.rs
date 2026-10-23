@@ -296,7 +296,7 @@ pub fn discover(paths: &[PathBuf]) -> Vec<PathBuf> {
             entries.sort();
             for e in entries {
                 let name = e.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if !name.starts_with('.') && name != "raw" {
+                if !name.starts_with('.') && name != "raw" && name != "Samples" {
                     walk(&e, depth - 1, out);
                 }
             }

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GeoSpaX Help</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+  </head>
+  <body class="help-page">
+    <header class="hp-top">
+      <a class="hp-brand" href="#USER_GUIDE"><img src="geospax-logo.png" alt="" width="24" height="24" /><span>GeoSpa<span class="x">X</span> Help</span></a>
+      <label class="hp-search"><span class="sr">Search the help</span><input id="hp-q" type="search" placeholder="Search the help (/ to focus)" autocomplete="off" /></label>
+      <button id="hp-theme" type="button" title="Theme" aria-label="Theme"></button>
+      <button id="hp-menu" type="button" aria-label="Show the list of guides" aria-expanded="false">☰</button>
+    </header>
+    <div class="hp-shell">
+      <nav id="hp-nav" aria-label="Guides"></nav>
+      <main id="hp-main" tabindex="-1"><p class="dim">Loading…</p></main>
+      <aside id="hp-toc" aria-label="On this page"></aside>
+    </div>
+    <script type="module" src="./src/help.ts"></script>
+  </body>
+</html>

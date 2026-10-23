@@ -9,6 +9,31 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - GeoSpaX is licensed under the **MIT licence** only (previously MIT or Apache-2.0, at your choice).
   `LICENSE-MIT` is now `LICENSE`; `LICENSE-APACHE` is removed. Third-party parts keep their own licences
   (THIRD_PARTY_NOTICES.md).
+- **Clean start on a globe.** GeoSpaX opens with no layers on a globe that fills the map (with an
+  atmosphere), like GeoLibre. Sample data now opens for the session only and is never copied into your
+  Data folder.
+- **Ribbon in ArcGIS Pro order:** Home, Data, Analysis, View, Edit, Imagery, Share, R & Python, Automate,
+  Plugins, Help (R and Python tools share one tab, R's groups first). The Map and Modelling tabs are merged into the others; groups that do not fit fold into ▾ menus
+  instead of being cut off. New commands: Settings, previous/next extent, Go to XY, Find place, the common
+  geoprocessing tools, FAQ, What's new, Check for updates, Report a problem.
+- **GSX domain plugins live on the Plugins tab** (and in the plugin manager) only; their kits are no longer
+  listed under Analysis.
+- **Icons:** Material Design Icons, one picture per command, with an icon of its own for each domain plugin.
+- **Help opens as a web page** (new browser tab, or a window on the desktop) with a sidebar, search and
+  "On this page". A new **FAQ** answers the common questions.
+- **Flat design:** no drop shadows, blur or soft gradients; thin borders and small, square corners in both
+  themes.
+- **R & Python is a Pro-only tab** (not shown or searchable in Lazy).
+- README shortened; developer material moved to docs/DEVELOPMENT.md.
+
+### Added
+- **Remove from map** everywhere: ✕ on Lazy cards and Pro rows (vectors and rasters), the Delete key, the
+  context menu and Layer › Remove. A removed layer stays off the map after a restart.
+- **Settings** dialog (⚙ in the title bar and Home › Settings).
+
+### Fixed
+- **R setup** shows a live install log, marks each package installed (✓) or missing (○) and reports why an
+  install failed (no internet, unreachable repository) instead of failing silently.
 
 ## [3.0.0] — 2026-10-22
 

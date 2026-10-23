@@ -145,7 +145,7 @@ export function lazyCard(r: RowState): string {
     <p class="lc-sentence">${sentence(l, st.symbology)}</p>
     ${legendBar(st.symbology)}
     ${statusChips(r)}
-    <div class="lc-acts">${acts}<button data-act="zoom">Zoom to</button><button data-act="props" title="Style and settings" aria-label="Style and settings">⋯</button></div>
+    <div class="lc-acts">${acts}<button data-act="zoom">Zoom to</button><button data-act="remove" class="lc-remove" title="Remove from the map (the file is kept)" aria-label="Remove from the map">✕</button><button data-act="props" title="Style and settings" aria-label="Style and settings">⋯</button></div>
   </div>`;
 }
 
@@ -178,7 +178,9 @@ export function proRow(r: RowState): string {
     <span class="tools">
       <button data-act="up" title="Move up" aria-label="Move up" ${r.first ? 'disabled' : ''}>▲</button>
       <button data-act="down" title="Move down" aria-label="Move down" ${r.last ? 'disabled' : ''}>▼</button>
+      <button data-act="zoom" title="Zoom to layer" aria-label="Zoom to layer">⤢</button>
       <button data-act="props" title="Symbology" aria-label="Symbology">⚙</button>
+      <button data-act="remove" class="rm" title="Remove from the map (the file is kept)" aria-label="Remove from the map">✕</button>
     </span>
     <small class="pr-sub">${esc(l.geometry)} · ${esc(l.crs)} · ${zr} · ${esc(symbologySummary(st.symbology))} ${badges}</small>
     ${
