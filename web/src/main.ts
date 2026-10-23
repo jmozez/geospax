@@ -787,7 +787,7 @@ function rasterMenu(id: string, x: number, y: number): boolean {
     { label: 'Symbology…', hint: 'Renderer, colours, stretch, opacity', run: () => void rasterStyle(rid) },
     ...[100, 75, 50, 25].map((o) => ({ label: `Opacity ${o} %`, disabled: Math.round(rasterPane!.opacity(rid) * 100) === o, run: () => rasterPane!.setOpacity(rid, o / 100) })),
     { sep: true },
-    { label: 'Remove from map', danger: true, hint: 'The file is kept; add it again from the Catalog', run: () => void removeLayer(id) },
+    { label: 'Remove from map', danger: true, hint: 'The file is kept; add it again from the Explorer', run: () => void removeLayer(id) },
     { label: 'Properties…', run: async () => {
       const { dialog } = await import('./editing');
       const e = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -1421,7 +1421,7 @@ async function removeLayer(id: string) {
   applyStyle();
   renderContents();
   document.dispatchEvent(new CustomEvent('geospax:reload-views'));
-  workbench?.setStatus(`${name} removed from the map (the file is kept; add it again from the Catalog)`, 6000);
+  workbench?.setStatus(`${name} removed from the map (the file is kept; add it again from the Explorer)`, 6000);
 }
 
 // ---------------------------------------------------------------- overview jobs
@@ -1941,6 +1941,7 @@ async function main() {
   });
   void toolbox.reload();
   document.addEventListener('geospax:plugins-changed', () => void toolbox.reload());
+  document.addEventListener('geospax:connect-folder', () => void workbench?.connectFolder());
   document.addEventListener('geospax:delete-runs', (e) => void workbench?.deleteRuns((e as CustomEvent<string[]>).detail));
   document.addEventListener('geospax:toolbox-search', (e) => toolbox.find((e as CustomEvent<string>).detail));
   document.addEventListener('geospax:plugin-ran', async (e) => {
@@ -2138,7 +2139,7 @@ async function main() {
       { label: 'Export features…', run: () => edit('export') },
       { label: 'Discard edits…', disabled: !l.edited, danger: true, run: () => edit('discard') },
       { sep: true },
-      { label: 'Remove from map', danger: true, hint: 'The file is kept; add it again from the Catalog', run: () => void removeLayer(id) },
+      { label: 'Remove from map', danger: true, hint: 'The file is kept; add it again from the Explorer', run: () => void removeLayer(id) },
       { label: 'Properties…', run: () => void layerProperties(id) },
     ];
     showMenu(x, y, l.name, items);
@@ -2171,13 +2172,16 @@ async function main() {
       showMenu(x, y, path.split(/[\\/]/).pop() ?? path, [
         { label: 'Copy the folder path', run: () => void navigator.clipboard?.writeText(path).then(() => workbench?.setStatus(`Copied ${path}`)) },
         { label: 'Add files to it…', hint: 'Files you add are saved in your first data folder', run: () => void document.dispatchEvent(new CustomEvent('geospax:browse')) },
+        ...(folder.classList.contains('conn') ? [{ label: 'Remove this folder connection', hint: 'The folder and its files are not touched', run: () => void workbench?.disconnectFolder(path) }] : []),
+        { label: 'Connect a folder…', run: () => void workbench?.connectFolder() },
         { label: 'Refresh', run: () => void workbench?.refreshCatalog() },
       ]);
       return true;
     }
     if (t.closest('.node.source')) {
-      showMenu(x, y, 'Catalog', [
+      showMenu(x, y, 'Explorer', [
         { label: 'Add files…', run: () => void document.dispatchEvent(new CustomEvent('geospax:browse')) },
+        { label: 'Connect a folder…', run: () => void workbench?.connectFolder() },
         { label: 'Sample data…', run: () => void openSamples() },
         { label: 'New layer…', run: () => edit('new-layer') },
         { label: 'Refresh', run: () => void reloadLayers() },

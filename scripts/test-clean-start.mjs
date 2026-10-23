@@ -11,7 +11,7 @@
 // Set KEEP=1 to keep the temporary folder.
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -207,6 +207,34 @@ try {
   const cleared = (await (await fetch(`${base}/api/runs`)).json()).runs.length;
   ok('Clear history in Pro deletes every finished run', cleared === 0, `${mid} → ${cleared}`);
   ok('a deleted run is gone from the engine', (await fetch(`${base}/api/runs/nope-123`)).status === 404);
+
+  console.log('Explorer: folder connections');
+  const other = join(tmp, 'field-data');
+  mkdirSync(join(other, 'sub'), { recursive: true });
+  writeFileSync(join(other, 'plots.geojson'), JSON.stringify({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { n: 1 }, geometry: { type: 'Point', coordinates: [145, -6] } }] }));
+  await page.goto(`${base}/?mode=pro&theme=dark`);
+  await page.waitForTimeout(3000);
+  ok('the pane is called Explorer', (await page.textContent('#dock-left .dock-tabs [data-tab="catalog"]')).trim() === 'Explorer');
+  await page.click('#dock-left .dock-tabs [data-tab="catalog"]');
+  await page.waitForTimeout(800);
+  await page.click('#cat-connect');
+  await page.waitForTimeout(800);
+  await page.fill('.fp-path input', tmp);
+  await page.click('.fp-path button[type=submit]');
+  await page.waitForTimeout(600);
+  await page.click(`.fp-row[data-fp-go="${other}"]`);
+  await page.waitForTimeout(600);
+  ok('the chooser counts the map files in a folder', /1 map file/.test(await page.textContent('.fp')));
+  await page.click('.fp [data-fp="ok"]');
+  await page.waitForTimeout(1500);
+  ok('a connected folder shows in the Explorer, open', !!(await page.$(`#catalog .node.folder.conn[data-folder="${other}"]`)) && !!(await page.$(`#catalog [data-file="${join(other, 'plots.geojson')}"]`)));
+  await page.dblclick(`#catalog [data-file="${join(other, 'plots.geojson')}"]`);
+  await page.waitForTimeout(2500);
+  ok('a file from it goes on the map', (await (await fetch(`${base}/api/layers`)).json()).layers.some((l) => /plots/.test(l.source)));
+  ok('the connection is kept for the next start', /field-data/.test(readFileSync(join(tmp, 'state', 'folders.json'), 'utf8')));
+  await page.click(`#catalog [data-disconnect="${other}"]`);
+  await page.waitForTimeout(1500);
+  ok('✕ removes the connection', !(await page.$(`#catalog .node.folder[data-folder="${other}"]`)));
 
   console.log('settings and help');
   await page.click('#settings-btn');

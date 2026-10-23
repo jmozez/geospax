@@ -363,6 +363,8 @@ fn main() {
 async fn serve(args: Args) {
     let engine = Arc::new(Engine::open(args.cfg.clone()).expect("failed to open engine"));
     engine.start_services(); // device watcher + live GNSS sources
+    // open to other devices: no folder connections from the Explorer (they could list any folder)
+    engine.shared.store(!auth::is_loopback(&args.host), std::sync::atomic::Ordering::Relaxed);
     println!(
         "engine: {} layers, reader={}, state={}",
         engine.layers().len(),

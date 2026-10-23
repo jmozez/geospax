@@ -123,6 +123,18 @@ impl Engine {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(403, e),
             },
+            ("GET", ["api", "folders", "pick"]) => match crate::browse::pick(self, param(q, "path").as_deref()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(if e.starts_with("GeoSpaX is open") { 403 } else { 400 }, e),
+            },
+            ("POST", ["api", "folders"]) => match crate::browse::connect(self, &param(q, "path").unwrap_or_default()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(if e.starts_with("GeoSpaX is open") { 403 } else { 400 }, e),
+            },
+            ("DELETE", ["api", "folders"]) => match crate::browse::disconnect(self, &param(q, "path").unwrap_or_default()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(404, e),
+            },
             ("POST", ["api", "browse", "add"]) => match crate::browse::add(self, &param(q, "path").unwrap_or_default()) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(400, e),

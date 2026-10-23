@@ -16,7 +16,7 @@ Start **GeoSpaX** from the Start menu or the applications menu. The [user guide]
 ### Why is the map empty when GeoSpaX starts?
 
 GeoSpaX opens on a clean map, showing the globe, like a new map in ArcGIS Pro. Add data with
-**Data › Add files**, by dropping files on the window, from the **Catalog** pane, or try **Data › Sample
+**Data › Add files**, by dropping files on the window, from the **Explorer** pane, or try **Data › Sample
 data**. Files you keep in the `Data` folder (`~/GeoSpaX/Data`, or `%USERPROFILE%\GeoSpaX\Data` on Windows)
 are put on the map automatically.
 
@@ -30,7 +30,16 @@ start is a clean map again.
 Use the **✕** on the layer (Pro: in its row; Lazy: on its card), press **Delete** with the layer selected in
 Contents, right-click it and choose **Remove from map**, or use **Remove** on the **Layer** ribbon tab. The
 file itself is never deleted. The layer stays off the map at the next start until you add it again from the
-**Catalog** pane.
+**Explorer** pane.
+
+### How do I browse other folders?
+
+In the **Explorer** pane (left, next to Contents) press **Connect a folder…** (or **Data › Connect folder**, or
+right-click in the Explorer), choose a folder anywhere on your computer and press **Connect this folder**. It
+appears under *Folders*, stays there the next time you start GeoSpaX, and its files go on the map with a
+double-click or **+**. The **✕** next to it removes the connection; the folder and its files are not touched.
+When the web edition is opened to other devices (`--host 0.0.0.0`), folders cannot be connected from the
+app, so a phone on the Wi-Fi can never list your computer's folders; start it with `--data <folder>` instead.
 
 ### Lazy or Pro?
 

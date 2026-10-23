@@ -17,7 +17,7 @@ toolbox tools run through arcpy; the .NET assembly cannot). Runtimes: recipe, pr
 Each plugin reports honestly what it needs when a runtime is missing, and installing one makes it
 removable again (uninstall never touches a `--plugins` dev folder) ([PLUGINS.md](PLUGINS.md)).
 
-**Desktop workbench (1.7):** ribbon with 40 commands, dockable panes (Contents/Catalog/Project · Symbology/**
+**Desktop workbench (1.7):** ribbon with 40 commands, dockable panes (Contents/Explorer/Project · Symbology/**
 Attributes**/Rasters/Devices · Automate/History/Log), command palette (`Ctrl+K`), paged attribute table with
 zoom-to-row and charts, run history, status bar, resizable and collapsible docks, Identify popups. Structure modelled
 on **RustGIS** (Apache-2.0: "everything is a command", ribbon/pane vocabulary) and **GeoLibre** (MIT: pane set,

@@ -22,11 +22,112 @@ pub fn roots(engine: &Engine) -> Vec<(String, PathBuf, &'static str)> {
     if edits.is_dir() {
         out.push(("Edits".into(), edits, "Copies of layers you edited and layers you created"));
     }
+    for c in engine.connections.read().unwrap().iter() {
+        if c.is_dir() && !out.iter().any(|(_, p, _)| p == c) {
+            out.push((folder_title(c), c.clone(), "Folder connection: browse it and open what you need"));
+        }
+    }
     let uploads = engine.state_dir.join("uploads");
     if uploads.is_dir() {
         out.push(("Uploads".into(), uploads, "Files dropped on the app (when no data folder can be written)"));
     }
     out
+}
+
+fn folder_title(p: &Path) -> String {
+    p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| p.display().to_string())
+}
+
+fn connections_file(state: &Path) -> PathBuf {
+    state.join("folders.json")
+}
+
+/// The folder connections saved by an earlier session.
+pub fn load_connections(state: &Path) -> Vec<PathBuf> {
+    std::fs::read(connections_file(state))
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Vec<String>>(&b).ok())
+        .map(|v| v.into_iter().map(PathBuf::from).collect())
+        .unwrap_or_default()
+}
+
+fn save_connections(engine: &Engine) -> Result<(), String> {
+    let list: Vec<String> = engine.connections.read().unwrap().iter().map(|p| p.display().to_string()).collect();
+    std::fs::create_dir_all(&engine.state_dir).map_err(|e| e.to_string())?;
+    std::fs::write(connections_file(&engine.state_dir), serde_json::to_vec_pretty(&list).unwrap()).map_err(|e| e.to_string())
+}
+
+const SHARED: &str = "GeoSpaX is open to other devices (started with --host), so folders can only be connected on a copy started for this computer alone; or start it with --data <folder>";
+
+/// Connect a folder: it shows in the Explorer from now on (and after a restart).
+pub fn connect(engine: &Engine, path: &str) -> Result<Value, String> {
+    if engine.shared.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(SHARED.into());
+    }
+    let p = canonical(Path::new(path.trim())).ok_or_else(|| format!("{path}: no such folder"))?;
+    if !p.is_dir() {
+        return Err(format!("{} is not a folder", p.display()));
+    }
+    if p.parent().is_none() {
+        return Err("connect a folder, not the whole disk".into());
+    }
+    {
+        let mut c = engine.connections.write().unwrap();
+        if !c.contains(&p) {
+            c.push(p.clone());
+        }
+    }
+    save_connections(engine)?;
+    Ok(json!({ "connected": p.display().to_string(), "title": folder_title(&p) }))
+}
+
+/// Remove a folder connection (the folder and its files are not touched).
+pub fn disconnect(engine: &Engine, path: &str) -> Result<Value, String> {
+    let p = canonical(Path::new(path.trim())).unwrap_or_else(|| PathBuf::from(path.trim()));
+    let before = engine.connections.read().unwrap().len();
+    engine.connections.write().unwrap().retain(|c| c != &p && c.display().to_string() != path.trim());
+    if engine.connections.read().unwrap().len() == before {
+        return Err(format!("{path} is not a folder connection"));
+    }
+    save_connections(engine)?;
+    Ok(json!({ "disconnected": path }))
+}
+
+/// Folders anywhere on this computer, for the "Connect a folder" chooser: the home folder (or the
+/// given folder), its sub-folders and the drives / places to start from. Refused when shared.
+pub fn pick(engine: &Engine, path: Option<&str>) -> Result<Value, String> {
+    if engine.shared.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(SHARED.into());
+    }
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"));
+    let dir = match path.filter(|p| !p.trim().is_empty()) {
+        Some(p) => canonical(Path::new(p.trim())).ok_or_else(|| format!("{p}: no such folder"))?,
+        None => home.clone(),
+    };
+    let mut folders: Vec<Value> = std::fs::read_dir(&dir)
+        .map_err(|e| format!("{}: {e}", dir.display()))?
+        .flatten()
+        .filter(|e| e.path().is_dir() && !e.file_name().to_string_lossy().starts_with('.'))
+        .map(|e| json!({ "name": e.file_name().to_string_lossy(), "path": e.path().display().to_string() }))
+        .collect();
+    folders.sort_by_key(|f| f["name"].as_str().unwrap_or("").to_lowercase());
+    let mut places = vec![json!({ "name": "Home", "path": home.display().to_string() })];
+    if cfg!(windows) {
+        for d in b'C'..=b'Z' {
+            let root = format!("{}:\\", d as char);
+            if Path::new(&root).is_dir() {
+                places.push(json!({ "name": format!("{}:", d as char), "path": root }));
+            }
+        }
+    } else {
+        for (n, p) in [("Computer", "/"), ("Media", "/media"), ("Mounted", "/mnt"), ("Volumes", "/Volumes")] {
+            if Path::new(p).is_dir() {
+                places.push(json!({ "name": n, "path": p }));
+            }
+        }
+    }
+    let files = std::fs::read_dir(&dir).map(|rd| rd.flatten().filter(|e| kind_of(&e.path()).is_some()).count()).unwrap_or(0);
+    Ok(json!({ "path": dir.display().to_string(), "parent": dir.parent().map(|p| p.display().to_string()), "folders": folders, "places": places, "map_files": files }))
 }
 
 fn canonical(p: &Path) -> Option<PathBuf> {
@@ -78,9 +179,9 @@ pub fn list(engine: &Engine, path: Option<&str>) -> Result<Value, String> {
     let Some(path) = path.filter(|p| !p.is_empty()) else {
         let rs: Vec<Value> = roots(engine)
             .into_iter()
-            .map(|(title, p, about)| json!({ "title": title, "path": p.display().to_string(), "about": about }))
+            .map(|(title, p, about)| json!({ "title": title, "path": p.display().to_string(), "about": about, "connection": about.starts_with("Folder connection") }))
             .collect();
-        return Ok(json!({ "roots": rs }));
+        return Ok(json!({ "roots": rs, "can_connect": !engine.shared.load(std::sync::atomic::Ordering::Relaxed) }));
     };
     let dir = inside_roots(engine, Path::new(path)).ok_or("that folder is outside GeoSpaX's data folders")?;
     let mut folders = Vec::new();
