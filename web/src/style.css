@@ -1333,3 +1333,21 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .ol-area-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ol-area .ck select { margin-left: 6px; max-width: 60%; }
 .ins-path, .rv-facts dd { overflow-wrap: anywhere; user-select: text; }
+
+/* Explorer: folder connections and the folder chooser */
+.cat-connect { display: flex; align-items: center; gap: 6px; margin: 2px 8px 6px; padding: 4px 8px; font-size: 12px; }
+.node.folder .disc { margin-left: auto; padding: 0 6px; font-size: 11px; opacity: 0; }
+.node.folder:hover .disc, .node.folder .disc:focus-visible { opacity: 1; }
+@media (hover: none) { .node.folder .disc { opacity: 1; } }
+.folder-pick .fp { width: min(560px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; }
+.fp header, .fp footer { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.fp header b { flex: 1; }
+.fp footer { border-bottom: 0; border-top: 1px solid var(--line); justify-content: flex-end; }
+.fp .body { padding: 10px 14px; overflow: auto; }
+.fp-places { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.fp-path { display: flex; gap: 6px; margin-bottom: 8px; }
+.fp-path input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 12px; }
+.fp-list { display: flex; flex-direction: column; max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: 4px; }
+.fp-row { display: flex; align-items: center; gap: 8px; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: 6px 10px; }
+.fp-row:hover { background: var(--hover); }
+.fp .err { color: #e06c5f; margin: 4px 0; }

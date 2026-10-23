@@ -6,9 +6,13 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased]
 
 ### Changed
+- The **Catalog** pane is now the **Explorer** (as in VS Code; ArcGIS Pro calls it Catalog, QGIS Browser).
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Folder connections:** **Connect a folder…** in the Explorer (also Data › Connect folder and the right-click
+  menu) picks any folder of this computer with a folder chooser; it is listed under Folders, kept for the
+  next start, and ✕ removes it. Refused when the web edition is open to other devices.
 - **Download gauge for online data:** a panel over the map shows what is being downloaded, a progress bar,
   how much has arrived out of the estimated total, the speed and the time left, with **Stop**. GDAL's own
   network byte counts are used, so the numbers are real. When it ends it says how many layers were added

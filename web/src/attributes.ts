@@ -152,7 +152,7 @@ export class AttributesPane {
 
   render() {
     if (!this.layerId) {
-      this.root.innerHTML = `<div class="pane-empty">Pick a layer in <b>Contents</b> or <b>Catalog</b>, then open <b>Attributes</b>.</div>`;
+      this.root.innerHTML = `<div class="pane-empty">Pick a layer in <b>Contents</b> or <b>Explorer</b>, then open <b>Attributes</b>.</div>`;
       return;
     }
     const layer = this.layer();
