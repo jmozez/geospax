@@ -5,11 +5,19 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Fixed
+- Expanded web services in the Explorer no longer fold up whenever a layer is added.
+
 ### Changed
 - The **Catalog** pane is now the **Explorer** (as in VS Code; ArcGIS Pro calls it Catalog, QGIS Browser).
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Cloud storage in the Explorer:** connect an S3 bucket (or S3-compatible storage such as MinIO), a Google
+  Cloud Storage bucket, an Azure container or a web folder (`s3://…`, `gs://…`, `az://…`, `https://…/`).
+  Its folders open in place; a GeoTIFF/COG goes on the map read in place, a vector file (GeoJSON,
+  GeoPackage, FlatGeobuf, Shapefile, GeoParquet…) becomes a layer. Public buckets need no account; otherwise
+  GeoSpaX uses this computer's own cloud sign-in (AWS profile, gcloud, az login) and stores no keys.
 - **STAC imagery search in the Explorer:** connect a STAC catalog (one click for Earth Search, Microsoft
   Planetary Computer or Copernicus Data Space) and open a collection, such as Sentinel-2 or Landsat, to search
   it for the map view or a drawn box, a date range and a cloud limit. Results are listed newest first with

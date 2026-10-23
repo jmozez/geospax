@@ -21,6 +21,7 @@ pub const KINDS: &[(&str, &str)] = &[
     ("ogcapi", "OGC API Features"),
     ("arcgis-feature", "ArcGIS FeatureServer"),
     ("stac", "STAC catalog"),
+    ("cloud", "Cloud storage (S3, Google Cloud, Azure, web folder)"),
 ];
 
 fn file(state: &Path) -> PathBuf {
@@ -44,7 +45,7 @@ pub fn list(engine: &Engine) -> Value {
     })
 }
 
-fn get(engine: &Engine, id: &str) -> Result<Value, String> {
+pub fn get(engine: &Engine, id: &str) -> Result<Value, String> {
     load(&engine.state_dir).into_iter().find(|s| s["id"] == id).ok_or_else(|| format!("no web service {id}"))
 }
 
@@ -53,15 +54,25 @@ fn base(url: &str) -> String {
 }
 
 /// Add a connection after checking that the service answers and has layers.
-pub fn add(engine: &Engine, kind: &str, url: &str, title: Option<&str>) -> Result<Value, String> {
+pub fn add(engine: &Engine, kind: &str, url: &str, title: Option<&str>, opts: &Value) -> Result<Value, String> {
     if !KINDS.iter().any(|(k, _)| *k == kind) {
         return Err(format!("unknown service type {kind}"));
     }
     let url = base(url);
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
-        return Err("the address must start with http:// or https://".into());
+    let cloud = kind == "cloud" && ["s3://", "gs://", "az://"].iter().any(|p| url.starts_with(p));
+    if !(cloud || url.starts_with("http://") || url.starts_with("https://")) {
+        return Err(if kind == "cloud" { "a cloud address starts with s3://, gs://, az:// or https://" } else { "the address must start with http:// or https://" }.into());
     }
-    let probe = json!({ "id": "probe", "kind": kind, "url": url });
+    let mut probe = json!({ "id": "probe", "kind": kind, "url": url });
+    if kind == "cloud" {
+        // public (read without signing) unless asked otherwise; the S3 endpoint/region and Azure account
+        probe["public"] = json!(opts["public"].as_bool().unwrap_or(true));
+        for k in ["endpoint", "region", "account"] {
+            if let Some(v) = opts[k].as_str().map(str::trim).filter(|v| !v.is_empty()) {
+                probe[k] = json!(v);
+            }
+        }
+    }
     let found = layers_of(&probe)?;
     if found.is_empty() {
         return Err("the service answered but lists no layers".into());
@@ -69,7 +80,9 @@ pub fn add(engine: &Engine, kind: &str, url: &str, title: Option<&str>) -> Resul
     let mut list = load(&engine.state_dir);
     let n = list.iter().filter_map(|s| s["id"].as_str()?.strip_prefix("svc").and_then(|x| x.parse::<u32>().ok())).max().unwrap_or(0) + 1;
     let host = url.split('/').nth(2).unwrap_or("service").to_string();
-    let svc = json!({ "id": format!("svc{n}"), "kind": kind, "url": url, "title": title.filter(|t| !t.trim().is_empty()).map(str::to_string).unwrap_or(host) });
+    let mut svc = probe;
+    svc["id"] = json!(format!("svc{n}"));
+    svc["title"] = json!(title.filter(|t| !t.trim().is_empty()).map(str::to_string).unwrap_or(host));
     list.push(svc.clone());
     save(&engine.state_dir, &list)?;
     Ok(json!({ "service": svc, "layers": found.len() }))
@@ -115,6 +128,7 @@ fn layers_of(svc: &Value) -> Result<Vec<Value>, String> {
     Ok(match kind {
         "xyz" => vec![json!({ "id": "tiles", "title": svc["title"].as_str().unwrap_or("Tiles"), "type": "tiles" })],
         "stac" => crate::stac::collections(url)?,
+        "cloud" => crate::cloud::list(svc, "")?,
         "wms" => {
             let raw = String::from_utf8_lossy(&crate::raster::http(&format!("{url}{sep}SERVICE=WMS&REQUEST=GetCapabilities"), None, 30)?).to_string();
             if !raw.contains("Capabilities") {
