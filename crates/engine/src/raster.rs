@@ -119,6 +119,110 @@ pub fn warp(srcs: &[&Dataset], dest: &str, args: &[String]) -> Result<Dataset, S
     }
 }
 
+/// Bytes GDAL has downloaded over HTTP since the last `VSINetworkStatsReset` (needs
+/// CPL_VSIL_NETWORK_STATS_ENABLED, set in `configure_gdal`). 0 when GDAL keeps no statistics.
+pub fn net_bytes() -> u64 {
+    let raw = unsafe {
+        let p = gdal_sys::VSINetworkStatsGetAsSerializedJSON(std::ptr::null_mut());
+        if p.is_null() {
+            return 0;
+        }
+        let s = CStr::from_ptr(p).to_string_lossy().into_owned();
+        gdal_sys::VSIFree(p as *mut c_void);
+        s
+    };
+    let v: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
+    // {"methods": {"GET": {"count": n, "downloaded_bytes": b}, …}, "handlers": …}
+    v["methods"].as_object().map(|m| m.values().filter_map(|x| x["downloaded_bytes"].as_u64()).sum()).unwrap_or(0)
+}
+
+pub fn net_reset() {
+    unsafe { gdal_sys::VSINetworkStatsReset() }
+}
+
+/// The size of a file GDAL can reach (a /vsicurl/ URL is asked with a HEAD request), if known.
+pub fn remote_size(path: &str) -> Option<u64> {
+    let c = CString::new(path).ok()?;
+    let mode = CString::new("rb").ok()?;
+    unsafe {
+        let fp = gdal_sys::VSIFOpenL(c.as_ptr(), mode.as_ptr());
+        if fp.is_null() {
+            return None;
+        }
+        let ok = gdal_sys::VSIFSeekL(fp, 0, 2 /* SEEK_END */) == 0;
+        let n = gdal_sys::VSIFTellL(fp);
+        gdal_sys::VSIFCloseL(fp);
+        if ok && n > 0 { Some(n) } else { None }
+    }
+}
+
+/// Download a URL to a file in 1 MB chunks through GDAL (/vsicurl_streaming/, so proxies and
+/// certificates behave as for every other source), calling `cb(bytes so far, total if known)` after
+/// each chunk; `cb` returning false stops the download.
+pub fn download_to(url: &str, dest: &Path, total: Option<u64>, mut cb: impl FnMut(u64, Option<u64>) -> bool) -> Result<u64, String> {
+    use std::io::Write;
+    let src = CString::new(format!("/vsicurl_streaming/{url}")).map_err(|e| e.to_string())?;
+    let mode = CString::new("rb").unwrap();
+    let part = dest.with_extension("part");
+    let mut out = std::fs::File::create(&part).map_err(|e| format!("{}: {e}", part.display()))?;
+    let mut done = 0u64;
+    unsafe {
+        let fp = gdal_sys::VSIFOpenL(src.as_ptr(), mode.as_ptr());
+        if fp.is_null() {
+            return Err(format!("could not open {url} ({})", last_error()));
+        }
+        let mut buf = vec![0u8; 1 << 20];
+        loop {
+            let n = gdal_sys::VSIFReadL(buf.as_mut_ptr() as *mut c_void, 1, buf.len(), fp);
+            if n == 0 {
+                break;
+            }
+            if let Err(e) = out.write_all(&buf[..n]) {
+                gdal_sys::VSIFCloseL(fp);
+                return Err(e.to_string());
+            }
+            done += n as u64;
+            if !cb(done, total) {
+                gdal_sys::VSIFCloseL(fp);
+                let _ = std::fs::remove_file(&part);
+                return Err("cancelled".into());
+            }
+        }
+        gdal_sys::VSIFCloseL(fp);
+    }
+    drop(out);
+    std::fs::rename(&part, dest).map_err(|e| e.to_string())?;
+    Ok(done)
+}
+
+unsafe extern "C" fn progress_tramp(done: f64, _msg: *const c_char, arg: *mut c_void) -> c_int {
+    let f = unsafe { &mut *(arg as *mut &mut dyn FnMut(f64) -> bool) };
+    if f(done) { 1 } else { 0 }
+}
+
+/// `warp` with a progress callback (0–1); returning false cancels the warp.
+pub fn warp_progress(srcs: &[&Dataset], dest: &str, args: &[String], mut cb: impl FnMut(f64) -> bool) -> Result<Dataset, String> {
+    let a = argv(args)?;
+    let dest_c = CString::new(dest).map_err(|e| e.to_string())?;
+    let mut f: &mut dyn FnMut(f64) -> bool = &mut cb;
+    unsafe {
+        gdal_sys::CPLErrorReset();
+        let opts = gdal_sys::GDALWarpAppOptionsNew(a.ptrs.as_ptr() as *mut *mut c_char, std::ptr::null_mut());
+        if opts.is_null() {
+            return Err(format!("gdalwarp options: {}", last_error()));
+        }
+        gdal_sys::GDALWarpAppOptionsSetProgress(opts, Some(progress_tramp), &mut f as *mut _ as *mut c_void);
+        let mut handles: Vec<gdal_sys::GDALDatasetH> = srcs.iter().map(|d| d.c_dataset()).collect();
+        let mut usage: c_int = 0;
+        let out = gdal_sys::GDALWarp(dest_c.as_ptr(), std::ptr::null_mut(), handles.len() as c_int, handles.as_mut_ptr(), opts, &mut usage);
+        gdal_sys::GDALWarpAppOptionsFree(opts);
+        if out.is_null() {
+            return Err(format!("gdalwarp: {}", last_error()));
+        }
+        Ok(Dataset::from_c_dataset(out))
+    }
+}
+
 /// `gdal_translate` in-process.
 pub fn translate(src: &Dataset, dest: &str, args: &[String]) -> Result<Dataset, String> {
     let a = argv(args)?;

@@ -65,6 +65,7 @@ export function inspectorHtml(s: InspectorState | null): string {
     <h3>Where it came from</h3>
     <dl class="ins-about">
       <dt>File</dt><dd title="${esc(l.source)}">${esc(l.source.split(/[\\/]/).pop() ?? l.source)}</dd>
+      <dt>Saved in</dt><dd class="ins-path" title="${esc(l.source)}">${esc(l.source.replace(/[\\/][^\\/]*$/, '') || l.source)}</dd>
       <dt>Format</dt><dd>${esc(l.driver)} · ${esc(l.crs)}</dd>
       <dt>Covers</dt><dd>${fmtNum(w)}…${fmtNum(e)}° E, ${fmtNum(so)}…${fmtNum(n)}° N</dd>
       <dt>Columns</dt><dd>${l.fields.length}: ${esc(l.fields.slice(0, 6).map((f) => f.name).join(', '))}${l.fields.length > 6 ? '…' : ''}</dd>

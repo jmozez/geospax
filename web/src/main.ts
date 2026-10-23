@@ -41,6 +41,7 @@ import {
   type Project,
 } from './symbology';
 import { GLYPHS, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
+import { DownloadGauge } from './downloads';
 import { rasterAttributesHtml, rasterStoryHtml, valueHtml, type Histogram, type RasterValue } from './rasterview';
 import './style.css';
 
@@ -796,6 +797,59 @@ function rasterMenu(id: string, x: number, y: number): boolean {
     } },
   ]);
   return true;
+}
+
+// ---- drag a box on the map (Online data › A box drawn on the map)
+function drawBoxOnMap(): Promise<[number, number, number, number] | null> {
+  return new Promise((resolve) => {
+    // the start screen covers the map while it is empty: drawing needs the map
+    const startEl = document.querySelector<HTMLElement>('#start');
+    if (startEl) startEl.hidden = true;
+    const canvas = map.getCanvasContainer();
+    const tip = document.createElement('div');
+    tip.className = 'draw-tip';
+    tip.textContent = 'Drag a box over the area you want · Esc to cancel';
+    document.body.appendChild(tip);
+    const rect = document.createElement('div');
+    rect.className = 'draw-box';
+    canvas.appendChild(rect);
+    map.dragPan.disable();
+    map.boxZoom.disable();
+    canvas.style.cursor = 'crosshair';
+    let start: { x: number; y: number } | null = null;
+    const pos = (e: PointerEvent) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    const done = (b: [number, number, number, number] | null) => {
+      canvas.removeEventListener('pointerdown', down);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.removeEventListener('keydown', key, true);
+      rect.remove();
+      tip.remove();
+      canvas.style.cursor = '';
+      map.dragPan.enable();
+      map.boxZoom.enable();
+      resolve(b);
+    };
+    const down = (e: PointerEvent) => { if (e.button === 0) { start = pos(e); e.preventDefault(); } };
+    const move = (e: PointerEvent) => {
+      if (!start) return;
+      const p = pos(e);
+      Object.assign(rect.style, { left: `${Math.min(p.x, start.x)}px`, top: `${Math.min(p.y, start.y)}px`, width: `${Math.abs(p.x - start.x)}px`, height: `${Math.abs(p.y - start.y)}px`, display: 'block' });
+    };
+    const up = (e: PointerEvent) => {
+      if (!start) return;
+      const p = pos(e);
+      if (Math.abs(p.x - start.x) < 6 || Math.abs(p.y - start.y) < 6) { start = null; rect.style.display = 'none'; return; }
+      const a = map.unproject([start.x, start.y]);
+      const b = map.unproject([p.x, p.y]);
+      done([Math.max(-180, Math.min(a.lng, b.lng)), Math.max(-85, Math.min(a.lat, b.lat)), Math.min(180, Math.max(a.lng, b.lng)), Math.min(85, Math.max(a.lat, b.lat))]);
+    };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); done(null); } };
+    canvas.addEventListener('pointerdown', down);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    document.addEventListener('keydown', key, true);
+  });
 }
 
 // ---- the selected raster: its story in the Inspector (Lazy) or Symbology (Pro), its statistics in
@@ -2287,10 +2341,21 @@ async function main() {
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
   });
   // Data › Online data: climate, soil, species, boundaries and elevation for the area (online.ts)
+  new DownloadGauge(backend, (id) => void openRunReport(id));
   new OnlineData({
     backend,
-    view: () => map.getBounds().toArray().flat() as [number, number, number, number],
+    // a globe zoomed out can report bounds past the poles or the date line: keep them on the Earth
+    view: () => {
+      const [w, so, e, n] = map.getBounds().toArray().flat();
+      return [Math.max(-180, w), Math.max(-85, so), Math.min(180, e), Math.min(85, n)];
+    },
     layers: () => project.order.filter((id) => layerById(id)).reverse(),
+    layerInfo: (id) => {
+      const l = layerById(id);
+      const kind = l?.geometry === 'polygon' ? 'polygons' : l?.geometry === 'line' ? 'lines' : 'points';
+      return { label: l ? friendlyName(l, layers) : id, kind };
+    },
+    drawBox: () => drawBoxOnMap(),
     run: async (id) => {
       workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
       await automatePane?.run(id);

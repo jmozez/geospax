@@ -1313,3 +1313,23 @@ table.props td { padding: 5px 0; word-break: break-word; }
 }
 .rv-table { overflow-x: auto; }
 #contents .raster-card.selected { border-color: var(--accent); background: var(--hover); }
+
+/* download gauge (web/src/downloads.ts) and the box drawn for Online data */
+.dl-gauge { position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%); z-index: 70; width: min(440px, calc(100vw - 32px)); padding: 12px 14px; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 13px; }
+.dl-gauge.done { border-left-color: #2ea043; }
+.dl-gauge.failed { border-left-color: #d1453b; }
+.dl-head { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.dl-head span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-bar { height: 8px; margin: 9px 0 6px; background: var(--sunken); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.dl-bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.dl-bar.busy i { width: 30% !important; animation: dl-busy 1.2s linear infinite; }
+@keyframes dl-busy { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) { .dl-bar.busy i { animation: none; width: 100% !important; opacity: .4; } }
+.dl-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dl-note { margin: 6px 0 0; color: var(--muted); line-height: 1.4; }
+.dl-acts { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.draw-box { position: absolute; display: none; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); pointer-events: none; z-index: 5; }
+.draw-tip { position: fixed; top: 110px; left: 50%; transform: translateX(-50%); z-index: 80; padding: 8px 14px; background: var(--panel); color: var(--fg); border: 1px solid var(--accent); border-radius: 4px; font-size: 13px; }
+.ol-area-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ol-area .ck select { margin-left: 6px; max-width: 60%; }
+.ins-path, .rv-facts dd { overflow-wrap: anywhere; user-select: text; }

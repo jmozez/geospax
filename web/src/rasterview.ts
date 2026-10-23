@@ -84,6 +84,7 @@ function facts(r: RasterInfo): string {
     ['Covers', `${w.toFixed(2)}…${e.toFixed(2)}° E, ${s.toFixed(2)}…${n.toFixed(2)}° N`],
   ];
   if (r.units) rows.splice(3, 0, ['Units', r.units]);
+  if (r.path) rows.push(['File', r.path.split(/[\\/]/).pop() ?? r.path], ['Saved in', r.path.replace(/[\\/][^\\/]*$/, '')]);
   return `<dl class="rv-facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
 }
 

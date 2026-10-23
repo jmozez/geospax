@@ -29,6 +29,16 @@ export interface StepInfo {
   error: string | null;
 }
 
+export interface Transfer {
+  label: string;
+  fraction: number;
+  bytes: number;
+  total: number | null;
+  rate: number;
+  eta_s: number | null;
+  elapsed_s: number;
+}
+
 export interface RunInfo {
   id: string;
   recipe: string;
@@ -44,6 +54,8 @@ export interface RunInfo {
   styles: Record<string, unknown>;
   extent: [number, number, number, number] | null;
   error: string | null;
+  /** a download in progress (online data): bytes, estimated total, rate, ETA */
+  transfer?: Transfer | null;
   trigger: { kind: string; text: string };
 }
 
@@ -157,6 +169,7 @@ export class AutomatePane {
     let run = first ?? (await this.backend.json<RunInfo>(`api/runs/${runId}`));
     this.tracking.set(run.recipe, run);
     this.render();
+    document.dispatchEvent(new CustomEvent('geospax:run-progress', { detail: run }));
     while (!finished(run.status)) {
       await new Promise((r) => setTimeout(r, 600));
       try {
@@ -166,7 +179,9 @@ export class AutomatePane {
       }
       this.tracking.set(run.recipe, run);
       this.render();
+      document.dispatchEvent(new CustomEvent('geospax:run-progress', { detail: run }));
     }
+    document.dispatchEvent(new CustomEvent('geospax:run-progress', { detail: run }));
     if (!this.announced.has(run.id)) {
       this.announced.add(run.id);
       document.body.dataset.recipeRun = run.status;
