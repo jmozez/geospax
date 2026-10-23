@@ -1271,3 +1271,16 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .rb-menu-group .rb-btn .rb-label br { display: none; }
 .rb-menu-group .rb-items, .rb-menu-group .rb-items.grid3 { display: grid; grid-auto-flow: row; grid-template-rows: none; }
 .rb-menu-group .rb-ico svg { width: 16px; height: 16px; }
+
+/* Lazy Activity: why a run failed, in the engine's own words */
+.act-item { flex-wrap: wrap; }
+.act-why { flex-basis: 100%; margin: 4px 0 0 30px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+/* deleting runs: finished-map thumbnails, Lazy Activity, Pro History */
+.st-map-wrap { position: relative; }
+.st-map-wrap .st-map { width: 100%; }
+.st-map-del { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); font-size: 11px; line-height: 1; opacity: 0; }
+.st-map-wrap:hover .st-map-del, .st-map-del:focus-visible { opacity: 1; }
+@media (hover: none) { .st-map-del { opacity: 1; } }
+.st-map-del:hover, .act-del:hover, .run-del:hover { color: #fff; background: #c0392b; border-color: #c0392b; }
+.act-del, .run-del { padding: 2px 7px; font-size: 11px; }
+.run-clear { margin-left: auto; font-size: 11px; padding: 2px 8px; }

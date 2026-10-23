@@ -87,6 +87,12 @@ GeoSpaX uses every package R can find, including those installed by you or your 
 
 Yes: plugins from GeoSpaX, RustGIS, GeoLibre, QGIS and ArcGIS Pro manifests. See [Plugins](PLUGINS.md).
 
+### How do I delete a finished map or a run from the history?
+
+Point at the map on the start screen and press its **✕**, or use the **✕** next to a run in **Activity**
+(Lazy) or **History** (Pro). **Clear history** in Pro removes every finished run at once. Each deletes the
+map, report and log of that run; layers it put on the map stay until you remove them.
+
 ## Settings, updates and privacy
 
 ### Where are the settings?

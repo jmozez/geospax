@@ -131,15 +131,15 @@ document.addEventListener('click', (e) => {
 const THEME_KEY = 'geospax.theme';
 const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)');
 const applyTheme = () => {
-  let t = 'system';
-  try { t = localStorage.getItem(THEME_KEY) ?? 'system'; } catch { /* private mode */ }
+  let t = 'dark';
+  try { t = localStorage.getItem(THEME_KEY) ?? 'dark'; } catch { /* private mode */ }
   document.documentElement.dataset.theme = t === 'system' ? (systemDark?.matches ? 'dark' : 'light') : t;
   $('#hp-theme').textContent = t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System';
   $('#hp-theme').title = 'Theme: light, dark or the system\'s (click to change)';
 };
 $('#hp-theme').addEventListener('click', () => {
-  let t = 'system';
-  try { t = localStorage.getItem(THEME_KEY) ?? 'system'; } catch { /* */ }
+  let t = 'dark';
+  try { t = localStorage.getItem(THEME_KEY) ?? 'dark'; } catch { /* */ }
   const next = t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light';
   try { localStorage.setItem(THEME_KEY, next); } catch { /* */ }
   applyTheme();

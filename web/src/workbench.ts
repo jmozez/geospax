@@ -996,7 +996,9 @@ export class Workbench {
       const [ico, word] = st[r.status] ?? ['•', r.status];
       return `<div class="act-item ${esc(r.status)}"><span class="act-ico">${ico}</span>
         <span class="act-txt"><b>${esc(r.title || r.recipe)}</b><small>${esc(word)}${r.trigger?.text ? ` · ${esc(r.trigger.text)}` : ''} · ${(r.elapsed_ms / 1000).toFixed(1)} s</small></span>
-        ${r.status === 'done' ? `<button data-act-open="${esc(r.id)}">Open report</button>` : ''}</div>`;
+        ${r.status === 'done' ? `<button data-act-open="${esc(r.id)}">Open report</button>` : ''}
+        ${r.status === 'running' || r.status === 'queued' ? '' : `<button class="act-del" data-act-del="${esc(r.id)}" title="Delete this from the list (map, report, log)" aria-label="Delete">✕</button>`}
+        ${r.status === 'failed' && r.error ? `<p class="act-why">${esc(r.error.replace(/^step '[^']*' \([^)]*\) failed: /, ''))}</p>` : ''}</div>`;
     });
     const notes = [...this.logs].reverse().slice(0, 5).map((l) => `<div class="act-note ${l.level}"><span>${esc(l.t)}</span>${esc(l.text)}</div>`);
     el.innerHTML = `<div class="act">
@@ -1023,6 +1025,8 @@ export class Workbench {
         this.setStatus('Running…');
         return;
       }
+      const del = t.closest<HTMLElement>('[data-act-del]')?.dataset.actDel;
+      if (del) return void this.deleteRuns([del]);
       const open = t.closest<HTMLElement>('[data-act-open]')?.dataset.actOpen;
       if (open) return this.host.openRun(open);
       const cmd = t.closest<HTMLElement>('[data-cmd-act]')?.dataset.cmdAct;
@@ -1031,6 +1035,25 @@ export class Workbench {
   }
 
   private activityIdeas: { run: () => void }[] = [];
+
+  /** Forget runs (their map, report and log; layers they added stay), after asking once. */
+  async deleteRuns(ids: string[]) {
+    if (!ids.length) return;
+    const what = ids.length === 1 ? 'this map and its report' : `${ids.length} finished runs (maps and reports)`;
+    if (!window.confirm(`Delete ${what}? Layers already on the map stay. This cannot be undone.`)) return;
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        await this.host.backend.json(`api/runs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      } catch {
+        failed++;
+      }
+    }
+    await this.loadRuns();
+    this.renderHistory();
+    document.dispatchEvent(new CustomEvent('geospax:runs-changed'));
+    this.setStatus(failed ? `${failed} could not be deleted (still running?)` : ids.length === 1 ? 'Deleted' : `Deleted ${ids.length} runs`, 5000);
+  }
 
   renderHistory() {
     this.renderActivity();
@@ -1048,13 +1071,18 @@ export class Workbench {
           <span class="rm">${esc(r.trigger?.text ?? '')}</span>
           <span class="rd">${(r.elapsed_ms / 1000).toFixed(1)}s</span>
           <button data-open="${esc(r.id)}" title="Open the report">Report</button>
+          ${r.status === 'running' || r.status === 'queued' ? '' : `<button class="run-del" data-del="${esc(r.id)}" title="Delete this run (map, report, log)" aria-label="Delete">✕</button>`}
         </div>`,
       )
       .join('');
-    el.innerHTML = `<div class="pane-head"><span class="pane-title">Run history</span><span class="pane-sub">${this.runs.length} runs</span></div>
+    el.innerHTML = `<div class="pane-head"><span class="pane-title">Run history</span><span class="pane-sub">${this.runs.length} runs</span><button class="run-clear" data-clear title="Delete every finished run">Clear history</button></div>
       <div class="run-list">${rows}</div>`;
     el.onclick = (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-open]');
+      const t = e.target as HTMLElement;
+      const del = t.closest<HTMLElement>('[data-del]')?.dataset.del;
+      if (del) return void this.deleteRuns([del]);
+      if (t.closest('[data-clear]')) return void this.deleteRuns(this.runs.filter((r) => r.status !== 'running' && r.status !== 'queued').map((r) => r.id));
+      const b = t.closest<HTMLElement>('[data-open]');
       if (b?.dataset.open) this.host.openRun(b.dataset.open);
     };
   }

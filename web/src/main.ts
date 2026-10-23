@@ -263,10 +263,11 @@ let theme: Theme = (() => {
   const q = params.get('theme');
   if (q === 'light' || q === 'dark' || q === 'system') return q;
   try {
+    // dark is the default; a theme the user picked is kept
     const t = localStorage.getItem(THEME_KEY);
-    return t === 'dark' || t === 'system' ? t : 'light';
+    return t === 'light' || t === 'system' ? t : 'dark';
   } catch {
-    return 'light';
+    return 'dark';
   }
 })();
 const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)');
@@ -1785,6 +1786,7 @@ async function main() {
   });
   void toolbox.reload();
   document.addEventListener('geospax:plugins-changed', () => void toolbox.reload());
+  document.addEventListener('geospax:delete-runs', (e) => void workbench?.deleteRuns((e as CustomEvent<string[]>).detail));
   document.addEventListener('geospax:toolbox-search', (e) => toolbox.find((e as CustomEvent<string>).detail));
   document.addEventListener('geospax:plugin-ran', async (e) => {
     const ids = (e as CustomEvent<string[]>).detail;

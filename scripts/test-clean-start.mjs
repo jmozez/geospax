@@ -57,6 +57,12 @@ try {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load resource/.test(m.text())) errors.push(m.text()); });
 
+  console.log('first start: Lazy mode, dark theme');
+  await page.goto(`${base}/`);
+  await page.waitForTimeout(2000);
+  ok('a first start is in Lazy mode', !!(await page.$('#ribbon.lazy')));
+  ok('a first start uses the dark theme', (await page.evaluate(() => document.documentElement.dataset.theme)) === 'dark');
+
   console.log('clean start');
   await page.goto(`${base}/?mode=pro&theme=light`);
   await page.waitForTimeout(2500);
@@ -143,6 +149,33 @@ try {
   ok('Lazy search does not offer R & Python', !(await page.$$eval('#palette-list .pal-row .pl', (a) => a.map((x) => x.textContent))).includes('R console'));
   await page.keyboard.press('Escape');
   ok('Lazy cards have a remove button', (await page.$$('#contents .card [data-act="remove"]')).length > 0);
+
+  console.log('deleting finished runs');
+  page.on('dialog', (d) => d.accept());
+  for (let i = 0; i < 2; i++) {
+    const run = await (await fetch(`${base}/api/recipes/points-to-hotspots/run`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).json();
+    for (let k = 0; k < 60; k++) {
+      const st = (await (await fetch(`${base}/api/runs/${run.id}`)).json()).status;
+      if (!['queued', 'running'].includes(st)) break;
+      await sleep(500);
+    }
+  }
+  const before = (await (await fetch(`${base}/api/runs`)).json()).runs.length;
+  await page.goto(`${base}/?mode=lazy&theme=dark`);
+  await page.waitForTimeout(3000);
+  await page.click('#activity [data-act-del]');
+  await page.waitForTimeout(1500);
+  const mid = (await (await fetch(`${base}/api/runs`)).json()).runs.length;
+  ok('✕ in Lazy Activity deletes a run', mid === before - 1, `${before} → ${mid}`);
+  await page.goto(`${base}/?mode=pro&theme=dark`);
+  await page.waitForTimeout(3000);
+  await page.evaluate(() => document.querySelector('#dock-bottom .dock-tabs [data-tab="history"]')?.click());
+  await page.waitForTimeout(500);
+  await page.click('#history [data-clear]');
+  await page.waitForTimeout(1500);
+  const cleared = (await (await fetch(`${base}/api/runs`)).json()).runs.length;
+  ok('Clear history in Pro deletes every finished run', cleared === 0, `${mid} → ${cleared}`);
+  ok('a deleted run is gone from the engine', (await fetch(`${base}/api/runs/nope-123`)).status === 404);
 
   console.log('settings and help');
   await page.click('#settings-btn');

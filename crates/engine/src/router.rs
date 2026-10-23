@@ -558,6 +558,10 @@ impl Engine {
                 Some(v) => ApiResponse::json(200, &v),
                 None => ApiResponse::error(404, format!("unknown run '{id}'")),
             },
+            ("DELETE", ["api", "runs", id]) => match self.automation.delete_run(id) {
+                Ok(()) => ApiResponse::json(200, &json!({ "deleted": id })),
+                Err(e) => ApiResponse::json(if e.starts_with("no run") { 404 } else { 409 }, &json!({ "error": e })),
+            },
             ("POST", ["api", "runs", id, "cancel"]) => match self.automation.run(id) {
                 Some(r) => {
                     r.job.cancel.store(true, Ordering::Relaxed);
