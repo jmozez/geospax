@@ -93,6 +93,20 @@ Point at the map on the start screen and press its **✕**, or use the **✕** n
 (Lazy) or **History** (Pro). **Clear history** in Pro removes every finished run at once. Each deletes the
 map, report and log of that run; layers it put on the map stay until you remove them.
 
+### Where are downloaded online data saved?
+
+In GeoSpaX's results folder, under `.geospax/outputs/online-data/` in your Data folder (for example
+`~/GeoSpaX/Data/.geospax/outputs/online-data/` on Linux, `%USERPROFILE%\GeoSpaX\Data\.geospax\outputs\online-data\`
+on Windows): GeoTIFFs for rasters, GeoPackages for vectors. Select a layer and its details show the exact
+folder (**Saved in**). The folder starts with a dot, so file managers hide it: show hidden files (Ctrl+H in
+most Linux file managers). Downloading the same data again replaces the file of the same name.
+
+### Can I download data for just part of the map?
+
+Yes. In **Online data**, under **Area**, choose the map view, **draw a box on the map**, or use **a layer's
+points, lines or polygons** (with a margin in km; for polygons, **Only inside the polygons** cuts rasters
+to their outline). While it downloads, a gauge shows the size, the speed and the time left.
+
 ## Settings, updates and privacy
 
 ### Where are the settings?

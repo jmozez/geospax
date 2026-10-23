@@ -30,6 +30,8 @@ pub struct JobState {
     pub finished_ms: Option<f64>,
     /** what the job printed, newest last (R setup shows it like QGIS's plugin manager log) */
     pub log: Vec<String>,
+    /** a download in progress: label, bytes so far, estimated total, rate, ETA (the online-data gauge) */
+    pub transfer: Option<Value>,
 }
 
 pub struct Job {
@@ -90,6 +92,7 @@ impl Job {
             "elapsed_ms": elapsed,
             "result": s.result,
             "log": s.log,
+            "transfer": s.transfer,
         })
     }
 }
@@ -116,6 +119,7 @@ impl Jobs {
                 result: None,
                 finished_ms: None,
                 log: Vec::new(),
+                transfer: None,
             }),
         });
         let mut list = self.list.lock().unwrap();

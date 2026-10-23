@@ -31,6 +31,8 @@ export interface RasterInfo {
   height: number;
   pixel_m: number;
   crs: string;
+  /** the file on disk */
+  path?: string;
   description: string;
   why: string;
   style: { opacity?: number; kind?: string; resampling?: string; [k: string]: unknown };
