@@ -1941,6 +1941,34 @@ async function main() {
   });
   void toolbox.reload();
   document.addEventListener('geospax:plugins-changed', () => void toolbox.reload());
+  document.addEventListener('geospax:run-recipe', (e) => {
+    workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+    void automatePane?.run((e as CustomEvent<string>).detail);
+  });
+  // the selected Explorer file's outline on the map (a dashed box; cleared when nothing is selected)
+  document.addEventListener('geospax:footprint', (e) => {
+    const b = (e as CustomEvent<[number, number, number, number] | null>).detail;
+    const data = b ? { type: 'Feature' as const, properties: {}, geometry: { type: 'Polygon' as const, coordinates: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]] } } : { type: 'FeatureCollection' as const, features: [] };
+    const src = map.getSource('explorer-footprint') as maplibregl.GeoJSONSource | undefined;
+    if (src) src.setData(data);
+    else if (map.isStyleLoaded()) {
+      map.addSource('explorer-footprint', { type: 'geojson', data });
+      map.addLayer({ id: 'explorer-footprint-fill', type: 'fill', source: 'explorer-footprint', paint: { 'fill-color': '#ff7a45', 'fill-opacity': 0.08 } });
+      map.addLayer({ id: 'explorer-footprint', type: 'line', source: 'explorer-footprint', paint: { 'line-color': '#ff7a45', 'line-width': 2, 'line-dasharray': [2, 2] } });
+    }
+    if (b) map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 80, maxZoom: 14, duration: 400 });
+  });
+  // drag a file from the Explorer onto the map to add it
+  const mapEl = document.querySelector<HTMLElement>('#map');
+  mapEl?.addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('application/x-geospax-file')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+  mapEl?.addEventListener('drop', (e) => {
+    const raw = e.dataTransfer?.getData('application/x-geospax-file');
+    if (!raw) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const f = JSON.parse(raw) as { path: string; layer?: string };
+    void workbench?.addFile(f.path, f.layer);
+  });
   document.addEventListener('geospax:connect-folder', () => void workbench?.connectFolder());
   document.addEventListener('geospax:delete-runs', (e) => void workbench?.deleteRuns((e as CustomEvent<string[]>).detail));
   document.addEventListener('geospax:toolbox-search', (e) => toolbox.find((e as CustomEvent<string>).detail));
@@ -2161,6 +2189,7 @@ async function main() {
       showMenu(x, y, path.split(/[\\/]/).pop() ?? path, [
         { label: on ? 'Already on the map' : 'Add to the map', disabled: on, run: () => void workbench?.addFile(path) },
         { label: 'Copy the file path', run: () => void navigator.clipboard?.writeText(path).then(() => workbench?.setStatus(`Copied ${path}`)) },
+        { label: workbench?.isFavourite(path) ? 'Remove from Favourites' : 'Add to Favourites', run: () => workbench?.toggleFavourite(path, path.split(/[\\/]/).pop() ?? path, false) },
         { sep: true },
         { label: 'Refresh', run: () => void workbench?.refreshCatalog() },
       ]);
@@ -2171,6 +2200,7 @@ async function main() {
       const path = folder.dataset.folder;
       showMenu(x, y, path.split(/[\\/]/).pop() ?? path, [
         { label: 'Copy the folder path', run: () => void navigator.clipboard?.writeText(path).then(() => workbench?.setStatus(`Copied ${path}`)) },
+        { label: workbench?.isFavourite(path) ? 'Remove from Favourites' : 'Add to Favourites', run: () => workbench?.toggleFavourite(path, path.split(/[\\/]/).pop() ?? path, true) },
         { label: 'Add files to it…', hint: 'Files you add are saved in your first data folder', run: () => void document.dispatchEvent(new CustomEvent('geospax:browse')) },
         ...(folder.classList.contains('conn') ? [{ label: 'Remove this folder connection', hint: 'The folder and its files are not touched', run: () => void workbench?.disconnectFolder(path) }] : []),
         { label: 'Connect a folder…', run: () => void workbench?.connectFolder() },

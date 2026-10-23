@@ -135,7 +135,15 @@ impl Engine {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(404, e),
             },
-            ("POST", ["api", "browse", "add"]) => match crate::browse::add(self, &param(q, "path").unwrap_or_default()) {
+            ("GET", ["api", "browse", "inside"]) => match crate::browse::inside(self, &param(q, "path").unwrap_or_default()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("GET", ["api", "browse", "preview"]) => match crate::browse::preview(self, &param(q, "path").unwrap_or_default(), param(q, "layer").as_deref()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("POST", ["api", "browse", "add"]) => match crate::browse::add(self, &param(q, "path").unwrap_or_default(), param(q, "layer").as_deref()) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(400, e),
             },

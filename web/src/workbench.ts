@@ -9,6 +9,7 @@ import type { RecipeInfo } from './automate';
 import type { PluginsPane } from './plugins';
 import { groupItemsHtml, COMMANDS, TABS, commandHtml, groupsFor, icon, pluginIcon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
 import type { PluginInfo, PluginsState } from './plugins';
+import { ONLINE_SOURCES } from './online';
 
 const LS_KEY = 'geospax.workbench.v1';
 const esc = (s: string) =>
@@ -74,8 +75,13 @@ interface BrowseListing {
   path: string;
   parent: string | null;
   folders: { name: string; path: string }[];
-  files: { name: string; path: string; kind: string; size: number; on_map: string[] }[];
+  files: { name: string; path: string; kind: string; size: number; on_map: string[]; container?: boolean }[];
 }
+
+interface InsideItem { name: string; path: string; kind: string; layer?: string; geometry?: string; count?: number; on_map?: string[] }
+interface Preview { kind: 'vector' | 'raster'; layer?: string; geometry?: string; count?: number; crs: string; bounds: [number, number, number, number] | null; fields?: { name: string; type: string }[]; rows?: (string | null)[][]; width?: number; height?: number; bands?: number }
+
+const FAV_KEY = 'geospax.favourites';
 
 interface RunRow {
   id: string;
@@ -792,6 +798,16 @@ export class Workbench {
   private browseRoots: { title: string; path: string; about: string; connection?: boolean }[] | null = null;
   /** false when GeoSpaX is open to other devices: no folder connections then */
   private canConnect = true;
+  /** containers (GeoPackages, zips) opened in the tree, and what is inside them */
+  private insideCache = new Map<string, InsideItem[] | string>();
+  /** GeoSpaX section: open nodes and their lists */
+  private gxOpen = new Set<string>();
+  private gxData: { recipes?: RecipeInfo[]; models?: { name: string }[]; plugins?: PluginInfo[] } = {};
+  /** the file or layer selected in the Explorer, with its preview */
+  private sel: { path: string; layer?: string; name: string; data?: Preview; error?: string } | null = null;
+  private favourites: { path: string; name: string; folder: boolean }[] = (() => {
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) ?? '[]'); } catch { return []; }
+  })();
 
   /** Re-read the open folders (after an upload, an edit or "Refresh"). */
   async refreshCatalog() {
@@ -808,8 +824,12 @@ export class Workbench {
         this.browseRoots = r.roots;
         this.canConnect = r.can_connect !== false;
       }
-      for (const p of this.browseOpen)
-        if (!this.browseCache.has(p)) this.browseCache.set(p, await this.host.backend.json<BrowseListing>(`api/browse?path=${encodeURIComponent(p)}`));
+      for (const p of this.browseOpen) {
+        if (p.startsWith('in:')) {
+          const c = p.slice(3);
+          if (!this.insideCache.has(c)) this.insideCache.set(c, (await this.host.backend.json<{ items: InsideItem[] }>(`api/browse/inside?path=${encodeURIComponent(c)}`)).items);
+        } else if (!this.browseCache.has(p)) this.browseCache.set(p, await this.host.backend.json<BrowseListing>(`api/browse?path=${encodeURIComponent(p)}`));
+      }
     } catch (e) {
       this.browseOpen.clear();
       this.browseRoots ??= [];
@@ -843,10 +863,7 @@ export class Workbench {
       const kids = l.folders.map((d) => folder(d.name, d.path, '', depth + 1)).join('');
       const files = l.files
         .filter((x) => !f || x.name.toLowerCase().includes(f))
-        .map((x) => {
-          const on = x.on_map.length > 0;
-          return `<div class="node file${on ? ' onmap' : ''}" data-file="${esc(x.path)}" data-kind="${esc(x.kind)}" style="padding-left:${18 + (depth + 1) * 14}px" title="${esc(`${x.kind} · ${size(x.size)}${on ? ` · on the map as ${x.on_map.join(', ')}` : ' · double-click to add to the map'}`)}">${icon(KIND_ICON[x.kind] ?? 'layers', 14)}<span class="nm">${esc(x.name)}</span>${on ? `<span class="ct ok" aria-label="on the map">${icon('check', 12)}</span>` : `<button class="ct add" data-add="${esc(x.path)}" title="Add to the map" aria-label="Add ${esc(x.name)} to the map">${icon('plus', 12)}</button>`}</div>`;
-        })
+        .map((x) => this.fileRow(x.path, x.name, x.kind, depth + 1, { size: size(x.size), on: x.on_map, container: !!x.container }))
         .join('');
       return html + kids + (files || (l.folders.length ? '' : `<div class="pane-empty" style="padding-left:${18 + (depth + 1) * 14}px">${f ? 'No match' : 'No map files here'}</div>`));
     };
@@ -880,17 +897,15 @@ export class Workbench {
       <p class="hint cat-intro">Your files on disk. Double-click a file (or <b>+</b>) to add it to the map; ${icon('check', 11)} means it is on the map. Right-click for more.</p>
       ${this.canConnect ? `<button class="cat-connect" id="cat-connect" title="Show another folder of this computer here (like a folder connection in ArcGIS Pro)">${icon('folder', 14)} Connect a folder…</button>` : ''}
       <div class="tree">
+        ${this.favourites.length ? `<div class="cat-head">Favourites</div>${this.favourites.map((x) => (x.folder ? folder(x.name, x.path, 'Favourite', 0) : this.fileRow(x.path, x.name, 'vector', 0, {}))).join('')}` : ''}
         <div class="cat-head">Folders</div>
         ${roots || '<div class="pane-empty">No data folder. Add files with Data › Add data, or open sample data.</div>'}
         <div class="cat-head">On the map</div>
         ${tree || '<div class="pane-empty">No layers yet. Add a file above, open sample data, or run a recipe.</div>'}
-        <div class="cat-head">More</div>
-        <div class="node source" data-shortcut="samples">${icon('gallery', 14)}<span class="nm">Sample data</span></div>
-        <div class="node source" data-shortcut="automate">${icon('play', 14)}<span class="nm">Recipes</span></div>
-        <div class="node source" data-shortcut="devices">${icon('phone', 14)}<span class="nm">Devices</span></div>
-        <div class="node source" data-shortcut="rasters">${icon('image', 14)}<span class="nm">Rasters</span></div>
-        <div class="node source" data-shortcut="history">${icon('history', 14)}<span class="nm">Run history</span></div>
-      </div>`;
+        <div class="cat-head">GeoSpaX</div>
+        ${this.gxSection()}
+      </div>
+      ${this.previewHtml()}`;
     el.onclick = (e) => {
       const t = e.target as HTMLElement;
       if (t.closest('#cat-refresh')) return void this.refreshCatalog();
@@ -900,8 +915,17 @@ export class Workbench {
         e.stopPropagation();
         return void this.disconnectFolder(disc);
       }
-      const add = t.closest<HTMLElement>('[data-add]')?.dataset.add;
-      if (add) return void this.addFile(add);
+      const addEl = t.closest<HTMLElement>('[data-add]');
+      if (addEl?.dataset.add) return void this.addFile(addEl.dataset.add, addEl.dataset.addLayer);
+      if (t.closest('[data-pv-close]')) { this.select(null); return; }
+      const pvAdd = t.closest<HTMLElement>('[data-pv-add]');
+      if (pvAdd && this.sel) return void this.addFile(this.sel.path, this.sel.layer);
+      const gx = t.closest<HTMLElement>('[data-gx]')?.dataset.gx;
+      if (gx) return void this.gxToggle(gx);
+      const gxRun = t.closest<HTMLElement>('[data-gx-act]');
+      if (gxRun) return void this.gxAct(gxRun.dataset.gxAct!, gxRun.dataset.gxId ?? '');
+      const cont = t.closest<HTMLElement>('[data-container]')?.dataset.container;
+      if (cont && t.closest('.tw')) return void this.toggleContainer(cont);
       const sc = t.closest<HTMLElement>('[data-shortcut]')?.dataset.shortcut;
       if (sc === 'samples') return void document.dispatchEvent(new CustomEvent('geospax:samples'));
       if (sc === 'devices') return this.showTab('right', 'devices');
@@ -916,9 +940,11 @@ export class Workbench {
       }
       const file = t.closest<HTMLElement>('[data-file]');
       if (file) {
-        el.querySelectorAll('.node.file.sel').forEach((n) => n.classList.remove('sel'));
-        file.classList.add('sel');
-        return;
+        const c = file.dataset.container;
+        if (c) return void this.toggleContainer(c);
+        // the second click of a double-click adds it (the first one's preview redraws the row)
+        if (e.detail >= 2) return void this.addFile(file.dataset.file!, file.dataset.layerName);
+        return void this.select({ path: file.dataset.file!, layer: file.dataset.layerName, name: file.querySelector('.nm')?.textContent ?? '' });
       }
       const row = t.closest<HTMLElement>('[data-layer]');
       if (row?.dataset.layer) {
@@ -931,14 +957,154 @@ export class Workbench {
         this.renderCatalog();
       }
     };
-    el.ondblclick = (e) => {
+    el.ondragstart = (e) => {
       const file = (e.target as HTMLElement).closest<HTMLElement>('[data-file]');
-      if (file?.dataset.file) void this.addFile(file.dataset.file);
+      if (!file?.dataset.file || file.dataset.container || !e.dataTransfer) return;
+      e.dataTransfer.setData('application/x-geospax-file', JSON.stringify({ path: file.dataset.file, layer: file.dataset.layerName }));
+      e.dataTransfer.effectAllowed = 'copy';
     };
     el.oninput = (e) => {
       const t = e.target as HTMLInputElement;
       if (t.id === 'cat-filter') { this.catalogFilter = t.value; this.renderCatalog(); const a = document.querySelector<HTMLInputElement>('#cat-filter'); if (a) { a.focus(); a.setSelectionRange(a.value.length, a.value.length); } }
     };
+  }
+
+  /** One file (or a layer inside a GeoPackage / a file inside a zip) as a tree row. */
+  private fileRow(path: string, name: string, kind: string, depth: number, o: { size?: string; on?: string[]; container?: boolean; layer?: string; note?: string }): string {
+    const KIND_ICON: Record<string, string> = { vector: 'layers', raster: 'image', project: 'save', 'point cloud': 'grid', recipe: 'play', archive: 'folder' };
+    const on = (o.on ?? []).length > 0;
+    const key = o.layer ? `${path}#${o.layer}` : path;
+    const selected = this.sel && this.sel.path === path && this.sel.layer === o.layer;
+    const open = o.container && this.insideCache.has(path) && this.browseOpen.has(`in:${path}`);
+    const pad = `style="padding-left:${(o.container ? 4 : 18) + depth * 14}px"`;
+    let html = `<div class="node file${on ? ' onmap' : ''}${selected ? ' sel' : ''}" data-file="${esc(path)}" ${o.layer ? `data-layer-name="${esc(o.layer)}"` : ''} ${o.container ? `data-container="${esc(path)}"` : 'draggable="true"'} data-kind="${esc(kind)}" ${pad} title="${esc(`${o.note ?? kind}${o.size ? ` · ${o.size}` : ''}${on ? ` · on the map as ${(o.on ?? []).join(', ')}` : o.container ? ' · click to see what is inside' : ' · click for a preview, double-click or drag to the map to add it'}`)}">${o.container ? `<span class="tw">${open ? '▾' : '▸'}</span>` : ''}${icon(KIND_ICON[kind] ?? 'layers', 14)}<span class="nm">${esc(name)}</span>${o.note ? `<span class="ct dim">${esc(o.note)}</span>` : ''}${
+      on ? `<span class="ct ok" aria-label="on the map">${icon('check', 12)}</span>` : o.container ? '' : `<button class="ct add" data-add="${esc(path)}" ${o.layer ? `data-add-layer="${esc(o.layer)}"` : ''} title="Add to the map" aria-label="Add ${esc(name)} to the map">${icon('plus', 12)}</button>`
+    }</div>`;
+    void key;
+    if (!o.container || !open) return html;
+    const inside = this.insideCache.get(path);
+    if (typeof inside === 'string') return `${html}<div class="pane-empty" style="padding-left:${18 + (depth + 1) * 14}px">${esc(inside)}</div>`;
+    html += (inside ?? []).map((it) => this.fileRow(it.path, it.name, it.kind, depth + 1, { layer: it.layer, on: it.on_map, note: it.layer ? `${(it.count ?? 0).toLocaleString()} ${it.geometry ?? ''}`.trim() : undefined })).join('')
+      || `<div class="pane-empty" style="padding-left:${18 + (depth + 1) * 14}px">Nothing GeoSpaX can open inside</div>`;
+    return html;
+  }
+
+  private async toggleContainer(path: string) {
+    const k = `in:${path}`;
+    if (this.browseOpen.has(k)) {
+      this.browseOpen.delete(k);
+      return this.renderCatalog();
+    }
+    this.browseOpen.add(k);
+    if (!this.insideCache.has(path)) {
+      try {
+        this.insideCache.set(path, (await this.host.backend.json<{ items: InsideItem[] }>(`api/browse/inside?path=${encodeURIComponent(path)}`)).items);
+      } catch (e) {
+        this.insideCache.set(path, `Could not read it: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    this.renderCatalog();
+  }
+
+  /** Select a file or layer: its preview below the tree and its footprint on the map. */
+  private async select(s: { path: string; layer?: string; name: string; data?: Preview; error?: string } | null) {
+    this.sel = s;
+    document.dispatchEvent(new CustomEvent('geospax:footprint', { detail: null }));
+    this.renderCatalog();
+    if (!s) return;
+    try {
+      const d = await this.host.backend.json<Preview>(`api/browse/preview?path=${encodeURIComponent(s.path)}${s.layer ? `&layer=${encodeURIComponent(s.layer)}` : ''}`);
+      if (this.sel !== s) return;
+      s.data = d;
+      if (d.bounds) document.dispatchEvent(new CustomEvent('geospax:footprint', { detail: d.bounds }));
+    } catch (e) {
+      if (this.sel !== s) return;
+      s.error = e instanceof Error ? e.message : String(e);
+    }
+    this.renderCatalog();
+  }
+
+  /** The preview strip: what the selected file holds, before adding it. */
+  private previewHtml(): string {
+    const s = this.sel;
+    if (!s) return '';
+    const d = s.data;
+    const body = s.error
+      ? `<p class="err">${esc(s.error)}</p>`
+      : !d
+        ? '<p class="dim">Reading…</p>'
+        : d.kind === 'raster'
+          ? `<p>Raster · ${d.width?.toLocaleString()} × ${d.height?.toLocaleString()} cells · ${d.bands} band${d.bands === 1 ? '' : 's'} · ${esc(d.crs)}</p>`
+          : `<p>${(d.count ?? 0).toLocaleString()} ${esc(d.geometry ?? 'features')} · ${esc(d.crs)}</p>
+            ${(d.fields ?? []).length ? `<div class="pv-table"><table><thead><tr>${(d.fields ?? []).slice(0, 8).map((f) => `<th title="${esc(f.type)}">${esc(f.name)}</th>`).join('')}</tr></thead><tbody>${(d.rows ?? []).map((r) => `<tr>${r.slice(0, 8).map((v) => `<td>${esc(v ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}`;
+    return `<div class="cat-preview" aria-live="polite">
+      <div class="pv-head"><b title="${esc(s.path)}">${esc(s.name)}</b><button data-pv-close aria-label="Close the preview">✕</button></div>
+      ${body}
+      ${d?.bounds ? '<p class="dim">Its outline is drawn on the map.</p>' : ''}
+      <div class="pv-acts"><button class="primary" data-pv-add>Add to the map</button></div>
+    </div>`;
+  }
+
+  /** Favourite folders and files (right-click › Add to Favourites), kept in this browser. */
+  toggleFavourite(path: string, name: string, folder: boolean) {
+    const i = this.favourites.findIndex((x) => x.path === path);
+    if (i >= 0) this.favourites.splice(i, 1);
+    else this.favourites.push({ path, name, folder });
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(this.favourites)); } catch { /* private mode */ }
+    this.setStatus(i >= 0 ? `Removed ${name} from Favourites` : `Added ${name} to Favourites`, 4000);
+    this.renderCatalog();
+  }
+
+  isFavourite(path: string) {
+    return this.favourites.some((x) => x.path === path);
+  }
+
+  /** The GeoSpaX section: what GeoSpaX itself holds, in the same tree. */
+  private gxSection(): string {
+    const node = (id: string, title: string, ico: string, n?: number) =>
+      `<div class="node source gx" data-gx="${id}"><span class="tw">${this.gxOpen.has(id) ? '▾' : '▸'}</span>${icon(ico, 14)}<span class="nm">${esc(title)}</span>${n !== undefined ? `<span class="ct">${n}</span>` : ''}</div>`;
+    const leaf = (act: string, id: string, title: string, ico: string, note = '') =>
+      `<div class="node gx-leaf" data-gx-act="${act}" data-gx-id="${esc(id)}" style="padding-left:32px" title="${esc(note || title)}">${icon(ico, 13)}<span class="nm">${esc(title)}</span>${note ? `<span class="ct dim">${esc(note)}</span>` : ''}</div>`;
+    const kids = (id: string, html: () => string) => (this.gxOpen.has(id) ? html() : '');
+    const done = this.runs.filter((r) => r.status === 'done').slice(0, 20);
+    return [
+      node('online', 'Online data', 'globe', ONLINE_SOURCES.length),
+      kids('online', () => ONLINE_SOURCES.map((o) => leaf('online', o.id, o.title, 'download')).join('')),
+      node('recipes', 'Recipes', 'play', this.gxData.recipes?.length),
+      kids('recipes', () => (this.gxData.recipes ? this.gxData.recipes.map((r) => leaf('recipe', r.id, r.title || r.id, recipeIcon(r))).join('') || '<div class="pane-empty">No recipes</div>' : '<div class="pane-empty">Reading…</div>')),
+      node('results', 'Results', 'history', done.length),
+      kids('results', () => done.map((r) => leaf('run', r.id, r.title || r.recipe, 'check', (r.artifacts ?? []).length ? `${(r.artifacts ?? []).length} files` : '')).join('') || '<div class="pane-empty">No finished runs yet</div>'),
+      node('models', 'AI models', 'brain', this.gxData.models?.length),
+      kids('models', () => (this.gxData.models ? this.gxData.models.map((m) => leaf('model', m.name, m.name, 'brain')).join('') || leaf('models', '', 'Add a model…', 'plus') : '<div class="pane-empty">Reading…</div>')),
+      node('plugins', 'Plugins', 'puzzle', this.gxData.plugins?.length),
+      kids('plugins', () => (this.gxData.plugins ? this.gxData.plugins.map((p) => leaf('plugin', p.id, p.name, pluginIcon(p))).join('') : '<div class="pane-empty">Reading…</div>')),
+      `<div class="node source" data-shortcut="samples">${icon('gallery', 14)}<span class="nm">Sample data</span></div>`,
+      `<div class="node source" data-shortcut="devices">${icon('phone', 14)}<span class="nm">Devices</span></div>`,
+    ].join('');
+  }
+
+  private async gxToggle(id: string) {
+    if (this.gxOpen.has(id)) this.gxOpen.delete(id);
+    else this.gxOpen.add(id);
+    this.renderCatalog();
+    if (!this.gxOpen.has(id)) return;
+    try {
+      if (id === 'recipes' && !this.gxData.recipes) this.gxData.recipes = (await this.host.backend.json<{ recipes: RecipeInfo[] }>('api/recipes')).recipes;
+      if (id === 'models' && !this.gxData.models) this.gxData.models = (await this.host.backend.json<{ models: { name: string }[] }>('api/models')).models;
+      if (id === 'plugins' && !this.gxData.plugins) this.gxData.plugins = (await this.host.backend.json<{ plugins: PluginInfo[] }>('api/plugins')).plugins;
+      if (id === 'results') await this.loadRuns();
+    } catch { /* the node says Reading… until the next try */ }
+    this.renderCatalog();
+  }
+
+  private gxAct(act: string, id: string) {
+    switch (act) {
+      case 'online': return void document.dispatchEvent(new CustomEvent('geospax:online', { detail: id }));
+      case 'recipe': return void document.dispatchEvent(new CustomEvent('geospax:run-recipe', { detail: id }));
+      case 'run': return void this.host.openRun(id);
+      case 'model': case 'models': return void document.dispatchEvent(new CustomEvent('geospax:models'));
+      case 'plugin': return void document.dispatchEvent(new CustomEvent('geospax:plugin-manager', { detail: id }));
+    }
   }
 
   /** Remove a folder connection (nothing on disk changes; layers already on the map stay). */
@@ -1018,13 +1184,14 @@ export class Workbench {
   }
 
   /** Put a file from a data folder on the map (Catalog double-click, + or right-click). */
-  async addFile(path: string) {
-    const name = path.split(/[\\/]/).pop() ?? path;
+  async addFile(path: string, layer?: string) {
+    const name = layer ?? path.split(/[\\/]/).pop() ?? path;
     this.setStatus(`Adding ${name}…`);
     try {
-      const r = await this.host.backend.json<{ layers: string[]; rasters: string[]; already?: boolean }>(`api/browse/add?path=${encodeURIComponent(path)}`, { method: 'POST' });
+      const r = await this.host.backend.json<{ layers: string[]; rasters: string[]; already?: boolean }>(`api/browse/add?path=${encodeURIComponent(path)}${layer ? `&layer=${encodeURIComponent(layer)}` : ''}`, { method: 'POST' });
       document.dispatchEvent(new CustomEvent('geospax:added', { detail: r }));
       this.setStatus(r.already ? `${name} is already on the map` : `Added ${name}: ${[...r.layers, ...r.rasters].join(', ')}`, 6000);
+      this.insideCache.clear();
       await this.refreshCatalog();
     } catch (e) {
       this.setStatus(`${name} could not be added: ${e instanceof Error ? e.message : e}`, 10000);

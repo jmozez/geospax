@@ -1351,3 +1351,19 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .fp-row { display: flex; align-items: center; gap: 8px; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: 6px 10px; }
 .fp-row:hover { background: var(--hover); }
 .fp .err { color: #e06c5f; margin: 4px 0; }
+
+/* Explorer: preview strip, GeoSpaX section */
+#catalog { display: flex; flex-direction: column; }
+#catalog .tree { flex: 1; min-height: 0; overflow: auto; }
+.cat-preview { flex: none; max-height: 45%; overflow: auto; border-top: 1px solid var(--line); padding: 8px 10px; font-size: 12px; background: var(--sunken); }
+.cat-preview p { margin: 4px 0; }
+.pv-head { display: flex; align-items: center; gap: 6px; }
+.pv-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-head button { padding: 0 6px; }
+.pv-table { overflow-x: auto; margin: 6px 0; }
+.pv-table table { border-collapse: collapse; font-size: 11px; }
+.pv-table th, .pv-table td { padding: 2px 6px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.pv-table th { color: var(--muted); }
+.pv-acts { display: flex; justify-content: flex-end; }
+.node.gx-leaf { cursor: pointer; }
+.node.gx-leaf .ct.dim, .node.file .ct.dim { color: var(--muted); font-size: 11px; margin-left: auto; }
