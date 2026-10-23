@@ -19,6 +19,8 @@ arrow-array = { version = "60", features = ["ffi"] }
 arrow-schema = "60"
 arrow-ipc = "60"
 arrow-buffer = "60"
+parquet = { version = "60", default-features = false, features = ["arrow", "snap", "zstd", "flate2", "flate2-rust_backend"] }
+bytes = "1"
 pmtiles = { version = "0.24", default-features = false, features = ["write"] }
 flate2 = "1.1"
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "net", "sync", "signal"] }

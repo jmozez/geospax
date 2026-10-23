@@ -13,6 +13,12 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Overture Maps in the Explorer** (GeoSpaX › Overture Maps): buildings, roads and paths, places, water, land
+  use, land cover, boundaries and addresses for the map view (up to about 50 km across), from the newest
+  Overture release, as a download with the gauge. Only the parts of the files that cover the area are fetched.
+- **GeoParquet** files open from data folders, drops and cloud storage, read by GeoSpaX itself (the GDAL
+  builds it ships with have no Parquet driver), fetching only the row groups that cover the area when one is
+  given.
 - **Cloud storage in the Explorer:** connect an S3 bucket (or S3-compatible storage such as MinIO), a Google
   Cloud Storage bucket, an Azure container or a web folder (`s3://…`, `gs://…`, `az://…`, `https://…/`).
   Its folders open in place; a GeoTIFF/COG goes on the map read in place, a vector file (GeoJSON,
