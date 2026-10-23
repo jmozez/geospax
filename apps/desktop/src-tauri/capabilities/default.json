@@ -1,7 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: core IPC only. The app's own `tile` command is allowed by default.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "Main window and the help window: core IPC; the main window may open the help window (Help \u203a User guide).",
+  "windows": [
+    "main",
+    "help"
+  ],
+  "permissions": [
+    "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-set-focus"
+  ]
 }

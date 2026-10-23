@@ -4,6 +4,7 @@
 /// (name, title, markdown)
 pub const DOCS: &[(&str, &str, &str)] = &[
     ("USER_GUIDE", "User guide", include_str!("../../../docs/USER_GUIDE.md")),
+    ("FAQ", "FAQ", include_str!("../../../docs/FAQ.md")),
     ("AUTOMATION", "Automation", include_str!("../../../docs/AUTOMATION.md")),
     ("FEATURE_MATRIX", "Feature matrix", include_str!("../../../docs/FEATURE_MATRIX.md")),
     ("GSX", "GSX tools and domain kits", include_str!("../../../docs/GSX.md")),

@@ -1,4 +1,4 @@
-# GeoSpaX user guide (v1.7)
+# GeoSpaX user guide
 
 GeoSpaX makes maps for you. You bring the data (plug something in, drop a file, or name an area) and a
 **recipe** does the rest: import, analysis, styling, layout, legend and export to PNG, PDF and an HTML report.
