@@ -192,3 +192,83 @@ export function measure(line: XY[], step: number): XY[] {
   for (let d = step; d < L - 0.01; d += step) ds.push(d);
   return pointsAlong(line, ds);
 }
+
+/** JOIN: two polylines whose ends lie within `tol` metres become one (either may be reversed); null
+ *  when no end of one is near an end of the other. */
+export function join(a: XY[], b: XY[], tol: number): XY[] | null {
+  const d = (p: XY, q: XY) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const A0 = a[0], A1 = a[a.length - 1], B0 = b[0], B1 = b[b.length - 1];
+  const options: [number, () => XY[]][] = [
+    [d(A1, B0), () => [...a, ...b.slice(1)]],
+    [d(A1, B1), () => [...a, ...[...b].reverse().slice(1)]],
+    [d(A0, B1), () => [...b, ...a.slice(1)]],
+    [d(A0, B0), () => [...[...b].reverse(), ...a.slice(1)]],
+  ];
+  options.sort((x, y) => x[0] - y[0]);
+  return options[0][0] <= tol ? options[0][1]() : null;
+}
+
+/** BREAK at a point: the line split where it passes nearest `at` (null at or beyond an end). */
+export function breakAt(line: XY[], at: XY): [XY[], XY[]] | null {
+  const L = lengthOf(line), d = project(line, at);
+  if (d < 1e-3 || d > L - 1e-3) return null;
+  return [sub(line, 0, d), sub(line, d, L)];
+}
+
+/** LENGTHEN the end of a line nearer `at` by `delta` metres (negative shortens), along its end
+ *  segment when growing; null when it would vanish. */
+export function lengthen(line: XY[], at: XY, delta: number): XY[] | null {
+  const L = lengthOf(line);
+  if (L + delta <= 1e-3) return null;
+  const n = line.length;
+  const atEnd = Math.hypot(line[n - 1][0] - at[0], line[n - 1][1] - at[1]) <= Math.hypot(line[0][0] - at[0], line[0][1] - at[1]);
+  const l = atEnd ? line : [...line].reverse();
+  let out: XY[];
+  if (delta >= 0) {
+    const a = l[l.length - 2], b = l[l.length - 1], s = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    out = [...l.slice(0, -1), [b[0] + ((b[0] - a[0]) / s) * delta, b[1] + ((b[1] - a[1]) / s) * delta]];
+  } else out = sub(l, 0, L + delta);
+  return atEnd ? out : out.reverse();
+}
+
+/** CHAMFER one corner: vertex i replaced by a straight cut d1 metres back along the incoming leg and
+ *  d2 along the outgoing one. Null at an end, on a straight corner, or when a leg is too short. */
+export function chamfer(line: XY[], i: number, d1: number, d2: number, closed: boolean): XY[] | null {
+  const n = closed ? line.length - 1 : line.length;
+  if (!closed && (i <= 0 || i >= n - 1)) return null;
+  const A = line[(i - 1 + n) % n], V = line[i], B = line[(i + 1) % n];
+  const la = Math.hypot(A[0] - V[0], A[1] - V[1]), lb = Math.hypot(B[0] - V[0], B[1] - V[1]);
+  if (d1 <= 0 || d2 <= 0 || d1 > la + 1e-9 || d2 > lb + 1e-9) return null;
+  const cross = (A[0] - V[0]) * (B[1] - V[1]) - (A[1] - V[1]) * (B[0] - V[0]);
+  if (Math.abs(cross) < 1e-9 * la * lb) return null;
+  const P: XY = [V[0] + ((A[0] - V[0]) / la) * d1, V[1] + ((A[1] - V[1]) / la) * d1];
+  const Q: XY = [V[0] + ((B[0] - V[0]) / lb) * d2, V[1] + ((B[1] - V[1]) / lb) * d2];
+  const pts = line.slice(0, n);
+  pts.splice(i, 1, P, Q);
+  return closed ? [...pts, pts[0]] : pts;
+}
+
+/** STRETCH: the vertices inside the box [x0,y0,x1,y1] moved by d, the rest kept (shared corners of a
+ *  ring's closing point move together). */
+export function stretch(g: GeoJSON.Geometry, toXY: (p: XY) => XY, toLL: (p: XY) => XY, box: [number, number, number, number], d: XY): { geometry: GeoJSON.Geometry; moved: number } {
+  let moved = 0;
+  const geometry = mapGeometry(g, (q) => {
+    const p = toXY(q);
+    if (p[0] >= box[0] && p[0] <= box[2] && p[1] >= box[1] && p[1] <= box[3]) {
+      moved++;
+      return toLL([p[0] + d[0], p[1] + d[1]]);
+    }
+    return q;
+  });
+  return { geometry, moved };
+}
+
+/** ALIGN: the move and turn that takes s1 onto d1 and the direction s1→s2 onto d1→d2 (no scaling). */
+export function align(s1: XY, d1: XY, s2: XY, d2: XY): (p: XY) => XY {
+  const a = Math.atan2(d2[1] - d1[1], d2[0] - d1[0]) - Math.atan2(s2[1] - s1[1], s2[0] - s1[0]);
+  const c = Math.cos(a), s = Math.sin(a);
+  return (p: XY): XY => {
+    const x = p[0] - s1[0], y = p[1] - s1[1];
+    return [d1[0] + x * c - y * s, d1[1] + x * s + y * c];
+  };
+}

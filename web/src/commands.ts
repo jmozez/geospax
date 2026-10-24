@@ -55,6 +55,7 @@ export interface Command {
 
 // 24×24 monochrome glyphs; the ribbon tints them with `currentColor`.
 export const ICONS: Record<string, string> = {
+  split: 'M3 5h7v6H3zM14 13h7v6h-7zM10 8h3v2h-3zM11 10h2v5h-2zM12 14h2v2h-2z',
   move: 'M12 2l3 3h-2v6h6V9l3 3-3 3v-2h-6v6h2l-3 3-3-3h2v-6H5v2l-3-3 3-3v2h6V5H9z',
   copy: 'M8 3h10v12H8zM5 7h1v12h10v1H5z',
   rotate: 'M12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-1.8-4.3L14 10h6V4l-2.3 2.3A8 8 0 0 0 12 4z',
@@ -791,6 +792,51 @@ export const COMMANDS: Command[] = [
     id: 'design.insert', tab: 'design', group: 'Blocks', title: 'Insert', icon: 'pin', big: true,
     hint: 'Place copies of a block with clicks, turned by a typed angle, as AutoCAD INSERT',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'insert' })); },
+  },
+  {
+    id: 'design.arraypolar', tab: 'design', group: 'Modify', title: 'Polar array', icon: 'rotate',
+    hint: 'Copies of a feature turned around a centre (posts round a roundabout), as AutoCAD ARRAYPOLAR',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'arraypolar' })); },
+  },
+  {
+    id: 'design.explode', tab: 'design', group: 'Modify', title: 'Explode', icon: 'split',
+    hint: 'A polygon into its outline lines, or a multi-part feature into its parts, as AutoCAD EXPLODE',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'explode' })); },
+  },
+  {
+    id: 'design.join', tab: 'design', group: 'Modify', title: 'Join', icon: 'line',
+    hint: 'Two lines whose ends meet become one, as AutoCAD JOIN',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'join' })); },
+  },
+  {
+    id: 'design.break', tab: 'design', group: 'Modify', title: 'Break', icon: 'scissors',
+    hint: 'Split a line in two at a point, as AutoCAD BREAK at point',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'break' })); },
+  },
+  {
+    id: 'design.lengthen', tab: 'design', group: 'Modify', title: 'Lengthen', icon: 'arrowRight',
+    hint: 'Make a line longer or shorter at the clicked end (+5, -3, =40 m), as AutoCAD LENGTHEN',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'lengthen' })); },
+  },
+  {
+    id: 'design.chamfer', tab: 'design', group: 'Modify', title: 'Chamfer', icon: 'curve',
+    hint: 'Cut a corner straight at a distance along each leg (a junction splay), as AutoCAD CHAMFER',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'chamfer' })); },
+  },
+  {
+    id: 'design.stretch', tab: 'design', group: 'Modify', title: 'Stretch', icon: 'zoomTo',
+    hint: 'Move only the vertices inside a window (widen a lot, shift a road end), as AutoCAD STRETCH',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'stretch' })); },
+  },
+  {
+    id: 'design.list', tab: 'design', group: 'Survey', title: 'List', icon: 'form',
+    hint: 'Describe a feature: type, vertices, length or perimeter, area and attributes, as AutoCAD LIST',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'list' })); },
+  },
+  {
+    id: 'design.align', tab: 'design', group: 'Modify', title: 'Align', icon: 'compare',
+    hint: 'Move and turn a feature by two pairs of points (fit a house to a lot line), as AutoCAD ALIGN',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'align' })); },
   },
   {
     id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
