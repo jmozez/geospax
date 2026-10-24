@@ -127,6 +127,7 @@ export function rasterStoryHtml(r: RasterInfo, h: Histogram | null, opacity: num
     <div class="ins-acts">
       <button class="pri" data-rv="style">${pro ? 'Edit symbology…' : 'Colours and legend…'}</button>
       <button data-rv="zoom">Zoom to it</button>
+      ${isElevation(r.kind) ? '<button data-rv="3d" title="Show it as 3D terrain (press again for the flat map)">3D view</button>' : ''}
       <button data-rv="attributes">Statistics</button>
       <button data-rv="remove" title="Remove from the map (the file is kept)">Remove</button>
     </div>
@@ -147,3 +148,6 @@ export function rasterAttributesHtml(r: RasterInfo, h: Histogram | null, value: 
     <div class="rv-value">${valueHtml(value, r)}</div>
   </div>`;
 }
+
+/** Rasters that are heights (metres), which the 3D terrain view can raise. */
+export const isElevation = (kind: string | undefined) => ['dem', 'elevation', 'bathymetry', 'gebco'].includes(String(kind ?? '').toLowerCase());

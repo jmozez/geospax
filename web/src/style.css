@@ -295,7 +295,7 @@ h1 .tag:empty { display: none; }
 .dock { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); overflow: hidden; }
 #dock-left { border-right: 1px solid var(--line); }
 #dock-right { border-left: 1px solid var(--line); }
-#dock-bottom { border-top: 1px solid var(--line); }
+#dock-bottom { border-top: 1px solid var(--line); margin: 0; }
 .dock.collapsed .dock-body { display: none; }
 #dock-left.collapsed .dock-tabs, #dock-right.collapsed .dock-tabs {
   flex-direction: column; align-items: stretch; overflow-y: auto; overflow-x: hidden;
@@ -1339,6 +1339,8 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .node.folder .disc { margin-left: auto; padding: 0 6px; font-size: 11px; opacity: 0; }
 .node.folder:hover .disc, .node.folder .disc:focus-visible { opacity: 1; }
 @media (hover: none) { .node.folder .disc { opacity: 1; } }
+.folder-pick { position: fixed; inset: 0; z-index: 70; background: var(--overlay, rgba(0,0,0,.55)); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.folder-pick[hidden] { display: none; }
 .folder-pick .fp { width: min(560px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; }
 .fp header, .fp footer { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
 .fp header b { flex: 1; }
@@ -1403,3 +1405,14 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .ws-cloud { display: grid; gap: 8px; }
 .ws-cloud[hidden] { display: none; }
 .ws-check { display: flex; gap: 6px; align-items: center; }
+
+/* Design tab command bar (cad.ts): prompt, command line, live length/bearing, drafting modes */
+.cad-bar { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px); padding: 8px 10px; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 13px; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+.cad-bar[hidden] { display: none; }
+.cad-bar b { white-space: nowrap; }
+.cad-cmd { width: 15em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.cad-live { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; min-width: 12em; }
+.cad-modes { display: flex; gap: 4px; }
+.cad-modes button { padding: 2px 8px; }
+.cad-modes button.on { background: var(--accent); color: #111; border-color: var(--accent); }
+.cad-trav textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }

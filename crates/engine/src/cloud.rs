@@ -117,9 +117,12 @@ pub fn open(engine: &Arc<Engine>, svc: &Value, sub: &str) -> Result<Value, Strin
     let path = path_in(svc, sub)?;
     let p = Path::new(&path);
     let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "cloud".into());
+    // the folder it is in goes into the id: TCI.tif of two Sentinel-2 scenes must not collide
+    let folder = p.parent().and_then(|d| d.file_name()).map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let id = crate::raster::sanitize(&if folder.is_empty() { stem.clone() } else { format!("{folder}_{stem}") });
     match crate::browse::kind_of(p) {
         Some("raster") => {
-            let h = engine.register_raster(p, &crate::raster::sanitize(&stem))?;
+            let h = engine.register_raster(p, &id)?;
             Ok(json!({ "layers": [], "rasters": [h.info.id.clone()] }))
         }
         Some("vector") if path.to_lowercase().ends_with(".parquet") => crate::geoparquet::open_file(engine, &path, None),

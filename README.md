@@ -11,7 +11,7 @@ Desktop, web and phone · one Rust engine · MIT licence</p>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue"></a>
 </p>
 
-<p align="center"><img src="docs/assets/screenshot-pro.png" alt="GeoSpaX in Pro mode: ribbon, layer tree, map and symbology" width="900" /></p>
+<p align="center"><img src="docs/assets/screenshot-pro.png" alt="GeoSpaX Pro (dark): Overture roads and buildings of Lae, Papua New Guinea, over a Sentinel-2 10 m scene" width="900" /></p>
 
 GeoSpaX is for people who want a finished map without spending hours on it. Drop in data, or plug in a
 phone, GPS, drone card, camera or sensor logger, and GeoSpaX styles it, lays out the map, writes the

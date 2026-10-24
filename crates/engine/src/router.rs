@@ -29,6 +29,7 @@ impl ApiRequest {
         let p = self.path.trim_matches('/');
         p.starts_with("tiles/")
             || (p.starts_with("api/services/") && p.contains("/tile/"))
+            || (p.starts_with("api/rasters/") && (p.contains("/terrain/") || p.contains("/tiles/")))
             || (p.starts_with("api/layers/")
                 && (p.ends_with("/arrow") || p.ends_with("/classify") || p.ends_with("/unique") || p.ends_with("/autostyle")))
     }
@@ -178,6 +179,26 @@ impl Engine {
                     Err(e) => ApiResponse::error(502, e),
                 }
             }
+            // Design tab: DXF export (the design layers, in UTM metres) and import (with the drawing's EPSG)
+            ("POST", ["api", "design", "dxf"]) => {
+                let b = body_json(&req.body);
+                let ids: Vec<String> = b["layers"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
+                match crate::design::export_dxf(self, &ids) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
+            ("GET", ["api", "design", "dxf"]) => match crate::design::exported(self, &param(q, "path").unwrap_or_default()) {
+                Ok(body) => ApiResponse { status: 200, content_type: "image/vnd.dxf", headers: vec![("Content-Disposition", "attachment; filename=\"geospax-design.dxf\"".to_string())], body },
+                Err(e) => ApiResponse::error(404, e),
+            },
+            ("POST", ["api", "design", "dxf-import"]) => match param(q, "epsg").and_then(|v| v.trim().trim_start_matches("EPSG:").parse::<u32>().ok()) {
+                Some(epsg) => match crate::design::import_dxf(self, &param(q, "name").unwrap_or_else(|| "drawing.dxf".into()), epsg, &req.body) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                },
+                None => ApiResponse::error(400, "epsg=… (the drawing's coordinate system) is needed"),
+            },
             // Overture Maps: its themes, and one theme downloaded for an area (a job with the gauge)
             ("GET", ["api", "overture"]) => ApiResponse::json(200, &json!({ "themes": crate::geoparquet::OVERTURE.iter().map(|t| json!({ "id": t.0, "title": t.1 })).collect::<Vec<_>>() })),
             ("POST", ["api", "overture"]) => {
@@ -194,11 +215,29 @@ impl Engine {
                 }
             }
             // cloud storage: one folder of a connection, and a file of it put on the map
-            ("GET", ["api", "services", id, "list"]) => match crate::services::get(self, id).and_then(|s| crate::cloud::list(&s, &param(q, "path").unwrap_or_default())) {
+            ("GET", ["api", "services", id, "list"]) => match crate::services::get(self, id).and_then(|s| {
+                let p = param(q, "path").unwrap_or_default();
+                match s["kind"].as_str() {
+                    Some("github") => crate::github::list(&s, &p),
+                    Some("postgis") => crate::db::list(&s),
+                    _ => crate::cloud::list(&s, &p),
+                }
+            }) {
                 Ok(v) => ApiResponse::json(200, &json!({ "layers": v })),
                 Err(e) => ApiResponse::error(502, e),
             },
-            ("POST", ["api", "services", id, "open"]) => match crate::services::get(self, id).and_then(|s| crate::cloud::open(self, &s, &param(q, "path").unwrap_or_default())) {
+            ("POST", ["api", "services", id, "open"]) => match crate::services::get(self, id).and_then(|s| {
+                let p = param(q, "path").unwrap_or_default();
+                match s["kind"].as_str() {
+                    Some("github") => crate::github::open(self, &s, &p, param(q, "approve").as_deref() == Some("code")),
+                    Some("postgis") => {
+                        // a table: all of it, or the part in the map view (bbox=w,s,e,n)
+                        let b: Vec<f64> = param(q, "bbox").unwrap_or_default().split(',').filter_map(|x| x.parse().ok()).collect();
+                        crate::db::open_table(self, &s, &p, (b.len() == 4).then(|| [b[0], b[1], b[2], b[3]]))
+                    }
+                    _ => crate::cloud::open(self, &s, &p),
+                }
+            }) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(502, e),
             },
@@ -542,6 +581,30 @@ impl Engine {
                 }
                 None => ApiResponse::error(404, format!("unknown raster '{id}'")),
             },
+            // a raster in its style as map tiles (sharp at every zoom)
+            ("GET", ["api", "rasters", id, "tiles", z, x, y]) => {
+                let n = |s: &str| s.trim_end_matches(".png").parse::<u32>().ok();
+                match (self.raster(id), n(z), n(x), n(y)) {
+                    (Some(r), Some(z), Some(x), Some(y)) if z <= 22 => match r.tile_png(z, x, y) {
+                        Ok(png) => ApiResponse { status: 200, content_type: "image/png", headers: vec![("Cache-Control", "max-age=3600".to_string())], body: png },
+                        Err(e) => ApiResponse::error(500, e),
+                    },
+                    (None, ..) => ApiResponse::error(404, format!("unknown raster '{id}'")),
+                    _ => ApiResponse::error(400, "tile is z/x/y.png"),
+                }
+            }
+            // 3D terrain: an elevation raster as Terrarium tiles (MapLibre raster-dem)
+            ("GET", ["api", "rasters", id, "terrain", z, x, y]) => {
+                let n = |s: &str| s.trim_end_matches(".png").parse::<u32>().ok();
+                match (self.raster(id), n(z), n(x), n(y)) {
+                    (Some(r), Some(z), Some(x), Some(y)) if z <= 18 => match crate::raster::terrain_tile(&r.info.path, z, x, y) {
+                        Ok(png) => ApiResponse { status: 200, content_type: "image/png", headers: vec![("Cache-Control", "max-age=3600".to_string())], body: png },
+                        Err(e) => ApiResponse::error(500, e),
+                    },
+                    (None, ..) => ApiResponse::error(404, format!("unknown raster '{id}'")),
+                    _ => ApiResponse::error(400, "tile is z/x/y.png"),
+                }
+            }
             ("GET", ["api", "rasters", id, "overlay.png"]) => match self.raster(id) {
                 Some(r) => {
                     let max = param(q, "max").and_then(|m| m.parse().ok()).unwrap_or(1600);
@@ -565,6 +628,21 @@ impl Engine {
                 Ok(r) => ApiResponse::json(200, &r.json()),
                 Err(e) => ApiResponse::error(404, e),
             },
+            // Python environments (pyenv.rs): which are on this computer, their packages, which one steps use
+            ("GET", ["api", "python"]) => ApiResponse::json(200, &crate::pyenv::list(self)),
+            ("GET", ["api", "python", "packages"]) => match crate::pyenv::packages(self, &param(q, "path").unwrap_or_default()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("POST", ["api", "python", "use"]) => {
+                if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
+                    return ApiResponse::error(403, "this GeoSpaX was started with --restricted: the Python environment cannot be changed from here");
+                }
+                match crate::pyenv::choose(self, &param(q, "path").unwrap_or_default()) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
             // R (docs/R.md): is R there, which packages, and install what is missing
             ("GET", ["api", "r"]) => ApiResponse::json(200, &crate::rsetup::status()),
             ("POST", ["api", "r", "install"]) => {

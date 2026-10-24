@@ -12,6 +12,14 @@ import type { PluginInfo, PluginsState } from './plugins';
 import { ONLINE_SOURCES } from './online';
 import { bytesText, followJob } from './downloads';
 
+/** Public open data in cloud storage, one click in "＋ Add" (read without signing in). */
+const CLOUD_PRESETS: { title: string; url: string; endpoint?: string; region?: string; about: string; ask?: string }[] = [
+  { title: 'Source Cooperative', url: 's3://', endpoint: 'https://data.source.coop', about: 'Open geospatial data shared by many organisations (source.coop)', ask: 'Type the account and repository after s3://, as shown on source.coop (for example s3://account/repository), then Connect.' },
+  { title: 'Sentinel-2 COGs (AWS)', url: 's3://sentinel-cogs/sentinel-s2-l2a-cogs', region: 'us-west-2', about: 'Sentinel-2 Level-2A scenes as cloud-optimised GeoTIFFs, by UTM tile and date' },
+  { title: 'Copernicus DEM 30 m (AWS)', url: 's3://copernicus-dem-30m', region: 'eu-central-1', about: 'Global elevation model, one GeoTIFF per 1° tile' },
+  { title: 'Overture Maps files (AWS)', url: 's3://overturemaps-us-west-2/release', region: 'us-west-2', about: 'The raw GeoParquet releases (for areas, use GeoSpaX › Overture Maps instead)' },
+];
+
 /** Overture Maps themes (the engine's geoparquet::OVERTURE). */
 const OVERTURE_THEMES: [string, string][] = [
   ['buildings', 'Buildings'], ['roads', 'Roads and paths'], ['places', 'Places (shops, schools, clinics…)'], ['water', 'Water'],
@@ -810,6 +818,10 @@ export class Workbench {
   /** GeoSpaX section: open nodes and their lists */
   private gxOpen = new Set<string>();
   private gxData: { recipes?: RecipeInfo[]; models?: { name: string }[]; plugins?: PluginInfo[] } = {};
+  /** R and Python in the Explorer: R's kits and packages, the Python environments and their packages */
+  private envR: { installed: boolean; version?: string; kits: { id: string; title: string; packages: string[] }[]; packages: Record<string, string | null> } | null = null;
+  private envPy: { environments: { label: string; kind: string; path: string; version: string; current: boolean }[] } | null = null;
+  private envPyPkgs = new Map<string, { packages: Record<string, string | null>; total: number } | string>();
   /** web service connections and their layers */
   private services: { id: string; kind: string; url: string; title: string }[] | null = null;
   private serviceKinds: { id: string; title: string }[] = [];
@@ -826,6 +838,11 @@ export class Workbench {
   async refreshCatalog() {
     this.browseRoots = null;
     this.browseCache.clear();
+    // R and Python are looked for again (after installing one, or a package)
+    this.envR = null;
+    this.envPy = null;
+    this.envPyPkgs.clear();
+    if (this.gxOpen.has('envs')) void this.loadEnvs().then(() => this.renderCatalog());
     await this.loadBrowse();
   }
 
@@ -1093,18 +1110,18 @@ export class Workbench {
     const kindTitle = (k: string) => (this.serviceKinds.find((x) => x.id === k)?.title ?? k).replace(/ \(.*\)$/, '');
     return this.services.map((sv) => {
       const open = this.browseOpen.has(`ws:${sv.id}`);
-      const head = `<div class="node source folder" data-ws="${esc(sv.id)}" title="${esc(`${kindTitle(sv.kind)} · ${sv.url}`)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon('globe', 14)}<span class="nm">${esc(sv.title)}</span><span class="ct dim">${esc(kindTitle(sv.kind))}</span><button class="ct disc" data-ws-rm="${esc(sv.id)}" title="Remove this connection" aria-label="Remove ${esc(sv.title)}">✕</button></div>`;
+      const head = `<div class="node source folder" data-ws="${esc(sv.id)}" title="${esc(`${kindTitle(sv.kind)} · ${sv.url}`)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon(({ github: 'code', cloud: 'database', stac: 'satellite', postgis: 'dbSearch' } as Record<string, string>)[sv.kind] ?? 'globe', 14)}<span class="nm">${esc(sv.title)}</span><span class="ct dim">${esc(kindTitle(sv.kind))}</span><button class="ct disc" data-ws-rm="${esc(sv.id)}" title="Remove this connection" aria-label="Remove ${esc(sv.title)}">✕</button></div>`;
       if (!open) return head;
       const ls = this.serviceLayers.get(sv.id);
       if (ls === undefined) return `${head}<div class="pane-empty" style="padding-left:32px">Asking the service…</div>`;
       if (typeof ls === 'string') return `${head}<div class="pane-empty err" style="padding-left:32px">${esc(ls)}</div>`;
-      if (sv.kind === 'cloud') return head + this.cloudRows(sv.id, ls, 0);
+      if (sv.kind === 'cloud' || sv.kind === 'github' || sv.kind === 'postgis') return head + this.cloudRows(sv.id, ls, 0);
       return head + ls.map((l) => `<div class="node gx-leaf" data-ws-layer="${esc(l.id)}" data-ws-sid="${esc(sv.id)}" data-ws-title="${esc(l.title)}" data-ws-type="${l.type}" style="padding-left:32px" title="${esc(l.type === 'collection' ? 'Click to search it for imagery of the map area' : l.type === 'features' ? 'Click to download its features for the map view' : 'Click to add it to the map')}">${icon(l.type === 'features' ? 'layers' : l.type === 'collection' ? 'search' : 'image', 13)}<span class="nm">${esc(l.title)}</span><span class="ct dim">${l.type === 'collection' ? 'search' : l.type === 'features' ? 'features' : 'map image'}</span></div>`).join('');
     }).join('');
   }
 
   /** A cloud storage folder's rows: sub-folders open in place, files go on the map when clicked. */
-  private cloudRows(sid: string, items: { id: string; title: string; type: string; kind?: string; size?: number | null }[], depth: number): string {
+  private cloudRows(sid: string, items: { id: string; title: string; type: string; kind?: string; size?: number | null; note?: string }[], depth: number): string {
     const pad = 32 + depth * 14;
     if (!items.length) return `<div class="pane-empty" style="padding-left:${pad}px">Nothing GeoSpaX can open here</div>`;
     return items.map((it) => {
@@ -1118,7 +1135,7 @@ export class Workbench {
         if (typeof kids === 'string') return `${row}<div class="pane-empty err" style="padding-left:${pad + 14}px">${esc(kids)}</div>`;
         return row + this.cloudRows(sid, kids, depth + 1);
       }
-      const size = typeof it.size === 'number' ? bytesText(it.size) : '';
+      const size = it.note ?? (typeof it.size === 'number' ? bytesText(it.size) : '');
       return `<div class="node gx-leaf" data-ws-file="${esc(it.id)}" data-ws-sid="${esc(sid)}" data-ws-title="${esc(it.title)}" style="padding-left:${pad}px" title="Click to put it on the map (${it.kind === 'raster' ? 'read in place, a window at a time' : 'read into a layer'})">${icon(it.kind === 'raster' ? 'image' : 'layers', 13)}<span class="nm">${esc(it.title)}</span><span class="ct dim">${esc(size)}</span></div>`;
     }).join('');
   }
@@ -1138,14 +1155,27 @@ export class Workbench {
     }
   }
 
-  private async openCloudFile(sid: string, path: string, title: string) {
-    this.setStatus(`Opening ${title} from cloud storage…`);
+  private async openCloudFile(sid: string, path: string, title: string, approve = false): Promise<void> {
+    this.setStatus(`Opening ${title}…`);
     try {
-      const r = await this.host.backend.json<{ layers: string[]; rasters: string[] }>(`api/services/${encodeURIComponent(sid)}/open?path=${encodeURIComponent(path)}`, { method: 'POST' });
+      const r = await this.host.backend.json<{ layers: string[]; rasters: string[]; recipe?: { id: string; title?: string } }>(`api/services/${encodeURIComponent(sid)}/open?path=${encodeURIComponent(path)}${approve ? '&approve=code' : ''}`, { method: 'POST' });
+      if (r.recipe) {
+        // a recipe from GitHub: now in GeoSpaX › Recipes
+        this.gxData.recipes = undefined;
+        this.setStatus(`Recipe ${r.recipe.title || r.recipe.id} added: GeoSpaX › Recipes`, 6000);
+        if (this.gxOpen.has('recipes')) void this.gxToggle('recipes').then(() => this.gxToggle('recipes'));
+        return;
+      }
       document.dispatchEvent(new CustomEvent('geospax:added', { detail: { layers: r.layers, rasters: r.rasters } }));
       this.setStatus(`${title} is on the map`, 5000);
     } catch (e) {
-      this.setStatus(`${title}: ${e instanceof Error ? e.message : e}`, 10000);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!approve && msg.includes('runs Python or R code')) {
+        if (confirm(`${title} runs Python or R code on this computer when it is used.\n\nOnly add recipes from people you trust. Add it?`)) return this.openCloudFile(sid, path, title, true);
+        this.setStatus(`${title} was not added`, 5000);
+        return;
+      }
+      this.setStatus(`${title}: ${msg}`, 10000);
     }
   }
 
@@ -1177,7 +1207,7 @@ export class Workbench {
     const kinds = this.serviceKinds.length ? this.serviceKinds : [{ id: 'wms', title: 'WMS' }];
     const hints: Record<string, string> = {
       xyz: 'https://tile.example.org/{z}/{x}/{y}.png', wms: 'https://example.org/geoserver/wms', wmts: 'https://example.org/wmts/1.0.0/WMTSCapabilities.xml',
-      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer', stac: 'https://earth-search.aws.element84.com/v1', cloud: 's3://bucket/folder  ·  gs://bucket  ·  az://container  ·  https://…/folder/',
+      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer', stac: 'https://earth-search.aws.element84.com/v1', github: 'owner/repository, or a github.com link to a branch or folder', postgis: 'postgresql://user@host:5432/dbname (password in ~/.pgpass)', cloud: 's3://bucket/folder  ·  gs://bucket  ·  az://container  ·  https://…/folder/',
     };
     const known = this.stacCatalogs;
     const modal = document.createElement('div');
@@ -1195,8 +1225,9 @@ export class Workbench {
           <label class="ws-field"><span>S3 region (optional)</span><input name="region" spellcheck="false" placeholder="e.g. us-west-2" /></label>
           <label class="ws-field"><span>Azure account (az:// only)</span><input name="account" spellcheck="false" /></label>
         </div>
+        <div class="ws-field ws-known"><span>Or open data in the cloud</span>${CLOUD_PRESETS.map((c, i) => `<button type="button" data-cloud-preset="${i}" title="${esc(c.about)}">${esc(c.title)}</button>`).join('')}</div>
         ${known.length ? `<div class="ws-field ws-known"><span>Or a public STAC catalog</span>${known.map((k) => `<button type="button" data-known="${esc(k.url)}" data-known-title="${esc(k.title)}">${esc(k.title)}</button>`).join('')}</div>` : ''}
-        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud; cloud storage is browsed like a folder.</p>
+        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud; cloud storage and GitHub repositories are browsed like folders (a recipe found there can be added to your recipes); a PostGIS database lists its spatial tables, copied to the map when clicked.</p>
         <p class="err" data-msg></p>
       </div>
       <footer><button type="button" data-x>Cancel</button><button class="primary" type="submit">Connect</button></footer></form>`;
@@ -1205,6 +1236,24 @@ export class Workbench {
     const close = () => modal.remove();
     modal.addEventListener('click', (e) => {
       if (e.target === modal || (e.target as HTMLElement).closest('[data-x]')) close();
+      const cp = (e.target as HTMLElement).closest<HTMLElement>('[data-cloud-preset]');
+      if (cp) {
+        const c = CLOUD_PRESETS[Number(cp.dataset.cloudPreset)];
+        (form.kind as HTMLSelectElement).value = 'cloud';
+        cloudBox.hidden = false;
+        const set = (n: string, v: string) => { (form.elements.namedItem(n) as HTMLInputElement).value = v; };
+        set('url', c.url); set('title', c.title); set('endpoint', c.endpoint ?? ''); set('region', c.region ?? '');
+        (form.elements.namedItem('public') as HTMLInputElement).checked = true;
+        const msg = modal.querySelector<HTMLElement>('[data-msg]')!;
+        if (c.ask) {
+          // Source Cooperative: the account and repository are typed after s3://
+          msg.textContent = c.ask;
+          const u = form.url as HTMLInputElement;
+          u.focus();
+          u.setSelectionRange(u.value.length, u.value.length);
+        } else form.requestSubmit();
+        return;
+      }
       const k = (e.target as HTMLElement).closest<HTMLElement>('[data-known]');
       if (k) {
         (form.kind as HTMLSelectElement).value = 'stac';
@@ -1271,6 +1320,8 @@ export class Workbench {
       kids('recipes', () => (this.gxData.recipes ? this.gxData.recipes.map((r) => leaf('recipe', r.id, r.title || r.id, recipeIcon(r))).join('') || '<div class="pane-empty">No recipes</div>' : '<div class="pane-empty">Reading…</div>')),
       node('results', 'Results', 'history', done.length),
       kids('results', () => done.map((r) => leaf('run', r.id, r.title || r.recipe, 'check', (r.artifacts ?? []).length ? `${(r.artifacts ?? []).length} files` : '')).join('') || '<div class="pane-empty">No finished runs yet</div>'),
+      node('envs', 'R & Python', 'code'),
+      kids('envs', () => this.envsHtml()),
       node('models', 'AI models', 'brain', this.gxData.models?.length),
       kids('models', () => (this.gxData.models ? this.gxData.models.map((m) => leaf('model', m.name, m.name, 'brain')).join('') || leaf('models', '', 'Add a model…', 'plus') : '<div class="pane-empty">Reading…</div>')),
       node('plugins', 'Plugins', 'puzzle', this.gxData.plugins?.length),
@@ -1290,8 +1341,85 @@ export class Workbench {
       if (id === 'models' && !this.gxData.models) this.gxData.models = (await this.host.backend.json<{ models: { name: string }[] }>('api/models')).models;
       if (id === 'plugins' && !this.gxData.plugins) this.gxData.plugins = (await this.host.backend.json<{ plugins: PluginInfo[] }>('api/plugins')).plugins;
       if (id === 'results') await this.loadRuns();
+      if (id === 'envs') await this.loadEnvs();
+      if (id.startsWith('env:py:') && !this.envPyPkgs.has(id.slice(7))) {
+        const path = id.slice(7);
+        this.renderCatalog();
+        try {
+          this.envPyPkgs.set(path, await this.host.backend.json(`api/python/packages?path=${encodeURIComponent(path)}`));
+        } catch (e) {
+          this.envPyPkgs.set(path, e instanceof Error ? e.message : String(e));
+        }
+      }
     } catch { /* the node says Reading… until the next try */ }
     this.renderCatalog();
+  }
+
+  private async usePython(path: string) {
+    try {
+      const r = await this.host.backend.json<{ version: string | null }>(`api/python/use?path=${encodeURIComponent(path)}`, { method: 'POST' });
+      this.setStatus(`Python steps now use ${path}${r.version ? ` (Python ${r.version})` : ''}`, 6000);
+      await this.loadEnvs();
+      this.renderCatalog();
+    } catch (e) {
+      this.setStatus(`Python: ${e instanceof Error ? e.message : e}`, 10000);
+    }
+  }
+
+  private async loadEnvs() {
+    const [r, py] = await Promise.all([
+      this.host.backend.json<NonNullable<Workbench['envR']>>('api/r').catch(() => null),
+      this.host.backend.json<NonNullable<Workbench['envPy']>>('api/python').catch(() => null),
+    ]);
+    this.envR = r ?? { installed: false, kits: [], packages: {} };
+    this.envPy = py ?? { environments: [] };
+  }
+
+  /** R (version, kits and their packages) and the Python environments (packages, which one steps use). */
+  private envsHtml(): string {
+    if (!this.envR || !this.envPy) return '<div class="pane-empty">Looking for R and Python…</div>';
+    const pad = (d: number) => `style="padding-left:${32 + d * 14}px"`;
+    const row = (d: number, ico: string, name: string, note = '', attrs = '', cls = 'gx-leaf') =>
+      `<div class="node ${cls}" ${attrs} ${pad(d)}>${icon(ico, 13)}<span class="nm">${esc(name)}</span>${note ? `<span class="ct dim">${esc(note)}</span>` : ''}</div>`;
+    const tw = (key: string) => `<span class="tw">${this.gxOpen.has(key) ? '▾' : '▸'}</span>`;
+    let h = '';
+    // R
+    const r = this.envR;
+    h += `<div class="node folder" data-gx="env:r" ${pad(-1)}>${tw('env:r')}${icon('rlogo', 14)}<span class="nm">R</span><span class="ct dim">${esc(r.installed ? (r.version?.match(/\d+\.\d+\.\d+/)?.[0] ?? 'installed') : 'not installed')}</span></div>`;
+    if (this.gxOpen.has('env:r')) {
+      if (!r.installed) h += row(1, 'download', 'Set up R…', 'installs R and its packages', 'data-gx-act="r-setup" data-gx-id=""');
+      else {
+        for (const k of r.kits) {
+          const have = k.packages.filter((p) => r.packages[p]).length;
+          const key = `env:r:${k.id}`;
+          h += `<div class="node folder" data-gx="${esc(key)}" ${pad(0)}>${tw(key)}${icon('package', 13)}<span class="nm">${esc(k.title)}</span><span class="ct ${have === k.packages.length ? 'ok' : 'dim'}">${have}/${k.packages.length}</span></div>`;
+          if (this.gxOpen.has(key)) h += k.packages.map((p) => row(2, r.packages[p] ? 'check' : 'none', p, r.packages[p] ?? 'not installed')).join('');
+        }
+        h += row(1, 'download', 'Install or update packages…', '', 'data-gx-act="r-setup" data-gx-id=""');
+      }
+    }
+    // Python
+    const envs = this.envPy.environments;
+    h += `<div class="node folder" data-gx="env:py" ${pad(-1)}>${tw('env:py')}${icon('python', 14)}<span class="nm">Python</span><span class="ct dim">${envs.length ? `${envs.length} environment${envs.length === 1 ? '' : 's'}` : 'not found'}</span></div>`;
+    if (this.gxOpen.has('env:py')) {
+      if (!envs.length) h += `<div class="pane-empty" ${pad(1)}>No Python found. Install Python 3 (python.org, or Miniforge for conda) and press Refresh.</div>`;
+      for (const e of envs) {
+        const key = `env:py:${e.path}`;
+        h += `<div class="node folder${e.current ? ' sel' : ''}" data-gx="${esc(key)}" ${pad(0)} title="${esc(e.path)}">${tw(key)}${icon(e.current ? 'check' : 'python', 13)}<span class="nm">${esc(e.label)}</span><span class="ct dim">${esc(e.version)}${e.current ? ' · in use' : ''}</span></div>`;
+        if (!this.gxOpen.has(key)) continue;
+        const pk = this.envPyPkgs.get(e.path);
+        if (pk === undefined) h += `<div class="pane-empty" ${pad(2)}>Reading its packages…</div>`;
+        else if (typeof pk === 'string') h += `<div class="pane-empty err" ${pad(2)}>${esc(pk)}</div>`;
+        else {
+          // installed first, then the rest, each alphabetically
+          const list = Object.entries(pk.packages).sort((a, b) => Number(!a[1]) - Number(!b[1]) || a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }));
+          h += list.map(([n, v]) => row(2, v ? 'check' : 'none', n, v ?? 'not installed')).join('');
+          h += `<div class="pane-empty" ${pad(2)}>${pk.total} packages in all</div>`;
+        }
+        if (!e.current) h += row(1, 'play', 'Use for Python steps', '', `data-gx-act="py-use" data-gx-id="${esc(e.path)}"`);
+      }
+    }
+    return h;
   }
 
   /** Overture Maps: one theme (buildings, roads, places…) for the map view, as a download job. */
@@ -1315,6 +1443,8 @@ export class Workbench {
     switch (act) {
       case 'online': return void document.dispatchEvent(new CustomEvent('geospax:online', { detail: id }));
       case 'overture': return void this.overture(id);
+      case 'r-setup': return void document.dispatchEvent(new CustomEvent('geospax:r', { detail: 'setup' }));
+      case 'py-use': return void this.usePython(id);
       case 'recipe': return void document.dispatchEvent(new CustomEvent('geospax:run-recipe', { detail: id }));
       case 'run': return void this.host.openRun(id);
       case 'model': case 'models': return void document.dispatchEvent(new CustomEvent('geospax:models'));

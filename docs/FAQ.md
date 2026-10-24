@@ -67,6 +67,10 @@ or `AWS_*` variables, `gcloud auth application-default login`, `az login`). GeoS
 MinIO or other S3-compatible storage, fill in the endpoint. Open the folders and click a file: GeoTIFFs are read
 in place (only the part on screen is fetched), vector files become layers.
 
+Under the cloud fields, **Or open data in the cloud** connects well-known public data in one click:
+**Source Cooperative** ([source.coop](https://source.coop), type the account and repository shown there, as in
+`s3://account/repository`), **Sentinel-2 COGs**, **Copernicus DEM 30 m** and the raw **Overture Maps** files.
+
 ### How do I get buildings, roads or places for my study area?
 
 Zoom the map to your area (up to about 50 km across), then in the **Explorer** open **GeoSpaX › Overture
@@ -75,6 +79,33 @@ Addresses. GeoSpaX reads the newest [Overture Maps](https://overturemaps.org) re
 cloud storage, fetching only the parts that cover your area, and adds the layer to Contents (saved under
 `~/GeoSpaX/Data/.geospax/overture/`). Overture data is open (ODbL for most themes, CDLA for some); cite it
 as "© OpenStreetMap contributors, Overture Maps Foundation".
+
+### Can I open data or recipes from a GitHub repository?
+
+Yes. In the **Explorer**, under *Web services*, press **＋ Add**, choose **GitHub repository** and type
+`owner/repository` (or paste its github.com link, also to a branch or a folder). Open its folders and click a
+file: GeoTIFFs are read in place, vector files are copied and added as layers, and a recipe (`.yaml`) is added
+to **GeoSpaX › Recipes**. A recipe that runs Python or R code asks first: only add those from people you
+trust. Without a token GitHub allows about 60 folder listings an hour; for more, and for private
+repositories, start GeoSpaX with `GITHUB_TOKEN` set (for example `GITHUB_TOKEN=$(gh auth token)`).
+
+### Can GeoSpaX read from a PostGIS database?
+
+Yes. In the **Explorer**, under *Web services*, press **＋ Add**, choose **PostGIS database** and type
+`postgresql://user@host:5432/dbname` (add `?sslmode=require` for a cloud database). Put the password in
+`~/.pgpass` (one line: `host:port:dbname:user:password`, then `chmod 600 ~/.pgpass`), the same file psql and
+QGIS use; GeoSpaX never stores passwords and refuses an address that contains one. Open the connection to
+see the spatial tables and click one to put it on the map: it is copied into a GeoPackage under
+`~/GeoSpaX/Data/.geospax/databases/`, so it keeps working offline and can be styled, analysed and exported.
+
+### Which R and Python does GeoSpaX use, and how do I change it?
+
+Open **Explorer › GeoSpaX › R & Python**. *R* shows the version and, for each kit (spatial data, maps,
+statistics…), which packages are installed; *Install or update packages…* opens R setup. *Python* lists every
+Python found on this computer: the system one, conda/mamba environments, pyenv versions, virtual environments
+(`~/.virtualenvs`, `~/venvs`) and a project's `.venv` in a data folder. Open one to see its geospatial packages
+(geopandas, rasterio, shapely…), and press **Use for Python steps** to run recipes with it; GeoSpaX remembers
+the choice. Installed something new? Press Refresh at the top of the Explorer.
 
 ### Lazy or Pro?
 
