@@ -783,6 +783,16 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'measure' })); },
   },
   {
+    id: 'design.block', tab: 'design', group: 'Blocks', title: 'Block', icon: 'copy',
+    hint: 'Save a feature as a named block (the click is its base point), as AutoCAD BLOCK',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'block' })); },
+  },
+  {
+    id: 'design.insert', tab: 'design', group: 'Blocks', title: 'Insert', icon: 'pin', big: true,
+    hint: 'Place copies of a block with clicks, turned by a typed angle, as AutoCAD INSERT',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'insert' })); },
+  },
+  {
     id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
     hint: 'Delete the feature you click, as AutoCAD ERASE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },
