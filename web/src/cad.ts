@@ -41,6 +41,7 @@
 //   Offset        lines and shapes: a distance, or a click it goes through (OFFSET T)
 //   Arc           start, a point on the arc, end (ARC 3P)
 //   Ellipse       centre, end of one axis, then the other half-axis in m or a click (ELLIPSE)
+//   Layers        Layer Properties: colour, linetype, lineweight, on/off, lock for each design layer (LAYER)
 //   Lock layer    click a feature to lock or unlock its layer; Modify tools skip locked layers (LAYLCK)
 //
 // Distances and bearings are worked out on a local plane around the first point (metres east and
@@ -84,6 +85,9 @@ export interface CadHost {
   /** where blocks were placed (DXF export writes them as block references) */
   inserts: () => CadInsert[];
   setInserts: (v: CadInsert[]) => void;
+  /** a design layer's properties as the Layer Properties Manager shows them, and changing them */
+  props: (id: string) => CadLayerProps | null;
+  setProps: (id: string, p: Partial<CadLayerProps>) => void;
   /** a layer's hatch pattern, if it has one (DXF export draws it as lines) */
   hatch: (id: string) => string | undefined;
   setLocked: (ids: string[]) => void;
@@ -93,6 +97,9 @@ export interface CadHost {
   look: (id: string, look: CadLook) => void;
   setStatus: (t: string, ms?: number) => void;
 }
+
+/** A design layer as AutoCAD's Layer Properties Manager lists it. */
+export interface CadLayerProps { color: string; width: number; dash: 'solid' | 'dashed' | 'dotted'; visible: boolean; hollow: boolean }
 
 /** How a design layer is drawn: bright drafting colours that read over imagery, outlines for plans. */
 export interface CadLook { color: string; hollow?: boolean; width: number; dash?: 'solid' | 'dashed'; opacity?: number }
@@ -287,6 +294,7 @@ export class CadDesigner {
     document.addEventListener('geospax:cad', (e) => {
       const what = (e as CustomEvent<string>).detail;
       if (what === 'traverse') return void this.traverseDialog();
+      if (what === 'layers') return void this.layerDialog();
       if (what === 'dxf-export') return void this.exportDxf();
       if (what === 'dxf-import') return void this.importDxf();
       if (what === 'undo') return void this.undo();
@@ -1315,6 +1323,51 @@ export class CadDesigner {
   }
 
   // ---------------------------------------------------------------- traverse (COGO)
+  /** LAYER: every design layer with its colour, linetype, lineweight, fill, on/off and lock */
+  private layerDialog() {
+    const layers = this.h.layers().filter((l) => l.name.startsWith('Design · '));
+    if (!layers.length) return this.h.setStatus('No design layers yet: draw with the Design tools first', 5000);
+    const locked = new Set(this.h.locked());
+    const modal = document.createElement('div');
+    modal.className = 'modal folder-pick';
+    const row = (l: LayerInfo) => {
+      const p = this.h.props(l.id);
+      if (!p) return '';
+      const opt = (v: string, t: string) => `<option value="${v}" ${p.dash === v ? 'selected' : ''}>${t}</option>`;
+      return `<tr data-id="${esc(l.id)}">
+        <td><label class="lc-switch"><input type="checkbox" data-k="visible" ${p.visible ? 'checked' : ''} aria-label="Show ${esc(l.name)}"></label></td>
+        <td><input type="checkbox" data-k="locked" ${locked.has(l.id) ? 'checked' : ''} aria-label="Lock ${esc(l.name)}"></td>
+        <td>${esc(l.name.replace(/^Design · /, ''))}</td>
+        <td><input type="color" data-k="color" value="${esc(p.color)}" aria-label="Colour of ${esc(l.name)}"></td>
+        <td><select data-k="dash" aria-label="Linetype of ${esc(l.name)}">${opt('solid', 'Continuous')}${opt('dashed', 'Dashed')}${opt('dotted', 'Dotted')}</select></td>
+        <td><input type="number" data-k="width" min="0.25" max="12" step="0.25" value="${p.width}" aria-label="Lineweight of ${esc(l.name)}"></td>
+        <td>${l.geometry === 'polygon' ? `<input type="checkbox" data-k="hollow" ${p.hollow ? 'checked' : ''} aria-label="Outline only">` : ''}</td>
+      </tr>`;
+    };
+    modal.innerHTML = `<form class="sheet fp cad-layers" role="dialog" aria-label="Layer properties">
+      <header><b>Layer Properties</b><button type="button" data-x aria-label="Close">✕</button></header>
+      <div class="body">
+        <p class="dim">The design layers as AutoCAD's Layer Properties Manager lists them. Colours, linetypes and lineweights also go out with DXF export; a locked layer is left alone by every Modify tool.</p>
+        <table class="cad-layer-table"><thead><tr><th>On</th><th>Lock</th><th>Name</th><th>Colour</th><th>Linetype</th><th>Weight (px)</th><th>Outline only</th></tr></thead>
+        <tbody>${layers.map(row).join('')}</tbody></table>
+      </div>
+      <footer><button class="primary" type="button" data-x>Done</button></footer></form>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => { if (e.target === modal || (e.target as HTMLElement).closest('[data-x]')) modal.remove(); });
+    modal.addEventListener('change', (e) => {
+      const el = e.target as HTMLInputElement;
+      const id = el.closest<HTMLElement>('tr')?.dataset.id;
+      const k = el.dataset.k;
+      if (!id || !k) return;
+      if (k === 'locked') {
+        const now = this.h.locked().filter((x) => x !== id);
+        return this.h.setLocked(el.checked ? [...now, id] : now);
+      }
+      const v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Math.max(0.25, Number(el.value) || 1) : el.value;
+      this.h.setProps(id, { [k]: v } as Partial<CadLayerProps>);
+    });
+  }
+
   private traverseDialog() {
     const c = this.h.map.getCenter();
     const modal = document.createElement('div');
@@ -1377,7 +1430,7 @@ S90°W 25</textarea></label>
       const blocks = this.loadBlocks().filter((b) => used.has(b.name)).map((b) => ({ name: b.name, geometry: b.geometry }));
       const inserts = kept.map((i) => ({ block: i.block, layer: i.layer, fid: i.fid, at: i.at, angle: i.angle }));
       const r = await this.h.backend.json<{ path: string; features: number; epsg: number }>('api/design/dxf', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layers: ids, blocks, inserts, hatch: Object.fromEntries(ids.map((id) => [id, this.h.hatch(id)]).filter(([, h]) => h)) }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layers: ids, blocks, inserts, pens: Object.fromEntries(ids.map((id) => [id, this.h.props(id)]).filter(([, v]) => v)), hatch: Object.fromEntries(ids.map((id) => [id, this.h.hatch(id)]).filter(([, h]) => h)) }),
       });
       window.open(this.h.backend.url(`api/design/dxf?path=${encodeURIComponent(r.path)}`), '_blank', 'noopener');
       this.h.setStatus(`DXF: ${r.features} entities${kept.length ? ` (${kept.length} block references)` : ''} in EPSG:${r.epsg} (metres), one AutoCAD layer per design layer`, 8000);

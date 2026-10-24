@@ -799,6 +799,11 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'block' })); },
   },
   {
+    id: 'design.layers', tab: 'design', group: 'Blocks', title: 'Layers', icon: 'layers', big: true,
+    hint: 'Layer Properties: colour, linetype, lineweight, on/off and lock for every design layer, as AutoCAD LAYER',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'layers' })); },
+  },
+  {
     id: 'design.lock', tab: 'design', group: 'Blocks', title: 'Lock layer', icon: 'pin',
     hint: 'Click a feature to lock or unlock its layer against edits, as AutoCAD LAYLCK',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'lock' })); },
