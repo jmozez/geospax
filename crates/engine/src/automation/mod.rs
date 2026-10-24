@@ -22,6 +22,7 @@ pub mod tool_step;
 pub mod cli;
 pub mod features;
 pub mod furniture;
+pub mod hydro_steps;
 pub mod lidar_steps;
 pub mod recipe;
 pub mod report;
