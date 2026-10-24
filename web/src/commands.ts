@@ -829,6 +829,11 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'stretch' })); },
   },
   {
+    id: 'design.list', tab: 'design', group: 'Survey', title: 'List', icon: 'form',
+    hint: 'Describe a feature: type, vertices, length or perimeter, area and attributes, as AutoCAD LIST',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'list' })); },
+  },
+  {
     id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
     hint: 'Delete the feature you click, as AutoCAD ERASE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },

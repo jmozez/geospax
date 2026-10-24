@@ -25,6 +25,7 @@
 //   Chamfer       click near a corner, then d or d1,d2 (m): the corner cut straight (CHAMFER)
 //   Stretch       two corners of a window, then a base point and a second point (or @dx,dy): every
 //                 vertex inside the window moves, the rest stay (STRETCH, crossing window)
+//   List          click a feature: its type, vertices, length or perimeter, area and attributes (LIST)
 //   Array         rows,columns,dx,dy (m): copies in a grid, as ARRAYRECT (dy < 0 goes south)
 //   Polar array   the centre, then items[,angle] (default 360°): copies turned around it (ARRAYPOLAR)
 //   Explode       a polygon becomes its outline as lines, a multi-part feature its parts (EXPLODE)
@@ -48,8 +49,8 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '
 type LL = [number, number];
 type XY = [number, number];
 export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer'];
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
 type Block = CadBlock;
 /** where blocks lived before they were kept in the project: moved over the first time */
@@ -320,6 +321,7 @@ export class CadDesigner {
       case 'divide': return !this.sel ? 'Divide: click the line' : 'Number of equal parts';
       case 'arraypolar': return !this.sel ? 'Polar array: click the feature' : n === 0 ? 'Centre of the array' : 'items[,angle to fill] (e.g. 8 or 6,180)';
       case 'block': return 'Block: click the feature; the click is its base point';
+      case 'list': return 'List: click a feature to describe it';
       case 'explode': return 'Explode: click a polygon or multi-part feature';
       case 'break': return !this.sel ? 'Break: click the line' : 'Point to break it at';
       case 'lengthen': return !this.sel ? 'Lengthen: click near the end to change' : '+metres, -metres, or =total length';
@@ -734,6 +736,7 @@ export class CadDesigner {
     if (this.tool === 'erase') return this.doErase();
     if (this.tool === 'block') return this.makeBlock();
     if (this.tool === 'explode') return this.doExplode();
+    if (this.tool === 'list') return this.doList();
     if (this.tool === 'trim' || this.tool === 'extend') return this.doTrimExtend();
     this.renderBar();
     this.draw();
@@ -857,6 +860,28 @@ export class CadDesigner {
       }
     } catch { /* no browser storage */ }
     return blocks;
+  }
+
+  /** LIST: what the picked feature is, measured on the local plane, shown under the command line */
+  private doList() {
+    const s = this.sel!, p = this.plane!, g = s.feature.geometry;
+    const len = (l: LL[]) => l.reduce((t, q, i) => (i ? t + dist(p.xy(l[i - 1]), p.xy(q)) : 0), 0);
+    const ringArea = (r: LL[]) => Math.abs(area(r.map((q) => p.xy(q))));
+    let verts = 0, length = 0, ar = 0;
+    const lines = this.lines(g);
+    for (const l of lines) { verts += l.length; length += len(l); }
+    if (g.type === 'Polygon') ar = ringArea(g.coordinates[0] as LL[]) - (g.coordinates.slice(1) as LL[][]).reduce((t, r) => t + ringArea(r), 0);
+    if (g.type === 'MultiPolygon') ar = (g.coordinates as LL[][][]).reduce((t, poly) => t + ringArea(poly[0]) - poly.slice(1).reduce((u, r) => u + ringArea(r), 0), 0);
+    if (g.type === 'Point' || g.type === 'MultiPoint') verts = g.type === 'Point' ? 1 : g.coordinates.length;
+    const attrs = Object.entries(s.feature.properties ?? {}).filter(([, v]) => v !== null && v !== '').slice(0, 6).map(([k, v]) => `${k}=${v}`).join(', ');
+    const where = g.type === 'Point' ? ` at ${(g.coordinates[0] as number).toFixed(6)}, ${(g.coordinates[1] as number).toFixed(6)}` : '';
+    const parts = [`${g.type} in ${s.layer} #${s.fid}${where}`, `${verts} vertices`];
+    if (/Line/.test(g.type)) parts.push(`length ${fmt(length)}`);
+    if (/Polygon/.test(g.type)) parts.push(`perimeter ${fmt(length)}`, `area ${ar >= 10000 ? `${(ar / 10000).toFixed(4)} ha` : `${ar.toFixed(2)} m²`}`);
+    if (attrs) parts.push(attrs);
+    this.h.setStatus(parts.join(' · '), 15000);
+    this.sel = null;
+    this.draw();
   }
 
   /** EXPLODE: a polygon's rings into Design · lines (the polygon removed), or a multi-part feature
