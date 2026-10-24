@@ -22,7 +22,18 @@
 //   Trim          click the part of a line to cut away between the lines that cross it
 //   Extend        click near a line's end: it runs on to the next line it meets
 //   Fillet        click near a corner, then the radius: the corner becomes a tangent arc
+//   Chamfer       click near a corner, then d or d1,d2 (m): the corner cut straight (CHAMFER)
+//   Stretch       two corners of a window, then a base point and a second point (or @dx,dy): every
+//                 vertex inside the window moves, the rest stay (STRETCH, crossing window)
+//   Align         click the feature, then source 1, target 1, source 2, target 2: moved and turned so
+//                 the first pair meet and the second lies along the target direction (ALIGN)
+//   List          click a feature: its type, vertices, length or perimeter, area and attributes (LIST)
 //   Array         rows,columns,dx,dy (m): copies in a grid, as ARRAYRECT (dy < 0 goes south)
+//   Polar array   the centre, then items[,angle] (default 360°): copies turned around it (ARRAYPOLAR)
+//   Explode       a polygon becomes its outline as lines, a multi-part feature its parts (EXPLODE)
+//   Join          click two lines whose ends meet (within 1 m): they become one line (JOIN)
+//   Break         click a line, then the point to split it at: two lines (BREAK at point)
+//   Lengthen      click near an end, then +5 / -3 (m) or =40 for the total length (LENGTHEN)
 //   Divide        a number of equal parts: points on the line between them (DIVIDE)
 //   Measure       a distance: a point every so many metres along the line (MEASURE), with its chainage
 //   Block         click a feature (where you click is its base point), name it: saved for Insert
@@ -33,15 +44,15 @@
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { CadBlock } from './symbology';
-import { divide, extend, fillet, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
+import { align, breakAt, chamfer, divide, stretch, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 type LL = [number, number];
 type XY = [number, number];
-export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'divide' | 'measure' | 'block';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'divide', 'measure', 'block'];
+export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
 type Block = CadBlock;
 /** where blocks lived before they were kept in the project: moved over the first time */
@@ -306,9 +317,18 @@ export class CadDesigner {
       case 'trim': return 'Trim: click the part of a line to cut away';
       case 'extend': return 'Extend: click near the end of a line';
       case 'fillet': return !this.sel ? 'Fillet: click near a corner' : 'Fillet radius in m';
+      case 'stretch': return n === 0 ? 'Stretch: first corner of the window' : n === 1 ? 'Opposite corner of the window' : n === 2 ? 'Base point' : 'Second point (or @dx,dy in m)';
+      case 'chamfer': return !this.sel ? 'Chamfer: click near a corner' : 'Distance in m, or d1,d2 along each leg';
       case 'array': return !this.sel ? 'Array: click the feature' : 'rows,columns,dx,dy in m (e.g. 2,10,20,-36)';
       case 'divide': return !this.sel ? 'Divide: click the line' : 'Number of equal parts';
+      case 'arraypolar': return !this.sel ? 'Polar array: click the feature' : n === 0 ? 'Centre of the array' : 'items[,angle to fill] (e.g. 8 or 6,180)';
       case 'block': return 'Block: click the feature; the click is its base point';
+      case 'list': return 'List: click a feature to describe it';
+      case 'align': return !this.sel ? 'Align: click the feature' : ['First source point', 'First target point', 'Second source point', 'Second target point'][Math.min(n, 3)];
+      case 'explode': return 'Explode: click a polygon or multi-part feature';
+      case 'break': return !this.sel ? 'Break: click the line' : 'Point to break it at';
+      case 'lengthen': return !this.sel ? 'Lengthen: click near the end to change' : '+metres, -metres, or =total length';
+      case 'join': return !this.sel ? 'Join: click the first line' : 'Join: click the line to join to it';
       case 'insert': return this.inserting ? `Insert ${this.inserting.block.name}: click where it goes (angle ${this.inserting.angle}°; type another to turn it) · Enter ends` : 'Insert: no blocks yet';
       case 'measure': return !this.sel ? 'Measure: click the line (near the end to start from)' : 'Distance between points in m';
       default: return '';
@@ -429,6 +449,7 @@ export class CadDesigner {
     const p = this.constrain([e.lngLat.lng, e.lngLat.lat], e.point);
     if (this.tool === 'offset' && !this.picked) return this.pick(e);
     if (isModify(this.tool) && !this.sel) return this.pickFeature(e);
+    if (this.tool === 'join' && this.sel) return this.doJoin(e);
     await this.add(p);
   }
 
@@ -459,6 +480,12 @@ export class CadDesigner {
       case 'line': case 'dimension': case 'rect': if (n === 2) await this.commit(); break;
       case 'circle': if (n === 2) await this.commit(); break;
       case 'insert': await this.placeBlock(p); break;
+      case 'break': if (n === 1) await this.doBreak(p); break;
+      case 'stretch': if (n === 4) await this.doStretch(); break;
+      case 'align': if (n === 4) {
+        const [s1, d1, s2, d2] = this.pts.map((q) => this.plane!.xy(q));
+        await this.transform(align(s1, d1, s2, d2), false);
+      } break;
       case 'move': case 'copy': if (n === 2) await this.transform(translate(this.diff(this.pts[0], this.pts[1])), this.tool === 'copy'); break;
       case 'mirror': if (n === 2) await this.transform(mirror(this.plane.xy(this.pts[0]), this.plane.xy(this.pts[1])), true); break;
       case 'rotate': if (n === 2) {
@@ -476,6 +503,9 @@ export class CadDesigner {
     const s = v.replace(/\s+/g, '');
     if (this.tool === 'offset' && this.picked) return this.doOffset(Number(s));
     if (this.tool === 'array' && this.sel) return this.doArray(s);
+    if (this.tool === 'lengthen' && this.sel) return this.doLengthen(s);
+    if (this.tool === 'chamfer' && this.sel) return this.doChamfer(s);
+    if (this.tool === 'arraypolar' && this.sel && this.pts.length === 1) return this.doPolar(s);
     if (this.tool === 'insert' && this.inserting && /^-?\d+(\.\d+)?$/.test(s)) {
       this.inserting.angle = Number(s);
       return this.renderBar();
@@ -712,6 +742,8 @@ export class CadDesigner {
     }
     if (this.tool === 'erase') return this.doErase();
     if (this.tool === 'block') return this.makeBlock();
+    if (this.tool === 'explode') return this.doExplode();
+    if (this.tool === 'list') return this.doList();
     if (this.tool === 'trim' || this.tool === 'extend') return this.doTrimExtend();
     this.renderBar();
     this.draw();
@@ -837,6 +869,133 @@ export class CadDesigner {
     return blocks;
   }
 
+  /** LIST: what the picked feature is, measured on the local plane, shown under the command line */
+  private doList() {
+    const s = this.sel!, p = this.plane!, g = s.feature.geometry;
+    const len = (l: LL[]) => l.reduce((t, q, i) => (i ? t + dist(p.xy(l[i - 1]), p.xy(q)) : 0), 0);
+    const ringArea = (r: LL[]) => Math.abs(area(r.map((q) => p.xy(q))));
+    let verts = 0, length = 0, ar = 0;
+    const lines = this.lines(g);
+    for (const l of lines) { verts += l.length; length += len(l); }
+    if (g.type === 'Polygon') ar = ringArea(g.coordinates[0] as LL[]) - (g.coordinates.slice(1) as LL[][]).reduce((t, r) => t + ringArea(r), 0);
+    if (g.type === 'MultiPolygon') ar = (g.coordinates as LL[][][]).reduce((t, poly) => t + ringArea(poly[0]) - poly.slice(1).reduce((u, r) => u + ringArea(r), 0), 0);
+    if (g.type === 'Point' || g.type === 'MultiPoint') verts = g.type === 'Point' ? 1 : g.coordinates.length;
+    const attrs = Object.entries(s.feature.properties ?? {}).filter(([, v]) => v !== null && v !== '').slice(0, 6).map(([k, v]) => `${k}=${v}`).join(', ');
+    const where = g.type === 'Point' ? ` at ${(g.coordinates[0] as number).toFixed(6)}, ${(g.coordinates[1] as number).toFixed(6)}` : '';
+    const parts = [`${g.type} in ${s.layer} #${s.fid}${where}`, `${verts} vertices`];
+    if (/Line/.test(g.type)) parts.push(`length ${fmt(length)}`);
+    if (/Polygon/.test(g.type)) parts.push(`perimeter ${fmt(length)}`, `area ${ar >= 10000 ? `${(ar / 10000).toFixed(4)} ha` : `${ar.toFixed(2)} m²`}`);
+    if (attrs) parts.push(attrs);
+    this.h.setStatus(parts.join(' · '), 15000);
+    this.sel = null;
+    this.draw();
+  }
+
+  /** EXPLODE: a polygon's rings into Design · lines (the polygon removed), or a multi-part feature
+   *  into one feature per part in its own layer */
+  private async doExplode() {
+    const s = this.sel!, g = s.feature.geometry;
+    const url = (l: string) => `api/layers/${encodeURIComponent(l)}/features`;
+    const props = Object.fromEntries(Object.entries(s.feature.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k)));
+    let parts: { layer: string; geometry: GeoJSON.Geometry; properties: Record<string, unknown> }[] = [];
+    if (g.type === 'Polygon') {
+      const lines = await this.layerFor('lines');
+      parts = (g.coordinates as LL[][]).map((r) => ({ layer: lines, geometry: { type: 'LineString', coordinates: r }, properties: { kind: 'exploded outline' } }));
+    } else if (g.type === 'MultiPolygon') parts = (g.coordinates as LL[][][]).map((c) => ({ layer: s.layer, geometry: { type: 'Polygon', coordinates: c }, properties: props }));
+    else if (g.type === 'MultiLineString') parts = (g.coordinates as LL[][]).map((c) => ({ layer: s.layer, geometry: { type: 'LineString', coordinates: c }, properties: props }));
+    else if (g.type === 'MultiPoint') parts = (g.coordinates as LL[]).map((c) => ({ layer: s.layer, geometry: { type: 'Point', coordinates: c }, properties: props }));
+    if (!parts.length) {
+      this.sel = null;
+      this.draw();
+      return this.h.setStatus(`A ${g.type} has nothing to explode`, 4000);
+    }
+    const step: Op[] = [];
+    try {
+      for (const part of parts) {
+        const feature: GeoJSON.Feature = { type: 'Feature', geometry: part.geometry, properties: part.properties };
+        const r = await this.api<{ fid: number }>(url(part.layer), 'POST', feature);
+        step.push({ kind: 'add', layer: part.layer, fid: r.fid, feature });
+      }
+      await this.api(`${url(s.layer)}/${s.fid}`, 'DELETE');
+      step.push({ kind: 'delete', layer: s.layer, fid: s.fid, feature: { type: 'Feature', geometry: g, properties: props } });
+      for (const l of new Set(parts.map((x) => x.layer).concat(s.layer))) await this.h.changed(l);
+      this.h.setStatus(`Exploded into ${parts.length} part${parts.length === 1 ? '' : 's'}`, 4000);
+    } catch (err) {
+      this.h.setStatus(`Could not explode: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    if (step.length) {
+      this.undoStack.push(step);
+      this.redoStack = [];
+    }
+    this.sel = null;
+    this.draw();
+  }
+
+  private selLine(): XY[] | null {
+    const g = this.sel!.feature.geometry, p = this.plane!;
+    return g.type === 'LineString' ? (g.coordinates as LL[]).map((q) => p.xy(q)) : null;
+  }
+
+  private async doBreak(at: LL) {
+    const line = this.selLine(), p = this.plane!;
+    if (!line) return this.h.setStatus('Break works on single lines', 4000);
+    const parts = breakAt(line, p.xy(at));
+    if (!parts) return this.h.setStatus('That is at the end of the line: pick a point along it', 4000);
+    const [a, b] = parts.map((l) => ({ type: 'LineString', coordinates: l.map((q) => p.ll(q)) }) as GeoJSON.Geometry);
+    return this.write(a, false, [b]);
+  }
+
+  private async doLengthen(v: string) {
+    const line = this.selLine(), p = this.plane!;
+    if (!line) return this.h.setStatus('Lengthen works on single lines', 4000);
+    const m = v.match(/^([+=-]?)(\d+(?:\.\d+)?)$/);
+    if (!m) return this.h.setStatus('Type +5, -3 or =40 (metres)', 5000);
+    const L = line.reduce((t, q, i) => (i ? t + Math.hypot(q[0] - line[i - 1][0], q[1] - line[i - 1][1]) : 0), 0);
+    const delta = m[1] === '=' ? Number(m[2]) - L : m[1] === '-' ? -Number(m[2]) : Number(m[2]);
+    const out = lengthen(line, p.xy(this.sel!.at), delta);
+    if (!out) return this.h.setStatus('That would leave nothing of the line', 4000);
+    return this.write({ type: 'LineString', coordinates: out.map((q) => p.ll(q)) }, false);
+  }
+
+  /** JOIN: the second line clicked is added onto the first (ends within 1 m) and removed */
+  private async doJoin(e: maplibregl.MapMouseEvent) {
+    const a = this.sel!;
+    const R = 6;
+    const hit = this.h.map.queryRenderedFeatures([[e.point.x - R, e.point.y - R], [e.point.x + R, e.point.y + R]])
+      .find((x) => x.layer.id.includes('#') && !x.layer.id.startsWith('cad-') && x.layer.id.replace(/#.*$/, '') === a.layer && Number(x.id) !== a.fid);
+    if (!hit) return this.h.setStatus('Click another line of the same layer', 4000);
+    const fid = Number(hit.id);
+    const b = await this.h.backend.json<GeoJSON.Feature>(`api/layers/${encodeURIComponent(a.layer)}/features/${fid}`);
+    if (a.feature.geometry.type !== 'LineString' || b.geometry?.type !== 'LineString') {
+      this.sel = null;
+      this.draw();
+      return this.h.setStatus('Join works on two single lines', 4000);
+    }
+    const p = this.plane!;
+    const out = join((a.feature.geometry.coordinates as LL[]).map((q) => p.xy(q)), (b.geometry.coordinates as LL[]).map((q) => p.xy(q)), 1);
+    if (!out) return this.h.setStatus('Their ends are more than 1 m apart: Extend or Fillet them first', 5000);
+    const url = `api/layers/${encodeURIComponent(a.layer)}/features`;
+    const geometry: GeoJSON.Geometry = { type: 'LineString', coordinates: out.map((q) => p.ll(q)) };
+    const bProps = Object.fromEntries(Object.entries(b.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k)));
+    try {
+      await this.api(`${url}/${a.fid}`, 'PUT', { geometry });
+      await this.api(`${url}/${fid}`, 'DELETE');
+      this.undoStack.push([
+        { kind: 'update', layer: a.layer, fid: a.fid, before: a.feature.geometry, after: geometry },
+        { kind: 'delete', layer: a.layer, fid, feature: { type: 'Feature', geometry: b.geometry, properties: bProps } },
+      ]);
+      this.redoStack = [];
+      await this.h.changed(a.layer);
+      this.h.setStatus('Joined into one line', 3000);
+    } catch (err) {
+      this.h.setStatus(`Could not join: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    this.sel = null;
+    this.plane = null;
+    this.renderBar();
+    this.draw();
+  }
+
   /** BLOCK: the picked feature in metres around the click, kept in the project under a name */
   private makeBlock() {
     const s = this.sel!, p = this.plane!;
@@ -906,6 +1065,21 @@ export class CadDesigner {
     this.draw();
   }
 
+  /** ARRAYPOLAR: n items around the centre over the fill angle (the original is the first) */
+  private async doPolar(v: string) {
+    const m = v.match(/^(\d+)(?:,(-?\d+(?:\.\d+)?))?$/);
+    if (!m) return this.h.setStatus('Type items, or items,angle (e.g. 8 or 6,180)', 5000);
+    const n = Number(m[1]), fill = m[2] === undefined ? 360 : Number(m[2]);
+    if (n < 2 || n > 1000 || fill === 0) return this.h.setStatus('Between 2 and 1000 items, over a non-zero angle', 5000);
+    const s = this.sel!, p = this.plane!, c = p.xy(this.pts[0]);
+    // a full circle spaces n items evenly; a part circle puts the last item at the end of the angle
+    const step = Math.abs(fill) >= 360 ? fill / n : fill / (n - 1);
+    const copies: GeoJSON.Geometry[] = [];
+    for (let i = 1; i < n; i++) copies.push(mapGeometry(s.feature.geometry, (q) => p.ll(rotate(c, step * i)(p.xy(q)))));
+    const [first, ...rest] = copies;
+    return this.write(first, true, rest);
+  }
+
   /** ARRAYRECT: copies of the picked feature on a grid, the original in the first cell */
   private async doArray(v: string) {
     const m = v.match(/^(\d+),(\d+),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
@@ -920,6 +1094,62 @@ export class CadDesigner {
     if (!copies.length) return this.h.setStatus('Nothing to copy (1 row, 1 column)', 4000);
     const [first, ...rest] = copies;
     return this.write(first, true, rest);
+  }
+
+  /** STRETCH: every feature in view with a vertex inside the window, those vertices moved */
+  private async doStretch() {
+    const p = this.plane!;
+    const [a, b, base, to] = this.pts.map((q) => p.xy(q));
+    const box: [number, number, number, number] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+    const d: XY = [to[0] - base[0], to[1] - base[1]];
+    const m = this.h.map;
+    const [pa, pb] = [m.project(this.pts[0]), m.project(this.pts[1])];
+    const hits = m.queryRenderedFeatures([[Math.min(pa.x, pb.x), Math.min(pa.y, pb.y)], [Math.max(pa.x, pb.x), Math.max(pa.y, pb.y)]])
+      .filter((f) => f.layer.id.includes('#') && !f.layer.id.startsWith('cad-') && !f.layer.id.startsWith('basemap') && Number.isFinite(Number(f.id)));
+    const seen = new Set<string>();
+    const step: Op[] = [];
+    try {
+      for (const f of hits) {
+        const layer = f.layer.id.replace(/#.*$/, ''), fid = Number(f.id), key = `${layer}/${fid}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const url = `api/layers/${encodeURIComponent(layer)}/features/${fid}`;
+        const feat = await this.h.backend.json<GeoJSON.Feature>(url);
+        if (!feat.geometry) continue;
+        const r = stretch(feat.geometry, (q) => p.xy(q as LL), (q) => p.ll(q), box, d);
+        if (!r.moved) continue;
+        await this.api(url, 'PUT', { geometry: r.geometry });
+        step.push({ kind: 'update', layer, fid, before: feat.geometry, after: r.geometry });
+      }
+    } catch (err) {
+      this.h.setStatus(`Could not stretch: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    if (step.length) {
+      this.undoStack.push(step);
+      this.redoStack = [];
+      for (const l of new Set(step.map((o) => o.layer))) await this.h.changed(l);
+    }
+    this.h.setStatus(step.length ? `Stretched ${step.length} feature${step.length === 1 ? '' : 's'}` : 'No vertex inside the window', 4000);
+    this.pts = [];
+    this.plane = null;
+    this.renderBar();
+    this.draw();
+  }
+
+  private async doChamfer(v: string) {
+    const m = v.match(/^(\d+(?:\.\d+)?)(?:,(\d+(?:\.\d+)?))?$/);
+    if (!m) return this.h.setStatus('Type a distance, or d1,d2 (m)', 5000);
+    const d1 = Number(m[1]), d2 = m[2] === undefined ? d1 : Number(m[2]);
+    const s = this.sel!, p = this.plane!, g = s.feature.geometry;
+    const closed = g.type === 'Polygon';
+    const coords = g.type === 'LineString' ? (g.coordinates as LL[]) : closed ? (g.coordinates[0] as LL[]) : null;
+    if (!coords) return this.h.setStatus(`Chamfer works on lines and polygons (this is a ${g.type})`, 5000);
+    const line = coords.map((q) => p.xy(q));
+    const i = nearestVertex(closed ? line.slice(0, -1) : line, p.xy(s.at));
+    const out = chamfer(line, i, d1, d2, closed);
+    if (!out) return this.h.setStatus('That corner cannot take this chamfer (an end, a straight corner, or a leg shorter than the distance)', 6000);
+    const ring = out.map((q) => p.ll(q));
+    return this.write(closed ? { type: 'Polygon', coordinates: [ring, ...(g.coordinates.slice(1) as LL[][])] } : { type: 'LineString', coordinates: ring }, false);
   }
 
   private async doFillet(r: number) {
@@ -1050,7 +1280,10 @@ S90°W 25</textarea></label>
     }
     if (this.tool && this.plane && all.length >= 2) {
       const xy = all.map((q) => this.plane!.xy(q));
-      if (this.tool === 'rect') {
+      if (this.tool === 'stretch' && all.length >= 2) {
+        const [a, b] = [xy[0], xy[Math.min(1, xy.length - 1)]];
+        feats.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[a, [b[0], a[1]], b, [a[0], b[1]], a].map((q) => this.plane!.ll(q as XY))] } });
+      } else if (this.tool === 'rect') {
         const [a, b] = [xy[0], xy[xy.length - 1]];
         feats.push({ type: 'Feature', properties: { dim: `${fmt(Math.abs(b[0] - a[0]))} × ${fmt(Math.abs(b[1] - a[1]))}` }, geometry: { type: 'Polygon', coordinates: [[a, [b[0], a[1]], b, [a[0], b[1]], a].map((q) => this.plane!.ll(q as XY))] } });
       } else if (this.tool === 'circle') {
