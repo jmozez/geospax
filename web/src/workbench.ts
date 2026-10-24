@@ -1110,18 +1110,18 @@ export class Workbench {
     const kindTitle = (k: string) => (this.serviceKinds.find((x) => x.id === k)?.title ?? k).replace(/ \(.*\)$/, '');
     return this.services.map((sv) => {
       const open = this.browseOpen.has(`ws:${sv.id}`);
-      const head = `<div class="node source folder" data-ws="${esc(sv.id)}" title="${esc(`${kindTitle(sv.kind)} · ${sv.url}`)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon(({ github: 'code', cloud: 'database', stac: 'satellite' } as Record<string, string>)[sv.kind] ?? 'globe', 14)}<span class="nm">${esc(sv.title)}</span><span class="ct dim">${esc(kindTitle(sv.kind))}</span><button class="ct disc" data-ws-rm="${esc(sv.id)}" title="Remove this connection" aria-label="Remove ${esc(sv.title)}">✕</button></div>`;
+      const head = `<div class="node source folder" data-ws="${esc(sv.id)}" title="${esc(`${kindTitle(sv.kind)} · ${sv.url}`)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon(({ github: 'code', cloud: 'database', stac: 'satellite', postgis: 'dbSearch' } as Record<string, string>)[sv.kind] ?? 'globe', 14)}<span class="nm">${esc(sv.title)}</span><span class="ct dim">${esc(kindTitle(sv.kind))}</span><button class="ct disc" data-ws-rm="${esc(sv.id)}" title="Remove this connection" aria-label="Remove ${esc(sv.title)}">✕</button></div>`;
       if (!open) return head;
       const ls = this.serviceLayers.get(sv.id);
       if (ls === undefined) return `${head}<div class="pane-empty" style="padding-left:32px">Asking the service…</div>`;
       if (typeof ls === 'string') return `${head}<div class="pane-empty err" style="padding-left:32px">${esc(ls)}</div>`;
-      if (sv.kind === 'cloud' || sv.kind === 'github') return head + this.cloudRows(sv.id, ls, 0);
+      if (sv.kind === 'cloud' || sv.kind === 'github' || sv.kind === 'postgis') return head + this.cloudRows(sv.id, ls, 0);
       return head + ls.map((l) => `<div class="node gx-leaf" data-ws-layer="${esc(l.id)}" data-ws-sid="${esc(sv.id)}" data-ws-title="${esc(l.title)}" data-ws-type="${l.type}" style="padding-left:32px" title="${esc(l.type === 'collection' ? 'Click to search it for imagery of the map area' : l.type === 'features' ? 'Click to download its features for the map view' : 'Click to add it to the map')}">${icon(l.type === 'features' ? 'layers' : l.type === 'collection' ? 'search' : 'image', 13)}<span class="nm">${esc(l.title)}</span><span class="ct dim">${l.type === 'collection' ? 'search' : l.type === 'features' ? 'features' : 'map image'}</span></div>`).join('');
     }).join('');
   }
 
   /** A cloud storage folder's rows: sub-folders open in place, files go on the map when clicked. */
-  private cloudRows(sid: string, items: { id: string; title: string; type: string; kind?: string; size?: number | null }[], depth: number): string {
+  private cloudRows(sid: string, items: { id: string; title: string; type: string; kind?: string; size?: number | null; note?: string }[], depth: number): string {
     const pad = 32 + depth * 14;
     if (!items.length) return `<div class="pane-empty" style="padding-left:${pad}px">Nothing GeoSpaX can open here</div>`;
     return items.map((it) => {
@@ -1135,7 +1135,7 @@ export class Workbench {
         if (typeof kids === 'string') return `${row}<div class="pane-empty err" style="padding-left:${pad + 14}px">${esc(kids)}</div>`;
         return row + this.cloudRows(sid, kids, depth + 1);
       }
-      const size = typeof it.size === 'number' ? bytesText(it.size) : '';
+      const size = it.note ?? (typeof it.size === 'number' ? bytesText(it.size) : '');
       return `<div class="node gx-leaf" data-ws-file="${esc(it.id)}" data-ws-sid="${esc(sid)}" data-ws-title="${esc(it.title)}" style="padding-left:${pad}px" title="Click to put it on the map (${it.kind === 'raster' ? 'read in place, a window at a time' : 'read into a layer'})">${icon(it.kind === 'raster' ? 'image' : 'layers', 13)}<span class="nm">${esc(it.title)}</span><span class="ct dim">${esc(size)}</span></div>`;
     }).join('');
   }
@@ -1207,7 +1207,7 @@ export class Workbench {
     const kinds = this.serviceKinds.length ? this.serviceKinds : [{ id: 'wms', title: 'WMS' }];
     const hints: Record<string, string> = {
       xyz: 'https://tile.example.org/{z}/{x}/{y}.png', wms: 'https://example.org/geoserver/wms', wmts: 'https://example.org/wmts/1.0.0/WMTSCapabilities.xml',
-      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer', stac: 'https://earth-search.aws.element84.com/v1', github: 'owner/repository, or a github.com link to a branch or folder', cloud: 's3://bucket/folder  ·  gs://bucket  ·  az://container  ·  https://…/folder/',
+      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer', stac: 'https://earth-search.aws.element84.com/v1', github: 'owner/repository, or a github.com link to a branch or folder', postgis: 'postgresql://user@host:5432/dbname (password in ~/.pgpass)', cloud: 's3://bucket/folder  ·  gs://bucket  ·  az://container  ·  https://…/folder/',
     };
     const known = this.stacCatalogs;
     const modal = document.createElement('div');
@@ -1227,7 +1227,7 @@ export class Workbench {
         </div>
         <div class="ws-field ws-known"><span>Or open data in the cloud</span>${CLOUD_PRESETS.map((c, i) => `<button type="button" data-cloud-preset="${i}" title="${esc(c.about)}">${esc(c.title)}</button>`).join('')}</div>
         ${known.length ? `<div class="ws-field ws-known"><span>Or a public STAC catalog</span>${known.map((k) => `<button type="button" data-known="${esc(k.url)}" data-known-title="${esc(k.title)}">${esc(k.title)}</button>`).join('')}</div>` : ''}
-        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud; cloud storage and GitHub repositories are browsed like folders (a recipe found there can be added to your recipes).</p>
+        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud; cloud storage and GitHub repositories are browsed like folders (a recipe found there can be added to your recipes); a PostGIS database lists its spatial tables, copied to the map when clicked.</p>
         <p class="err" data-msg></p>
       </div>
       <footer><button type="button" data-x>Cancel</button><button class="primary" type="submit">Connect</button></footer></form>`;

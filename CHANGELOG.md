@@ -16,6 +16,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **PostGIS databases in the Explorer:** *＋ Add › PostGIS database* (`postgresql://user@host:5432/dbname`). Its
+  spatial tables and views are listed; a click copies a table to the map (into a GeoPackage, so it works
+  offline). The password comes from `~/.pgpass` or `PGPASSWORD`, as for psql and QGIS: GeoSpaX never stores
+  it, and refuses an address with a password in it.
 - **GitHub repositories in the Explorer:** *＋ Add › GitHub repository* (`owner/repo` or a github.com link to a
   branch or folder). Browse its folders; data files go on the map (GeoTIFFs read in place, vector files copied
   and added as layers), and a recipe is added to your recipes, after you confirm when it runs Python or R
