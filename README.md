@@ -32,9 +32,11 @@ away.
 - **Data from anywhere.** Files, devices and phones, plus online data cut to your area with citations:
   WorldClim, CHELSA, CMIP6, SoilGrids, GBIF, OBIS, iNaturalist, GADM, Copernicus DEM, GEBCO, Hansen forest
   change, ecoregions.
-- **Design and CAD.** Lines, polygons, roads from a centreline, offsets, dimensions, a traverse (COGO)
-  with its misclosure; Move, Copy, Rotate, Scale, Mirror, Array, Trim, Extend, Fillet and Erase on any
-  feature; Divide and Measure; Blocks and Insert; Undo and Redo; hatch patterns; snap, ortho and polar, typed input such as `25<90` and `@10,5`, and DXF to and from AutoCAD.
+- **Design and CAD.** Lines, polygons, arcs (3 points), ellipses, roads from a centreline, offsets of lines and shapes (by distance or through a point), locked layers, dimensions, a traverse (COGO)
+  with its misclosure; Move, Copy, Rotate, Scale, Mirror, Align, Stretch, Array, Polar array (previewed as you type),
+  Trim, Extend, Fillet, Chamfer, Join, Break, Lengthen, Explode, List and Erase on any feature; Divide and Measure;
+  Blocks and Insert; Undo and Redo; hatch patterns (exported to DXF as hatch lines); snap, ortho and polar,
+  typed input such as `25<90` and `@10,5`, and DXF to and from AutoCAD.
 - **Automation.** Every result is a re-runnable recipe; triggers run them when a device is plugged in, a
   folder changes, a schedule fires or a live sensor crosses a threshold.
 - **R, Python and AI.** R and Python as recipe steps with an R console and templates; an assistant (Ollama,

@@ -709,6 +709,16 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'circle' })); },
   },
   {
+    id: 'design.arc', tab: 'design', group: 'Draw', title: 'Arc', icon: 'curve',
+    hint: 'An arc through three points: start, a point on it, end (AutoCAD ARC)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'arc' })); },
+  },
+  {
+    id: 'design.ellipse', tab: 'design', group: 'Draw', title: 'Ellipse', icon: 'point',
+    hint: 'A centre, the end of one axis and the other half-axis in metres (AutoCAD ELLIPSE)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'ellipse' })); },
+  },
+  {
     id: 'design.point', tab: 'design', group: 'Draw', title: 'Point', icon: 'pin',
     hint: 'A point (a pole, a valve, a survey mark)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'point' })); },
@@ -787,6 +797,11 @@ export const COMMANDS: Command[] = [
     id: 'design.block', tab: 'design', group: 'Blocks', title: 'Block', icon: 'copy',
     hint: 'Save a feature as a named block (the click is its base point), as AutoCAD BLOCK',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'block' })); },
+  },
+  {
+    id: 'design.lock', tab: 'design', group: 'Blocks', title: 'Lock layer', icon: 'pin',
+    hint: 'Click a feature to lock or unlock its layer against edits, as AutoCAD LAYLCK',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'lock' })); },
   },
   {
     id: 'design.insert', tab: 'design', group: 'Blocks', title: 'Insert', icon: 'pin', big: true,
