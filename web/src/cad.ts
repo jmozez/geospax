@@ -23,6 +23,7 @@
 //   Extend        click near a line's end: it runs on to the next line it meets
 //   Fillet        click near a corner, then the radius: the corner becomes a tangent arc
 //   Array         rows,columns,dx,dy (m): copies in a grid, as ARRAYRECT (dy < 0 goes south)
+//   Polar array   the centre, then items[,angle] (default 360°): copies turned around it (ARRAYPOLAR)
 //   Divide        a number of equal parts: points on the line between them (DIVIDE)
 //   Measure       a distance: a point every so many metres along the line (MEASURE), with its chainage
 //   Block         click a feature (where you click is its base point), name it: saved for Insert
@@ -40,8 +41,8 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '
 type LL = [number, number];
 type XY = [number, number];
 export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'divide' | 'measure' | 'block';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'divide', 'measure', 'block'];
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
 type Block = CadBlock;
 /** where blocks lived before they were kept in the project: moved over the first time */
@@ -308,6 +309,7 @@ export class CadDesigner {
       case 'fillet': return !this.sel ? 'Fillet: click near a corner' : 'Fillet radius in m';
       case 'array': return !this.sel ? 'Array: click the feature' : 'rows,columns,dx,dy in m (e.g. 2,10,20,-36)';
       case 'divide': return !this.sel ? 'Divide: click the line' : 'Number of equal parts';
+      case 'arraypolar': return !this.sel ? 'Polar array: click the feature' : n === 0 ? 'Centre of the array' : 'items[,angle to fill] (e.g. 8 or 6,180)';
       case 'block': return 'Block: click the feature; the click is its base point';
       case 'insert': return this.inserting ? `Insert ${this.inserting.block.name}: click where it goes (angle ${this.inserting.angle}°; type another to turn it) · Enter ends` : 'Insert: no blocks yet';
       case 'measure': return !this.sel ? 'Measure: click the line (near the end to start from)' : 'Distance between points in m';
@@ -476,6 +478,7 @@ export class CadDesigner {
     const s = v.replace(/\s+/g, '');
     if (this.tool === 'offset' && this.picked) return this.doOffset(Number(s));
     if (this.tool === 'array' && this.sel) return this.doArray(s);
+    if (this.tool === 'arraypolar' && this.sel && this.pts.length === 1) return this.doPolar(s);
     if (this.tool === 'insert' && this.inserting && /^-?\d+(\.\d+)?$/.test(s)) {
       this.inserting.angle = Number(s);
       return this.renderBar();
@@ -904,6 +907,21 @@ export class CadDesigner {
     this.sel = null;
     this.renderBar();
     this.draw();
+  }
+
+  /** ARRAYPOLAR: n items around the centre over the fill angle (the original is the first) */
+  private async doPolar(v: string) {
+    const m = v.match(/^(\d+)(?:,(-?\d+(?:\.\d+)?))?$/);
+    if (!m) return this.h.setStatus('Type items, or items,angle (e.g. 8 or 6,180)', 5000);
+    const n = Number(m[1]), fill = m[2] === undefined ? 360 : Number(m[2]);
+    if (n < 2 || n > 1000 || fill === 0) return this.h.setStatus('Between 2 and 1000 items, over a non-zero angle', 5000);
+    const s = this.sel!, p = this.plane!, c = p.xy(this.pts[0]);
+    // a full circle spaces n items evenly; a part circle puts the last item at the end of the angle
+    const step = Math.abs(fill) >= 360 ? fill / n : fill / (n - 1);
+    const copies: GeoJSON.Geometry[] = [];
+    for (let i = 1; i < n; i++) copies.push(mapGeometry(s.feature.geometry, (q) => p.ll(rotate(c, step * i)(p.xy(q)))));
+    const [first, ...rest] = copies;
+    return this.write(first, true, rest);
   }
 
   /** ARRAYRECT: copies of the picked feature on a grid, the original in the first cell */
