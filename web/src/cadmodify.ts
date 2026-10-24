@@ -230,3 +230,20 @@ export function lengthen(line: XY[], at: XY, delta: number): XY[] | null {
   } else out = sub(l, 0, L + delta);
   return atEnd ? out : out.reverse();
 }
+
+/** CHAMFER one corner: vertex i replaced by a straight cut d1 metres back along the incoming leg and
+ *  d2 along the outgoing one. Null at an end, on a straight corner, or when a leg is too short. */
+export function chamfer(line: XY[], i: number, d1: number, d2: number, closed: boolean): XY[] | null {
+  const n = closed ? line.length - 1 : line.length;
+  if (!closed && (i <= 0 || i >= n - 1)) return null;
+  const A = line[(i - 1 + n) % n], V = line[i], B = line[(i + 1) % n];
+  const la = Math.hypot(A[0] - V[0], A[1] - V[1]), lb = Math.hypot(B[0] - V[0], B[1] - V[1]);
+  if (d1 <= 0 || d2 <= 0 || d1 > la + 1e-9 || d2 > lb + 1e-9) return null;
+  const cross = (A[0] - V[0]) * (B[1] - V[1]) - (A[1] - V[1]) * (B[0] - V[0]);
+  if (Math.abs(cross) < 1e-9 * la * lb) return null;
+  const P: XY = [V[0] + ((A[0] - V[0]) / la) * d1, V[1] + ((A[1] - V[1]) / la) * d1];
+  const Q: XY = [V[0] + ((B[0] - V[0]) / lb) * d2, V[1] + ((B[1] - V[1]) / lb) * d2];
+  const pts = line.slice(0, n);
+  pts.splice(i, 1, P, Q);
+  return closed ? [...pts, pts[0]] : pts;
+}
