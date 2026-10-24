@@ -25,6 +25,8 @@
 //   Chamfer       click near a corner, then d or d1,d2 (m): the corner cut straight (CHAMFER)
 //   Stretch       two corners of a window, then a base point and a second point (or @dx,dy): every
 //                 vertex inside the window moves, the rest stay (STRETCH, crossing window)
+//   Align         click the feature, then source 1, target 1, source 2, target 2: moved and turned so
+//                 the first pair meet and the second lies along the target direction (ALIGN)
 //   List          click a feature: its type, vertices, length or perimeter, area and attributes (LIST)
 //   Array         rows,columns,dx,dy (m): copies in a grid, as ARRAYRECT (dy < 0 goes south)
 //   Polar array   the centre, then items[,angle] (default 360°): copies turned around it (ARRAYPOLAR)
@@ -42,15 +44,15 @@
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { CadBlock } from './symbology';
-import { breakAt, chamfer, divide, stretch, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
+import { align, breakAt, chamfer, divide, stretch, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 type LL = [number, number];
 type XY = [number, number];
 export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list'];
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
 type Block = CadBlock;
 /** where blocks lived before they were kept in the project: moved over the first time */
@@ -322,6 +324,7 @@ export class CadDesigner {
       case 'arraypolar': return !this.sel ? 'Polar array: click the feature' : n === 0 ? 'Centre of the array' : 'items[,angle to fill] (e.g. 8 or 6,180)';
       case 'block': return 'Block: click the feature; the click is its base point';
       case 'list': return 'List: click a feature to describe it';
+      case 'align': return !this.sel ? 'Align: click the feature' : ['First source point', 'First target point', 'Second source point', 'Second target point'][Math.min(n, 3)];
       case 'explode': return 'Explode: click a polygon or multi-part feature';
       case 'break': return !this.sel ? 'Break: click the line' : 'Point to break it at';
       case 'lengthen': return !this.sel ? 'Lengthen: click near the end to change' : '+metres, -metres, or =total length';
@@ -479,6 +482,10 @@ export class CadDesigner {
       case 'insert': await this.placeBlock(p); break;
       case 'break': if (n === 1) await this.doBreak(p); break;
       case 'stretch': if (n === 4) await this.doStretch(); break;
+      case 'align': if (n === 4) {
+        const [s1, d1, s2, d2] = this.pts.map((q) => this.plane!.xy(q));
+        await this.transform(align(s1, d1, s2, d2), false);
+      } break;
       case 'move': case 'copy': if (n === 2) await this.transform(translate(this.diff(this.pts[0], this.pts[1])), this.tool === 'copy'); break;
       case 'mirror': if (n === 2) await this.transform(mirror(this.plane.xy(this.pts[0]), this.plane.xy(this.pts[1])), true); break;
       case 'rotate': if (n === 2) {

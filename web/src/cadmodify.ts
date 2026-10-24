@@ -262,3 +262,13 @@ export function stretch(g: GeoJSON.Geometry, toXY: (p: XY) => XY, toLL: (p: XY) 
   });
   return { geometry, moved };
 }
+
+/** ALIGN: the move and turn that takes s1 onto d1 and the direction s1→s2 onto d1→d2 (no scaling). */
+export function align(s1: XY, d1: XY, s2: XY, d2: XY): (p: XY) => XY {
+  const a = Math.atan2(d2[1] - d1[1], d2[0] - d1[0]) - Math.atan2(s2[1] - s1[1], s2[0] - s1[0]);
+  const c = Math.cos(a), s = Math.sin(a);
+  return (p: XY): XY => {
+    const x = p[0] - s1[0], y = p[1] - s1[1];
+    return [d1[0] + x * c - y * s, d1[1] + x * s + y * c];
+  };
+}
