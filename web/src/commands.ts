@@ -778,6 +778,16 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },
   },
   {
+    id: 'design.undo', tab: 'design', group: 'Modify', title: 'Undo', icon: 'undo', keys: 'Ctrl+Z',
+    hint: 'Undo the last Design edit (drawing, modify or erase)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'undo' })); },
+  },
+  {
+    id: 'design.redo', tab: 'design', group: 'Modify', title: 'Redo', icon: 'redo', keys: 'Ctrl+Y',
+    hint: 'Redo the last undone Design edit',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'redo' })); },
+  },
+  {
     id: 'design.dimension', tab: 'design', group: 'Survey', title: 'Dimension', icon: 'ruler',
     hint: 'A measured dimension line with its length as a label',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dimension' })); },

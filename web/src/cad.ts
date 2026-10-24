@@ -38,6 +38,11 @@ export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'poi
 export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array';
 const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array'];
 const isModify = (t: CadTool | null): t is ModifyTool => !!t && (MODIFY as string[]).includes(t);
+/** one Design edit, as it can be undone: a feature added, changed or deleted */
+type Op =
+  | { kind: 'add'; layer: string; fid: number; feature: GeoJSON.Feature }
+  | { kind: 'update'; layer: string; fid: number; before: GeoJSON.Geometry; after: GeoJSON.Geometry }
+  | { kind: 'delete'; layer: string; fid: number; feature: GeoJSON.Feature };
 /** a feature picked for Modify: its layer, id, full geometry and where it was clicked */
 interface Sel { layer: string; fid: number; feature: GeoJSON.Feature; at: LL }
 
@@ -171,6 +176,10 @@ export class CadDesigner {
   private bar: HTMLElement;
   private picked: { layer: string; coords: LL[] } | null = null;
   private sel: Sel | null = null;
+  /** undo history of this session's Design edits (one command may make several) */
+  private undoStack: Op[][] = [];
+  private redoStack: Op[][] = [];
+  private batch: Op[] | null = null;
   private onMove = (e: maplibregl.MapMouseEvent) => this.move(e);
   private onClick = (e: maplibregl.MapMouseEvent) => void this.click(e);
   private onDbl = (e: maplibregl.MapMouseEvent) => { e.preventDefault(); void this.finish(); };
@@ -185,6 +194,8 @@ export class CadDesigner {
       if (what === 'traverse') return void this.traverseDialog();
       if (what === 'dxf-export') return void this.exportDxf();
       if (what === 'dxf-import') return void this.importDxf();
+      if (what === 'undo') return void this.undo();
+      if (what === 'redo') return void this.redo();
       if (what === 'ortho' || what === 'polar' || what === 'snap') { this[what] = !this[what]; return this.renderBar(); }
       void this.start(what as CadTool);
     });
@@ -195,8 +206,14 @@ export class CadDesigner {
       if (e.key === 'F8') { e.preventDefault(); this.ortho = !this.ortho; return this.renderBar(); }
       if (e.key === 'F10') { e.preventDefault(); this.polar = !this.polar; return this.renderBar(); }
       if (e.key === 'F3') { e.preventDefault(); this.snap = !this.snap; return this.renderBar(); }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+        e.preventDefault(); return void this.redo();
+      }
       if ((e.key === 'z' && (e.ctrlKey || e.metaKey)) || (e.key.toLowerCase() === 'u' && document.activeElement !== input)) {
-        e.preventDefault(); this.pts.pop(); return this.draw();
+        e.preventDefault();
+        // a point being placed goes first; with none, the last saved edit is undone
+        if (this.pts.length) { this.pts.pop(); return this.draw(); }
+        return void this.undo();
       }
       // typing anywhere goes to the command line
       if (input && document.activeElement !== input && /^[-\d@.,<NSEWnsew°']$/.test(e.key)) input.focus();
@@ -487,11 +504,73 @@ export class CadDesigner {
 
   private async save(kind: keyof typeof DESIGN, geometry: GeoJSON.Geometry, properties: Record<string, unknown>) {
     const id = await this.layerFor(kind);
-    const r = await this.h.backend.json<{ layer: LayerInfo }>(`api/layers/${encodeURIComponent(id)}/features`, {
+    const feature: GeoJSON.Feature = { type: 'Feature', geometry, properties };
+    const r = await this.h.backend.json<{ fid: number; layer: LayerInfo }>(`api/layers/${encodeURIComponent(id)}/features`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ type: 'Feature', geometry, properties }),
+      body: JSON.stringify(feature),
     });
+    this.record({ kind: 'add', layer: id, fid: r.fid, feature });
     await this.h.changed(id, r.layer);
+  }
+
+  // ---------------------------------------------------------------- undo
+  /** an edit into the open batch (one command), or as its own step */
+  private record(op: Op) {
+    if (this.batch) this.batch.push(op);
+    else this.undoStack.push([op]);
+    this.redoStack = [];
+    if (this.undoStack.length > 200) this.undoStack.shift();
+  }
+
+  private api<T>(url: string, method: string, body?: unknown) {
+    return this.h.backend.json<T>(url, { method, ...(body ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}) });
+  }
+
+  /** apply one op backwards (undo) or forwards (redo); a re-added feature gets a new id */
+  private async play(op: Op, back: boolean): Promise<Op> {
+    const url = `api/layers/${encodeURIComponent(op.layer)}/features`;
+    const re = async (f: GeoJSON.Feature) => (await this.api<{ fid: number }>(url, 'POST', f)).fid;
+    if (op.kind === 'update') {
+      await this.api(`${url}/${op.fid}`, 'PUT', { geometry: back ? op.before : op.after });
+      return op;
+    }
+    const removing = (op.kind === 'add') === back;
+    if (removing) {
+      await this.api(`${url}/${op.fid}`, 'DELETE');
+      return op;
+    }
+    return { ...op, fid: await re(op.feature) };
+  }
+
+  private async replay(from: Op[][], to: Op[][], back: boolean, word: string) {
+    const step = from.pop();
+    if (!step) return this.h.setStatus(`Nothing to ${word.toLowerCase()}`, 3000);
+    const done: Op[] = [];
+    try {
+      for (const op of back ? [...step].reverse() : step) {
+        const now = await this.play(op, back);
+        // a feature added back gets a new id: every older and newer step must follow it
+        if (now.fid !== op.fid) this.remap(op.layer, op.fid, now.fid);
+        done.push(now);
+      }
+    } catch (err) {
+      this.h.setStatus(`${word} failed: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    to.push(back ? done.reverse() : done);
+    for (const l of new Set(step.map((o) => o.layer))) await this.h.changed(l);
+    this.h.setStatus(`${word}: ${step.length} change${step.length === 1 ? '' : 's'}`, 3000);
+  }
+
+  private remap(layer: string, from: number, to: number) {
+    for (const st of [this.undoStack, this.redoStack]) for (const step of st) for (const o of step) if (o.layer === layer && o.fid === from) o.fid = to;
+  }
+
+  undo() {
+    return this.replay(this.undoStack, this.redoStack, true, 'Undo');
+  }
+
+  redo() {
+    return this.replay(this.redoStack, this.undoStack, false, 'Redo');
   }
 
   private async commit() {
@@ -540,8 +619,15 @@ export class CadDesigner {
     const xy = this.pts.map((q) => p.xy(q));
     const ring = corridor(xy, width);
     const r2 = (v: number) => Math.round(v * 100) / 100;
-    await this.save('roads', { type: 'Polygon', coordinates: [[...ring, ring[0]].map((q) => p.ll(q))] }, { name: 'road', width_m: width, length_m: r2(perimeter(xy, false)), area_m2: r2(area(ring)) });
-    await this.save('lines', { type: 'LineString', coordinates: this.pts }, { kind: 'road centreline', length_m: r2(perimeter(xy, false)) });
+    // the road and its centreline are one step for Undo
+    this.batch = [];
+    try {
+      await this.save('roads', { type: 'Polygon', coordinates: [[...ring, ring[0]].map((q) => p.ll(q))] }, { name: 'road', width_m: width, length_m: r2(perimeter(xy, false)), area_m2: r2(area(ring)) });
+      await this.save('lines', { type: 'LineString', coordinates: this.pts }, { kind: 'road centreline', length_m: r2(perimeter(xy, false)) });
+    } finally {
+      if (this.batch.length) this.undoStack.push(this.batch);
+      this.batch = null;
+    }
     this.h.setStatus(`Road saved: ${fmt(perimeter(xy, false))} long, ${width} m wide`, 5000);
     this.pts = [];
     this.plane = null;
@@ -600,14 +686,27 @@ export class CadDesigner {
     const s = this.sel!;
     const url = `api/layers/${encodeURIComponent(s.layer)}/features`;
     const props = Object.fromEntries(Object.entries(s.feature.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k)));
+    const batch: Op[] = [];
+    const add = async (g: GeoJSON.Geometry) => {
+      const feature: GeoJSON.Feature = { type: 'Feature', geometry: g, properties: props };
+      const r = await this.api<{ fid: number }>(url, 'POST', feature);
+      batch.push({ kind: 'add', layer: s.layer, fid: r.fid, feature });
+    };
     try {
-      if (copy) await this.h.backend.json(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'Feature', geometry, properties: props }) });
-      else await this.h.backend.json(`${url}/${s.fid}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ geometry }) });
-      for (const g of extra ?? []) await this.h.backend.json(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'Feature', geometry: g, properties: props }) });
+      if (copy) await add(geometry);
+      else {
+        await this.api(`${url}/${s.fid}`, 'PUT', { geometry });
+        batch.push({ kind: 'update', layer: s.layer, fid: s.fid, before: s.feature.geometry, after: geometry });
+      }
+      for (const g of extra ?? []) await add(g);
       await this.h.changed(s.layer);
-      this.h.setStatus(`${this.tool} done`, 3000);
+      this.h.setStatus(`${this.tool} done · Ctrl+Z undoes it`, 3000);
     } catch (err) {
       this.h.setStatus(`Could not save: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    if (batch.length) {
+      this.undoStack.push(batch);
+      this.redoStack = [];
     }
     this.sel = null;
     this.pts = [];
@@ -620,6 +719,7 @@ export class CadDesigner {
     const s = this.sel!;
     try {
       await this.h.backend.json(`api/layers/${encodeURIComponent(s.layer)}/features/${s.fid}`, { method: 'DELETE' });
+      this.record({ kind: 'delete', layer: s.layer, fid: s.fid, feature: { type: 'Feature', geometry: s.feature.geometry, properties: Object.fromEntries(Object.entries(s.feature.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k))) } });
       await this.h.changed(s.layer);
       this.h.setStatus('Erased', 3000);
     } catch (err) {
