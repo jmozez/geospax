@@ -879,6 +879,16 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dimension' })); },
   },
   {
+    id: 'design.dimangle', tab: 'design', group: 'Survey', title: 'Angle', icon: 'ruler',
+    hint: 'An angular dimension: the vertex, then a point on each side, as AutoCAD DIMANGULAR',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dimangle' })); },
+  },
+  {
+    id: 'design.leader', tab: 'design', group: 'Survey', title: 'Leader', icon: 'arrowRight',
+    hint: 'A note with an arrow pointing at something, as AutoCAD QLEADER',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'leader' })); },
+  },
+  {
     id: 'design.traverse', tab: 'design', group: 'Survey', title: 'Traverse (COGO)', icon: 'calc', big: true,
     hint: 'A parcel from bearings and distances, with its area and misclosure',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'traverse' })); },

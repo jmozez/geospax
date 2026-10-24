@@ -41,6 +41,8 @@
 //   Offset        lines and shapes: a distance, or a click it goes through (OFFSET T)
 //   Arc           start, a point on the arc, end (ARC 3P)
 //   Ellipse       centre, end of one axis, then the other half-axis in m or a click (ELLIPSE)
+//   Angular dim   vertex, then a point on each side: the angle between them as an arc (DIMANGULAR)
+//   Leader        the point, then where the note goes, then the note (QLEADER)
 //   Layers        Layer Properties: colour, linetype, lineweight, on/off, lock for each design layer (LAYER)
 //   Lock layer    click a feature to lock or unlock its layer; Modify tools skip locked layers (LAYLCK)
 //
@@ -55,7 +57,7 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '
 
 type LL = [number, number];
 type XY = [number, number];
-export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'arc' | 'ellipse' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
+export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'arc' | 'ellipse' | 'point' | 'text' | 'dimension' | 'dimangle' | 'leader' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
 export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align' | 'lock';
 const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align', 'lock'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
@@ -247,6 +249,19 @@ export function arc3(a: XY, b: XY, c: XY, step = 5): XY[] | null {
   return Array.from({ length: n + 1 }, (_, i) => { const t = t0 + (sweep * i) / n; return [o[0] + r * Math.cos(t), o[1] + r * Math.sin(t)] as XY; });
 }
 
+/** DIMANGULAR: the arc between two sides from a vertex (the smaller angle), at 60% of the shorter side. */
+export function angleArc(v: XY, a: XY, b: XY): { arc: XY[]; deg: number } | null {
+  const ra = dist(v, a), rb = dist(v, b);
+  if (!(ra > 0 && rb > 0)) return null;
+  const t0 = Math.atan2(a[1] - v[1], a[0] - v[0]);
+  let sweep = Math.atan2(b[1] - v[1], b[0] - v[0]) - t0;
+  while (sweep > Math.PI) sweep -= 2 * Math.PI;
+  while (sweep < -Math.PI) sweep += 2 * Math.PI;
+  const r = 0.6 * Math.min(ra, rb), n = Math.max(4, Math.ceil(Math.abs(sweep) / (Math.PI / 36)));
+  const arc = Array.from({ length: n + 1 }, (_, i) => { const t = t0 + (sweep * i) / n; return [v[0] + r * Math.cos(t), v[1] + r * Math.sin(t)] as XY; });
+  return { arc, deg: Math.abs((sweep * 180) / Math.PI) };
+}
+
 /** ELLIPSE from its centre, the end of one axis and the other half-axis length (m). */
 export function ellipse(c: XY, end: XY, half: number, n = 72): XY[] {
   const a = dist(c, end), th = Math.atan2(end[1] - c[1], end[0] - c[0]);
@@ -388,6 +403,8 @@ export class CadDesigner {
       case 'point': return 'Point: click or type lon,lat';
       case 'text': return 'Text: click where it goes';
       case 'dimension': return n === 0 ? 'Dimension: first point' : 'Dimension: second point';
+      case 'dimangle': return n === 0 ? 'Angular dimension: the vertex' : n === 1 ? 'A point on the first side' : 'A point on the second side';
+      case 'leader': return n === 0 ? 'Leader: the point it points at' : 'Leader: where the note goes';
       case 'offset': return this.picked ? `Offset: distance in m (${this.picked.closed ? '+ outward, − inward' : '+ right, − left'}), or click a point it goes through` : 'Offset: click the line or shape to copy';
       case 'lock': return 'Lock: click a feature to lock or unlock its layer';
       case 'road': return n < 2 ? 'Road: centreline points · Enter when done' : 'Road: next centreline point · Enter, then the width';
@@ -563,7 +580,8 @@ export class CadDesigner {
         this.pts = [];
         break;
       }
-      case 'line': case 'dimension': case 'rect': if (n === 2) await this.commit(); break;
+      case 'line': case 'dimension': case 'rect': case 'leader': if (n === 2) await this.commit(); break;
+      case 'dimangle': if (n === 3) await this.commit(); break;
       case 'circle': if (n === 2) await this.commit(); break;
       case 'arc': case 'ellipse': if (n === 3) await this.commit(); break;
       case 'insert': await this.placeBlock(p); break;
@@ -745,6 +763,25 @@ export class CadDesigner {
       switch (this.tool) {
         case 'point': await this.save('points', { type: 'Point', coordinates: this.pts[0] }, { kind: 'point' }); break;
         case 'line': case 'polyline': await this.save('lines', { type: 'LineString', coordinates: this.pts }, { kind: this.tool, length_m: r2(perimeter(xy, false)) }); break;
+        case 'dimangle': {
+          const a = angleArc(xy[0], xy[1], xy[2]);
+          if (!a) { this.h.setStatus('The sides must leave the vertex', 5000); break; }
+          await this.save('dimensions', { type: 'LineString', coordinates: a.arc.map((q) => p.ll(q)) }, { label: `${a.deg.toFixed(a.deg < 10 ? 2 : 1)}°`, length_m: r2(perimeter(a.arc, false)) });
+          break;
+        }
+        case 'leader': {
+          const t = window.prompt('Note');
+          if (!t) break;
+          // an arrowhead at the tip: two short barbs back along the leader
+          const [tip, to] = xy, l = dist(tip, to) || 1, u: XY = [(to[0] - tip[0]) / l, (to[1] - tip[1]) / l], s = Math.min(1.5, l / 4);
+          const barb = (k: number): XY => [tip[0] + s * (u[0] * 0.94 - k * u[1] * 0.34), tip[1] + s * (u[1] * 0.94 + k * u[0] * 0.34)];
+          this.batch = [];
+          await this.save('dimensions', { type: 'LineString', coordinates: [to, tip].map((q) => p.ll(q)) }, { label: t, length_m: r2(l) });
+          await this.save('dimensions', { type: 'LineString', coordinates: [barb(1), tip, barb(-1)].map((q) => p.ll(q)) }, { label: '', length_m: 0 });
+          if (this.batch.length) this.undoStack.push(this.batch);
+          this.batch = null;
+          break;
+        }
         case 'dimension': {
           const d = dist(xy[0], xy[1]);
           await this.save('dimensions', { type: 'LineString', coordinates: this.pts }, { label: fmt(d), length_m: r2(d) });
