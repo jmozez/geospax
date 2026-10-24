@@ -1178,6 +1178,30 @@ fn add_outputs(engine: &std::sync::Arc<crate::Engine>, result: &serde_json::Valu
     ids
 }
 
+/// Re-register the results plugin tools wrote in earlier sessions (`<state>/plugin-results/<plugin>/`):
+/// without this a restart drops them from Contents although the files are still there.
+pub fn restore_results(engine: &std::sync::Arc<crate::Engine>) {
+    let Ok(dirs) = fs::read_dir(engine.state_dir.join("plugin-results")) else { return };
+    let mut n = 0;
+    for dir in dirs.flatten().map(|e| e.path()).filter(|p| p.is_dir()) {
+        let Ok(files) = fs::read_dir(&dir) else { continue };
+        let mut files: Vec<PathBuf> = files.flatten().map(|e| e.path()).collect();
+        files.sort();
+        for f in files {
+            let name = f.file_name().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+            // a .grid.json was already written out as the .tif beside it; the rest are sidecars
+            let keep = [".tif", ".tiff", ".geojson", ".gpkg", ".json", ".csv", ".fgb", ".shp"].iter().any(|x| name.ends_with(x))
+                && ![".grid.json", ".gsx.json", ".aux.xml", ".part.tif", ".part.gpkg"].iter().any(|x| name.ends_with(x));
+            if keep {
+                n += add_outputs(engine, &serde_json::json!({ "outputs": [f.to_string_lossy()] })).len();
+            }
+        }
+    }
+    if n > 0 {
+        eprintln!("plugins: restored {n} results from earlier runs");
+    }
+}
+
 /// Write raster `r` as a float32 grid at `stem` (+ .grid.json, .f32). The first raster of a run sets
 /// the grid (its own, at most 1,500 cells a side); later ones are warped onto it.
 fn write_grid(r: &crate::raster::RasterHandle, template: &mut Option<(usize, usize, [f64; 6], String)>, stem: &Path) -> Result<PathBuf, String> {
