@@ -42,7 +42,7 @@ import {
   type LayerStyle,
   type Project,
 } from './symbology';
-import { defaultLabels, GLYPHS, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
+import { defaultLabels, GLYPHS, HATCH_PREFIX, hatchImage, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
 import { DownloadGauge } from './downloads';
 import { isElevation, rasterAttributesHtml, rasterStoryHtml, valueHtml, type Histogram, type RasterValue } from './rasterview';
 import './style.css';
@@ -491,7 +491,14 @@ function setBasemap(b: Basemap) {
 }
 
 function applyStyle() {
-  map.setStyle(buildStyle()); // MapLibre diffs the style: only changed layers/sources update
+  const style = buildStyle();
+  // hatch patterns must exist before the layer: a tile parsed while its pattern is missing stays
+  // unhatched (styleimagemissing alone races the tiles)
+  for (const l of style.layers) {
+    const pat = (l as { paint?: Record<string, unknown> }).paint?.['fill-pattern'];
+    if (typeof pat === 'string' && pat.startsWith(HATCH_PREFIX) && !map.hasImage(pat)) map.addImage(pat, hatchImage(pat), { pixelRatio: 2 });
+  }
+  map.setStyle(style); // MapLibre diffs the style: only changed layers/sources update
 }
 
 /** Help › Diagnostics: the developer controls live folded away at the foot of the Project pane. */
@@ -1829,6 +1836,7 @@ async function main() {
   map.on('styleimagemissing', (e) => {
     const id = (e as unknown as { id: string }).id;
     if (id.startsWith(ICON_PREFIX) && !map.hasImage(id)) map.addImage(id, sdfImage(id.slice(ICON_PREFIX.length) as Shape), { sdf: true, pixelRatio: 2 });
+    if (id.startsWith(HATCH_PREFIX) && !map.hasImage(id)) map.addImage(id, hatchImage(id), { pixelRatio: 2 });
   });
   map.on('error', (e) => console.error('map error:', (e as unknown as { error?: Error }).error ?? e));
   map.once('load', () => {

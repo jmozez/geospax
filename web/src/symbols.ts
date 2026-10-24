@@ -47,8 +47,45 @@ export interface FillSymbol {
   strokeColor: string;
   strokeWidth: number;
   strokeDash: Dash;
+  /** hatching instead of a flat fill (AutoCAD HATCH): lines, cross-hatch, dots or bricks */
+  pattern?: Hatch;
   /** 3D: raise each polygon to the height in this numeric field (metres × scale), e.g. buildings */
   extrude?: { field: string; scale?: number };
+}
+
+export type Hatch = 'diagonal' | 'back' | 'cross' | 'horizontal' | 'vertical' | 'grid' | 'dots' | 'brick';
+export const HATCHES: [Hatch, string][] = [
+  ['diagonal', 'Diagonal lines (ANSI31)'], ['back', 'Back diagonal'], ['cross', 'Cross-hatch (ANSI37)'],
+  ['horizontal', 'Horizontal lines'], ['vertical', 'Vertical lines'], ['grid', 'Grid'], ['dots', 'Dots'], ['brick', 'Brick'],
+];
+export const HATCH_PREFIX = 'gx-hatch|';
+
+/** A hatch tile (16 px, drawn at 2×) in one colour, for MapLibre's fill-pattern: made the first time
+ *  a layer asks for `gx-hatch|<pattern>|<colour>`. */
+export function hatchImage(id: string): { width: number; height: number; data: Uint8ClampedArray } {
+  const [, kind, color] = id.split('|');
+  const n = 32;
+  const c = document.createElement('canvas');
+  c.width = c.height = n;
+  const x = c.getContext('2d', { willReadFrequently: true })!;
+  x.strokeStyle = x.fillStyle = color || '#ffffff';
+  x.lineWidth = 2;
+  x.lineCap = 'square';
+  const line = (a: number, b: number, c2: number, d: number) => { x.beginPath(); x.moveTo(a, b); x.lineTo(c2, d); x.stroke(); };
+  // diagonals run corner to corner and across the neighbouring corners, so tiles join seamlessly
+  const diag = () => { line(0, n, n, 0); line(-n / 2, n / 2, n / 2, -n / 2); line(n / 2, n + n / 2, n + n / 2, n / 2); };
+  const back = () => { line(0, 0, n, n); line(-n / 2, n / 2, n / 2, n + n / 2); line(n / 2, -n / 2, n + n / 2, n / 2); };
+  switch (kind) {
+    case 'back': back(); break;
+    case 'cross': diag(); back(); break;
+    case 'horizontal': line(0, n / 2, n, n / 2); break;
+    case 'vertical': line(n / 2, 0, n / 2, n); break;
+    case 'grid': line(0, n / 2, n, n / 2); line(n / 2, 0, n / 2, n); break;
+    case 'dots': x.beginPath(); x.arc(n / 4, n / 4, 2.5, 0, 2 * Math.PI); x.arc((3 * n) / 4, (3 * n) / 4, 2.5, 0, 2 * Math.PI); x.fill(); break;
+    case 'brick': line(0, 1, n, 1); line(0, n / 2 + 1, n, n / 2 + 1); line(n / 2, 1, n / 2, n / 2 + 1); line(1, n / 2 + 1, 1, n + 1); break;
+    default: diag();
+  }
+  return { width: n, height: n, data: x.getImageData(0, 0, n, n).data };
 }
 
 export type Anchor = 'center' | 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -262,7 +299,11 @@ export function symbolLayers(a: MapLayerArgs): LayerSpecification[] {
       out.push({ ...base, id: `${id}#fill`, type: 'fill-extrusion', paint: { 'fill-extrusion-color': color, 'fill-extrusion-height': h, 'fill-extrusion-base': 0, 'fill-extrusion-opacity': Math.max(0.3, op), 'fill-extrusion-vertical-gradient': true } } as LayerSpecification);
       return out;
     }
-    if (f?.fill !== false) out.push({ ...base, id: `${id}#fill`, type: 'fill', paint: { 'fill-color': color, 'fill-opacity': op } } as LayerSpecification);
+    if (f?.pattern && f.fill !== false) {
+      // hatching in one colour: the layer's colour when it has one, else the outline colour
+      const ink = typeof color === 'string' ? color : f.strokeColor;
+      out.push({ ...base, id: `${id}#fill`, type: 'fill', paint: { 'fill-pattern': `${HATCH_PREFIX}${f.pattern}|${ink}`, 'fill-opacity': op } } as LayerSpecification);
+    } else if (f?.fill !== false) out.push({ ...base, id: `${id}#fill`, type: 'fill', paint: { 'fill-color': color, 'fill-opacity': op } } as LayerSpecification);
     if (f) {
       if (f.strokeWidth > 0)
         out.push({
