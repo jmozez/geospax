@@ -19,6 +19,7 @@ import {
   ANCHORS,
   DASHES,
   FONTS,
+  HATCHES,
   SHAPES,
   defaultFill,
   defaultLabels,
@@ -238,6 +239,7 @@ export class SymbologyPanel {
         <label class="check"><input type="checkbox" data-k="pg-fill" ${f.fill ? 'checked' : ''}> Fill</label>
         <div class="row2">${color('pg-stroke', f.strokeColor, 'Outline')}${num('pg-strokew', f.strokeWidth, 0, 8, 0.25, 'Outline width')}</div>
         <label class="field"><span>Outline dash</span><select data-k="pg-dash">${DASHES.map(([d, n]) => opt(d, n, d === f.strokeDash)).join('')}</select></label>
+        <label class="field"><span>Hatch</span><select data-k="pg-pattern">${opt('', 'none (solid fill)', !f.pattern)}${HATCHES.map(([h, n]) => opt(h, n, f.pattern === h)).join('')}</select></label>
         <label class="field"><span>Extrude in 3D by</span><select data-k="pg-extrude">${opt('', 'none (flat)', !f.extrude)}${this.numericFields(l).map((x) => opt(x.name, x.name, f.extrude?.field === x.name)).join('')}</select></label>`;
     }
     return '';
@@ -398,6 +400,7 @@ export class SymbologyPanel {
         else if (k === 'pg-strokew') f.strokeWidth = n;
         else if (k === 'pg-dash') f.strokeDash = v as typeof f.strokeDash;
         else if (k === 'pg-extrude') f.extrude = v ? { field: v, scale: 1 } : undefined;
+        else if (k === 'pg-pattern') f.pattern = (v || undefined) as typeof f.pattern;
         st.outline = f.strokeWidth > 0;
       } else if (k.startsWith('lb-')) {
         const lb = (st.labels ??= defaultLabels(this.labelGuess(l)));
