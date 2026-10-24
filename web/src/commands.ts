@@ -793,6 +793,11 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'insert' })); },
   },
   {
+    id: 'design.arraypolar', tab: 'design', group: 'Modify', title: 'Polar array', icon: 'rotate',
+    hint: 'Copies of a feature turned around a centre (posts round a roundabout), as AutoCAD ARRAYPOLAR',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'arraypolar' })); },
+  },
+  {
     id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
     hint: 'Delete the feature you click, as AutoCAD ERASE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },
