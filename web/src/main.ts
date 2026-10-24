@@ -2541,6 +2541,11 @@ async function main() {
       project.cadBlocks = b;
       saveProject();
     },
+    locked: () => project.cadLocked ?? [],
+    setLocked: (ids) => {
+      project.cadLocked = ids;
+      saveProject();
+    },
     look: (id, look) => {
       const st = project.layers[id];
       if (!st) return;

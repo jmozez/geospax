@@ -68,6 +68,8 @@ export interface Project {
   web?: WebLayer[];
   /** Design › Blocks: named shapes in metres around their base point, placed with Insert */
   cadBlocks?: CadBlock[];
+  /** Design › Lock: layer ids that Modify tools leave alone */
+  cadLocked?: string[];
 }
 
 export interface CadBlock { name: string; layer: string; geometry: GeoJSON.Geometry; properties: Record<string, unknown> }

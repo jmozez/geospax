@@ -38,6 +38,8 @@
 //   Measure       a distance: a point every so many metres along the line (MEASURE), with its chainage
 //   Block         click a feature (where you click is its base point), name it: saved for Insert
 //   Insert        choose a block, then click where each copy goes; type an angle first to turn them
+//   Offset        lines and shapes: a distance, or a click it goes through (OFFSET T)
+//   Lock layer    click a feature to lock or unlock its layer; Modify tools skip locked layers (LAYLCK)
 //
 // Distances and bearings are worked out on a local plane around the first point (metres east and
 // north), which is accurate to a few centimetres over a town; the layers stay in WGS 84.
@@ -51,8 +53,8 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '
 type LL = [number, number];
 type XY = [number, number];
 export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align'];
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align' | 'lock';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align', 'lock'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
 type Block = CadBlock;
 /** where blocks lived before they were kept in the project: moved over the first time */
@@ -75,6 +77,9 @@ export interface CadHost {
   /** the project's blocks (Design › Block / Insert), and saving a new list */
   blocks: () => CadBlock[];
   setBlocks: (b: CadBlock[]) => void;
+  /** design layers locked against edits (Design › Lock), and saving a new list */
+  locked: () => string[];
+  setLocked: (ids: string[]) => void;
   /** show a field as labels on a layer (dimensions, annotations) */
   labels: (id: string, field: string, placement: 'point' | 'line' | 'line-center') => void;
   /** a new design layer's drafting look: colour, hollow or filled, line width */
@@ -144,6 +149,30 @@ export function offsetLine(pts: XY[], d: number): XY[] {
   return out;
 }
 
+/** A closed ring `d` metres outward (negative: inward), corners mitred; the ring is given without its closing point. */
+export function offsetRing(ring: XY[], d: number): XY[] {
+  const n = ring.length;
+  if (n < 3) return ring;
+  const signed = ring.reduce((s, p, i) => { const q = ring[(i + 1) % n]; return s + p[0] * q[1] - q[0] * p[1]; }, 0);
+  // the right of a counter-clockwise ring is outward
+  const dd = signed > 0 ? d : -d;
+  const wrapped = [ring[n - 1], ...ring, ring[0]];
+  return offsetLine(wrapped, dd).slice(1, n + 1);
+}
+
+/** How far `p` lies to the right (+) or left (−) of a polyline, at its nearest segment. */
+export function sideDistance(pts: XY[], p: XY): number {
+  let best = Infinity, sign = 1;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+    const d = dist(p, [a[0] + t * dx, a[1] + t * dy]);
+    if (d < best) { best = d; sign = dx * (p[1] - a[1]) - dy * (p[0] - a[0]) > 0 ? -1 : 1; }
+  }
+  return best * sign;
+}
+
 /** A road (or any corridor) of `width` metres around a centreline: one closed ring. */
 export function corridor(pts: XY[], width: number): XY[] {
   const l = offsetLine(pts, -width / 2);
@@ -197,7 +226,7 @@ export class CadDesigner {
   polar = true;
   snap = true;
   private bar: HTMLElement;
-  private picked: { layer: string; coords: LL[] } | null = null;
+  private picked: { layer: string; coords: LL[]; closed: boolean } | null = null;
   private sel: Sel | null = null;
   /** Insert: the block being placed and the angle each copy is turned by */
   private inserting: { block: Block; angle: number } | null = null;
@@ -307,7 +336,8 @@ export class CadDesigner {
       case 'point': return 'Point: click or type lon,lat';
       case 'text': return 'Text: click where it goes';
       case 'dimension': return n === 0 ? 'Dimension: first point' : 'Dimension: second point';
-      case 'offset': return this.picked ? 'Offset: distance in m (+ right, − left of the line)' : 'Offset: click the line to copy';
+      case 'offset': return this.picked ? `Offset: distance in m (${this.picked.closed ? '+ outward, − inward' : '+ right, − left'}), or click a point it goes through` : 'Offset: click the line or shape to copy';
+      case 'lock': return 'Lock: click a feature to lock or unlock its layer';
       case 'road': return n < 2 ? 'Road: centreline points · Enter when done' : 'Road: next centreline point · Enter, then the width';
       case 'move': case 'copy': return !this.sel ? `${this.tool === 'move' ? 'Move' : 'Copy'}: click the feature` : n === 0 ? 'Base point' : 'Second point (or @dx,dy in m)';
       case 'rotate': return !this.sel ? 'Rotate: click the feature' : n === 0 ? 'Base point' : 'Angle in degrees (counter-clockwise), or click';
@@ -448,6 +478,7 @@ export class CadDesigner {
     if (!this.tool) return;
     const p = this.constrain([e.lngLat.lng, e.lngLat.lat], e.point);
     if (this.tool === 'offset' && !this.picked) return this.pick(e);
+    if (this.tool === 'offset' && this.picked) return this.offsetThrough(p);
     if (isModify(this.tool) && !this.sel) return this.pickFeature(e);
     if (this.tool === 'join' && this.sel) return this.doJoin(e);
     await this.add(p);
@@ -456,9 +487,11 @@ export class CadDesigner {
   private pick(e: maplibregl.MapMouseEvent) {
     const R = 6;
     const f = this.h.map.queryRenderedFeatures([[e.point.x - R, e.point.y - R], [e.point.x + R, e.point.y + R]])
-      .find((x) => x.geometry.type === 'LineString' && !x.layer.id.startsWith('cad-'));
-    if (!f) return this.h.setStatus('Click on a line to offset', 4000);
-    this.picked = { layer: f.layer.source, coords: (f.geometry as GeoJSON.LineString).coordinates as LL[] };
+      .find((x) => (x.geometry.type === 'LineString' || x.geometry.type === 'Polygon') && !x.layer.id.startsWith('cad-'));
+    if (!f) return this.h.setStatus('Click on a line or shape to offset', 4000);
+    const closed = f.geometry.type === 'Polygon';
+    const coords = (closed ? (f.geometry as GeoJSON.Polygon).coordinates[0].slice(0, -1) : (f.geometry as GeoJSON.LineString).coordinates) as LL[];
+    this.picked = { layer: f.layer.source, coords, closed };
     this.plane = new Plane(this.picked.coords[0]);
     this.renderBar();
     this.draw();
@@ -707,14 +740,38 @@ export class CadDesigner {
   }
 
   private async doOffset(d: number) {
-    if (!this.picked || !Number.isFinite(d) || d === 0) return this.h.setStatus('Type the offset distance in m (+ right, − left)', 5000);
-    const p = new Plane(this.picked.coords[0]);
-    const out = offsetLine(this.picked.coords.map((q) => p.xy(q)), d).map((q) => p.ll(q));
-    await this.save('lines', { type: 'LineString', coordinates: out }, { kind: `offset ${d} m` });
-    this.h.setStatus(`Parallel line ${Math.abs(d)} m to the ${d > 0 ? 'right' : 'left'} saved`, 4000);
+    const pk = this.picked;
+    if (!pk || !Number.isFinite(d) || d === 0) return this.h.setStatus(`Type the offset distance in m (${pk?.closed ? '+ outward, − inward' : '+ right, − left'}), or click a point it goes through`, 5000);
+    const p = new Plane(pk.coords[0]);
+    const xy = pk.coords.map((q) => p.xy(q));
+    if (pk.closed) {
+      const ring = offsetRing(xy, d).map((q) => p.ll(q));
+      const r = [...ring.map((q) => p.xy(q))];
+      await this.save('polygons', { type: 'Polygon', coordinates: [[...ring, ring[0]]] }, { kind: `offset ${d} m`, area_m2: Math.round(area(r) * 100) / 100, perimeter_m: Math.round(perimeter(r, true) * 100) / 100 });
+      this.h.setStatus(`Shape ${Math.abs(d)} m ${d > 0 ? 'outside' : 'inside'} saved`, 4000);
+    } else {
+      const out = offsetLine(xy, d).map((q) => p.ll(q));
+      await this.save('lines', { type: 'LineString', coordinates: out }, { kind: `offset ${d} m` });
+      this.h.setStatus(`Parallel line ${Math.abs(d)} m to the ${d > 0 ? 'right' : 'left'} saved`, 4000);
+    }
     this.picked = null;
     this.renderBar();
     this.draw();
+  }
+
+  /** Offset › Through (AutoCAD OFFSET T): the distance is wherever the click is */
+  private async offsetThrough(at: LL) {
+    const pk = this.picked!;
+    const p = new Plane(pk.coords[0]);
+    const xy = pk.coords.map((q) => p.xy(q));
+    const q = p.xy(at);
+    let d = sideDistance(pk.closed ? [...xy, xy[0]] : xy, q);
+    if (pk.closed) {
+      const n = xy.length;
+      const signed = xy.reduce((s, a, i) => { const b = xy[(i + 1) % n]; return s + a[0] * b[1] - b[0] * a[1]; }, 0);
+      d = signed > 0 ? d : -d;
+    }
+    await this.doOffset(Math.round(d * 1000) / 1000);
   }
 
   // ---------------------------------------------------------------- modify
@@ -730,6 +787,8 @@ export class CadDesigner {
       .find((x) => x.layer.id.includes('#') && !x.layer.id.startsWith('cad-') && !x.layer.id.startsWith('basemap') && Number.isFinite(Number(x.id)));
     if (!hit) return this.h.setStatus('No feature there: click on a line, shape or point', 4000);
     const layer = hit.layer.id.replace(/#.*$/, '');
+    if (this.tool === 'lock') return this.toggleLock(layer);
+    if (this.h.locked().includes(layer)) return this.h.setStatus(`${this.layerName(layer)} is locked: unlock it with Design › Lock`, 5000);
     const fid = Number(hit.id);
     const at: LL = [e.lngLat.lng, e.lngLat.lat];
     try {
@@ -747,6 +806,18 @@ export class CadDesigner {
     if (this.tool === 'trim' || this.tool === 'extend') return this.doTrimExtend();
     this.renderBar();
     this.draw();
+  }
+
+  private layerName(id: string) {
+    return this.h.layers().find((l) => l.id === id)?.name ?? id;
+  }
+
+  /** Lock (AutoCAD LAYLCK / LAYULK): a locked layer is shown and snapped to but not changed */
+  private toggleLock(layer: string) {
+    const locked = this.h.locked();
+    const on = !locked.includes(layer);
+    this.h.setLocked(on ? [...locked, layer] : locked.filter((l) => l !== layer));
+    this.h.setStatus(`${this.layerName(layer)} ${on ? 'locked: Modify tools leave it alone' : 'unlocked'}`, 4000);
   }
 
   /** the picked feature through a plane transform: replaced (move, rotate, scale) or copied */
