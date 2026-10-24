@@ -32,11 +32,22 @@ away.
 - **Data from anywhere.** Files, devices and phones, plus online data cut to your area with citations:
   WorldClim, CHELSA, CMIP6, SoilGrids, GBIF, OBIS, iNaturalist, GADM, Copernicus DEM, GEBCO, Hansen forest
   change, ecoregions.
+- **Design and CAD.** Lines, polygons, roads from a centreline, offsets, dimensions, a traverse (COGO)
+  with its misclosure, snap, ortho and polar, typed input such as `25<90` and `@10,5`, and DXF to and
+  from AutoCAD.
 - **Automation.** Every result is a re-runnable recipe; triggers run them when a device is plugged in, a
   folder changes, a schedule fires or a live sensor crosses a threshold.
 - **R, Python and AI.** R and Python as recipe steps with an R console and templates; an assistant (Ollama,
   OpenAI-compatible or Claude) and an MCP server.
 - **Private by default.** Everything runs on your computer and works offline.
+
+## Tours
+
+**Design a subdivision.** A 76-lot estate east of Lae, Papua New Guinea, drawn with the Design tab over
+Esri World Imagery: two 12 m access roads and a 15 m collector, 20 × 30 m lots, a public reserve, a water
+tank and dimensions, all typed into the command line. *Export DXF* hands it to AutoCAD in UTM metres.
+
+<p align="center"><img src="docs/assets/tour-design.png" alt="GeoSpaX Design tab: a 76-lot subdivision plan over Esri World Imagery of Lae" width="900" /></p>
 
 ## Download
 

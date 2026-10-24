@@ -528,10 +528,14 @@ function fitAll(duration = 450) {
   map.fitBounds([[minx, miny], [maxx, maxy]], { padding: 60, maxZoom: 17, duration });
 }
 
+/** Layers a tool has styled on purpose (the Design tab's drafting looks): AutoMap leaves them alone,
+ *  even when its answer for the new layer arrives after the tool's style. */
+const styledByTool = new Set<string>();
+
 /** Let the engine choose a style for one layer (AutoMap). */
 async function autostyleLayer(id: string, opts: { keepVisibility?: boolean; quiet?: boolean } = {}) {
   const r = await backend.json<{ style: Partial<LayerStyle>; why?: string }>(`api/layers/${encodeURIComponent(id)}/autostyle`).catch(() => null);
-  if (!r?.style || !layerById(id)) return;
+  if (!r?.style || !layerById(id) || styledByTool.has(id)) return;
   const prev = project.layers[id];
   project.layers[id] = { ...prev, ...(r.style as LayerStyle), visible: opts.keepVisibility ? prev.visible : true, auto: r.why || 'chosen by AutoMap' };
   if (opts.quiet) return;
@@ -2521,6 +2525,20 @@ async function main() {
       const st = project.layers[id];
       if (!st) return;
       st.labels = { ...defaultLabels(field), on: true, placement, color: '#ffd166', haloColor: '#0b0d10', haloWidth: 1.5 };
+      applyStyle();
+      saveProject();
+    },
+    look: (id, look) => {
+      const st = project.layers[id];
+      if (!st) return;
+      styledByTool.add(id);
+      st.symbology = { kind: 'single', color: look.color };
+      st.opacity = look.opacity ?? 1;
+      st.outline = true;
+      delete st.auto;
+      const dash = look.dash ?? 'solid';
+      st.line = { ...(st.line ?? { cap: 'round', join: 'round' }), width: look.width, dash } as typeof st.line;
+      st.fill = { fill: !look.hollow, strokeColor: look.hollow ? look.color : '#ffffff', strokeWidth: look.width, strokeDash: dash } as typeof st.fill;
       applyStyle();
       saveProject();
     },
