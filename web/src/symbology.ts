@@ -171,7 +171,9 @@ export function colorExpression(s: Symbology): ExpressionSpecification | string 
 export const symbologyField = (s: Symbology) => (s.kind === 'single' ? null : s.field);
 
 // ------------------------------------------------------------------ legend
-export function fmtNum(v: number): string {
+export function fmtNum(v: number | null | undefined): string {
+  // a project file can hold a null bound (an empty class): show a dash rather than stop the app
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
   const a = Math.abs(v);
   if (a >= 1e9) return (v / 1e9).toFixed(a >= 1e10 ? 0 : 1) + 'B';
   if (a >= 1e6) return (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M';
