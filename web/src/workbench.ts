@@ -1110,12 +1110,12 @@ export class Workbench {
     const kindTitle = (k: string) => (this.serviceKinds.find((x) => x.id === k)?.title ?? k).replace(/ \(.*\)$/, '');
     return this.services.map((sv) => {
       const open = this.browseOpen.has(`ws:${sv.id}`);
-      const head = `<div class="node source folder" data-ws="${esc(sv.id)}" title="${esc(`${kindTitle(sv.kind)} · ${sv.url}`)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon('globe', 14)}<span class="nm">${esc(sv.title)}</span><span class="ct dim">${esc(kindTitle(sv.kind))}</span><button class="ct disc" data-ws-rm="${esc(sv.id)}" title="Remove this connection" aria-label="Remove ${esc(sv.title)}">✕</button></div>`;
+      const head = `<div class="node source folder" data-ws="${esc(sv.id)}" title="${esc(`${kindTitle(sv.kind)} · ${sv.url}`)}"><span class="tw">${open ? '▾' : '▸'}</span>${icon(({ github: 'code', cloud: 'database', stac: 'satellite' } as Record<string, string>)[sv.kind] ?? 'globe', 14)}<span class="nm">${esc(sv.title)}</span><span class="ct dim">${esc(kindTitle(sv.kind))}</span><button class="ct disc" data-ws-rm="${esc(sv.id)}" title="Remove this connection" aria-label="Remove ${esc(sv.title)}">✕</button></div>`;
       if (!open) return head;
       const ls = this.serviceLayers.get(sv.id);
       if (ls === undefined) return `${head}<div class="pane-empty" style="padding-left:32px">Asking the service…</div>`;
       if (typeof ls === 'string') return `${head}<div class="pane-empty err" style="padding-left:32px">${esc(ls)}</div>`;
-      if (sv.kind === 'cloud') return head + this.cloudRows(sv.id, ls, 0);
+      if (sv.kind === 'cloud' || sv.kind === 'github') return head + this.cloudRows(sv.id, ls, 0);
       return head + ls.map((l) => `<div class="node gx-leaf" data-ws-layer="${esc(l.id)}" data-ws-sid="${esc(sv.id)}" data-ws-title="${esc(l.title)}" data-ws-type="${l.type}" style="padding-left:32px" title="${esc(l.type === 'collection' ? 'Click to search it for imagery of the map area' : l.type === 'features' ? 'Click to download its features for the map view' : 'Click to add it to the map')}">${icon(l.type === 'features' ? 'layers' : l.type === 'collection' ? 'search' : 'image', 13)}<span class="nm">${esc(l.title)}</span><span class="ct dim">${l.type === 'collection' ? 'search' : l.type === 'features' ? 'features' : 'map image'}</span></div>`).join('');
     }).join('');
   }
@@ -1155,14 +1155,27 @@ export class Workbench {
     }
   }
 
-  private async openCloudFile(sid: string, path: string, title: string) {
-    this.setStatus(`Opening ${title} from cloud storage…`);
+  private async openCloudFile(sid: string, path: string, title: string, approve = false): Promise<void> {
+    this.setStatus(`Opening ${title}…`);
     try {
-      const r = await this.host.backend.json<{ layers: string[]; rasters: string[] }>(`api/services/${encodeURIComponent(sid)}/open?path=${encodeURIComponent(path)}`, { method: 'POST' });
+      const r = await this.host.backend.json<{ layers: string[]; rasters: string[]; recipe?: { id: string; title?: string } }>(`api/services/${encodeURIComponent(sid)}/open?path=${encodeURIComponent(path)}${approve ? '&approve=code' : ''}`, { method: 'POST' });
+      if (r.recipe) {
+        // a recipe from GitHub: now in GeoSpaX › Recipes
+        this.gxData.recipes = undefined;
+        this.setStatus(`Recipe ${r.recipe.title || r.recipe.id} added: GeoSpaX › Recipes`, 6000);
+        if (this.gxOpen.has('recipes')) void this.gxToggle('recipes').then(() => this.gxToggle('recipes'));
+        return;
+      }
       document.dispatchEvent(new CustomEvent('geospax:added', { detail: { layers: r.layers, rasters: r.rasters } }));
       this.setStatus(`${title} is on the map`, 5000);
     } catch (e) {
-      this.setStatus(`${title}: ${e instanceof Error ? e.message : e}`, 10000);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!approve && msg.includes('runs Python or R code')) {
+        if (confirm(`${title} runs Python or R code on this computer when it is used.\n\nOnly add recipes from people you trust. Add it?`)) return this.openCloudFile(sid, path, title, true);
+        this.setStatus(`${title} was not added`, 5000);
+        return;
+      }
+      this.setStatus(`${title}: ${msg}`, 10000);
     }
   }
 
@@ -1194,7 +1207,7 @@ export class Workbench {
     const kinds = this.serviceKinds.length ? this.serviceKinds : [{ id: 'wms', title: 'WMS' }];
     const hints: Record<string, string> = {
       xyz: 'https://tile.example.org/{z}/{x}/{y}.png', wms: 'https://example.org/geoserver/wms', wmts: 'https://example.org/wmts/1.0.0/WMTSCapabilities.xml',
-      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer', stac: 'https://earth-search.aws.element84.com/v1', cloud: 's3://bucket/folder  ·  gs://bucket  ·  az://container  ·  https://…/folder/',
+      'arcgis-map': 'https://example.org/arcgis/rest/services/Name/MapServer', wfs: 'https://example.org/geoserver/wfs', ogcapi: 'https://example.org/ogcapi', 'arcgis-feature': 'https://example.org/arcgis/rest/services/Name/FeatureServer', stac: 'https://earth-search.aws.element84.com/v1', github: 'owner/repository, or a github.com link to a branch or folder', cloud: 's3://bucket/folder  ·  gs://bucket  ·  az://container  ·  https://…/folder/',
     };
     const known = this.stacCatalogs;
     const modal = document.createElement('div');
@@ -1214,7 +1227,7 @@ export class Workbench {
         </div>
         <div class="ws-field ws-known"><span>Or open data in the cloud</span>${CLOUD_PRESETS.map((c, i) => `<button type="button" data-cloud-preset="${i}" title="${esc(c.about)}">${esc(c.title)}</button>`).join('')}</div>
         ${known.length ? `<div class="ws-field ws-known"><span>Or a public STAC catalog</span>${known.map((k) => `<button type="button" data-known="${esc(k.url)}" data-known-title="${esc(k.title)}">${esc(k.title)}</button>`).join('')}</div>` : ''}
-        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud; cloud storage is browsed like a folder.</p>
+        <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud; cloud storage and GitHub repositories are browsed like folders (a recipe found there can be added to your recipes).</p>
         <p class="err" data-msg></p>
       </div>
       <footer><button type="button" data-x>Cancel</button><button class="primary" type="submit">Connect</button></footer></form>`;

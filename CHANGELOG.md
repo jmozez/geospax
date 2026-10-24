@@ -16,6 +16,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **GitHub repositories in the Explorer:** *＋ Add › GitHub repository* (`owner/repo` or a github.com link to a
+  branch or folder). Browse its folders; data files go on the map (GeoTIFFs read in place, vector files copied
+  and added as layers), and a recipe is added to your recipes, after you confirm when it runs Python or R
+  code. Public repositories work as they are; set `GITHUB_TOKEN` for private ones and a higher rate limit.
 - **R & Python in the Explorer** (GeoSpaX › R & Python): R's version and each kit with its packages
   (installed or missing, with *Install or update packages…*); every Python on the computer (PATH, conda and
   mamba environments, pyenv, virtual environments, a project's `.venv` in a data folder) with its geospatial

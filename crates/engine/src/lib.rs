@@ -16,6 +16,7 @@ pub mod stac;
 pub mod cloud;
 pub mod geoparquet;
 pub mod pyenv;
+pub mod github;
 pub mod catalog;
 pub mod classify;
 pub mod devices;
