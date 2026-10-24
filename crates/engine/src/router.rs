@@ -192,6 +192,13 @@ impl Engine {
                 Ok(body) => ApiResponse { status: 200, content_type: "image/vnd.dxf", headers: vec![("Content-Disposition", "attachment; filename=\"geospax-design.dxf\"".to_string())], body },
                 Err(e) => ApiResponse::error(404, e),
             },
+            ("POST", ["api", "design", "boolean"]) => {
+                let b = body_json(&req.body);
+                match crate::design::boolean(b["op"].as_str().unwrap_or(""), &b["a"], &b["b"]) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
             ("POST", ["api", "design", "dxf-import"]) => match param(q, "epsg").and_then(|v| v.trim().trim_start_matches("EPSG:").parse::<u32>().ok()) {
                 Some(epsg) => match crate::design::import_dxf(self, &param(q, "name").unwrap_or_else(|| "drawing.dxf".into()), epsg, &req.body) {
                     Ok(v) => ApiResponse::json(200, &v),

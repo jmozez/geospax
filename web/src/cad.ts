@@ -43,6 +43,7 @@
 //   Ellipse       centre, end of one axis, then the other half-axis in m or a click (ELLIPSE)
 //   Angular dim   vertex, then a point on each side: the angle between them as an arc (DIMANGULAR)
 //   Leader        the point, then where the note goes, then the note (QLEADER)
+//   Union         two shapes into one; Subtract cuts the second out of the first; Intersect keeps the overlap
 //   Layers        Layer Properties: colour, linetype, lineweight, on/off, lock for each design layer (LAYER)
 //   Lock layer    click a feature to lock or unlock its layer; Modify tools skip locked layers (LAYLCK)
 //
@@ -58,8 +59,8 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '
 type LL = [number, number];
 type XY = [number, number];
 export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'arc' | 'ellipse' | 'point' | 'text' | 'dimension' | 'dimangle' | 'leader' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align' | 'lock';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align', 'lock'];
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align' | 'lock' | 'union' | 'subtract' | 'intersect';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align', 'lock', 'union', 'subtract', 'intersect'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
 type Block = CadBlock;
 /** where blocks lived before they were kept in the project: moved over the first time */
@@ -406,6 +407,10 @@ export class CadDesigner {
       case 'dimangle': return n === 0 ? 'Angular dimension: the vertex' : n === 1 ? 'A point on the first side' : 'A point on the second side';
       case 'leader': return n === 0 ? 'Leader: the point it points at' : 'Leader: where the note goes';
       case 'offset': return this.picked ? `Offset: distance in m (${this.picked.closed ? '+ outward, − inward' : '+ right, − left'}), or click a point it goes through` : 'Offset: click the line or shape to copy';
+      case 'union': case 'subtract': case 'intersect': {
+        const verb = { union: 'Union: joins two shapes into one', subtract: 'Subtract: cuts the second shape out of the first', intersect: 'Intersect: keeps where two shapes overlap' }[this.tool];
+        return !this.sel ? `${verb} · click the first shape` : 'Click the second shape (same layer)';
+      }
       case 'lock': return 'Lock: click a feature to lock or unlock its layer';
       case 'road': return n < 2 ? 'Road: centreline points · Enter when done' : 'Road: next centreline point · Enter, then the width';
       case 'move': case 'copy': return !this.sel ? `${this.tool === 'move' ? 'Move' : 'Copy'}: click the feature` : n === 0 ? 'Base point' : 'Second point (or @dx,dy in m)';
@@ -551,6 +556,7 @@ export class CadDesigner {
     if (this.tool === 'offset' && this.picked) return this.offsetThrough(p);
     if (isModify(this.tool) && !this.sel) return this.pickFeature(e);
     if (this.tool === 'join' && this.sel) return this.doJoin(e);
+    if ((this.tool === 'union' || this.tool === 'subtract' || this.tool === 'intersect') && this.sel) return this.doBoolean(e);
     await this.add(p);
   }
 
@@ -1171,6 +1177,47 @@ export class CadDesigner {
       this.h.setStatus('Joined into one line', 3000);
     } catch (err) {
       this.h.setStatus(`Could not join: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    this.sel = null;
+    this.plane = null;
+    this.renderBar();
+    this.draw();
+  }
+
+  /** UNION / SUBTRACT / INTERSECT (AutoCAD regions): the first shape becomes the result, the second is used up */
+  private async doBoolean(e: maplibregl.MapMouseEvent) {
+    const a = this.sel!, op = this.tool as 'union' | 'subtract' | 'intersect';
+    const R = 6;
+    const hit = this.h.map.queryRenderedFeatures([[e.point.x - R, e.point.y - R], [e.point.x + R, e.point.y + R]])
+      .find((x) => x.layer.id.includes('#') && !x.layer.id.startsWith('cad-') && x.layer.id.replace(/#.*$/, '') === a.layer && Number(x.id) !== a.fid);
+    if (!hit) return this.h.setStatus('Click another shape of the same layer', 4000);
+    const fid = Number(hit.id);
+    const b = await this.h.backend.json<GeoJSON.Feature>(`api/layers/${encodeURIComponent(a.layer)}/features/${fid}`);
+    const areaish = (g?: GeoJSON.Geometry | null) => g?.type === 'Polygon' || g?.type === 'MultiPolygon';
+    if (!areaish(a.feature.geometry) || !areaish(b.geometry)) {
+      this.sel = null;
+      this.draw();
+      return this.h.setStatus(`${op[0].toUpperCase()}${op.slice(1)} works on two shapes (polygons)`, 4000);
+    }
+    const url = `api/layers/${encodeURIComponent(a.layer)}/features`;
+    const bProps = Object.fromEntries(Object.entries(b.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k)));
+    try {
+      const r = await this.api<{ geometry: GeoJSON.Geometry | null }>('api/design/boolean', 'POST', { op, a: a.feature.geometry, b: b.geometry });
+      if (!r.geometry) {
+        this.h.setStatus(op === 'intersect' ? 'The shapes do not overlap: nothing to keep' : 'Nothing would be left of the first shape', 5000);
+      } else {
+        await this.api(`${url}/${a.fid}`, 'PUT', { geometry: r.geometry });
+        await this.api(`${url}/${fid}`, 'DELETE');
+        this.undoStack.push([
+          { kind: 'update', layer: a.layer, fid: a.fid, before: a.feature.geometry, after: r.geometry },
+          { kind: 'delete', layer: a.layer, fid, feature: { type: 'Feature', geometry: b.geometry, properties: bProps } },
+        ]);
+        this.redoStack = [];
+        await this.h.changed(a.layer);
+        this.h.setStatus(`${op[0].toUpperCase()}${op.slice(1)} done · Ctrl+Z undoes it`, 3000);
+      }
+    } catch (err) {
+      this.h.setStatus(`Could not ${op}: ${err instanceof Error ? err.message : err}`, 8000);
     }
     this.sel = null;
     this.plane = null;

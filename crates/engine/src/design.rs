@@ -271,6 +271,23 @@ fn pen_style(p: &Value) -> Option<String> {
     Some(format!("PEN(c:{c},w:{w:.2}mm{pat})"))
 }
 
+/// UNION / SUBTRACT / INTERSECT of two GeoJSON shapes (lon/lat); `null` when nothing is left.
+pub fn boolean(op: &str, a: &Value, b: &Value) -> Result<Value, String> {
+    let ga = Geometry::from_geojson(&a.to_string()).map_err(|e| e.to_string())?;
+    let gb = Geometry::from_geojson(&b.to_string()).map_err(|e| e.to_string())?;
+    let out = match op {
+        "union" => ga.union(&gb),
+        "subtract" => ga.difference(&gb),
+        "intersect" => ga.intersection(&gb),
+        _ => return Err(format!("unknown operation {op}")),
+    };
+    let geometry = match out.filter(|g| !g.is_empty()) {
+        Some(g) => serde_json::from_str::<Value>(&g.json().map_err(|e| e.to_string())?).map_err(|e| e.to_string())?,
+        None => Value::Null,
+    };
+    Ok(json!({ "geometry": geometry }))
+}
+
 /// A block name AutoCAD accepts: letters, digits, - and _ (others become _).
 fn block_name(s: &str) -> String {
     let n: String = s.trim().chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
@@ -329,6 +346,18 @@ mod tests {
         assert_eq!(super::cad_layer("Design · roads"), "DESIGN_ROADS");
         assert_eq!(super::utm(147.0, -6.7), 32755);
         assert_eq!(super::utm(-3.7, 40.4), 32630);
+    }
+
+    #[test]
+    fn booleans() {
+        let a = serde_json::json!({"type": "Polygon", "coordinates": [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]]});
+        let b = serde_json::json!({"type": "Polygon", "coordinates": [[[1, 1], [3, 1], [3, 3], [1, 3], [1, 1]]]});
+        let area = |v: &serde_json::Value| gdal::vector::Geometry::from_geojson(&v["geometry"].to_string()).unwrap().area();
+        assert!((area(&super::boolean("union", &a, &b).unwrap()) - 7.0).abs() < 1e-9);
+        assert!((area(&super::boolean("subtract", &a, &b).unwrap()) - 3.0).abs() < 1e-9);
+        assert!((area(&super::boolean("intersect", &a, &b).unwrap()) - 1.0).abs() < 1e-9);
+        let far = serde_json::json!({"type": "Polygon", "coordinates": [[[9, 9], [10, 9], [10, 10], [9, 9]]]});
+        assert!(super::boolean("intersect", &a, &far).unwrap()["geometry"].is_null());
     }
 
     #[test]

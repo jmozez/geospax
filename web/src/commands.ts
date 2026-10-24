@@ -814,6 +814,21 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'insert' })); },
   },
   {
+    id: 'design.union', tab: 'design', group: 'Modify', title: 'Union', icon: 'copy',
+    hint: 'Two shapes joined into one, as AutoCAD UNION',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'union' })); },
+  },
+  {
+    id: 'design.subtract', tab: 'design', group: 'Modify', title: 'Subtract', icon: 'copy',
+    hint: 'The second shape cut out of the first, as AutoCAD SUBTRACT',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'subtract' })); },
+  },
+  {
+    id: 'design.intersect', tab: 'design', group: 'Modify', title: 'Intersect', icon: 'copy',
+    hint: 'Only where two shapes overlap, as AutoCAD INTERSECT',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'intersect' })); },
+  },
+  {
     id: 'design.arraypolar', tab: 'design', group: 'Modify', title: 'Polar array', icon: 'rotate',
     hint: 'Copies of a feature turned around a centre (posts round a roundabout), as AutoCAD ARRAYPOLAR',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'arraypolar' })); },
