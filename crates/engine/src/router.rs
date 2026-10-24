@@ -183,7 +183,7 @@ impl Engine {
             ("POST", ["api", "design", "dxf"]) => {
                 let b = body_json(&req.body);
                 let ids: Vec<String> = b["layers"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
-                match crate::design::export_dxf(self, &ids, &b["hatch"]) {
+                match crate::design::export_dxf(self, &ids, &b["hatch"], &b["blocks"], &b["inserts"]) {
                     Ok(v) => ApiResponse::json(200, &v),
                     Err(e) => ApiResponse::error(400, e),
                 }

@@ -47,7 +47,7 @@
 // north), which is accurate to a few centimetres over a town; the layers stay in WGS 84.
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
-import type { CadBlock } from './symbology';
+import type { CadBlock, CadInsert } from './symbology';
 import { align, breakAt, chamfer, divide, stretch, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -81,6 +81,9 @@ export interface CadHost {
   setBlocks: (b: CadBlock[]) => void;
   /** design layers locked against edits (Design › Lock), and saving a new list */
   locked: () => string[];
+  /** where blocks were placed (DXF export writes them as block references) */
+  inserts: () => CadInsert[];
+  setInserts: (v: CadInsert[]) => void;
   /** a layer's hatch pattern, if it has one (DXF export draws it as lines) */
   hatch: (id: string) => string | undefined;
   setLocked: (ids: string[]) => void;
@@ -1160,6 +1163,7 @@ export class CadDesigner {
       const feature: GeoJSON.Feature = { type: 'Feature', geometry, properties: ins.block.properties };
       const r = await this.api<{ fid: number }>(`api/layers/${encodeURIComponent(ins.block.layer)}/features`, 'POST', feature);
       this.record({ kind: 'add', layer: ins.block.layer, fid: r.fid, feature });
+      this.h.setInserts([...this.h.inserts(), { block: ins.block.name, layer: ins.block.layer, fid: r.fid, at, angle: ins.angle, geometry }]);
       await this.h.changed(ins.block.layer);
     } catch (err) {
       this.h.setStatus(`Could not insert (was its layer removed?): ${err instanceof Error ? err.message : err}`, 8000);
@@ -1359,11 +1363,24 @@ S90°W 25</textarea></label>
     const ids = this.h.layers().filter((l) => l.name.startsWith('Design · ')).map((l) => l.id);
     if (!ids.length) return this.h.setStatus('Nothing to export yet: draw with the Design tools first', 6000);
     try {
+      // a placed block still as it was placed goes out as a block reference; one since moved, edited or
+      // erased is plain linework (and is forgotten)
+      const same = (a: GeoJSON.Geometry, b: GeoJSON.Geometry) => JSON.stringify(mapGeometry(a, (q) => q.map((v) => Math.round(v * 1e7)) as LL)) === JSON.stringify(mapGeometry(b, (q) => q.map((v) => Math.round(v * 1e7)) as LL));
+      const kept: CadInsert[] = [];
+      for (const i of this.h.inserts()) {
+        if (!ids.includes(i.layer)) continue;
+        const f = await this.h.backend.json<GeoJSON.Feature>(`api/layers/${encodeURIComponent(i.layer)}/features/${i.fid}`).catch(() => null);
+        if (f?.geometry && same(f.geometry, i.geometry)) kept.push(i);
+      }
+      if (kept.length !== this.h.inserts().length) this.h.setInserts(kept);
+      const used = new Set(kept.map((i) => i.block));
+      const blocks = this.loadBlocks().filter((b) => used.has(b.name)).map((b) => ({ name: b.name, geometry: b.geometry }));
+      const inserts = kept.map((i) => ({ block: i.block, layer: i.layer, fid: i.fid, at: i.at, angle: i.angle }));
       const r = await this.h.backend.json<{ path: string; features: number; epsg: number }>('api/design/dxf', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layers: ids, hatch: Object.fromEntries(ids.map((id) => [id, this.h.hatch(id)]).filter(([, h]) => h)) }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layers: ids, blocks, inserts, hatch: Object.fromEntries(ids.map((id) => [id, this.h.hatch(id)]).filter(([, h]) => h)) }),
       });
       window.open(this.h.backend.url(`api/design/dxf?path=${encodeURIComponent(r.path)}`), '_blank', 'noopener');
-      this.h.setStatus(`DXF: ${r.features} entities in EPSG:${r.epsg} (metres), one AutoCAD layer per design layer`, 8000);
+      this.h.setStatus(`DXF: ${r.features} entities${kept.length ? ` (${kept.length} block references)` : ''} in EPSG:${r.epsg} (metres), one AutoCAD layer per design layer`, 8000);
     } catch (e) {
       this.h.setStatus(`DXF export: ${e instanceof Error ? e.message : e}`, 8000);
     }

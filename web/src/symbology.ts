@@ -70,7 +70,12 @@ export interface Project {
   cadBlocks?: CadBlock[];
   /** Design › Lock: layer ids that Modify tools leave alone */
   cadLocked?: string[];
+  /** Design › Insert: where each block was placed, so DXF export writes block references */
+  cadInserts?: CadInsert[];
 }
+
+/** a placed block: the feature it made, its insertion point and turn, and that feature's geometry then */
+export interface CadInsert { block: string; layer: string; fid: number; at: [number, number]; angle: number; geometry: GeoJSON.Geometry }
 
 export interface CadBlock { name: string; layer: string; geometry: GeoJSON.Geometry; properties: Record<string, unknown> }
 

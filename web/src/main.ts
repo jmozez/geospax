@@ -2541,6 +2541,11 @@ async function main() {
       project.cadBlocks = b;
       saveProject();
     },
+    inserts: () => project.cadInserts ?? [],
+    setInserts: (v) => {
+      project.cadInserts = v;
+      saveProject();
+    },
     locked: () => project.cadLocked ?? [],
     hatch: (id) => { const f = project.layers[id]?.fill; return f?.fill !== false ? f?.pattern : undefined; },
     setLocked: (ids) => {

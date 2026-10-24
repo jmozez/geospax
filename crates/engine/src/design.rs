@@ -33,7 +33,9 @@ fn utm(lon: f64, lat: f64) -> u32 {
 }
 
 /// Write the given design layers to a DXF; returns its path, the number of entities and the EPSG used.
-pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value) -> Result<Value, String> {
+/// `blocks` ([{name, geometry}] in metres around the base point) and `inserts` ([{block, layer, fid, at, angle}])
+/// make AutoCAD block references: the placed features go out as INSERTs of a block definition.
+pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value, inserts: &Value) -> Result<Value, String> {
     let e = |x: gdal::errors::GdalError| x.to_string();
     let layers: Vec<_> = ids.iter().filter_map(|id| engine.layer(id)).collect();
     if layers.is_empty() {
@@ -62,9 +64,40 @@ pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value) -> Result<Valu
     let path = dir(engine).join(format!("design-{stamp}.dxf"));
     let drv = gdal::DriverManager::get_driver_by_name("DXF").map_err(e)?;
     let mut ds = drv.create_vector_only(&path).map_err(e)?;
+    // block definitions first: GDAL writes a "blocks" layer into the BLOCKS section
+    let mut defined = std::collections::HashSet::new();
+    let block_list: Vec<&Value> = blocks.as_array().into_iter().flatten().collect();
+    if !block_list.is_empty() {
+        let bl = ds.create_layer(LayerOptions { name: "blocks", srs: None, ty: OGRwkbGeometryType::wkbUnknown, options: None }).map_err(e)?;
+        let _ = FieldDefn::new("Layer", OGRFieldType::OFTString).map_err(e)?.add_to_layer(&bl);
+        let _ = FieldDefn::new("BlockName", OGRFieldType::OFTString).map_err(e)?.add_to_layer(&bl);
+        let bi = bl.defn().field_index("BlockName").map_err(e)?;
+        let li = bl.defn().field_index("Layer").map_err(e)?;
+        for b in block_list {
+            let Some(name) = b["name"].as_str().map(block_name) else { continue };
+            let Ok(g) = Geometry::from_geojson(&b["geometry"].to_string()) else { continue };
+            let mut f = Feature::new(bl.defn()).map_err(e)?;
+            f.set_field_string(bi, &name).map_err(e)?;
+            f.set_field_string(li, "0").map_err(e)?;
+            f.set_geometry(g).map_err(e)?;
+            f.create(&bl).map_err(e)?;
+            defined.insert(name);
+        }
+    }
+    // (layer id, fid) → (block, insertion point in lon/lat, angle)
+    let mut refs = std::collections::HashMap::new();
+    for i in inserts.as_array().into_iter().flatten() {
+        let (Some(b), Some(l), Some(fid), Some(x), Some(y)) = (i["block"].as_str(), i["layer"].as_str(), i["fid"].as_u64(), i["at"][0].as_f64(), i["at"][1].as_f64()) else { continue };
+        if defined.contains(&block_name(b)) {
+            refs.insert((l.to_string(), fid), (block_name(b), x, y, i["angle"].as_f64().unwrap_or(0.0)));
+        }
+    }
     let out = ds.create_layer(LayerOptions { name: "entities", srs: None, ty: OGRwkbGeometryType::wkbUnknown, options: None }).map_err(e)?;
     let _ = FieldDefn::new("Layer", OGRFieldType::OFTString).map_err(e)?.add_to_layer(&out);
     let layer_idx = out.defn().field_index("Layer").map_err(e)?;
+    let _ = FieldDefn::new("BlockName", OGRFieldType::OFTString).map_err(e)?.add_to_layer(&out);
+    let _ = FieldDefn::new("BlockAngle", OGRFieldType::OFTReal).map_err(e)?.add_to_layer(&out);
+    let (bn_idx, ba_idx) = (out.defn().field_index("BlockName").map_err(e)?, out.defn().field_index("BlockAngle").map_err(e)?);
     let mut count = 0u64;
     for l in &layers {
         let src = crate::catalog::open_vector(l.path())?;
@@ -73,6 +106,20 @@ pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value) -> Result<Valu
         let pattern = hatch[l.info.id.as_str()].as_str();
         let label_field = ["label", "text", "name"].into_iter().find(|f| sl.defn().fields().any(|x| x.name() == *f));
         for f in sl.features() {
+            // a placed block: one INSERT at its insertion point instead of its linework
+            if let Some((name, x, y, angle)) = f.fid().and_then(|fid| refs.get(&(l.info.id.clone(), fid))) {
+                let mut pt = Geometry::from_wkt(&format!("POINT ({x} {y})")).map_err(e)?;
+                if pt.transform_inplace(&ct).is_ok() {
+                    let mut nf = Feature::new(out.defn()).map_err(e)?;
+                    nf.set_field_string(layer_idx, &cad).map_err(e)?;
+                    nf.set_field_string(bn_idx, name).map_err(e)?;
+                    nf.set_field_double(ba_idx, *angle).map_err(e)?;
+                    nf.set_geometry(pt).map_err(e)?;
+                    nf.create(&out).map_err(e)?;
+                    count += 1;
+                    continue;
+                }
+            }
             let Some(g) = f.geometry() else { continue };
             let mut g = g.clone();
             if g.transform_inplace(&ct).is_err() {
@@ -154,6 +201,12 @@ pub fn hatch_lines(g: &Geometry, pattern: &str) -> Vec<Geometry> {
         }
     }
     out
+}
+
+/// A block name AutoCAD accepts: letters, digits, - and _ (others become _).
+fn block_name(s: &str) -> String {
+    let n: String = s.trim().chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
+    if n.is_empty() { "BLOCK".into() } else { n }
 }
 
 fn set_style(f: &Feature, style: &str) {
