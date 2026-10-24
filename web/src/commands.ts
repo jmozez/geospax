@@ -809,6 +809,16 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'join' })); },
   },
   {
+    id: 'design.break', tab: 'design', group: 'Modify', title: 'Break', icon: 'scissors',
+    hint: 'Split a line in two at a point, as AutoCAD BREAK at point',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'break' })); },
+  },
+  {
+    id: 'design.lengthen', tab: 'design', group: 'Modify', title: 'Lengthen', icon: 'arrowRight',
+    hint: 'Make a line longer or shorter at the clicked end (+5, -3, =40 m), as AutoCAD LENGTHEN',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'lengthen' })); },
+  },
+  {
     id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
     hint: 'Delete the feature you click, as AutoCAD ERASE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },

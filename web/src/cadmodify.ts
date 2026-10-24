@@ -207,3 +207,26 @@ export function join(a: XY[], b: XY[], tol: number): XY[] | null {
   options.sort((x, y) => x[0] - y[0]);
   return options[0][0] <= tol ? options[0][1]() : null;
 }
+
+/** BREAK at a point: the line split where it passes nearest `at` (null at or beyond an end). */
+export function breakAt(line: XY[], at: XY): [XY[], XY[]] | null {
+  const L = lengthOf(line), d = project(line, at);
+  if (d < 1e-3 || d > L - 1e-3) return null;
+  return [sub(line, 0, d), sub(line, d, L)];
+}
+
+/** LENGTHEN the end of a line nearer `at` by `delta` metres (negative shortens), along its end
+ *  segment when growing; null when it would vanish. */
+export function lengthen(line: XY[], at: XY, delta: number): XY[] | null {
+  const L = lengthOf(line);
+  if (L + delta <= 1e-3) return null;
+  const n = line.length;
+  const atEnd = Math.hypot(line[n - 1][0] - at[0], line[n - 1][1] - at[1]) <= Math.hypot(line[0][0] - at[0], line[0][1] - at[1]);
+  const l = atEnd ? line : [...line].reverse();
+  let out: XY[];
+  if (delta >= 0) {
+    const a = l[l.length - 2], b = l[l.length - 1], s = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    out = [...l.slice(0, -1), [b[0] + ((b[0] - a[0]) / s) * delta, b[1] + ((b[1] - a[1]) / s) * delta]];
+  } else out = sub(l, 0, L + delta);
+  return atEnd ? out : out.reverse();
+}
