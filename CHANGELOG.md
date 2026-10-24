@@ -6,6 +6,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased]
 
 ### Fixed
+- Dialogs (Add web service, folder chooser) float over the app instead of pushing it up the page.
+- The folded bottom panel shows its tabs; no more empty band under the map.
 - Expanded web services in the Explorer no longer fold up whenever a layer is added.
 
 ### Changed
@@ -16,6 +18,14 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Design tab (CAD-style drafting):** line, polyline, polygon, rectangle, circle, point and text; offset (parallel
+  copies) and road from centreline (width → road surface); dimensions with length labels; COGO traverse
+  (bearings and distances, quadrant or azimuth, DMS) → parcel with area, perimeter and misclosure. A command
+  line takes `25<90` (distance<bearing), `@10,5` (metres east, north) or `lon,lat`; object snaps (vertex,
+  midpoint, nearest; F3), ortho (F8) and polar tracking (15°, F10); live length and bearing while drawing. Shapes
+  go into "Design · …" layers (GeoPackage) with lengths and areas. **DXF:** export the design layers to AutoCAD
+  (2004+, UTM metres, one CAD layer per design layer, dimension text as MTEXT); import a DXF in a coordinate
+  system you name.
 - **3D terrain view:** any elevation raster as lit 3D terrain in the map (View › 3D terrain, or *3D view* on the
   raster): its colours draped on the relief, a hillshade under the other layers, 1.5× height; right-drag or two
   fingers to tilt and turn. No R needed (rayshader stays available as an R template for print-quality renders).

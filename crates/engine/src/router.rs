@@ -179,6 +179,26 @@ impl Engine {
                     Err(e) => ApiResponse::error(502, e),
                 }
             }
+            // Design tab: DXF export (the design layers, in UTM metres) and import (with the drawing's EPSG)
+            ("POST", ["api", "design", "dxf"]) => {
+                let b = body_json(&req.body);
+                let ids: Vec<String> = b["layers"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
+                match crate::design::export_dxf(self, &ids) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
+            ("GET", ["api", "design", "dxf"]) => match crate::design::exported(self, &param(q, "path").unwrap_or_default()) {
+                Ok(body) => ApiResponse { status: 200, content_type: "image/vnd.dxf", headers: vec![("Content-Disposition", "attachment; filename=\"geospax-design.dxf\"".to_string())], body },
+                Err(e) => ApiResponse::error(404, e),
+            },
+            ("POST", ["api", "design", "dxf-import"]) => match param(q, "epsg").and_then(|v| v.trim().trim_start_matches("EPSG:").parse::<u32>().ok()) {
+                Some(epsg) => match crate::design::import_dxf(self, &param(q, "name").unwrap_or_else(|| "drawing.dxf".into()), epsg, &req.body) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                },
+                None => ApiResponse::error(400, "epsg=… (the drawing's coordinate system) is needed"),
+            },
             // Overture Maps: its themes, and one theme downloaded for an area (a job with the gauge)
             ("GET", ["api", "overture"]) => ApiResponse::json(200, &json!({ "themes": crate::geoparquet::OVERTURE.iter().map(|t| json!({ "id": t.0, "title": t.1 })).collect::<Vec<_>>() })),
             ("POST", ["api", "overture"]) => {

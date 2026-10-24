@@ -29,6 +29,7 @@ import { StartScreen } from './start';
 import { FinishMap, FINISH_RECIPE } from './finish';
 import { OnlineData } from './online';
 import { StacSearch } from './stac';
+import { CadDesigner } from './cad';
 import { RConsole } from './rconsole';
 import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
 import {
@@ -41,7 +42,7 @@ import {
   type LayerStyle,
   type Project,
 } from './symbology';
-import { GLYPHS, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
+import { defaultLabels, GLYPHS, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
 import { DownloadGauge } from './downloads';
 import { isElevation, rasterAttributesHtml, rasterStoryHtml, valueHtml, type Histogram, type RasterValue } from './rasterview';
 import './style.css';
@@ -2507,6 +2508,24 @@ async function main() {
   });
   // Data › Online data: climate, soil, species, boundaries and elevation for the area (online.ts)
   new DownloadGauge(backend, (id) => void openRunReport(id));
+  // Design tab: CAD-style drafting into "Design · …" layers, traverse, DXF (cad.ts)
+  new CadDesigner({
+    map,
+    backend,
+    layers: () => layers,
+    changed: async (id) => {
+      tileRev[id] = (tileRev[id] ?? 0) + 1;
+      await reloadLayers();
+    },
+    labels: (id, field, placement) => {
+      const st = project.layers[id];
+      if (!st) return;
+      st.labels = { ...defaultLabels(field), on: true, placement, color: '#ffd166', haloColor: '#0b0d10', haloWidth: 1.5 };
+      applyStyle();
+      saveProject();
+    },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+  });
   // Explorer › a STAC catalog › a collection: search imagery for the area (stac.ts)
   new StacSearch({
     backend,

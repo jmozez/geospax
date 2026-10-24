@@ -8,7 +8,7 @@ import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
 
 /** 'layer' is the contextual tab (Pro mode), shown while a layer is selected. */
-export type TabId = 'home' | 'data' | 'share' | 'style' | 'edit' | 'analyze' | 'imagery' | 'modelling' | 'r' | 'view' | 'automate' | 'help' | 'plugins' | 'layer';
+export type TabId = 'home' | 'data' | 'share' | 'style' | 'edit' | 'design' | 'analyze' | 'imagery' | 'modelling' | 'r' | 'view' | 'automate' | 'help' | 'plugins' | 'layer';
 
 /** What a command can reach: the map, layers, the backend and a few host actions. */
 export interface CommandHost {
@@ -242,6 +242,7 @@ export const TABS: { id: TabId; label: string }[] = [
   { id: 'analyze', label: 'Analysis' },
   { id: 'view', label: 'View' },
   { id: 'edit', label: 'Edit' },
+  { id: 'design', label: 'Design' },
   { id: 'imagery', label: 'Imagery' },
   { id: 'share', label: 'Share' },
   { id: 'r', label: 'R & Python' },
@@ -264,6 +265,7 @@ const GROUP_ORDER: Partial<Record<TabId, string[]>> = {
   analyze: ['Geoprocessing', 'Tools', 'Spatial statistics', 'Interpolation', 'Assistant'],
   view: ['Theme', 'Projection', 'Basemap', 'Windows'],
   edit: ['Create', 'Modify', 'Selection', 'Fields', 'Manage edits', 'Measure'],
+  design: ['Draw', 'Construct', 'Survey', 'Precision', 'CAD exchange'],
   share: ['Layout', 'Export'],
   help: ['Docs', 'Support', 'About', 'Diagnostics'],
   // one tab for both scripting languages: R's groups first, then Python
@@ -673,6 +675,86 @@ export const COMMANDS: Command[] = [
     id: 'view.projMercator', tab: 'view', group: 'Projection', title: 'Mercator', icon: 'flatmap',
     hint: 'Web Mercator: the flat web map (shapes kept, areas grow towards the poles)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:projection', { detail: 'mercator' })); },
+  },
+  {
+    id: 'design.line', tab: 'design', group: 'Draw', title: 'Line', icon: 'line', big: true,
+    hint: 'A straight line: click two points, or type 25<90 (25 m at 90°) or @10,5 (10 m east, 5 m north)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'line' })); },
+  },
+  {
+    id: 'design.polyline', tab: 'design', group: 'Draw', title: 'Polyline', icon: 'vertices',
+    hint: 'A line of many segments; Enter or double-click finishes',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'polyline' })); },
+  },
+  {
+    id: 'design.polygon', tab: 'design', group: 'Draw', title: 'Polygon', icon: 'polygon',
+    hint: 'A closed shape from its corners; Enter closes it and saves its area',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'polygon' })); },
+  },
+  {
+    id: 'design.rect', tab: 'design', group: 'Draw', title: 'Rectangle', icon: 'box',
+    hint: 'Two corners, or a corner and @width,height in metres',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'rect' })); },
+  },
+  {
+    id: 'design.circle', tab: 'design', group: 'Draw', title: 'Circle', icon: 'point',
+    hint: 'A centre and a radius (type it in metres)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'circle' })); },
+  },
+  {
+    id: 'design.point', tab: 'design', group: 'Draw', title: 'Point', icon: 'pin',
+    hint: 'A point (a pole, a valve, a survey mark)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'point' })); },
+  },
+  {
+    id: 'design.text', tab: 'design', group: 'Draw', title: 'Text', icon: 'spell',
+    hint: 'A text note on the map',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'text' })); },
+  },
+  {
+    id: 'design.offset', tab: 'design', group: 'Construct', title: 'Offset', icon: 'compare',
+    hint: 'A parallel copy of a line at a typed distance (+ right, − left), as AutoCAD OFFSET',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'offset' })); },
+  },
+  {
+    id: 'design.road', tab: 'design', group: 'Construct', title: 'Road from centreline', icon: 'road', big: true,
+    hint: 'Draw a centreline, then give the width: the road surface as a polygon, plus its centreline',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'road' })); },
+  },
+  {
+    id: 'design.dimension', tab: 'design', group: 'Survey', title: 'Dimension', icon: 'ruler',
+    hint: 'A measured dimension line with its length as a label',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dimension' })); },
+  },
+  {
+    id: 'design.traverse', tab: 'design', group: 'Survey', title: 'Traverse (COGO)', icon: 'calc', big: true,
+    hint: 'A parcel from bearings and distances, with its area and misclosure',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'traverse' })); },
+  },
+  {
+    id: 'design.snap', tab: 'design', group: 'Precision', title: 'Snap', icon: 'magnet',
+    hint: 'Object snaps on/off: vertices, midpoints, nearest point (F3)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'snap' })); },
+  },
+  {
+    id: 'design.ortho', tab: 'design', group: 'Precision', title: 'Ortho', icon: 'crosshair',
+    hint: 'Right angles to the last segment on/off (F8)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'ortho' })); },
+  },
+  {
+    id: 'design.polar', tab: 'design', group: 'Precision', title: 'Polar', icon: 'compare',
+    hint: 'Polar tracking every 15° on/off (F10)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'polar' })); },
+  },
+  {
+    id: 'design.dxf-export', tab: 'design', group: 'CAD exchange', title: 'Export DXF', icon: 'export', big: true,
+    hint: 'The Design layers as an AutoCAD DXF in metres (UTM), one CAD layer per design layer',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dxf-export' })); },
+  },
+  {
+    id: 'design.dxf-import', tab: 'design', group: 'CAD exchange', title: 'Import DXF', icon: 'fileAdd',
+    hint: 'An AutoCAD DXF drawing onto the map (you give its coordinate system)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dxf-import' })); },
   },
   {
     id: 'view.terrain3d', tab: 'view', group: 'Projection', title: '3D terrain', icon: 'mountain',
