@@ -192,3 +192,18 @@ export function measure(line: XY[], step: number): XY[] {
   for (let d = step; d < L - 0.01; d += step) ds.push(d);
   return pointsAlong(line, ds);
 }
+
+/** JOIN: two polylines whose ends lie within `tol` metres become one (either may be reversed); null
+ *  when no end of one is near an end of the other. */
+export function join(a: XY[], b: XY[], tol: number): XY[] | null {
+  const d = (p: XY, q: XY) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const A0 = a[0], A1 = a[a.length - 1], B0 = b[0], B1 = b[b.length - 1];
+  const options: [number, () => XY[]][] = [
+    [d(A1, B0), () => [...a, ...b.slice(1)]],
+    [d(A1, B1), () => [...a, ...[...b].reverse().slice(1)]],
+    [d(A0, B1), () => [...b, ...a.slice(1)]],
+    [d(A0, B0), () => [...[...b].reverse(), ...a.slice(1)]],
+  ];
+  options.sort((x, y) => x[0] - y[0]);
+  return options[0][0] <= tol ? options[0][1]() : null;
+}
