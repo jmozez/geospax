@@ -168,6 +168,13 @@ try:
 except Exception:
     _gpd = None
 def _load(path):
+    # a raster: an open rasterio dataset when rasterio is installed, else its path (for GDAL, xarray …)
+    if path.lower().endswith((".tif", ".tiff", ".vrt", ".jp2", ".nc")):
+        try:
+            import rasterio as _rio
+            return _rio.open(path)
+        except Exception:
+            return path
     if _gpd is not None:
         try:
             return _gpd.read_file(path)
@@ -187,6 +194,9 @@ def save(name, obj):
         obj = {{"type": "FeatureCollection", "features": obj}}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f)
+def figure_path(name, ext="png"):
+    """Where to save a figure (matplotlib: plt.savefig(figure_path("relief"))); it appears in the report."""
+    return os.path.join(outputs_dir, name + "." + ext)
 _result = {{}}
 def result(**values):
     """Report numbers or text; they appear in the run log and the report."""
