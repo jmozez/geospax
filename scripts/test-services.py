@@ -397,6 +397,33 @@ def main():
         check(code == 200 and len(r.get("layers", [])) == 1, f"geoparquet: a file in a data folder becomes a layer ({code} {r})")
     finally:
         ovt.kill()
+    # Python environments: a project's .venv in a data folder is found next to the system Python, its
+    # packages are read, an arbitrary program is refused, and choosing it is kept for the next start
+    pdata = os.path.join(tmp, "pydata")
+    os.makedirs(os.path.join(pdata, ".venv", "bin"))
+    venv_py = os.path.join(pdata, ".venv", "bin", "python")
+    os.symlink(sys.executable, venv_py)
+    pstate = os.path.join(tmp, "state-py")
+    for round_ in (1, 2):
+        psrv = start(a.bin, pdata, pstate, port + 3)
+        try:
+            pb = f"http://127.0.0.1:{port + 3}"
+            envs = json.loads(call(pb, "GET", "/api/python")[1])["environments"]
+            venv = next((e for e in envs if e["path"] == venv_py), None)
+            if round_ == 1:
+                check(venv is not None and venv["kind"] == "venv", f"python: the data folder's .venv is found ({[e['label'] for e in envs]})")
+                code, body, _ = call(pb, "GET", f"/api/python/packages?path={quote(venv_py, safe='')}")
+                r = json.loads(body) if body else {}
+                check(code == 200 and "geopandas" in r.get("packages", {}) and r.get("total", 0) >= 1, f"python: its packages are read ({code} {str(r)[:120]})")
+                code, _, _ = call(pb, "POST", "/api/python/use?path=%2Fbin%2Fsh")
+                check(code == 400, f"python: a program that is not a found environment is refused ({code})")
+                code, _, _ = call(pb, "POST", f"/api/python/use?path={quote(venv_py, safe='')}")
+                check(code == 200, f"python: an environment is chosen ({code})")
+            else:
+                check(venv is not None and venv["current"], f"python: the choice is kept after a restart ({venv})")
+        finally:
+            psrv.kill()
+            time.sleep(0.5)
     # open to other devices: the token is the password, and whoever has it can add services; without it
     # nothing is answered; started with --restricted, new services are refused even with the token
     def post(p, path, token):

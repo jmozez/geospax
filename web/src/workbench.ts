@@ -818,6 +818,10 @@ export class Workbench {
   /** GeoSpaX section: open nodes and their lists */
   private gxOpen = new Set<string>();
   private gxData: { recipes?: RecipeInfo[]; models?: { name: string }[]; plugins?: PluginInfo[] } = {};
+  /** R and Python in the Explorer: R's kits and packages, the Python environments and their packages */
+  private envR: { installed: boolean; version?: string; kits: { id: string; title: string; packages: string[] }[]; packages: Record<string, string | null> } | null = null;
+  private envPy: { environments: { label: string; kind: string; path: string; version: string; current: boolean }[] } | null = null;
+  private envPyPkgs = new Map<string, { packages: Record<string, string | null>; total: number } | string>();
   /** web service connections and their layers */
   private services: { id: string; kind: string; url: string; title: string }[] | null = null;
   private serviceKinds: { id: string; title: string }[] = [];
@@ -834,6 +838,11 @@ export class Workbench {
   async refreshCatalog() {
     this.browseRoots = null;
     this.browseCache.clear();
+    // R and Python are looked for again (after installing one, or a package)
+    this.envR = null;
+    this.envPy = null;
+    this.envPyPkgs.clear();
+    if (this.gxOpen.has('envs')) void this.loadEnvs().then(() => this.renderCatalog());
     await this.loadBrowse();
   }
 
@@ -1298,6 +1307,8 @@ export class Workbench {
       kids('recipes', () => (this.gxData.recipes ? this.gxData.recipes.map((r) => leaf('recipe', r.id, r.title || r.id, recipeIcon(r))).join('') || '<div class="pane-empty">No recipes</div>' : '<div class="pane-empty">Reading…</div>')),
       node('results', 'Results', 'history', done.length),
       kids('results', () => done.map((r) => leaf('run', r.id, r.title || r.recipe, 'check', (r.artifacts ?? []).length ? `${(r.artifacts ?? []).length} files` : '')).join('') || '<div class="pane-empty">No finished runs yet</div>'),
+      node('envs', 'R & Python', 'code'),
+      kids('envs', () => this.envsHtml()),
       node('models', 'AI models', 'brain', this.gxData.models?.length),
       kids('models', () => (this.gxData.models ? this.gxData.models.map((m) => leaf('model', m.name, m.name, 'brain')).join('') || leaf('models', '', 'Add a model…', 'plus') : '<div class="pane-empty">Reading…</div>')),
       node('plugins', 'Plugins', 'puzzle', this.gxData.plugins?.length),
@@ -1317,8 +1328,85 @@ export class Workbench {
       if (id === 'models' && !this.gxData.models) this.gxData.models = (await this.host.backend.json<{ models: { name: string }[] }>('api/models')).models;
       if (id === 'plugins' && !this.gxData.plugins) this.gxData.plugins = (await this.host.backend.json<{ plugins: PluginInfo[] }>('api/plugins')).plugins;
       if (id === 'results') await this.loadRuns();
+      if (id === 'envs') await this.loadEnvs();
+      if (id.startsWith('env:py:') && !this.envPyPkgs.has(id.slice(7))) {
+        const path = id.slice(7);
+        this.renderCatalog();
+        try {
+          this.envPyPkgs.set(path, await this.host.backend.json(`api/python/packages?path=${encodeURIComponent(path)}`));
+        } catch (e) {
+          this.envPyPkgs.set(path, e instanceof Error ? e.message : String(e));
+        }
+      }
     } catch { /* the node says Reading… until the next try */ }
     this.renderCatalog();
+  }
+
+  private async usePython(path: string) {
+    try {
+      const r = await this.host.backend.json<{ version: string | null }>(`api/python/use?path=${encodeURIComponent(path)}`, { method: 'POST' });
+      this.setStatus(`Python steps now use ${path}${r.version ? ` (Python ${r.version})` : ''}`, 6000);
+      await this.loadEnvs();
+      this.renderCatalog();
+    } catch (e) {
+      this.setStatus(`Python: ${e instanceof Error ? e.message : e}`, 10000);
+    }
+  }
+
+  private async loadEnvs() {
+    const [r, py] = await Promise.all([
+      this.host.backend.json<NonNullable<Workbench['envR']>>('api/r').catch(() => null),
+      this.host.backend.json<NonNullable<Workbench['envPy']>>('api/python').catch(() => null),
+    ]);
+    this.envR = r ?? { installed: false, kits: [], packages: {} };
+    this.envPy = py ?? { environments: [] };
+  }
+
+  /** R (version, kits and their packages) and the Python environments (packages, which one steps use). */
+  private envsHtml(): string {
+    if (!this.envR || !this.envPy) return '<div class="pane-empty">Looking for R and Python…</div>';
+    const pad = (d: number) => `style="padding-left:${32 + d * 14}px"`;
+    const row = (d: number, ico: string, name: string, note = '', attrs = '', cls = 'gx-leaf') =>
+      `<div class="node ${cls}" ${attrs} ${pad(d)}>${icon(ico, 13)}<span class="nm">${esc(name)}</span>${note ? `<span class="ct dim">${esc(note)}</span>` : ''}</div>`;
+    const tw = (key: string) => `<span class="tw">${this.gxOpen.has(key) ? '▾' : '▸'}</span>`;
+    let h = '';
+    // R
+    const r = this.envR;
+    h += `<div class="node folder" data-gx="env:r" ${pad(-1)}>${tw('env:r')}${icon('rlogo', 14)}<span class="nm">R</span><span class="ct dim">${esc(r.installed ? (r.version?.match(/\d+\.\d+\.\d+/)?.[0] ?? 'installed') : 'not installed')}</span></div>`;
+    if (this.gxOpen.has('env:r')) {
+      if (!r.installed) h += row(1, 'download', 'Set up R…', 'installs R and its packages', 'data-gx-act="r-setup" data-gx-id=""');
+      else {
+        for (const k of r.kits) {
+          const have = k.packages.filter((p) => r.packages[p]).length;
+          const key = `env:r:${k.id}`;
+          h += `<div class="node folder" data-gx="${esc(key)}" ${pad(0)}>${tw(key)}${icon('package', 13)}<span class="nm">${esc(k.title)}</span><span class="ct ${have === k.packages.length ? 'ok' : 'dim'}">${have}/${k.packages.length}</span></div>`;
+          if (this.gxOpen.has(key)) h += k.packages.map((p) => row(2, r.packages[p] ? 'check' : 'none', p, r.packages[p] ?? 'not installed')).join('');
+        }
+        h += row(1, 'download', 'Install or update packages…', '', 'data-gx-act="r-setup" data-gx-id=""');
+      }
+    }
+    // Python
+    const envs = this.envPy.environments;
+    h += `<div class="node folder" data-gx="env:py" ${pad(-1)}>${tw('env:py')}${icon('python', 14)}<span class="nm">Python</span><span class="ct dim">${envs.length ? `${envs.length} environment${envs.length === 1 ? '' : 's'}` : 'not found'}</span></div>`;
+    if (this.gxOpen.has('env:py')) {
+      if (!envs.length) h += `<div class="pane-empty" ${pad(1)}>No Python found. Install Python 3 (python.org, or Miniforge for conda) and press Refresh.</div>`;
+      for (const e of envs) {
+        const key = `env:py:${e.path}`;
+        h += `<div class="node folder${e.current ? ' sel' : ''}" data-gx="${esc(key)}" ${pad(0)} title="${esc(e.path)}">${tw(key)}${icon(e.current ? 'check' : 'python', 13)}<span class="nm">${esc(e.label)}</span><span class="ct dim">${esc(e.version)}${e.current ? ' · in use' : ''}</span></div>`;
+        if (!this.gxOpen.has(key)) continue;
+        const pk = this.envPyPkgs.get(e.path);
+        if (pk === undefined) h += `<div class="pane-empty" ${pad(2)}>Reading its packages…</div>`;
+        else if (typeof pk === 'string') h += `<div class="pane-empty err" ${pad(2)}>${esc(pk)}</div>`;
+        else {
+          // installed first, then the rest, each alphabetically
+          const list = Object.entries(pk.packages).sort((a, b) => Number(!a[1]) - Number(!b[1]) || a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }));
+          h += list.map(([n, v]) => row(2, v ? 'check' : 'none', n, v ?? 'not installed')).join('');
+          h += `<div class="pane-empty" ${pad(2)}>${pk.total} packages in all</div>`;
+        }
+        if (!e.current) h += row(1, 'play', 'Use for Python steps', '', `data-gx-act="py-use" data-gx-id="${esc(e.path)}"`);
+      }
+    }
+    return h;
   }
 
   /** Overture Maps: one theme (buildings, roads, places…) for the map view, as a download job. */
@@ -1342,6 +1430,8 @@ export class Workbench {
     switch (act) {
       case 'online': return void document.dispatchEvent(new CustomEvent('geospax:online', { detail: id }));
       case 'overture': return void this.overture(id);
+      case 'r-setup': return void document.dispatchEvent(new CustomEvent('geospax:r', { detail: 'setup' }));
+      case 'py-use': return void this.usePython(id);
       case 'recipe': return void document.dispatchEvent(new CustomEvent('geospax:run-recipe', { detail: id }));
       case 'run': return void this.host.openRun(id);
       case 'model': case 'models': return void document.dispatchEvent(new CustomEvent('geospax:models'));

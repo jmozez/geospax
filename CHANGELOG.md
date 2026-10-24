@@ -16,6 +16,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **R & Python in the Explorer** (GeoSpaX › R & Python): R's version and each kit with its packages
+  (installed or missing, with *Install or update packages…*); every Python on the computer (PATH, conda and
+  mamba environments, pyenv, virtual environments, a project's `.venv` in a data folder) with its geospatial
+  packages, and **Use for Python steps** to choose the one recipes run with (kept for the next start).
 - **Open data in the cloud, one click:** under *＋ Add*, Source Cooperative (type the `account/repository`),
   Sentinel-2 COGs, Copernicus DEM 30 m and the raw Overture Maps files connect as public cloud storage.
 - **Overture Maps in the Explorer** (GeoSpaX › Overture Maps): buildings, roads and paths, places, water, land
