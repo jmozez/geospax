@@ -12,6 +12,14 @@ import type { PluginInfo, PluginsState } from './plugins';
 import { ONLINE_SOURCES } from './online';
 import { bytesText, followJob } from './downloads';
 
+/** Public open data in cloud storage, one click in "＋ Add" (read without signing in). */
+const CLOUD_PRESETS: { title: string; url: string; endpoint?: string; region?: string; about: string; ask?: string }[] = [
+  { title: 'Source Cooperative', url: 's3://', endpoint: 'https://data.source.coop', about: 'Open geospatial data shared by many organisations (source.coop)', ask: 'Type the account and repository after s3://, as shown on source.coop (for example s3://account/repository), then Connect.' },
+  { title: 'Sentinel-2 COGs (AWS)', url: 's3://sentinel-cogs/sentinel-s2-l2a-cogs', region: 'us-west-2', about: 'Sentinel-2 Level-2A scenes as cloud-optimised GeoTIFFs, by UTM tile and date' },
+  { title: 'Copernicus DEM 30 m (AWS)', url: 's3://copernicus-dem-30m', region: 'eu-central-1', about: 'Global elevation model, one GeoTIFF per 1° tile' },
+  { title: 'Overture Maps files (AWS)', url: 's3://overturemaps-us-west-2/release', region: 'us-west-2', about: 'The raw GeoParquet releases (for areas, use GeoSpaX › Overture Maps instead)' },
+];
+
 /** Overture Maps themes (the engine's geoparquet::OVERTURE). */
 const OVERTURE_THEMES: [string, string][] = [
   ['buildings', 'Buildings'], ['roads', 'Roads and paths'], ['places', 'Places (shops, schools, clinics…)'], ['water', 'Water'],
@@ -1195,6 +1203,7 @@ export class Workbench {
           <label class="ws-field"><span>S3 region (optional)</span><input name="region" spellcheck="false" placeholder="e.g. us-west-2" /></label>
           <label class="ws-field"><span>Azure account (az:// only)</span><input name="account" spellcheck="false" /></label>
         </div>
+        <div class="ws-field ws-known"><span>Or open data in the cloud</span>${CLOUD_PRESETS.map((c, i) => `<button type="button" data-cloud-preset="${i}" title="${esc(c.about)}">${esc(c.title)}</button>`).join('')}</div>
         ${known.length ? `<div class="ws-field ws-known"><span>Or a public STAC catalog</span>${known.map((k) => `<button type="button" data-known="${esc(k.url)}" data-known-title="${esc(k.title)}">${esc(k.title)}</button>`).join('')}</div>` : ''}
         <p class="dim">Map images (WMS, WMTS, XYZ, ArcGIS MapServer) are drawn over the basemap; features (WFS, OGC API, ArcGIS FeatureServer) are downloaded for the map view and become a layer; a STAC catalog is searched for imagery by area, date and cloud; cloud storage is browsed like a folder.</p>
         <p class="err" data-msg></p>
@@ -1205,6 +1214,24 @@ export class Workbench {
     const close = () => modal.remove();
     modal.addEventListener('click', (e) => {
       if (e.target === modal || (e.target as HTMLElement).closest('[data-x]')) close();
+      const cp = (e.target as HTMLElement).closest<HTMLElement>('[data-cloud-preset]');
+      if (cp) {
+        const c = CLOUD_PRESETS[Number(cp.dataset.cloudPreset)];
+        (form.kind as HTMLSelectElement).value = 'cloud';
+        cloudBox.hidden = false;
+        const set = (n: string, v: string) => { (form.elements.namedItem(n) as HTMLInputElement).value = v; };
+        set('url', c.url); set('title', c.title); set('endpoint', c.endpoint ?? ''); set('region', c.region ?? '');
+        (form.elements.namedItem('public') as HTMLInputElement).checked = true;
+        const msg = modal.querySelector<HTMLElement>('[data-msg]')!;
+        if (c.ask) {
+          // Source Cooperative: the account and repository are typed after s3://
+          msg.textContent = c.ask;
+          const u = form.url as HTMLInputElement;
+          u.focus();
+          u.setSelectionRange(u.value.length, u.value.length);
+        } else form.requestSubmit();
+        return;
+      }
       const k = (e.target as HTMLElement).closest<HTMLElement>('[data-known]');
       if (k) {
         (form.kind as HTMLSelectElement).value = 'stac';
