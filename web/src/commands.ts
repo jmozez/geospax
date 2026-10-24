@@ -55,6 +55,20 @@ export interface Command {
 
 // 24×24 monochrome glyphs; the ribbon tints them with `currentColor`.
 export const ICONS: Record<string, string> = {
+  circle: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zm0 2a7 7 0 1 1 0 14a7 7 0 1 1 0-14z',
+  ellipse: 'M12 6a10 6 0 1 0 0 12a10 6 0 1 0 0-12zm0 2a8 4 0 1 1 0 8a8 4 0 1 1 0-8z',
+  union: 'M3 3h12v6h6v12H9v-6H3z',
+  subtract: 'M3 3h12v6H9v6H3zM11 11h10v10H11zm2 2v6h6v-6z',
+  intersect: 'M3 3h12v6h-2V5H5v8h4v2H3zM9 9h12v12H9v-6h2v4h8v-8h-4V9zM11 11h4v4h-4z',
+  polar: 'M11 2h2v3h-2zM11 19h2v3h-2zM2 11h3v2H2zM19 11h3v2h-3zM4.9 6.3l1.4-1.4 2.1 2.1L7 8.4zM15.6 17l1.4-1.4 2.1 2.1-1.4 1.4zM4.9 17.7l2.1-2.1 1.4 1.4-2.1 2.1zM15.6 7l2.1-2.1 1.4 1.4-2.1 2.1zM10 10h4v4h-4z',
+  align: 'M3 2h2v20H3zM7 5h12v5H7zM7 14h8v5H7z',
+  breakLine: 'M2 11h7v2H2zM15 11h7v2h-7zM10 6h1v12h-1zM13 6h1v12h-1z',
+  lengthen: 'M2 11h14v2H2zM16 7l6 5-6 5z',
+  chamfer: 'M3 3h2v13l3 3h13v2H7l-4-4z',
+  divide: 'M2 11h20v2H2zM5 8h2v8H5zM11 8h2v8h-2zM17 8h2v8h-2z',
+  dimension: 'M3 4h2v16H3zM19 4h2v16h-2zM8 11h8v2H8zM6 12l3-3v6zM18 12l-3 3V9z',
+  angle: 'M3 20L17 4l1.5 1.3L6.4 19H21v2H3zM11 19a7 7 0 0 0-2.1-5l1.4-1.4A9 9 0 0 1 13 19z',
+  lock: 'M5 10h14v12H5zM7 10V7a5 5 0 0 1 10 0v3h-2V7a3 3 0 0 0-6 0v3z',
   split: 'M3 5h7v6H3zM14 13h7v6h-7zM10 8h3v2h-3zM11 10h2v5h-2zM12 14h2v2h-2z',
   move: 'M12 2l3 3h-2v6h6V9l3 3-3 3v-2h-6v6h2l-3 3-3-3h2v-6H5v2l-3-3 3-3v2h6V5H9z',
   copy: 'M8 3h10v12H8zM5 7h1v12h10v1H5z',
@@ -591,7 +605,7 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: 'style.autoAll', tab: 'home', group: 'Symbology', title: 'AutoMap all', icon: 'wand',
+    id: 'style.autoAll', tab: 'home', group: 'Symbology', title: 'AutoMap all', icon: 'layers',
     hint: 'Style every layer automatically',
     run: async (h) => {
       for (const l of h.layers()) await h.autostyle(l.id);
@@ -704,7 +718,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'rect' })); },
   },
   {
-    id: 'design.circle', tab: 'design', group: 'Draw', title: 'Circle', icon: 'point',
+    id: 'design.circle', tab: 'design', group: 'Draw', title: 'Circle', icon: 'circle',
     hint: 'A centre and a radius (type it in metres)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'circle' })); },
   },
@@ -714,7 +728,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'arc' })); },
   },
   {
-    id: 'design.ellipse', tab: 'design', group: 'Draw', title: 'Ellipse', icon: 'point',
+    id: 'design.ellipse', tab: 'design', group: 'Draw', title: 'Ellipse', icon: 'ellipse',
     hint: 'A centre, the end of one axis and the other half-axis in metres (AutoCAD ELLIPSE)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'ellipse' })); },
   },
@@ -784,7 +798,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'array' })); },
   },
   {
-    id: 'design.divide', tab: 'design', group: 'Survey', title: 'Divide', icon: 'ruler',
+    id: 'design.divide', tab: 'design', group: 'Survey', title: 'Divide', icon: 'divide',
     hint: 'Points dividing a line into equal parts, as AutoCAD DIVIDE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'divide' })); },
   },
@@ -804,7 +818,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'layers' })); },
   },
   {
-    id: 'design.lock', tab: 'design', group: 'Blocks', title: 'Lock layer', icon: 'pin',
+    id: 'design.lock', tab: 'design', group: 'Blocks', title: 'Lock layer', icon: 'lock',
     hint: 'Click a feature to lock or unlock its layer against edits, as AutoCAD LAYLCK',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'lock' })); },
   },
@@ -814,22 +828,22 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'insert' })); },
   },
   {
-    id: 'design.union', tab: 'design', group: 'Modify', title: 'Union', icon: 'copy',
+    id: 'design.union', tab: 'design', group: 'Modify', title: 'Union', icon: 'union',
     hint: 'Two shapes joined into one, as AutoCAD UNION',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'union' })); },
   },
   {
-    id: 'design.subtract', tab: 'design', group: 'Modify', title: 'Subtract', icon: 'copy',
+    id: 'design.subtract', tab: 'design', group: 'Modify', title: 'Subtract', icon: 'subtract',
     hint: 'The second shape cut out of the first, as AutoCAD SUBTRACT',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'subtract' })); },
   },
   {
-    id: 'design.intersect', tab: 'design', group: 'Modify', title: 'Intersect', icon: 'copy',
+    id: 'design.intersect', tab: 'design', group: 'Modify', title: 'Intersect', icon: 'intersect',
     hint: 'Only where two shapes overlap, as AutoCAD INTERSECT',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'intersect' })); },
   },
   {
-    id: 'design.arraypolar', tab: 'design', group: 'Modify', title: 'Polar array', icon: 'rotate',
+    id: 'design.arraypolar', tab: 'design', group: 'Modify', title: 'Polar array', icon: 'polar',
     hint: 'Copies of a feature turned around a centre (posts round a roundabout), as AutoCAD ARRAYPOLAR',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'arraypolar' })); },
   },
@@ -844,17 +858,17 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'join' })); },
   },
   {
-    id: 'design.break', tab: 'design', group: 'Modify', title: 'Break', icon: 'scissors',
+    id: 'design.break', tab: 'design', group: 'Modify', title: 'Break', icon: 'breakLine',
     hint: 'Split a line in two at a point, as AutoCAD BREAK at point',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'break' })); },
   },
   {
-    id: 'design.lengthen', tab: 'design', group: 'Modify', title: 'Lengthen', icon: 'arrowRight',
+    id: 'design.lengthen', tab: 'design', group: 'Modify', title: 'Lengthen', icon: 'lengthen',
     hint: 'Make a line longer or shorter at the clicked end (+5, -3, =40 m), as AutoCAD LENGTHEN',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'lengthen' })); },
   },
   {
-    id: 'design.chamfer', tab: 'design', group: 'Modify', title: 'Chamfer', icon: 'curve',
+    id: 'design.chamfer', tab: 'design', group: 'Modify', title: 'Chamfer', icon: 'chamfer',
     hint: 'Cut a corner straight at a distance along each leg (a junction splay), as AutoCAD CHAMFER',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'chamfer' })); },
   },
@@ -869,7 +883,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'list' })); },
   },
   {
-    id: 'design.align', tab: 'design', group: 'Modify', title: 'Align', icon: 'compare',
+    id: 'design.align', tab: 'design', group: 'Modify', title: 'Align', icon: 'align',
     hint: 'Move and turn a feature by two pairs of points (fit a house to a lot line), as AutoCAD ALIGN',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'align' })); },
   },
@@ -889,12 +903,12 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'redo' })); },
   },
   {
-    id: 'design.dimension', tab: 'design', group: 'Survey', title: 'Dimension', icon: 'ruler',
+    id: 'design.dimension', tab: 'design', group: 'Survey', title: 'Dimension', icon: 'dimension',
     hint: 'A measured dimension line with its length as a label',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dimension' })); },
   },
   {
-    id: 'design.dimangle', tab: 'design', group: 'Survey', title: 'Angle', icon: 'ruler',
+    id: 'design.dimangle', tab: 'design', group: 'Survey', title: 'Angle', icon: 'angle',
     hint: 'An angular dimension: the vertex, then a point on each side, as AutoCAD DIMANGULAR',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dimangle' })); },
   },
