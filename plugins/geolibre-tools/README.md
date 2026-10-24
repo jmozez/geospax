@@ -12,6 +12,11 @@
 - **Inputs:** a vector parameter is a layer on the map; raster, LiDAR and table parameters take a
   file path. **Outputs** go to `<state>/plugin-results/geolibre-tools/` and are added to the map.
 - **Needs** [Node.js](https://nodejs.org) 18+ (the runner is WebAssembly, run with Node's WASI).
+- **Large rasters:** with [wasmtime](https://wasmtime.dev) installed (on `PATH`, in `~/.wasmtime/bin`,
+  or named by `GEOSPAX_WASMTIME`), the tools run under it with a 1 GB stack. Under Node's WASI the
+  hydrology tools can crash (SIGSEGV) on DEMs with wide flat areas such as the sea or a valley floor,
+  because Node's WebAssembly stack cannot grow. For streams and basins, GeoSpaX's own
+  `hydro.network` step needs neither.
 - **First use** downloads the runner once (`geolibre-wasm` 1.7.1 from the npm registry, about 9 MB,
   checked against its published SHA-512) into `~/.cache/geospax/`. Offline machines: run
   `node run.mjs --fetch` where there is internet and copy the cache, put `geolibre-cli.wasm` next to

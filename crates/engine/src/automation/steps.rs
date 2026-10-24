@@ -2,7 +2,7 @@
 //! parameters, does its work synchronously on the run's thread and returns outputs (for `${…}`
 //! references in later steps) plus plain-language "why" lines for the run log and the report.
 
-use super::{data_steps, detect_steps, embed_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps, taxa_steps};
+use super::{data_steps, detect_steps, embed_steps, hydro_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps, taxa_steps};
 use super::automap;
 use super::cartography::{self, Layout, MapLayer, MapSpec};
 use super::features::{self, Feat, FeatureSet, LocalProj, Val};
@@ -311,6 +311,20 @@ pub const CATALOGUE: &[StepSpec] = &[
         running: "Tracing contours",
         params: &[("dem", false, "raster id or auto"), ("interval", false, "metres (auto ≈ 12 levels)"), ("index", false, "every n-th line is an index contour (default 5)"), ("smooth", false, "default true"), ("name", false, "")],
         borrowed: "ArcGIS Contour, QGIS Contour, GRASS r.contour, SAGA Contour Lines, MapInfo Vertical Mapper",
+    },
+    StepSpec {
+        name: "hydro.network",
+        family: "Hydrology",
+        summary: "Streams with Strahler order, drainage basins and flow accumulation from a DEM: depressions filled, flow routed (D8) and accumulated natively, on DEMs of any size.",
+        running: "Routing water over the terrain",
+        params: &[
+            ("dem", false, "raster id or auto"),
+            ("threshold_km2", false, "upstream area where a stream starts, km² (default 1)"),
+            ("min_basin_km2", false, "smallest basin kept, km² (default 1 % of the area, at least 1)"),
+            ("sea_is_nodata", false, "treat 0 m and below as sea, not land (default true)"),
+            ("name", false, "output name prefix (default hydro)"),
+        ],
+        borrowed: "ArcGIS Fill + Flow Direction + Flow Accumulation + Stream Order + Basin, QGIS/GRASS r.watershed + r.stream.order, WhiteboxTools FillDepressions + D8Pointer + StrahlerStreamOrder + Basins, TauDEM, SAGA Channel Network",
     },
     StepSpec {
         name: "lidar.grid",
@@ -753,6 +767,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "data.fetch" => data_steps::data_fetch(sc, p),
         "tool" => super::tool_step::tool(sc, p),
         "lidar.grid" => lidar_steps::lidar_grid(sc, p),
+        "hydro.network" => hydro_steps::hydro_network(sc, p),
         "scene.3d" => scene_steps::scene_3d(sc, p),
         "terrain.derive" => raster_steps::terrain_derive(sc, p),
         "terrain.contours" => raster_steps::terrain_contours(sc, p),
