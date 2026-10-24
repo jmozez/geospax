@@ -47,6 +47,8 @@ export interface FillSymbol {
   strokeColor: string;
   strokeWidth: number;
   strokeDash: Dash;
+  /** 3D: raise each polygon to the height in this numeric field (metres × scale), e.g. buildings */
+  extrude?: { field: string; scale?: number };
 }
 
 export type Anchor = 'center' | 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -254,6 +256,12 @@ export function symbolLayers(a: MapLayerArgs): LayerSpecification[] {
   const op = st.opacity;
   if (geometry === 'polygon') {
     const f = st.fill;
+    if (f?.extrude?.field) {
+      // blocks raised to their height: seen in 3D once the map is tilted
+      const h = ['*', ['to-number', ['get', f.extrude.field], 0], f.extrude.scale ?? 1];
+      out.push({ ...base, id: `${id}#fill`, type: 'fill-extrusion', paint: { 'fill-extrusion-color': color, 'fill-extrusion-height': h, 'fill-extrusion-base': 0, 'fill-extrusion-opacity': Math.max(0.3, op), 'fill-extrusion-vertical-gradient': true } } as LayerSpecification);
+      return out;
+    }
     if (f?.fill !== false) out.push({ ...base, id: `${id}#fill`, type: 'fill', paint: { 'fill-color': color, 'fill-opacity': op } } as LayerSpecification);
     if (f) {
       if (f.strokeWidth > 0)
@@ -429,6 +437,7 @@ export function symbolFields(st: LayerStyle): string[] {
   const f: string[] = [];
   if (st.point?.sizeBy?.field) f.push(st.point.sizeBy.field);
   if (st.labels?.on && st.labels.field) f.push(st.labels.field);
+  if (st.fill?.extrude?.field) f.push(st.fill.extrude.field);
   return f;
 }
 

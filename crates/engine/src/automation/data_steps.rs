@@ -20,7 +20,7 @@ use crate::catalog::GeomKind;
 use crate::raster;
 use crate::wkb::Geom;
 
-pub const SOURCES: &str = "worldclim, worldclim-monthly, worldclim-future, chelsa, soilgrids, gebco, hansen, ecoregions, gbif, obis, inat, gadm";
+pub const SOURCES: &str = "worldclim, worldclim-monthly, worldclim-future, chelsa, soilgrids, gebco, hansen, worldcover, ecoregions, gbif, obis, inat, gadm";
 
 /// GEBCO 2026 Grid, cloud-optimised copy on Source Cooperative (giswqs/gebco-bathymetry), checked
 /// against GEBCO's grid geometry (86,400 × 43,200 at 15″) and known depths and heights.
@@ -36,6 +36,42 @@ pub const HANSEN_CREDIT: &str = "Source: Hansen/UMD/Google/USGS/NASA (CC-BY 4.0)
 /// The largest area side Hansen is read for: its tiles have no overviews, so a bigger area means
 /// reading most of a 10° tile at 30 m.
 pub const HANSEN_MAX_DEG: f64 = 2.0;
+
+/// ESA WorldCover 10 m 2021 v200, 3° cloud-optimised tiles on AWS Open Data.
+pub const WORLDCOVER_BASE: &str = "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map";
+pub const WORLDCOVER_CITATION: &str = "Zanaga, D., Van De Kerchove, R., Daems, D., De Keersmaecker, W., Brockmann, C., Kirches, G., Wevers, J., Cartus, O., Santoro, M., Fritz, S., Lesiv, M., Herold, M., Tsendbazar, N.E., Xu, P., Ramoino, F., Arino, O., 2022. ESA WorldCover 10 m 2021 v200 (doi:10.5281/zenodo.7254221). CC-BY 4.0.";
+pub const WORLDCOVER_CREDIT: &str = "© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium";
+/// The WorldCover classes with ESA's own colours.
+pub const WORLDCOVER_CLASSES: [(u32, &str, &str); 11] = [
+    (10, "Tree cover", "#006400"),
+    (20, "Shrubland", "#ffbb22"),
+    (30, "Grassland", "#ffff4c"),
+    (40, "Cropland", "#f096ff"),
+    (50, "Built-up", "#fa0000"),
+    (60, "Bare / sparse vegetation", "#b4b4b4"),
+    (70, "Snow and ice", "#f0f0f0"),
+    (80, "Permanent water bodies", "#0064c8"),
+    (90, "Herbaceous wetland", "#0096a0"),
+    (95, "Mangroves", "#00cf75"),
+    (100, "Moss and lichen", "#fae6a0"),
+];
+
+/// WorldCover tiles covering a box: 3° tiles named by their south-west corner ("S09E147").
+pub fn worldcover_tiles(b: [f64; 4]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut south = (b[1] / 3.0).floor() as i32 * 3;
+    while (south as f64) < b[3] {
+        let mut west = (b[0] / 3.0).floor() as i32 * 3;
+        while (west as f64) < b[2] {
+            let lat = if south >= 0 { format!("N{:02}", south) } else { format!("S{:02}", -south) };
+            let lon = if west >= 0 { format!("E{:03}", west) } else { format!("W{:03}", -west) };
+            out.push(format!("{lat}{lon}"));
+            west += 3;
+        }
+        south += 3;
+    }
+    out
+}
 
 /// Hansen tiles covering a box: names of their top-left corners ("10S_140E" covers 10–20°S, 140–150°E).
 pub fn hansen_tiles(b: [f64; 4]) -> Vec<String> {
@@ -339,6 +375,21 @@ pub fn raster_sources(source: &str, p: &Value) -> Result<(Vec<RasterSource>, &'s
             let wanted: Vec<String> = if wanted.is_empty() { vec!["treecover".into(), "lossyear".into()] } else { wanted.iter().flat_map(|s| s.split(',').map(|x| x.trim().to_ascii_lowercase()).collect::<Vec<_>>()).filter(|s| !s.is_empty()).collect() };
             Ok((wanted.iter().map(|w| layer(w)).collect::<Result<Vec<_>, _>>()?, HANSEN_CITATION))
         }
+        "worldcover" => {
+            let b = base(WORLDCOVER_BASE);
+            Ok((
+                vec![RasterSource {
+                    name: "worldcover_2021".into(),
+                    path: gdal_path(&b, "ESA_WorldCover_10m_2021_v200_{wctile}_Map.tif", None),
+                    band: None,
+                    title: "Land cover 2021 (ESA WorldCover 10 m)".into(),
+                    units: String::new(),
+                    res_deg: 1.0 / 12000.0,
+                    kind: "worldcover",
+                }],
+                WORLDCOVER_CITATION,
+            ))
+        }
         other => Err(format!("unknown source '{other}' (sources: {SOURCES})")),
     }
 }
@@ -377,6 +428,25 @@ fn tid_classes(path: &Path) -> Result<Vec<Value>, String> {
             let (label, color) = GEBCO_TID.iter().find(|t| t.0 as i64 == *code).map(|t| (t.1.to_string(), t.2)).unwrap_or((format!("Code {code}"), "#636363"));
             let share = *n as f64 / total.max(1) as f64 * 100.0;
             json!({ "value": code, "label": format!("{code} {label} · {share:.0} %"), "color": color, "share": (share * 10.0).round() / 10.0 })
+        })
+        .collect())
+}
+
+/// The classes of a categorical raster that occur in it, with their share of the area, in code order.
+fn present_classes(path: &Path, table: &[(u32, &str, &str)]) -> Result<Vec<Value>, String> {
+    let ds = raster::open(path)?;
+    let (v, _, _) = raster::read_full(&ds, 1)?;
+    let mut counts = std::collections::BTreeMap::<i64, usize>::new();
+    for x in v.iter().filter(|x| x.is_finite() && **x > 0.0) {
+        *counts.entry(x.round() as i64).or_default() += 1;
+    }
+    let total: usize = counts.values().sum();
+    Ok(counts
+        .iter()
+        .map(|(code, n)| {
+            let (label, color) = table.iter().find(|t| t.0 as i64 == *code).map(|t| (t.1.to_string(), t.2)).unwrap_or((format!("Code {code}"), "#636363"));
+            let share = *n as f64 / total.max(1) as f64 * 100.0;
+            json!({ "value": code, "label": format!("{label} · {share:.1} %"), "color": color, "share": (share * 10.0).round() / 10.0 })
         })
         .collect())
 }
@@ -542,6 +612,9 @@ impl Drop for Gauge {
 fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<StepOut, String> {
     let (list, citation) = raster_sources(source, p)?;
     let (b, what) = aoi(sc, p)?;
+    if source == "worldcover" && (b[2] - b[0] > HANSEN_MAX_DEG || b[3] - b[1] > HANSEN_MAX_DEG) {
+        return Err(format!("WorldCover is read at 10 m for areas up to {HANSEN_MAX_DEG}° a side; this area is {:.1}° × {:.1}°. Zoom in, or choose a smaller layer as the area.", b[2] - b[0], b[3] - b[1]));
+    }
     if source == "hansen" && (b[2] - b[0] > HANSEN_MAX_DEG || b[3] - b[1] > HANSEN_MAX_DEG) {
         return Err(format!(
             "Hansen forest change is read at 30 m for areas up to {HANSEN_MAX_DEG}° (about 220 km) a side; this area is {:.1}° × {:.1}°. Zoom in, or choose a smaller layer as the area.",
@@ -565,7 +638,13 @@ fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<Ste
         }
         // tiled providers (Hansen): every tile under the area, mosaicked by the warp; tiles that do
         // not exist (open ocean) are skipped
-        let paths: Vec<String> = if r.path.contains("{tile}") { hansen_tiles(b).iter().map(|t| r.path.replace("{tile}", t)).collect() } else { vec![r.path.clone()] };
+        let paths: Vec<String> = if r.path.contains("{tile}") {
+            hansen_tiles(b).iter().map(|t| r.path.replace("{tile}", t)).collect()
+        } else if r.path.contains("{wctile}") {
+            worldcover_tiles(b).iter().map(|t| r.path.replace("{wctile}", t)).collect()
+        } else {
+            vec![r.path.clone()]
+        };
         let mut srcs = Vec::new();
         let mut last_err = String::new();
         for path in &paths {
@@ -629,12 +708,14 @@ fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<Ste
         let credit = match source {
             "gebco" => GEBCO_CREDIT,
             "hansen" => HANSEN_CREDIT,
+            "worldcover" => WORLDCOVER_CREDIT,
             _ => citation,
         };
         let classes: Option<Vec<Value>> = match r.kind {
             "gebco-tid" => Some(tid_classes(&out)?),
             "hansen-gain" => Some(vec![json!({ "value": 1, "label": "Forest gain 2000–2012", "color": "#1a9850" })]),
             "hansen-mask" => Some(vec![json!({ "value": 1, "label": "Land", "color": "#d9d0b4" }), json!({ "value": 2, "label": "Persistent water", "color": "#6baed6" })]),
+            "worldcover" => Some(present_classes(&out, &WORLDCOVER_CLASSES)?),
             _ => None,
         };
         let mut side = json!({ "kind": if classes.is_some() { "classes" } else { r.kind }, "title": r.title, "units": r.units, "description": format!("{} — {citation}", r.title), "credit": credit });
@@ -832,6 +913,12 @@ fn boundaries(sc: &mut StepCtx, p: &Value, t0: Instant) -> Result<StepOut, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worldcover_tiles_by_south_west_corner() {
+        assert_eq!(super::worldcover_tiles([146.9, -6.8, 147.1, -6.6]), vec!["S09E144", "S09E147"]);
+        assert_eq!(super::worldcover_tiles([2.1, 48.7, 2.5, 49.0]), vec!["N48E000"]);
+    }
 
     #[test]
     fn worldclim_paths() {

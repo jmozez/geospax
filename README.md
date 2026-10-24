@@ -33,8 +33,8 @@ away.
   WorldClim, CHELSA, CMIP6, SoilGrids, GBIF, OBIS, iNaturalist, GADM, Copernicus DEM, GEBCO, Hansen forest
   change, ecoregions.
 - **Design and CAD.** Lines, polygons, roads from a centreline, offsets, dimensions, a traverse (COGO)
-  with its misclosure, snap, ortho and polar, typed input such as `25<90` and `@10,5`, and DXF to and
-  from AutoCAD.
+  with its misclosure; Move, Copy, Rotate, Scale, Mirror, Array, Trim, Extend, Fillet and Erase on any
+  feature; snap, ortho and polar, typed input such as `25<90` and `@10,5`, and DXF to and from AutoCAD.
 - **Automation.** Every result is a re-runnable recipe; triggers run them when a device is plugged in, a
   folder changes, a schedule fires or a live sensor crosses a threshold.
 - **R, Python and AI.** R and Python as recipe steps with an R console and templates; an assistant (Ollama,
@@ -48,6 +48,40 @@ Esri World Imagery: two 12 m access roads and a 15 m collector, 20 × 30 m lots,
 tank and dimensions, all typed into the command line. *Export DXF* hands it to AutoCAD in UTM metres.
 
 <p align="center"><img src="docs/assets/tour-design.png" alt="GeoSpaX Design tab: a 76-lot subdivision plan over Esri World Imagery of Lae" width="900" /></p>
+
+**Rivers and catchments.** The Markham valley above Lae from the Copernicus 30 m DEM (1,547 × 1,253
+cells): GeoSpaX's `hydro.network` fills depressions, routes flow (D8), extracts 879 stream links coloured
+by Strahler order and outlines 13 drainage basins, in 1.5 seconds, over Esri World Imagery.
+
+<p align="center"><img src="docs/assets/tour-hydrology.png" alt="GeoSpaX: Strahler-ordered streams and drainage basins of the Markham valley over Esri World Imagery" width="900" /></p>
+
+**Land cover.** ESA WorldCover 10 m (2021) for Lae and the Markham delta, downloaded for the area with
+*Data › Online data*, drawn in ESA's class colours over Esri World Imagery; the legend gives each class's
+share of the area.
+
+<p align="center"><img src="docs/assets/tour-landcover.png" alt="GeoSpaX: ESA WorldCover land cover of Lae over Esri World Imagery" width="900" /></p>
+
+**Supervised classification.** Six land-cover classes from Google DeepMind's AlphaEarth satellite
+embeddings (64 values per 10 m pixel), k-nearest neighbours trained on 360 points labelled from
+WorldCover; leave-one-out accuracy 81 %.
+
+<p align="center"><img src="docs/assets/tour-classification.png" alt="GeoSpaX: supervised land-cover classification of Lae from satellite embeddings, with training points" width="900" /></p>
+
+**Unsupervised classification.** The same embeddings grouped into eight kinds of landscape by k-means,
+with no samples: 3.6 million pixels in under a minute.
+
+<p align="center"><img src="docs/assets/tour-clustering.png" alt="GeoSpaX: k-means landscape groups of Lae from satellite embeddings" width="900" /></p>
+
+**LiDAR in 3D.** 23 million USGS 3DEP points of downtown San Francisco (615 Entwine tiles) gridded in
+12 seconds into terrain, surface and canopy models; the 184 buildings found are raised to their measured
+roof heights with *Extrude in 3D* over Esri World Imagery.
+
+<p align="center"><img src="docs/assets/tour-lidar.png" alt="GeoSpaX: LiDAR buildings of downtown San Francisco extruded to their roof heights in 3D" width="900" /></p>
+
+**Network analysis.** Road distance from every street in Lae to the nearest of 12 hospitals and clinics,
+over 2,646 Overture road segments (service area with the network tools of the Toolbox).
+
+<p align="center"><img src="docs/assets/tour-network.png" alt="GeoSpaX: road distance to the nearest hospital across Lae's street network" width="900" /></p>
 
 ## Download
 
