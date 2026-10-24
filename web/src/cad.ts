@@ -32,18 +32,23 @@ export interface CadHost {
   changed: (id: string, info?: LayerInfo) => Promise<void>;
   /** show a field as labels on a layer (dimensions, annotations) */
   labels: (id: string, field: string, placement: 'point' | 'line' | 'line-center') => void;
+  /** a new design layer's drafting look: colour, hollow or filled, line width */
+  look: (id: string, look: CadLook) => void;
   setStatus: (t: string, ms?: number) => void;
 }
 
-/** The design layers: kind → (name, geometry, fields). */
-const DESIGN: Record<string, { name: string; geometry: 'point' | 'line' | 'polygon'; fields: [string, string][]; label?: [string, 'point' | 'line' | 'line-center'] }> = {
-  lines: { name: 'Design · lines', geometry: 'line', fields: [['name', 'text'], ['kind', 'text'], ['length_m', 'real']] },
-  polygons: { name: 'Design · polygons', geometry: 'polygon', fields: [['name', 'text'], ['kind', 'text'], ['area_m2', 'real'], ['perimeter_m', 'real']] },
-  points: { name: 'Design · points', geometry: 'point', fields: [['name', 'text'], ['kind', 'text']] },
-  dimensions: { name: 'Design · dimensions', geometry: 'line', fields: [['label', 'text'], ['length_m', 'real']], label: ['label', 'line-center'] },
-  annotations: { name: 'Design · annotations', geometry: 'point', fields: [['text', 'text']], label: ['text', 'point'] },
-  roads: { name: 'Design · roads', geometry: 'polygon', fields: [['name', 'text'], ['width_m', 'real'], ['length_m', 'real'], ['area_m2', 'real']] },
-  parcels: { name: 'Design · parcels', geometry: 'polygon', fields: [['name', 'text'], ['area_m2', 'real'], ['perimeter_m', 'real'], ['misclosure_m', 'real']], label: ['name', 'point'] },
+/** How a design layer is drawn: bright drafting colours that read over imagery, outlines for plans. */
+export interface CadLook { color: string; hollow?: boolean; width: number; dash?: 'solid' | 'dashed'; opacity?: number }
+
+/** The design layers: kind → (name, geometry, fields, look). */
+const DESIGN: Record<string, { name: string; geometry: 'point' | 'line' | 'polygon'; fields: [string, string][]; label?: [string, 'point' | 'line' | 'line-center']; look: CadLook }> = {
+  lines: { name: 'Design · lines', geometry: 'line', fields: [['name', 'text'], ['kind', 'text'], ['length_m', 'real']], look: { color: '#ff6b9a', width: 1.4, dash: 'dashed' } },
+  polygons: { name: 'Design · polygons', geometry: 'polygon', fields: [['name', 'text'], ['kind', 'text'], ['area_m2', 'real'], ['perimeter_m', 'real']], look: { color: '#ffd166', hollow: true, width: 1.6 } },
+  points: { name: 'Design · points', geometry: 'point', fields: [['name', 'text'], ['kind', 'text']], look: { color: '#ffffff', width: 1 } },
+  dimensions: { name: 'Design · dimensions', geometry: 'line', fields: [['label', 'text'], ['length_m', 'real']], label: ['label', 'line-center'], look: { color: '#7fdbff', width: 1 } },
+  annotations: { name: 'Design · annotations', geometry: 'point', fields: [['text', 'text']], label: ['text', 'point'], look: { color: '#ffd166', width: 1 } },
+  roads: { name: 'Design · roads', geometry: 'polygon', fields: [['name', 'text'], ['width_m', 'real'], ['length_m', 'real'], ['area_m2', 'real']], look: { color: '#d9dde3', width: 1.4, opacity: 0.75 } },
+  parcels: { name: 'Design · parcels', geometry: 'polygon', fields: [['name', 'text'], ['area_m2', 'real'], ['perimeter_m', 'real'], ['misclosure_m', 'real']], label: ['name', 'point'], look: { color: '#ffa94d', hollow: true, width: 2 } },
 };
 
 const M_PER_DEG = 111320;
@@ -432,6 +437,7 @@ export class CadDesigner {
       body: JSON.stringify({ name: d.name, geometry: d.geometry, fields: d.fields.map(([name, k]) => ({ name, kind: k })) }),
     });
     await this.h.changed(r.layer.id, r.layer);
+    this.h.look(r.layer.id, d.look);
     if (d.label) this.h.labels(r.layer.id, d.label[0], d.label[1]);
     return r.layer.id;
   }
