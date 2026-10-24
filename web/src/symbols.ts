@@ -484,7 +484,7 @@ export function symbolFields(st: LayerStyle): string[] {
 
 // ------------------------------------------------------------------ swatches
 
-const escAttr = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+const escAttr = (s: string | undefined) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** A small SVG of the layer's symbol in a colour (Contents rows, legends, the pane's preview). */
 export function swatchSvg(geometry: string, st: LayerStyle, color: string, px = 16): string {
