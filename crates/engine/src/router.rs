@@ -29,6 +29,7 @@ impl ApiRequest {
         let p = self.path.trim_matches('/');
         p.starts_with("tiles/")
             || (p.starts_with("api/services/") && p.contains("/tile/"))
+            || (p.starts_with("api/rasters/") && p.contains("/terrain/"))
             || (p.starts_with("api/layers/")
                 && (p.ends_with("/arrow") || p.ends_with("/classify") || p.ends_with("/unique") || p.ends_with("/autostyle")))
     }
@@ -560,6 +561,18 @@ impl Engine {
                 }
                 None => ApiResponse::error(404, format!("unknown raster '{id}'")),
             },
+            // 3D terrain: an elevation raster as Terrarium tiles (MapLibre raster-dem)
+            ("GET", ["api", "rasters", id, "terrain", z, x, y]) => {
+                let n = |s: &str| s.trim_end_matches(".png").parse::<u32>().ok();
+                match (self.raster(id), n(z), n(x), n(y)) {
+                    (Some(r), Some(z), Some(x), Some(y)) if z <= 18 => match crate::raster::terrain_tile(&r.info.path, z, x, y) {
+                        Ok(png) => ApiResponse { status: 200, content_type: "image/png", headers: vec![("Cache-Control", "max-age=3600".to_string())], body: png },
+                        Err(e) => ApiResponse::error(500, e),
+                    },
+                    (None, ..) => ApiResponse::error(404, format!("unknown raster '{id}'")),
+                    _ => ApiResponse::error(400, "tile is z/x/y.png"),
+                }
+            }
             ("GET", ["api", "rasters", id, "overlay.png"]) => match self.raster(id) {
                 Some(r) => {
                     let max = param(q, "max").and_then(|m| m.parse().ok()).unwrap_or(1600);

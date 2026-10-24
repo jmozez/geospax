@@ -43,7 +43,7 @@ import {
 } from './symbology';
 import { GLYPHS, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
 import { DownloadGauge } from './downloads';
-import { rasterAttributesHtml, rasterStoryHtml, valueHtml, type Histogram, type RasterValue } from './rasterview';
+import { isElevation, rasterAttributesHtml, rasterStoryHtml, valueHtml, type Histogram, type RasterValue } from './rasterview';
 import './style.css';
 
 maplibregl.setWorkerUrl(workerUrl);
@@ -298,6 +298,9 @@ systemDark?.addEventListener?.('change', () => theme === 'system' && setTheme('s
 let footprint: GeoJSON.Feature | null = null;
 let stacFootprints: GeoJSON.FeatureCollection | null = null;
 
+/** 3D terrain from an elevation raster (View › 3D terrain, or 3D view on the raster), or null for the flat map */
+let terrain3d: { id: string; exaggeration: number } | null = null;
+
 function buildStyle(): maplibregl.StyleSpecification {
   const sources: maplibregl.StyleSpecification['sources'] = {};
   const out: maplibregl.LayerSpecification[] = [{ id: 'background', type: 'background', paint: { 'background-color': css('map-bg') || '#0b0b0b' } }];
@@ -399,7 +402,22 @@ function buildStyle(): maplibregl.StyleSpecification {
     'fog-ground-blend': 0.2,
     'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0],
   } as maplibregl.SkySpecification;
-  return { version: 8, glyphs: new URL('fonts/', location.href).href + GLYPHS.slice('fonts/'.length), sources, layers: out, projection: { type: mapProjection }, sky };
+  if (terrain3d) {
+    // the heights twice: one source raises the map, the other shades it (MapLibre advises separate sources)
+    const tiles = [backend.url(`api/rasters/${encodeURIComponent(terrain3d.id)}/terrain/{z}/{x}/{y}.png`)];
+    sources['terrain-dem'] = { type: 'raster-dem', tiles, tileSize: 256, encoding: 'terrarium', maxzoom: 14 };
+    sources['terrain-shade'] = { type: 'raster-dem', tiles, tileSize: 256, encoding: 'terrarium', maxzoom: 14 };
+    // the hillshade goes just above the basemap, under every data layer
+    const at = out.findIndex((l, i) => i > 0 && !l.id.startsWith('basemap'));
+    out.splice(at < 0 ? out.length : at, 0, { id: 'terrain-hillshade', type: 'hillshade', source: 'terrain-shade',
+      paint: { 'hillshade-exaggeration': 0.6, 'hillshade-shadow-color': '#0b0d10', 'hillshade-highlight-color': '#ffffff', 'hillshade-accent-color': '#2b2f36' } } as maplibregl.LayerSpecification);
+  }
+  return {
+    version: 8, glyphs: new URL('fonts/', location.href).href + GLYPHS.slice('fonts/'.length), sources, layers: out,
+    // terrain is drawn on the flat map (the globe is for the world view)
+    projection: { type: terrain3d ? 'mercator' : mapProjection }, sky,
+    ...(terrain3d ? { terrain: { source: 'terrain-dem', exaggeration: terrain3d.exaggeration } } : {}),
+  };
 }
 
 // ---------------------------------------------------------------- basemap
@@ -939,6 +957,26 @@ function renderRasterViews() {
   renderContents();
 }
 
+/** Raise the map on an elevation raster (or back to the flat map with null), and tilt the camera. */
+function setTerrain3d(rid: string | null) {
+  const r = rid ? rasterPane?.byId(rid) : null;
+  terrain3d = r ? { id: r.id, exaggeration: 1.5 } : null;
+  // its colours draped on the terrain (the hillshade alone is grey)
+  if (r && !rasterPane!.isVisible(r.id)) rasterPane!.setVisible(r.id, true);
+  applyStyle();
+  renderContents();
+  if (r) {
+    map.setMaxPitch(80);
+    const [w, s, e, n] = r.bounds;
+    map.fitBounds([[w, s], [e, n]], { padding: 40, pitch: 62, bearing: -25, duration: 1400 });
+    workbench?.setStatus(`3D terrain: ${r.title} (1.5× height). Right-drag or two fingers to tilt and turn; View › 3D terrain again for the flat map`, 8000);
+  } else {
+    map.easeTo({ pitch: 0, bearing: 0, duration: 800 });
+    workbench?.setStatus('Flat map', 3000);
+  }
+  renderRasterViews();
+}
+
 /** Clicks and the opacity slider inside any raster view. */
 function wireRasterViews() {
   for (const sel of ['#inspector', '#raster-sym', '#raster-attr']) {
@@ -954,6 +992,7 @@ function wireRasterViews() {
         case 'zoom': if (r) map.fitBounds([[r.bounds[0], r.bounds[1]], [r.bounds[2], r.bounds[3]]], { padding: 40, maxZoom: 16, duration: 300 }); return;
         case 'attributes': return void workbench?.showTab(uiMode === 'lazy' ? 'right' : 'right', 'attributes');
         case 'remove': return void removeLayer(`r:${rid}`);
+        case '3d': return void setTerrain3d(terrain3d?.id === rid ? null : rid);
       }
     });
     el?.addEventListener('input', (e) => {
@@ -2008,6 +2047,14 @@ async function main() {
     void automatePane?.run((e as CustomEvent<string>).detail);
   });
   // the selected Explorer file's outline on the map (a dashed box; cleared when nothing is selected)
+  // View › 3D terrain: the selected elevation raster, else the first one; again: the flat map
+  document.addEventListener('geospax:terrain3d', () => {
+    if (terrain3d) return setTerrain3d(null);
+    const dems = (rasterPane?.all() ?? []).filter((r) => isElevation(r.kind));
+    const pick = dems.find((r) => r.id === activeRaster) ?? dems[0];
+    if (!pick) return void workbench?.setStatus('3D terrain needs an elevation raster: Data › Online data › Elevation, or add a DEM', 8000);
+    setTerrain3d(pick.id);
+  });
   document.addEventListener('geospax:footprint', (e) => {
     const b = (e as CustomEvent<[number, number, number, number] | null>).detail;
     footprint = b ? { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]] } } : null;

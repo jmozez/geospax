@@ -1259,3 +1259,26 @@ mod tests {
         assert!((m[0] - 20_037_508.34).abs() < 0.1 && m[1].abs() < 1e-6);
     }
 }
+
+/// One 256 × 256 Web Mercator tile of an elevation raster, as a Terrarium PNG
+/// (height = R·256 + G + B/256 − 32768 m), for the map's 3D terrain. Cells without data are 0 m.
+pub fn terrain_tile(path: &Path, z: u32, x: u32, y: u32) -> Result<Vec<u8>, String> {
+    const HALF: f64 = 20037508.342789244;
+    let n = 2f64.powi(z as i32);
+    let size = 2.0 * HALF / n;
+    let (minx, maxy) = (-HALF + x as f64 * size, HALF - y as f64 * size);
+    let src = open(path)?;
+    let args = strings(&["-of", "MEM", "-t_srs", "EPSG:3857", "-ts", "256", "256", "-r", "bilinear", "-dstnodata", "-32768", "-ot", "Float32"]);
+    let mut a = args;
+    a.extend(["-te".into(), minx.to_string(), (maxy - size).to_string(), (minx + size).to_string(), maxy.to_string()]);
+    let ds = warp_progress(&[&src], "", &a, |_| true)?;
+    let band = ds.rasterband(1).map_err(|e| e.to_string())?;
+    let buf = band.read_as::<f32>((0, 0), (256, 256), (256, 256), None).map_err(|e| e.to_string())?;
+    let mut rgba = Vec::with_capacity(256 * 256 * 4);
+    for &h in buf.data() {
+        let h = if h.is_finite() && h > -11000.0 && h < 9000.0 { h as f64 } else { 0.0 };
+        let v = ((h + 32768.0) * 256.0).round().max(0.0) as u32;
+        rgba.extend([((v >> 16) & 255) as u8, ((v >> 8) & 255) as u8, (v & 255) as u8, 255]);
+    }
+    encode_png(rgba, 256, 256)
+}
