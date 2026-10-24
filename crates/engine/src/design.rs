@@ -35,7 +35,8 @@ fn utm(lon: f64, lat: f64) -> u32 {
 /// Write the given design layers to a DXF; returns its path, the number of entities and the EPSG used.
 /// `blocks` ([{name, geometry}] in metres around the base point) and `inserts` ([{block, layer, fid, at, angle}])
 /// make AutoCAD block references: the placed features go out as INSERTs of a block definition.
-pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value, inserts: &Value) -> Result<Value, String> {
+/// `pens` ({layer id: {color, width, dash, hollow}}) give each layer its colour, linetype and lineweight.
+pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value, inserts: &Value, pens: &Value) -> Result<Value, String> {
     let e = |x: gdal::errors::GdalError| x.to_string();
     let layers: Vec<_> = ids.iter().filter_map(|id| engine.layer(id)).collect();
     if layers.is_empty() {
@@ -105,6 +106,9 @@ pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value
         let mut sl = src.layer_by_name(l.layer_name()).or_else(|_| src.layer(0)).map_err(e)?;
         let cad = cad_layer(&l.info.name);
         let pattern = hatch[l.info.id.as_str()].as_str();
+        let pen = pen_style(&pens[l.info.id.as_str()]);
+        let hollow = pens[l.info.id.as_str()]["hollow"].as_bool().unwrap_or(false);
+        let fill_color = pens[l.info.id.as_str()]["color"].as_str().filter(|c| is_hex(c));
         let label_field = ["label", "text", "name"].into_iter().find(|f| sl.defn().fields().any(|x| x.name() == *f));
         for f in sl.features() {
             // a placed block: one INSERT at its insertion point instead of its linework
@@ -130,12 +134,32 @@ pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value
             let mut nf = Feature::new(out.defn()).map_err(e)?;
             nf.set_field_string(layer_idx, &cad).map_err(e)?;
             let is_text = matches!(g.geometry_type(), OGRwkbGeometryType::wkbPoint) && label.is_some();
+            let is_area = matches!(g.geometry_type(), OGRwkbGeometryType::wkbPolygon | OGRwkbGeometryType::wkbMultiPolygon);
             if is_text {
                 set_style(&nf, &format!("LABEL(f:\"Arial\",t:\"{}\",s:2.5g)", label.as_deref().unwrap_or("").replace('"', "'")));
+            } else if is_area && !hollow {
+                // GDAL writes a polygon as a HATCH: filled in the layer's colour, with its outline added below
+                if let Some(c) = fill_color {
+                    set_style(&nf, &format!("BRUSH(fc:{c})"));
+                }
+            } else if let Some(p) = &pen {
+                set_style(&nf, p);
             }
-            nf.set_geometry(g.clone()).map_err(e)?;
+            // an outline-only shape is its outline (a closed polyline), not a solid HATCH
+            let body = if is_area && hollow { outline(&g).unwrap_or_else(|| g.clone()) } else { g.clone() };
+            nf.set_geometry(body).map_err(e)?;
             nf.create(&out).map_err(e)?;
             count += 1;
+            if is_area && !hollow && pen.is_some() {
+                if let Some(edge) = outline(&g) {
+                    let mut of = Feature::new(out.defn()).map_err(e)?;
+                    of.set_field_string(layer_idx, &cad).map_err(e)?;
+                    set_style(&of, pen.as_deref().unwrap_or_default());
+                    of.set_geometry(edge).map_err(e)?;
+                    of.create(&out).map_err(e)?;
+                    count += 1;
+                }
+            }
             // a hatched shape's pattern, as lines on its own <LAYER>-HATCH layer
             if let Some(pat) = pattern {
                 for h in hatch_lines(&g, pat) {
@@ -204,6 +228,49 @@ pub fn hatch_lines(g: &Geometry, pattern: &str) -> Vec<Geometry> {
     out
 }
 
+/// A polygon's rings as lines (a MULTILINESTRING), as AutoCAD draws an outline.
+fn outline(g: &Geometry) -> Option<Geometry> {
+    let mut rings = vec![];
+    let mut add = |poly: &Geometry| {
+        for i in 0..poly.geometry_count() {
+            let mut pts = vec![];
+            poly.get_geometry(i).get_points(&mut pts);
+            if pts.len() > 1 {
+                rings.push(format!("({})", pts.iter().map(|p| format!("{} {}", p.0, p.1)).collect::<Vec<_>>().join(", ")));
+            }
+        }
+    };
+    match g.geometry_type() {
+        OGRwkbGeometryType::wkbPolygon => add(g),
+        OGRwkbGeometryType::wkbMultiPolygon => {
+            for i in 0..g.geometry_count() {
+                add(&g.get_geometry(i));
+            }
+        }
+        _ => return None,
+    }
+    if rings.is_empty() {
+        return None;
+    }
+    Geometry::from_wkt(&format!("MULTILINESTRING ({})", rings.join(", "))).ok()
+}
+
+fn is_hex(c: &str) -> bool {
+    c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit())
+}
+
+/// An OGR pen for a layer: its colour, lineweight (screen px → mm) and linetype (dashes in metres).
+fn pen_style(p: &Value) -> Option<String> {
+    let c = p["color"].as_str().filter(|c| is_hex(c))?;
+    let w = (p["width"].as_f64().unwrap_or(1.0) * 0.25).clamp(0.05, 2.11);
+    let pat = match p["dash"].as_str() {
+        Some("dashed") => ",p:\"2g 1g\"",
+        Some("dotted") => ",p:\"0.2g 0.8g\"",
+        _ => "",
+    };
+    Some(format!("PEN(c:{c},w:{w:.2}mm{pat})"))
+}
+
 /// A block name AutoCAD accepts: letters, digits, - and _ (others become _).
 fn block_name(s: &str) -> String {
     let n: String = s.trim().chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
@@ -265,6 +332,13 @@ mod tests {
     }
 
     #[test]
+    fn pens() {
+        let p = super::pen_style(&serde_json::json!({"color": "#ff6b9a", "width": 2, "dash": "dashed"})).unwrap();
+        assert_eq!(p, "PEN(c:#ff6b9a,w:0.50mm,p:\"2g 1g\")");
+        assert!(super::pen_style(&serde_json::json!({"color": "red"})).is_none());
+    }
+
+    #[test]
     fn hatch_inside_the_shape() {
         let sq = gdal::vector::Geometry::from_wkt("POLYGON ((0 0, 40 0, 40 40, 0 40, 0 0))").unwrap();
         let lines = super::hatch_lines(&sq, "diagonal");
@@ -274,6 +348,8 @@ mod tests {
             assert!(e.MinX >= -1e-9 && e.MaxX <= 40.0 + 1e-9 && e.MinY >= -1e-9 && e.MaxY <= 40.0 + 1e-9);
         }
         assert_eq!(super::hatch_lines(&sq, "cross").len(), lines.len() * 2);
+        let o = super::outline(&sq).unwrap();
+        assert_eq!(o.geometry_count(), 1);
         let line = gdal::vector::Geometry::from_wkt("LINESTRING (0 0, 1 1)").unwrap();
         assert!(super::hatch_lines(&line, "diagonal").is_empty());
     }

@@ -2546,6 +2546,39 @@ async function main() {
       project.cadInserts = v;
       saveProject();
     },
+    props: (id) => {
+      const st = project.layers[id];
+      if (!st) return null;
+      const color = st.symbology.kind === 'single' ? st.symbology.color : '#ffffff';
+      const dash = (st.line?.dash ?? st.fill?.strokeDash ?? 'solid') as 'solid' | 'dashed' | 'dotted';
+      return { color, width: st.line?.width ?? st.fill?.strokeWidth ?? 1, dash: ['dashed', 'dotted'].includes(dash) ? dash : 'solid', visible: !!st.visible, hollow: st.fill?.fill === false };
+    },
+    setProps: (id, p) => {
+      const st = project.layers[id];
+      if (!st) return;
+      styledByTool.add(id);
+      delete st.auto;
+      if (p.visible !== undefined) st.visible = p.visible;
+      if (p.color) {
+        st.symbology = { kind: 'single', color: p.color };
+        if (st.fill?.fill === false) st.fill.strokeColor = p.color;
+      }
+      if (p.width !== undefined) {
+        if (st.line) st.line.width = p.width;
+        if (st.fill) st.fill.strokeWidth = p.width;
+      }
+      if (p.dash) {
+        if (st.line) st.line.dash = p.dash as typeof st.line.dash;
+        if (st.fill) st.fill.strokeDash = p.dash as typeof st.fill.strokeDash;
+      }
+      if (p.hollow !== undefined && st.fill) {
+        st.fill.fill = !p.hollow;
+        st.fill.strokeColor = p.hollow ? (st.symbology.kind === 'single' ? st.symbology.color : st.fill.strokeColor) : '#ffffff';
+      }
+      applyStyle();
+      saveProject();
+      renderContents();
+    },
     locked: () => project.cadLocked ?? [],
     hatch: (id) => { const f = project.layers[id]?.fill; return f?.fill !== false ? f?.pattern : undefined; },
     setLocked: (ids) => {
