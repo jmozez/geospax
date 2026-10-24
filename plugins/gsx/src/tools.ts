@@ -116,7 +116,7 @@ function criteria(text: string) {
     const [field, w, dir] = it.split(':').map((s) => s.trim());
     const weight = Number(w ?? 1);
     if (!field || !Number.isFinite(weight) || weight < 0) throw new Error(`Bad criterion '${it}': use field:weight or field:weight:-`);
-    return { field, weight, direction: (dir === '-' || /^lower|min|cost/i.test(dir ?? '') ? 'lower' : 'higher') as A.CriterionDirection };
+    return { field, weight, direction: (dir === '-' || /^lower|min|cost/i.test(dir ?? '') ? 'cost' : 'benefit') as A.CriterionDirection };
   });
 }
 
