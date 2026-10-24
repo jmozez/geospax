@@ -247,3 +247,18 @@ export function chamfer(line: XY[], i: number, d1: number, d2: number, closed: b
   pts.splice(i, 1, P, Q);
   return closed ? [...pts, pts[0]] : pts;
 }
+
+/** STRETCH: the vertices inside the box [x0,y0,x1,y1] moved by d, the rest kept (shared corners of a
+ *  ring's closing point move together). */
+export function stretch(g: GeoJSON.Geometry, toXY: (p: XY) => XY, toLL: (p: XY) => XY, box: [number, number, number, number], d: XY): { geometry: GeoJSON.Geometry; moved: number } {
+  let moved = 0;
+  const geometry = mapGeometry(g, (q) => {
+    const p = toXY(q);
+    if (p[0] >= box[0] && p[0] <= box[2] && p[1] >= box[1] && p[1] <= box[3]) {
+      moved++;
+      return toLL([p[0] + d[0], p[1] + d[1]]);
+    }
+    return q;
+  });
+  return { geometry, moved };
+}
