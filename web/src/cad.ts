@@ -23,6 +23,8 @@
 //   Extend        click near a line's end: it runs on to the next line it meets
 //   Fillet        click near a corner, then the radius: the corner becomes a tangent arc
 //   Chamfer       click near a corner, then d or d1,d2 (m): the corner cut straight (CHAMFER)
+//   Stretch       two corners of a window, then a base point and a second point (or @dx,dy): every
+//                 vertex inside the window moves, the rest stay (STRETCH, crossing window)
 //   Array         rows,columns,dx,dy (m): copies in a grid, as ARRAYRECT (dy < 0 goes south)
 //   Polar array   the centre, then items[,angle] (default 360°): copies turned around it (ARRAYPOLAR)
 //   Explode       a polygon becomes its outline as lines, a multi-part feature its parts (EXPLODE)
@@ -39,13 +41,13 @@
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { CadBlock } from './symbology';
-import { breakAt, chamfer, divide, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
+import { breakAt, chamfer, divide, stretch, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 type LL = [number, number];
 type XY = [number, number];
-export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | ModifyTool;
+export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
 export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer';
 const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
@@ -312,6 +314,7 @@ export class CadDesigner {
       case 'trim': return 'Trim: click the part of a line to cut away';
       case 'extend': return 'Extend: click near the end of a line';
       case 'fillet': return !this.sel ? 'Fillet: click near a corner' : 'Fillet radius in m';
+      case 'stretch': return n === 0 ? 'Stretch: first corner of the window' : n === 1 ? 'Opposite corner of the window' : n === 2 ? 'Base point' : 'Second point (or @dx,dy in m)';
       case 'chamfer': return !this.sel ? 'Chamfer: click near a corner' : 'Distance in m, or d1,d2 along each leg';
       case 'array': return !this.sel ? 'Array: click the feature' : 'rows,columns,dx,dy in m (e.g. 2,10,20,-36)';
       case 'divide': return !this.sel ? 'Divide: click the line' : 'Number of equal parts';
@@ -473,6 +476,7 @@ export class CadDesigner {
       case 'circle': if (n === 2) await this.commit(); break;
       case 'insert': await this.placeBlock(p); break;
       case 'break': if (n === 1) await this.doBreak(p); break;
+      case 'stretch': if (n === 4) await this.doStretch(); break;
       case 'move': case 'copy': if (n === 2) await this.transform(translate(this.diff(this.pts[0], this.pts[1])), this.tool === 'copy'); break;
       case 'mirror': if (n === 2) await this.transform(mirror(this.plane.xy(this.pts[0]), this.plane.xy(this.pts[1])), true); break;
       case 'rotate': if (n === 2) {
@@ -1060,6 +1064,46 @@ export class CadDesigner {
     return this.write(first, true, rest);
   }
 
+  /** STRETCH: every feature in view with a vertex inside the window, those vertices moved */
+  private async doStretch() {
+    const p = this.plane!;
+    const [a, b, base, to] = this.pts.map((q) => p.xy(q));
+    const box: [number, number, number, number] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+    const d: XY = [to[0] - base[0], to[1] - base[1]];
+    const m = this.h.map;
+    const [pa, pb] = [m.project(this.pts[0]), m.project(this.pts[1])];
+    const hits = m.queryRenderedFeatures([[Math.min(pa.x, pb.x), Math.min(pa.y, pb.y)], [Math.max(pa.x, pb.x), Math.max(pa.y, pb.y)]])
+      .filter((f) => f.layer.id.includes('#') && !f.layer.id.startsWith('cad-') && !f.layer.id.startsWith('basemap') && Number.isFinite(Number(f.id)));
+    const seen = new Set<string>();
+    const step: Op[] = [];
+    try {
+      for (const f of hits) {
+        const layer = f.layer.id.replace(/#.*$/, ''), fid = Number(f.id), key = `${layer}/${fid}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const url = `api/layers/${encodeURIComponent(layer)}/features/${fid}`;
+        const feat = await this.h.backend.json<GeoJSON.Feature>(url);
+        if (!feat.geometry) continue;
+        const r = stretch(feat.geometry, (q) => p.xy(q as LL), (q) => p.ll(q), box, d);
+        if (!r.moved) continue;
+        await this.api(url, 'PUT', { geometry: r.geometry });
+        step.push({ kind: 'update', layer, fid, before: feat.geometry, after: r.geometry });
+      }
+    } catch (err) {
+      this.h.setStatus(`Could not stretch: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    if (step.length) {
+      this.undoStack.push(step);
+      this.redoStack = [];
+      for (const l of new Set(step.map((o) => o.layer))) await this.h.changed(l);
+    }
+    this.h.setStatus(step.length ? `Stretched ${step.length} feature${step.length === 1 ? '' : 's'}` : 'No vertex inside the window', 4000);
+    this.pts = [];
+    this.plane = null;
+    this.renderBar();
+    this.draw();
+  }
+
   private async doChamfer(v: string) {
     const m = v.match(/^(\d+(?:\.\d+)?)(?:,(\d+(?:\.\d+)?))?$/);
     if (!m) return this.h.setStatus('Type a distance, or d1,d2 (m)', 5000);
@@ -1204,7 +1248,10 @@ S90°W 25</textarea></label>
     }
     if (this.tool && this.plane && all.length >= 2) {
       const xy = all.map((q) => this.plane!.xy(q));
-      if (this.tool === 'rect') {
+      if (this.tool === 'stretch' && all.length >= 2) {
+        const [a, b] = [xy[0], xy[Math.min(1, xy.length - 1)]];
+        feats.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[a, [b[0], a[1]], b, [a[0], b[1]], a].map((q) => this.plane!.ll(q as XY))] } });
+      } else if (this.tool === 'rect') {
         const [a, b] = [xy[0], xy[xy.length - 1]];
         feats.push({ type: 'Feature', properties: { dim: `${fmt(Math.abs(b[0] - a[0]))} × ${fmt(Math.abs(b[1] - a[1]))}` }, geometry: { type: 'Polygon', coordinates: [[a, [b[0], a[1]], b, [a[0], b[1]], a].map((q) => this.plane!.ll(q as XY))] } });
       } else if (this.tool === 'circle') {
