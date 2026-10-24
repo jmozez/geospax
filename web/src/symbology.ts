@@ -66,7 +66,11 @@ export interface Project {
   removed?: string[];
   /** map images from web services (WMS, WMTS, XYZ, ArcGIS MapServer), drawn over the basemap */
   web?: WebLayer[];
+  /** Design › Blocks: named shapes in metres around their base point, placed with Insert */
+  cadBlocks?: CadBlock[];
 }
+
+export interface CadBlock { name: string; layer: string; geometry: GeoJSON.Geometry; properties: Record<string, unknown> }
 
 export interface WebLayer {
   id: string;

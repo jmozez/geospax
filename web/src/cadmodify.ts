@@ -169,3 +169,26 @@ export function nearestVertex(line: XY[], p: XY): number {
   });
   return best;
 }
+
+/** Points along a polyline at the given distances from its start (AutoCAD DIVIDE and MEASURE). */
+export function pointsAlong(line: XY[], ds: number[]): XY[] {
+  return ds.map((d) => cut(line, d).at);
+}
+
+/** Length of a polyline. */
+export function lengthOf(line: XY[]): number {
+  return line.length < 2 ? 0 : along(line, line.length - 2, 1);
+}
+
+/** DIVIDE into n equal parts: the n − 1 inner points. MEASURE every `step`: the points after the start. */
+export function divide(line: XY[], n: number): XY[] {
+  const L = lengthOf(line);
+  return pointsAlong(line, Array.from({ length: Math.max(0, n - 1) }, (_, i) => (L * (i + 1)) / n));
+}
+
+export function measure(line: XY[], step: number): XY[] {
+  const L = lengthOf(line), ds: number[] = [];
+  // no point at the very end (1 cm of slack for the local plane's rounding)
+  for (let d = step; d < L - 0.01; d += step) ds.push(d);
+  return pointsAlong(line, ds);
+}

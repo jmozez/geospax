@@ -23,21 +23,35 @@
 //   Extend        click near a line's end: it runs on to the next line it meets
 //   Fillet        click near a corner, then the radius: the corner becomes a tangent arc
 //   Array         rows,columns,dx,dy (m): copies in a grid, as ARRAYRECT (dy < 0 goes south)
+//   Divide        a number of equal parts: points on the line between them (DIVIDE)
+//   Measure       a distance: a point every so many metres along the line (MEASURE), with its chainage
+//   Block         click a feature (where you click is its base point), name it: saved for Insert
+//   Insert        choose a block, then click where each copy goes; type an angle first to turn them
 //
 // Distances and bearings are worked out on a local plane around the first point (metres east and
 // north), which is accurate to a few centimetres over a town; the layers stay in WGS 84.
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
-import { extend, fillet, mapGeometry, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
+import type { CadBlock } from './symbology';
+import { divide, extend, fillet, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 type LL = [number, number];
 type XY = [number, number];
-export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array'];
+export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | ModifyTool;
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'divide' | 'measure' | 'block';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'divide', 'measure', 'block'];
+/** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
+type Block = CadBlock;
+/** where blocks lived before they were kept in the project: moved over the first time */
+const OLD_BLOCKS_KEY = 'geospax.cad.blocks';
 const isModify = (t: CadTool | null): t is ModifyTool => !!t && (MODIFY as string[]).includes(t);
+/** one Design edit, as it can be undone: a feature added, changed or deleted */
+type Op =
+  | { kind: 'add'; layer: string; fid: number; feature: GeoJSON.Feature }
+  | { kind: 'update'; layer: string; fid: number; before: GeoJSON.Geometry; after: GeoJSON.Geometry }
+  | { kind: 'delete'; layer: string; fid: number; feature: GeoJSON.Feature };
 /** a feature picked for Modify: its layer, id, full geometry and where it was clicked */
 interface Sel { layer: string; fid: number; feature: GeoJSON.Feature; at: LL }
 
@@ -47,6 +61,9 @@ export interface CadHost {
   layers: () => LayerInfo[];
   /** a layer's data changed (re-read it and redraw) */
   changed: (id: string, info?: LayerInfo) => Promise<void>;
+  /** the project's blocks (Design › Block / Insert), and saving a new list */
+  blocks: () => CadBlock[];
+  setBlocks: (b: CadBlock[]) => void;
   /** show a field as labels on a layer (dimensions, annotations) */
   labels: (id: string, field: string, placement: 'point' | 'line' | 'line-center') => void;
   /** a new design layer's drafting look: colour, hollow or filled, line width */
@@ -171,6 +188,12 @@ export class CadDesigner {
   private bar: HTMLElement;
   private picked: { layer: string; coords: LL[] } | null = null;
   private sel: Sel | null = null;
+  /** Insert: the block being placed and the angle each copy is turned by */
+  private inserting: { block: Block; angle: number } | null = null;
+  /** undo history of this session's Design edits (one command may make several) */
+  private undoStack: Op[][] = [];
+  private redoStack: Op[][] = [];
+  private batch: Op[] | null = null;
   private onMove = (e: maplibregl.MapMouseEvent) => this.move(e);
   private onClick = (e: maplibregl.MapMouseEvent) => void this.click(e);
   private onDbl = (e: maplibregl.MapMouseEvent) => { e.preventDefault(); void this.finish(); };
@@ -185,6 +208,8 @@ export class CadDesigner {
       if (what === 'traverse') return void this.traverseDialog();
       if (what === 'dxf-export') return void this.exportDxf();
       if (what === 'dxf-import') return void this.importDxf();
+      if (what === 'undo') return void this.undo();
+      if (what === 'redo') return void this.redo();
       if (what === 'ortho' || what === 'polar' || what === 'snap') { this[what] = !this[what]; return this.renderBar(); }
       void this.start(what as CadTool);
     });
@@ -195,8 +220,14 @@ export class CadDesigner {
       if (e.key === 'F8') { e.preventDefault(); this.ortho = !this.ortho; return this.renderBar(); }
       if (e.key === 'F10') { e.preventDefault(); this.polar = !this.polar; return this.renderBar(); }
       if (e.key === 'F3') { e.preventDefault(); this.snap = !this.snap; return this.renderBar(); }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+        e.preventDefault(); return void this.redo();
+      }
       if ((e.key === 'z' && (e.ctrlKey || e.metaKey)) || (e.key.toLowerCase() === 'u' && document.activeElement !== input)) {
-        e.preventDefault(); this.pts.pop(); return this.draw();
+        e.preventDefault();
+        // a point being placed goes first; with none, the last saved edit is undone
+        if (this.pts.length) { this.pts.pop(); return this.draw(); }
+        return void this.undo();
       }
       // typing anywhere goes to the command line
       if (input && document.activeElement !== input && /^[-\d@.,<NSEWnsew°']$/.test(e.key)) input.focus();
@@ -218,6 +249,21 @@ export class CadDesigner {
     m.on('dblclick', this.onDbl);
     m.getCanvas().style.cursor = 'crosshair';
     this.ensurePreview();
+    if (tool === 'insert') {
+      const blocks = this.loadBlocks();
+      if (!blocks.length) {
+        this.stop();
+        return this.h.setStatus('No blocks yet: make one with Block (click a feature, give it a name)', 6000);
+      }
+      const names = blocks.map((b) => b.name);
+      const pick = window.prompt(`Insert which block?\n${names.join(', ')}`, names[names.length - 1]);
+      const block = blocks.find((b) => b.name === pick?.trim());
+      if (!block) {
+        this.stop();
+        return this.h.setStatus(pick ? `No block called "${pick}"` : 'Insert cancelled', 4000);
+      }
+      this.inserting = { block, angle: 0 };
+    }
     this.renderBar();
     this.bar.querySelector('input')?.focus();
   }
@@ -234,6 +280,7 @@ export class CadDesigner {
     this.cursor = null;
     this.picked = null;
     this.sel = null;
+    this.inserting = null;
     this.bar.hidden = true;
     this.draw();
   }
@@ -260,6 +307,10 @@ export class CadDesigner {
       case 'extend': return 'Extend: click near the end of a line';
       case 'fillet': return !this.sel ? 'Fillet: click near a corner' : 'Fillet radius in m';
       case 'array': return !this.sel ? 'Array: click the feature' : 'rows,columns,dx,dy in m (e.g. 2,10,20,-36)';
+      case 'divide': return !this.sel ? 'Divide: click the line' : 'Number of equal parts';
+      case 'block': return 'Block: click the feature; the click is its base point';
+      case 'insert': return this.inserting ? `Insert ${this.inserting.block.name}: click where it goes (angle ${this.inserting.angle}°; type another to turn it) · Enter ends` : 'Insert: no blocks yet';
+      case 'measure': return !this.sel ? 'Measure: click the line (near the end to start from)' : 'Distance between points in m';
       default: return '';
     }
   }
@@ -407,6 +458,7 @@ export class CadDesigner {
       }
       case 'line': case 'dimension': case 'rect': if (n === 2) await this.commit(); break;
       case 'circle': if (n === 2) await this.commit(); break;
+      case 'insert': await this.placeBlock(p); break;
       case 'move': case 'copy': if (n === 2) await this.transform(translate(this.diff(this.pts[0], this.pts[1])), this.tool === 'copy'); break;
       case 'mirror': if (n === 2) await this.transform(mirror(this.plane.xy(this.pts[0]), this.plane.xy(this.pts[1])), true); break;
       case 'rotate': if (n === 2) {
@@ -424,6 +476,11 @@ export class CadDesigner {
     const s = v.replace(/\s+/g, '');
     if (this.tool === 'offset' && this.picked) return this.doOffset(Number(s));
     if (this.tool === 'array' && this.sel) return this.doArray(s);
+    if (this.tool === 'insert' && this.inserting && /^-?\d+(\.\d+)?$/.test(s)) {
+      this.inserting.angle = Number(s);
+      return this.renderBar();
+    }
+    if ((this.tool === 'divide' || this.tool === 'measure') && this.sel) return this.doDivide(Number(s));
     if (this.sel && /^-?\d+(\.\d+)?$/.test(s)) {
       const v = Number(s);
       if (this.tool === 'rotate' && this.pts.length === 1) return this.transform(rotate(this.plane!.xy(this.pts[0]), v), false);
@@ -460,6 +517,7 @@ export class CadDesigner {
 
   async finish() {
     if (!this.tool) return;
+    if (this.tool === 'insert') return this.stop();
     const n = this.pts.length;
     if ((this.tool === 'polyline' && n >= 2) || (this.tool === 'polygon' && n >= 3)) await this.commit();
     else if (this.tool === 'road' && n >= 2) {
@@ -487,11 +545,73 @@ export class CadDesigner {
 
   private async save(kind: keyof typeof DESIGN, geometry: GeoJSON.Geometry, properties: Record<string, unknown>) {
     const id = await this.layerFor(kind);
-    const r = await this.h.backend.json<{ layer: LayerInfo }>(`api/layers/${encodeURIComponent(id)}/features`, {
+    const feature: GeoJSON.Feature = { type: 'Feature', geometry, properties };
+    const r = await this.h.backend.json<{ fid: number; layer: LayerInfo }>(`api/layers/${encodeURIComponent(id)}/features`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ type: 'Feature', geometry, properties }),
+      body: JSON.stringify(feature),
     });
+    this.record({ kind: 'add', layer: id, fid: r.fid, feature });
     await this.h.changed(id, r.layer);
+  }
+
+  // ---------------------------------------------------------------- undo
+  /** an edit into the open batch (one command), or as its own step */
+  private record(op: Op) {
+    if (this.batch) this.batch.push(op);
+    else this.undoStack.push([op]);
+    this.redoStack = [];
+    if (this.undoStack.length > 200) this.undoStack.shift();
+  }
+
+  private api<T>(url: string, method: string, body?: unknown) {
+    return this.h.backend.json<T>(url, { method, ...(body ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}) });
+  }
+
+  /** apply one op backwards (undo) or forwards (redo); a re-added feature gets a new id */
+  private async play(op: Op, back: boolean): Promise<Op> {
+    const url = `api/layers/${encodeURIComponent(op.layer)}/features`;
+    const re = async (f: GeoJSON.Feature) => (await this.api<{ fid: number }>(url, 'POST', f)).fid;
+    if (op.kind === 'update') {
+      await this.api(`${url}/${op.fid}`, 'PUT', { geometry: back ? op.before : op.after });
+      return op;
+    }
+    const removing = (op.kind === 'add') === back;
+    if (removing) {
+      await this.api(`${url}/${op.fid}`, 'DELETE');
+      return op;
+    }
+    return { ...op, fid: await re(op.feature) };
+  }
+
+  private async replay(from: Op[][], to: Op[][], back: boolean, word: string) {
+    const step = from.pop();
+    if (!step) return this.h.setStatus(`Nothing to ${word.toLowerCase()}`, 3000);
+    const done: Op[] = [];
+    try {
+      for (const op of back ? [...step].reverse() : step) {
+        const now = await this.play(op, back);
+        // a feature added back gets a new id: every older and newer step must follow it
+        if (now.fid !== op.fid) this.remap(op.layer, op.fid, now.fid);
+        done.push(now);
+      }
+    } catch (err) {
+      this.h.setStatus(`${word} failed: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    to.push(back ? done.reverse() : done);
+    for (const l of new Set(step.map((o) => o.layer))) await this.h.changed(l);
+    this.h.setStatus(`${word}: ${step.length} change${step.length === 1 ? '' : 's'}`, 3000);
+  }
+
+  private remap(layer: string, from: number, to: number) {
+    for (const st of [this.undoStack, this.redoStack]) for (const step of st) for (const o of step) if (o.layer === layer && o.fid === from) o.fid = to;
+  }
+
+  undo() {
+    return this.replay(this.undoStack, this.redoStack, true, 'Undo');
+  }
+
+  redo() {
+    return this.replay(this.redoStack, this.undoStack, false, 'Redo');
   }
 
   private async commit() {
@@ -540,8 +660,15 @@ export class CadDesigner {
     const xy = this.pts.map((q) => p.xy(q));
     const ring = corridor(xy, width);
     const r2 = (v: number) => Math.round(v * 100) / 100;
-    await this.save('roads', { type: 'Polygon', coordinates: [[...ring, ring[0]].map((q) => p.ll(q))] }, { name: 'road', width_m: width, length_m: r2(perimeter(xy, false)), area_m2: r2(area(ring)) });
-    await this.save('lines', { type: 'LineString', coordinates: this.pts }, { kind: 'road centreline', length_m: r2(perimeter(xy, false)) });
+    // the road and its centreline are one step for Undo
+    this.batch = [];
+    try {
+      await this.save('roads', { type: 'Polygon', coordinates: [[...ring, ring[0]].map((q) => p.ll(q))] }, { name: 'road', width_m: width, length_m: r2(perimeter(xy, false)), area_m2: r2(area(ring)) });
+      await this.save('lines', { type: 'LineString', coordinates: this.pts }, { kind: 'road centreline', length_m: r2(perimeter(xy, false)) });
+    } finally {
+      if (this.batch.length) this.undoStack.push(this.batch);
+      this.batch = null;
+    }
     this.h.setStatus(`Road saved: ${fmt(perimeter(xy, false))} long, ${width} m wide`, 5000);
     this.pts = [];
     this.plane = null;
@@ -584,6 +711,7 @@ export class CadDesigner {
       return this.h.setStatus(`Could not read the feature: ${err instanceof Error ? err.message : err}`, 6000);
     }
     if (this.tool === 'erase') return this.doErase();
+    if (this.tool === 'block') return this.makeBlock();
     if (this.tool === 'trim' || this.tool === 'extend') return this.doTrimExtend();
     this.renderBar();
     this.draw();
@@ -600,14 +728,27 @@ export class CadDesigner {
     const s = this.sel!;
     const url = `api/layers/${encodeURIComponent(s.layer)}/features`;
     const props = Object.fromEntries(Object.entries(s.feature.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k)));
+    const batch: Op[] = [];
+    const add = async (g: GeoJSON.Geometry) => {
+      const feature: GeoJSON.Feature = { type: 'Feature', geometry: g, properties: props };
+      const r = await this.api<{ fid: number }>(url, 'POST', feature);
+      batch.push({ kind: 'add', layer: s.layer, fid: r.fid, feature });
+    };
     try {
-      if (copy) await this.h.backend.json(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'Feature', geometry, properties: props }) });
-      else await this.h.backend.json(`${url}/${s.fid}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ geometry }) });
-      for (const g of extra ?? []) await this.h.backend.json(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'Feature', geometry: g, properties: props }) });
+      if (copy) await add(geometry);
+      else {
+        await this.api(`${url}/${s.fid}`, 'PUT', { geometry });
+        batch.push({ kind: 'update', layer: s.layer, fid: s.fid, before: s.feature.geometry, after: geometry });
+      }
+      for (const g of extra ?? []) await add(g);
       await this.h.changed(s.layer);
-      this.h.setStatus(`${this.tool} done`, 3000);
+      this.h.setStatus(`${this.tool} done · Ctrl+Z undoes it`, 3000);
     } catch (err) {
       this.h.setStatus(`Could not save: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    if (batch.length) {
+      this.undoStack.push(batch);
+      this.redoStack = [];
     }
     this.sel = null;
     this.pts = [];
@@ -620,6 +761,7 @@ export class CadDesigner {
     const s = this.sel!;
     try {
       await this.h.backend.json(`api/layers/${encodeURIComponent(s.layer)}/features/${s.fid}`, { method: 'DELETE' });
+      this.record({ kind: 'delete', layer: s.layer, fid: s.fid, feature: { type: 'Feature', geometry: s.feature.geometry, properties: Object.fromEntries(Object.entries(s.feature.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k))) } });
       await this.h.changed(s.layer);
       this.h.setStatus('Erased', 3000);
     } catch (err) {
@@ -678,6 +820,90 @@ export class CadDesigner {
     if (!pieces.length) return this.doErase();
     const [first, ...rest] = pieces.map((l) => ({ type: 'LineString', coordinates: l.map((q) => p.ll(q)) }) as GeoJSON.Geometry);
     return this.write(first, false, rest);
+  }
+
+  /** the project's blocks; ones saved in this browser by an older version are moved into the project */
+  private loadBlocks(): Block[] {
+    const blocks = this.h.blocks();
+    try {
+      const old = JSON.parse(localStorage.getItem(OLD_BLOCKS_KEY) ?? '[]') as Block[];
+      if (old.length) {
+        const merged = [...blocks, ...old.filter((o) => !blocks.some((b) => b.name === o.name))];
+        this.h.setBlocks(merged);
+        localStorage.removeItem(OLD_BLOCKS_KEY);
+        return merged;
+      }
+    } catch { /* no browser storage */ }
+    return blocks;
+  }
+
+  /** BLOCK: the picked feature in metres around the click, kept in the project under a name */
+  private makeBlock() {
+    const s = this.sel!, p = this.plane!;
+    const name = window.prompt('Block name (e.g. house 10x12)', '')?.trim();
+    if (!name) {
+      this.sel = null;
+      this.draw();
+      return this.h.setStatus('Block cancelled', 3000);
+    }
+    const props = Object.fromEntries(Object.entries(s.feature.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k)));
+    // the plane is centred on the click, so plane metres are offsets from the base point
+    const geometry = mapGeometry(s.feature.geometry, (q) => p.xy(q));
+    const blocks = this.loadBlocks().filter((b) => b.name !== name);
+    blocks.push({ name, layer: s.layer, geometry, properties: props });
+    this.h.setBlocks(blocks);
+    this.h.setStatus(`Block "${name}" saved (${blocks.length} in all): Insert places it`, 5000);
+    this.sel = null;
+    this.draw();
+  }
+
+  /** INSERT: one copy of the block with its base point at p, turned by the chosen angle */
+  private async placeBlock(at: LL) {
+    const ins = this.inserting!;
+    const p = new Plane(at);
+    const turn = rotate([0, 0], ins.angle);
+    const geometry = mapGeometry(ins.block.geometry, (q) => p.ll(turn(q)));
+    try {
+      const feature: GeoJSON.Feature = { type: 'Feature', geometry, properties: ins.block.properties };
+      const r = await this.api<{ fid: number }>(`api/layers/${encodeURIComponent(ins.block.layer)}/features`, 'POST', feature);
+      this.record({ kind: 'add', layer: ins.block.layer, fid: r.fid, feature });
+      await this.h.changed(ins.block.layer);
+    } catch (err) {
+      this.h.setStatus(`Could not insert (was its layer removed?): ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    this.pts = [];
+    this.plane = null;
+  }
+
+  /** DIVIDE / MEASURE: points along the picked line, saved to Design · points with their chainage */
+  private async doDivide(v: number) {
+    const s = this.sel!, p = this.plane!;
+    const g = s.feature.geometry;
+    const coords = g.type === 'LineString' ? (g.coordinates as LL[]) : g.type === 'Polygon' ? (g.coordinates[0] as LL[]) : null;
+    if (!coords) return this.h.setStatus(`${this.tool === 'divide' ? 'Divide' : 'Measure'} works on lines and polygon outlines`, 5000);
+    let line = coords.map((q) => p.xy(q));
+    // MEASURE starts from the end nearer the click, as AutoCAD does
+    const at = p.xy(s.at);
+    if (this.tool === 'measure' && Math.hypot(line[line.length - 1][0] - at[0], line[line.length - 1][1] - at[1]) < Math.hypot(line[0][0] - at[0], line[0][1] - at[1])) line = [...line].reverse();
+    const ok = this.tool === 'divide' ? Number.isInteger(v) && v >= 2 && v <= 1000 : v > 0 && lengthOf(line) / v <= 5000;
+    if (!ok) return this.h.setStatus(this.tool === 'divide' ? 'Type a whole number of parts, 2 to 1000' : 'Type a distance in m (at most 5000 points)', 5000);
+    const pts = this.tool === 'divide' ? divide(line, v) : measure(line, v);
+    if (!pts.length) return this.h.setStatus('The line is shorter than that distance', 4000);
+    const L = lengthOf(line);
+    this.batch = [];
+    try {
+      for (let i = 0; i < pts.length; i++) {
+        const chain = this.tool === 'divide' ? (L * (i + 1)) / v : v * (i + 1);
+        await this.save('points', { type: 'Point', coordinates: p.ll(pts[i]) }, { kind: this.tool, name: `${(Math.round(chain * 100) / 100).toFixed(2)} m` });
+      }
+    } finally {
+      if (this.batch.length) this.undoStack.push(this.batch);
+      this.batch = null;
+    }
+    this.h.setStatus(`${pts.length} points along ${fmt(L)}`, 4000);
+    this.sel = null;
+    this.renderBar();
+    this.draw();
   }
 
   /** ARRAYRECT: copies of the picked feature on a grid, the original in the first cell */
