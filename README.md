@@ -55,6 +55,23 @@ by Strahler order and outlines 13 drainage basins, in 1.5 seconds, over Esri Wor
 
 <p align="center"><img src="docs/assets/tour-hydrology.png" alt="GeoSpaX: Strahler-ordered streams and drainage basins of the Markham valley over Esri World Imagery" width="900" /></p>
 
+**Land cover.** ESA WorldCover 10 m (2021) for Lae and the Markham delta, downloaded for the area with
+*Data › Online data*, drawn in ESA's class colours over Esri World Imagery; the legend gives each class's
+share of the area.
+
+<p align="center"><img src="docs/assets/tour-landcover.png" alt="GeoSpaX: ESA WorldCover land cover of Lae over Esri World Imagery" width="900" /></p>
+
+**Supervised classification.** Six land-cover classes from Google DeepMind's AlphaEarth satellite
+embeddings (64 values per 10 m pixel), k-nearest neighbours trained on 360 points labelled from
+WorldCover; leave-one-out accuracy 81 %.
+
+<p align="center"><img src="docs/assets/tour-classification.png" alt="GeoSpaX: supervised land-cover classification of Lae from satellite embeddings, with training points" width="900" /></p>
+
+**Unsupervised classification.** The same embeddings grouped into eight kinds of landscape by k-means,
+with no samples: 3.6 million pixels in under a minute.
+
+<p align="center"><img src="docs/assets/tour-clustering.png" alt="GeoSpaX: k-means landscape groups of Lae from satellite embeddings" width="900" /></p>
+
 ## Download
 
 | System | Installer |
