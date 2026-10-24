@@ -2542,6 +2542,7 @@ async function main() {
       saveProject();
     },
     locked: () => project.cadLocked ?? [],
+    hatch: (id) => { const f = project.layers[id]?.fill; return f?.fill !== false ? f?.pattern : undefined; },
     setLocked: (ids) => {
       project.cadLocked = ids;
       saveProject();

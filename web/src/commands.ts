@@ -709,6 +709,16 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'circle' })); },
   },
   {
+    id: 'design.arc', tab: 'design', group: 'Draw', title: 'Arc', icon: 'curve',
+    hint: 'An arc through three points: start, a point on it, end (AutoCAD ARC)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'arc' })); },
+  },
+  {
+    id: 'design.ellipse', tab: 'design', group: 'Draw', title: 'Ellipse', icon: 'point',
+    hint: 'A centre, the end of one axis and the other half-axis in metres (AutoCAD ELLIPSE)',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'ellipse' })); },
+  },
+  {
     id: 'design.point', tab: 'design', group: 'Draw', title: 'Point', icon: 'pin',
     hint: 'A point (a pole, a valve, a survey mark)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'point' })); },

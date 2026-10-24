@@ -39,6 +39,8 @@
 //   Block         click a feature (where you click is its base point), name it: saved for Insert
 //   Insert        choose a block, then click where each copy goes; type an angle first to turn them
 //   Offset        lines and shapes: a distance, or a click it goes through (OFFSET T)
+//   Arc           start, a point on the arc, end (ARC 3P)
+//   Ellipse       centre, end of one axis, then the other half-axis in m or a click (ELLIPSE)
 //   Lock layer    click a feature to lock or unlock its layer; Modify tools skip locked layers (LAYLCK)
 //
 // Distances and bearings are worked out on a local plane around the first point (metres east and
@@ -52,7 +54,7 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '
 
 type LL = [number, number];
 type XY = [number, number];
-export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
+export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'arc' | 'ellipse' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
 export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align' | 'lock';
 const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align', 'lock'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
@@ -79,6 +81,8 @@ export interface CadHost {
   setBlocks: (b: CadBlock[]) => void;
   /** design layers locked against edits (Design › Lock), and saving a new list */
   locked: () => string[];
+  /** a layer's hatch pattern, if it has one (DXF export draws it as lines) */
+  hatch: (id: string) => string | undefined;
   setLocked: (ids: string[]) => void;
   /** show a field as labels on a layer (dimensions, annotations) */
   labels: (id: string, field: string, placement: 'point' | 'line' | 'line-center') => void;
@@ -216,6 +220,38 @@ export function parseBearing(s: string): number | null {
 
 const circle = (c: XY, r: number, n = 72): XY[] => Array.from({ length: n }, (_, i) => polar(c, r, (360 * i) / n));
 
+/** ARC by three points (start, a point on it, end): the circle through them, walked from start to end
+ *  the way that passes the middle point; null when the points are in a line. */
+export function arc3(a: XY, b: XY, c: XY, step = 5): XY[] | null {
+  const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+  if (Math.abs(d) < 1e-9) return null;
+  const sq = (p: XY) => p[0] * p[0] + p[1] * p[1];
+  const o: XY = [(sq(a) * (b[1] - c[1]) + sq(b) * (c[1] - a[1]) + sq(c) * (a[1] - b[1])) / d, (sq(a) * (c[0] - b[0]) + sq(b) * (a[0] - c[0]) + sq(c) * (b[0] - a[0])) / d];
+  const r = dist(o, a);
+  const ang = (p: XY) => Math.atan2(p[1] - o[1], p[0] - o[0]);
+  const norm = (x: number) => ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const t0 = ang(a), sweepC = norm(ang(c) - t0), sweepB = norm(ang(b) - t0);
+  // counter-clockwise from a reaches b before c, or the arc goes the other way round
+  const sweep = sweepB <= sweepC ? sweepC : sweepC - 2 * Math.PI;
+  const n = Math.max(2, Math.ceil(Math.abs((sweep * 180) / Math.PI) / step));
+  return Array.from({ length: n + 1 }, (_, i) => { const t = t0 + (sweep * i) / n; return [o[0] + r * Math.cos(t), o[1] + r * Math.sin(t)] as XY; });
+}
+
+/** ELLIPSE from its centre, the end of one axis and the other half-axis length (m). */
+export function ellipse(c: XY, end: XY, half: number, n = 72): XY[] {
+  const a = dist(c, end), th = Math.atan2(end[1] - c[1], end[0] - c[0]);
+  return Array.from({ length: n }, (_, i) => {
+    const t = (2 * Math.PI * i) / n, x = a * Math.cos(t), y = half * Math.sin(t);
+    return [c[0] + x * Math.cos(th) - y * Math.sin(th), c[1] + x * Math.sin(th) + y * Math.cos(th)] as XY;
+  });
+}
+
+/** the other half-axis of an ellipse: how far `p` is from the first axis */
+const halfAxis = (c: XY, end: XY, p: XY) => {
+  const l = dist(c, end) || 1;
+  return Math.abs(((end[0] - c[0]) * (p[1] - c[1]) - (end[1] - c[1]) * (p[0] - c[0])) / l);
+};
+
 export class CadDesigner {
   private tool: CadTool | null = null;
   private pts: LL[] = [];
@@ -234,6 +270,8 @@ export class CadDesigner {
   private undoStack: Op[][] = [];
   private redoStack: Op[][] = [];
   private batch: Op[] | null = null;
+  /** what is typed so far, for previews (Polar array draws its copies as you type) */
+  private preview = '';
   private onMove = (e: maplibregl.MapMouseEvent) => this.move(e);
   private onClick = (e: maplibregl.MapMouseEvent) => void this.click(e);
   private onDbl = (e: maplibregl.MapMouseEvent) => { e.preventDefault(); void this.finish(); };
@@ -282,6 +320,7 @@ export class CadDesigner {
     this.plane = null;
     this.picked = null;
     this.sel = null;
+    this.preview = '';
     const m = this.h.map;
     m.doubleClickZoom.disable();
     m.on('mousemove', this.onMove);
@@ -333,6 +372,8 @@ export class CadDesigner {
       case 'polygon': return n === 0 ? 'Polygon: first corner' : `Polygon: next corner · Enter closes (${n} so far)`;
       case 'rect': return n === 0 ? 'Rectangle: first corner' : 'Rectangle: opposite corner, or @width,height in m';
       case 'circle': return n === 0 ? 'Circle: centre' : 'Circle: radius in m, or click a point on the edge';
+      case 'arc': return n === 0 ? 'Arc: start point' : n === 1 ? 'Arc: a point on the arc' : 'Arc: end point';
+      case 'ellipse': return n === 0 ? 'Ellipse: centre' : n === 1 ? 'Ellipse: end of one axis' : 'Ellipse: other half-axis in m, or click';
       case 'point': return 'Point: click or type lon,lat';
       case 'text': return 'Text: click where it goes';
       case 'dimension': return n === 0 ? 'Dimension: first point' : 'Dimension: second point';
@@ -380,6 +421,7 @@ export class CadDesigner {
         <button data-done title="Finish (Enter)">Finish</button><button data-cancel title="Cancel (Esc)">✕</button>
       </span>`;
     const input = this.bar.querySelector<HTMLInputElement>('input')!;
+    input.addEventListener('input', () => { this.preview = input.value; this.draw(); });
     input.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
@@ -512,6 +554,7 @@ export class CadDesigner {
       }
       case 'line': case 'dimension': case 'rect': if (n === 2) await this.commit(); break;
       case 'circle': if (n === 2) await this.commit(); break;
+      case 'arc': case 'ellipse': if (n === 3) await this.commit(); break;
       case 'insert': await this.placeBlock(p); break;
       case 'break': if (n === 1) await this.doBreak(p); break;
       case 'stretch': if (n === 4) await this.doStretch(); break;
@@ -549,6 +592,11 @@ export class CadDesigner {
       if (this.tool === 'rotate' && this.pts.length === 1) return this.transform(rotate(this.plane!.xy(this.pts[0]), v), false);
       if (this.tool === 'scale' && this.pts.length === 1) return v > 0 ? this.transform(scale(this.plane!.xy(this.pts[0]), v), false) : this.h.setStatus('The factor must be above 0', 4000);
       if (this.tool === 'fillet') return this.doFillet(v);
+    }
+    if (this.tool === 'ellipse' && this.pts.length === 2 && /^\d+(\.\d+)?$/.test(s) && Number(s) > 0) {
+      const p = this.plane!, c = p.xy(this.pts[0]), e = p.xy(this.pts[1]), l = dist(c, e) || 1;
+      // a point the typed distance off the first axis stands in for the click
+      return this.add(p.ll([c[0] - ((e[1] - c[1]) / l) * Number(s), c[1] + ((e[0] - c[0]) / l) * Number(s)]));
     }
     if (this.tool === 'circle' && this.pts.length === 1 && /^\d+(\.\d+)?$/.test(s)) {
       return this.add(this.plane!.ll(polar(this.plane!.xy(last), Number(s), 90)));
@@ -696,6 +744,21 @@ export class CadDesigner {
           const [a, b] = xy;
           const rect: XY[] = [a, [b[0], a[1]], b, [a[0], b[1]]];
           await this.save('polygons', { type: 'Polygon', coordinates: [ring(rect)] }, { kind: 'rectangle', area_m2: r2(area(rect)), perimeter_m: r2(perimeter(rect, true)) });
+          break;
+        }
+        case 'arc': {
+          const a = arc3(xy[0], xy[1], xy[2]);
+          if (!a) { this.h.setStatus('The three points are in a line: no arc through them', 5000); break; }
+          await this.save('lines', { type: 'LineString', coordinates: a.map((q) => p.ll(q)) }, { kind: 'arc', length_m: r2(perimeter(a, false)) });
+          break;
+        }
+        case 'ellipse': {
+          const [c, e] = xy, b = halfAxis(c, e, xy[2]), a = dist(c, e);
+          if (!(a > 0 && b > 0)) { this.h.setStatus('An ellipse needs two axes longer than 0', 5000); break; }
+          const el = ellipse(c, e, b);
+          // Ramanujan's perimeter
+          const per = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+          await this.save('polygons', { type: 'Polygon', coordinates: [ring(el)] }, { kind: `ellipse ${r2(2 * a)}×${r2(2 * b)} m`, area_m2: r2(Math.PI * a * b), perimeter_m: r2(per) });
           break;
         }
         case 'circle': {
@@ -1137,16 +1200,24 @@ export class CadDesigner {
   }
 
   /** ARRAYPOLAR: n items around the centre over the fill angle (the original is the first) */
-  private async doPolar(v: string) {
-    const m = v.match(/^(\d+)(?:,(-?\d+(?:\.\d+)?))?$/);
-    if (!m) return this.h.setStatus('Type items, or items,angle (e.g. 8 or 6,180)', 5000);
+  /** the copies a Polar array of "items[,angle]" makes, or why it cannot */
+  private polarCopies(v: string): GeoJSON.Geometry[] | string {
+    const m = v.replace(/\s+/g, '').match(/^(\d+)(?:,(-?\d+(?:\.\d+)?))?$/);
+    if (!m) return 'Type items, or items,angle (e.g. 8 or 6,180)';
     const n = Number(m[1]), fill = m[2] === undefined ? 360 : Number(m[2]);
-    if (n < 2 || n > 1000 || fill === 0) return this.h.setStatus('Between 2 and 1000 items, over a non-zero angle', 5000);
+    if (n < 2 || n > 1000 || fill === 0) return 'Between 2 and 1000 items, over a non-zero angle';
     const s = this.sel!, p = this.plane!, c = p.xy(this.pts[0]);
     // a full circle spaces n items evenly; a part circle puts the last item at the end of the angle
     const step = Math.abs(fill) >= 360 ? fill / n : fill / (n - 1);
     const copies: GeoJSON.Geometry[] = [];
     for (let i = 1; i < n; i++) copies.push(mapGeometry(s.feature.geometry, (q) => p.ll(rotate(c, step * i)(p.xy(q)))));
+    return copies;
+  }
+
+  private async doPolar(v: string) {
+    const copies = this.polarCopies(v);
+    if (typeof copies === 'string') return this.h.setStatus(copies, 5000);
+    this.preview = '';
     const [first, ...rest] = copies;
     return this.write(first, true, rest);
   }
@@ -1289,7 +1360,7 @@ S90°W 25</textarea></label>
     if (!ids.length) return this.h.setStatus('Nothing to export yet: draw with the Design tools first', 6000);
     try {
       const r = await this.h.backend.json<{ path: string; features: number; epsg: number }>('api/design/dxf', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layers: ids }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layers: ids, hatch: Object.fromEntries(ids.map((id) => [id, this.h.hatch(id)]).filter(([, h]) => h)) }),
       });
       window.open(this.h.backend.url(`api/design/dxf?path=${encodeURIComponent(r.path)}`), '_blank', 'noopener');
       this.h.setStatus(`DXF: ${r.features} entities in EPSG:${r.epsg} (metres), one AutoCAD layer per design layer`, 8000);
@@ -1344,6 +1415,10 @@ S90°W 25</textarea></label>
     if (this.sel?.feature.geometry) {
       feats.push({ type: 'Feature', properties: {}, geometry: this.sel.feature.geometry });
       // Move and Copy follow the pointer from the base point
+      if (this.tool === 'arraypolar' && this.pts.length === 1 && this.plane && this.preview) {
+        const copies = this.polarCopies(this.preview);
+        if (typeof copies !== 'string') for (const g of copies) feats.push({ type: 'Feature', properties: {}, geometry: g });
+      }
       if ((this.tool === 'move' || this.tool === 'copy') && this.pts.length === 1 && this.cursor && this.plane) {
         const p = this.plane, d = this.diff(this.pts[0], this.cursor);
         feats.push({ type: 'Feature', properties: {}, geometry: mapGeometry(this.sel.feature.geometry, (q) => p.ll(translate(d)(p.xy(q)))) });
@@ -1357,6 +1432,12 @@ S90°W 25</textarea></label>
       } else if (this.tool === 'rect') {
         const [a, b] = [xy[0], xy[xy.length - 1]];
         feats.push({ type: 'Feature', properties: { dim: `${fmt(Math.abs(b[0] - a[0]))} × ${fmt(Math.abs(b[1] - a[1]))}` }, geometry: { type: 'Polygon', coordinates: [[a, [b[0], a[1]], b, [a[0], b[1]], a].map((q) => this.plane!.ll(q as XY))] } });
+      } else if (this.tool === 'arc' && xy.length >= 3) {
+        const a = arc3(xy[0], xy[1], xy[2]);
+        if (a) feats.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: a.map((q) => this.plane!.ll(q)) } });
+      } else if (this.tool === 'ellipse' && xy.length >= 3) {
+        const el = ellipse(xy[0], xy[1], halfAxis(xy[0], xy[1], xy[2]));
+        feats.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...el, el[0]].map((q) => this.plane!.ll(q))] } });
       } else if (this.tool === 'circle') {
         const r = dist(xy[0], xy[xy.length - 1]);
         feats.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...circle(xy[0], r), circle(xy[0], r)[0]].map((q) => this.plane!.ll(q))] } });

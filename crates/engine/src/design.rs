@@ -33,7 +33,7 @@ fn utm(lon: f64, lat: f64) -> u32 {
 }
 
 /// Write the given design layers to a DXF; returns its path, the number of entities and the EPSG used.
-pub fn export_dxf(engine: &Engine, ids: &[String]) -> Result<Value, String> {
+pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value) -> Result<Value, String> {
     let e = |x: gdal::errors::GdalError| x.to_string();
     let layers: Vec<_> = ids.iter().filter_map(|id| engine.layer(id)).collect();
     if layers.is_empty() {
@@ -70,6 +70,7 @@ pub fn export_dxf(engine: &Engine, ids: &[String]) -> Result<Value, String> {
         let src = crate::catalog::open_vector(l.path())?;
         let mut sl = src.layer_by_name(l.layer_name()).or_else(|_| src.layer(0)).map_err(e)?;
         let cad = cad_layer(&l.info.name);
+        let pattern = hatch[l.info.id.as_str()].as_str();
         let label_field = ["label", "text", "name"].into_iter().find(|f| sl.defn().fields().any(|x| x.name() == *f));
         for f in sl.features() {
             let Some(g) = f.geometry() else { continue };
@@ -87,6 +88,16 @@ pub fn export_dxf(engine: &Engine, ids: &[String]) -> Result<Value, String> {
             nf.set_geometry(g.clone()).map_err(e)?;
             nf.create(&out).map_err(e)?;
             count += 1;
+            // a hatched shape's pattern, as lines on its own <LAYER>-HATCH layer
+            if let Some(pat) = pattern {
+                for h in hatch_lines(&g, pat) {
+                    let mut hf = Feature::new(out.defn()).map_err(e)?;
+                    hf.set_field_string(layer_idx, &format!("{cad}-HATCH")).map_err(e)?;
+                    hf.set_geometry(h).map_err(e)?;
+                    hf.create(&out).map_err(e)?;
+                    count += 1;
+                }
+            }
             // a dimension's length, as text at the middle of the line
             if !is_text && cad.ends_with("DIMENSIONS") {
                 if let (Some(t), Some(mid)) = (label.as_deref(), midpoint(&g)) {
@@ -103,6 +114,46 @@ pub fn export_dxf(engine: &Engine, ids: &[String]) -> Result<Value, String> {
     drop(out);
     drop(ds);
     Ok(json!({ "path": path.display().to_string(), "features": count, "epsg": epsg }))
+}
+
+/// Hatch lines clipped to a polygon (in metres), as AutoCAD's ANSI31 and friends draw them:
+/// the angles of the pattern, about 40 lines across the shape (0.5 to 5 m apart).
+pub fn hatch_lines(g: &Geometry, pattern: &str) -> Vec<Geometry> {
+    if !matches!(g.geometry_type(), OGRwkbGeometryType::wkbPolygon | OGRwkbGeometryType::wkbMultiPolygon) {
+        return vec![];
+    }
+    let angles: &[f64] = match pattern {
+        "back" => &[135.0],
+        "cross" => &[45.0, 135.0],
+        "grid" => &[0.0, 90.0],
+        "horizontal" | "brick" => &[0.0],
+        "vertical" => &[90.0],
+        _ => &[45.0],
+    };
+    let env = g.envelope();
+    let (cx, cy) = ((env.MinX + env.MaxX) / 2.0, (env.MinY + env.MaxY) / 2.0);
+    let r = ((env.MaxX - env.MinX).powi(2) + (env.MaxY - env.MinY).powi(2)).sqrt() / 2.0;
+    if !(r > 0.0) {
+        return vec![];
+    }
+    let gap = (r / 20.0).clamp(0.5, 5.0);
+    let mut out = vec![];
+    for a in angles {
+        let (dx, dy) = (a.to_radians().cos(), a.to_radians().sin());
+        let steps = (r / gap).ceil() as i64;
+        for i in -steps..=steps {
+            let o = i as f64 * gap;
+            let (px, py) = (cx - dy * o, cy + dx * o);
+            let wkt = format!("LINESTRING ({} {}, {} {})", px - dx * r, py - dy * r, px + dx * r, py + dy * r);
+            let Ok(line) = Geometry::from_wkt(&wkt) else { continue };
+            if let Some(c) = line.intersection(g) {
+                if !c.is_empty() {
+                    out.push(c);
+                }
+            }
+        }
+    }
+    out
 }
 
 fn set_style(f: &Feature, style: &str) {
@@ -157,5 +208,19 @@ mod tests {
         assert_eq!(super::cad_layer("Design · roads"), "DESIGN_ROADS");
         assert_eq!(super::utm(147.0, -6.7), 32755);
         assert_eq!(super::utm(-3.7, 40.4), 32630);
+    }
+
+    #[test]
+    fn hatch_inside_the_shape() {
+        let sq = gdal::vector::Geometry::from_wkt("POLYGON ((0 0, 40 0, 40 40, 0 40, 0 0))").unwrap();
+        let lines = super::hatch_lines(&sq, "diagonal");
+        assert!(lines.len() > 20, "{} lines", lines.len());
+        for l in &lines {
+            let e = l.envelope();
+            assert!(e.MinX >= -1e-9 && e.MaxX <= 40.0 + 1e-9 && e.MinY >= -1e-9 && e.MaxY <= 40.0 + 1e-9);
+        }
+        assert_eq!(super::hatch_lines(&sq, "cross").len(), lines.len() * 2);
+        let line = gdal::vector::Geometry::from_wkt("LINESTRING (0 0, 1 1)").unwrap();
+        assert!(super::hatch_lines(&line, "diagonal").is_empty());
     }
 }
