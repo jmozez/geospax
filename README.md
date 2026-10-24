@@ -72,6 +72,17 @@ with no samples: 3.6 million pixels in under a minute.
 
 <p align="center"><img src="docs/assets/tour-clustering.png" alt="GeoSpaX: k-means landscape groups of Lae from satellite embeddings" width="900" /></p>
 
+**LiDAR in 3D.** 23 million USGS 3DEP points of downtown San Francisco (615 Entwine tiles) gridded in
+12 seconds into terrain, surface and canopy models; the 184 buildings found are raised to their measured
+roof heights with *Extrude in 3D* over Esri World Imagery.
+
+<p align="center"><img src="docs/assets/tour-lidar.png" alt="GeoSpaX: LiDAR buildings of downtown San Francisco extruded to their roof heights in 3D" width="900" /></p>
+
+**Network analysis.** Road distance from every street in Lae to the nearest of 12 hospitals and clinics,
+over 2,646 Overture road segments (service area with the network tools of the Toolbox).
+
+<p align="center"><img src="docs/assets/tour-network.png" alt="GeoSpaX: road distance to the nearest hospital across Lae's street network" width="900" /></p>
+
 ## Download
 
 | System | Installer |
