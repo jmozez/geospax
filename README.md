@@ -96,9 +96,9 @@ built-up and water cells are excluded.
 
 <p align="center"><img src="docs/assets/plugin-agriculture.png" alt="GeoSpaX Agriculture plugin: cropland suitability around Lae from slope, open land and elevation" width="900" /></p>
 
-**Biodiversity · richness and diversity.** 4,842 OBIS marine records of the Huon Gulf summarised per
-0.1° cell: species richness (up to 279 taxa in one cell), Shannon, Simpson and evenness for the 99 cells
-with records.
+**Biodiversity · richness and diversity.** OBIS records of the Huon Gulf, kept to those on the seafloor
+(GEBCO depth below 0 m, birds left out: 3,536 of 4,842), summarised per 0.1° cell: 987 taxa in all,
+species richness up to 133 in one cell, and Shannon, Simpson and evenness for the 49 cells with records.
 
 <p align="center"><img src="docs/assets/plugin-biodiversity.png" alt="GeoSpaX Biodiversity plugin: species richness of OBIS records per cell in the Huon Gulf" width="900" /></p>
 
@@ -107,8 +107,8 @@ wetland (weighted linear combination); ground above 30 m is excluded.
 
 <p align="center"><img src="docs/assets/plugin-climate.png" alt="GeoSpaX Climate plugin: coastal flood exposure of Lae's low-lying coast" width="900" /></p>
 
-**Conservation · weighted hotspot grid.** The same OBIS records counted on 10 km hexagons: 67 of 203
-hexagons hold records, with the densest sampling along the Lae coast and the Huon Peninsula.
+**Conservation · weighted hotspot grid.** The same marine records counted on 10 km hexagons: 35 of 176
+hold records, densest off Lae and along the Huon Peninsula coast.
 
 <p align="center"><img src="docs/assets/plugin-conservation.png" alt="GeoSpaX Conservation plugin: 10 km hexagon hotspot grid of OBIS records" width="900" /></p>
 
