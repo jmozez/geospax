@@ -45,17 +45,25 @@ const guest = (hostPath) => {
 const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-');
 const args = [];
 const outputs = [];
+// the tool's main output is the parameter named 'output' when there is one; the runner's manifests
+// also mark a few choices as outputs (network_service_area's output_mode: nodes, edges or polygons)
+const hasOutput = spec.params.some((p) => p.role === 'output' && p.name === 'output');
 for (const p of spec.params) {
   let v = params[p.name];
+  if (p.role === 'output' && p.name.endsWith('_mode')) {
+    if (v !== undefined && v !== null && v !== '') args.push(`--${p.name}=${v}`);
+    continue;
+  }
   if (p.role === 'output') {
-    if (!p.required && outputs.length) continue; // one main output is enough
+    if (!p.required && (outputs.length || (hasOutput && p.name !== 'output'))) continue; // one main output is enough
     const file = `${toolId}-${p.name === 'output' ? '' : `${p.name}-`}${stamp}.${p.ext}`;
     args.push(`--${p.name}=/out/${file}`);
     outputs.push(join(outDir, file));
     continue;
   }
   if (v === undefined || v === null || v === '') {
-    if (p.role === 'input' && p.data === 'vector') v = Object.keys(sources)[0]; // auto = the first layer
+    // a required layer left empty means the first map layer; optional ones (barriers, extra points) stay off
+    if (p.required && p.role === 'input' && p.data === 'vector' && Object.keys(sources).length) v = Object.keys(sources)[0];
     else if (p.required) fail(`${spec.name}: '${p.label}' is required`);
     else continue;
   }
