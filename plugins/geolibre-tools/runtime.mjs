@@ -56,6 +56,8 @@ export async function fetchWasm(log = (m) => process.stderr.write(`${m}\n`)) {
 /** Run the tool runner with argv; preopens maps guest dirs (/in0, /out…) to host dirs. */
 export async function runWasi(argv, preopens, { capture = true } = {}) {
   const path = await fetchWasm();
+  const wt = wasmtimePath();
+  if (wt) return runWasmtime(wt, path, argv, preopens, capture);
   const lines = [];
   const mod = await WebAssembly.compile(readFileSync(path));
   // stdout of the guest goes to a file we read back, so our own stdout stays clean JSON
@@ -71,4 +73,24 @@ export async function runWasi(argv, preopens, { capture = true } = {}) {
     rmSync(outFile, { force: true });
   }
   return { code, lines };
+}
+
+/** wasmtime, when installed ($GEOSPAX_WASMTIME, ~/.wasmtime/bin or PATH). The tools recurse deeply on
+ *  rasters with wide flat areas (the sea, a valley floor): Node's WebAssembly stack is fixed and the
+ *  process dies with SIGSEGV, wasmtime lets the stack grow to 1 GB. */
+export function wasmtimePath() {
+  const exe = process.platform === 'win32' ? 'wasmtime.exe' : 'wasmtime';
+  const dirs = [process.env.GEOSPAX_WASMTIME, join(homedir(), '.wasmtime', 'bin', exe), ...(process.env.PATH ?? '').split(process.platform === 'win32' ? ';' : ':').map((d) => d && join(d, exe))];
+  return dirs.find((p) => p && existsSync(p)) ?? null;
+}
+
+async function runWasmtime(wt, wasm, argv, preopens, capture) {
+  const { spawnSync } = await import('node:child_process');
+  const dirs = Object.entries(preopens).flatMap(([guest, host]) => ['--dir', `${host}::${guest}`]);
+  const r = spawnSync(wt, ['run', '-W', 'max-wasm-stack=1073741824', ...dirs, wasm, ...argv], {
+    stdio: ['ignore', capture ? 'pipe' : 'inherit', 'inherit'], maxBuffer: 256 * 1024 * 1024, encoding: 'utf8',
+  });
+  if (r.error) throw r.error;
+  const lines = capture ? (r.stdout ?? '').split('\n').filter(Boolean) : [];
+  return { code: r.status ?? 1, lines };
 }

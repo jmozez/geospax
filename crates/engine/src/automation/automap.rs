@@ -237,7 +237,11 @@ fn style_layer_inner(engine: &Engine, l: &LayerHandle, fs: Option<&FeatureSet>, 
                     let list = counts.into_iter().map(|(k, c)| (k, c, true)).collect();
                     (0.8 + cat_name, Choice::Unique(f.name.clone(), list))
                 } else {
-                    let bonus = hint_bonus(&f.name, NUMERIC_HINTS) + if f.name.to_ascii_lowercase().contains("pop") { 0.4 } else { 0.0 };
+                    let lower = f.name.to_ascii_lowercase();
+                    // population, and a stream network's order, are what such layers are mapped by
+                    let bonus = hint_bonus(&f.name, NUMERIC_HINTS)
+                        + if lower.contains("pop") { 0.4 } else { 0.0 }
+                        + if lower.contains("strahler") || lower.contains("stream_order") || lower == "shreve" { 1.0 } else { 0.0 };
                     let rank_penalty = if f.name.to_ascii_lowercase().contains("rank") { -0.5 } else { 0.0 };
                     (1.0 + bonus + rank_penalty + if s.len() > 10 { 0.2 } else { 0.0 }, Choice::Graduated(f.name.clone(), v))
                 }
