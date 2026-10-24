@@ -67,6 +67,10 @@ or `AWS_*` variables, `gcloud auth application-default login`, `az login`). GeoS
 MinIO or other S3-compatible storage, fill in the endpoint. Open the folders and click a file: GeoTIFFs are read
 in place (only the part on screen is fetched), vector files become layers.
 
+Under the cloud fields, **Or open data in the cloud** connects well-known public data in one click:
+**Source Cooperative** ([source.coop](https://source.coop), type the account and repository shown there, as in
+`s3://account/repository`), **Sentinel-2 COGs**, **Copernicus DEM 30 m** and the raw **Overture Maps** files.
+
 ### How do I get buildings, roads or places for my study area?
 
 Zoom the map to your area (up to about 50 km across), then in the **Explorer** open **GeoSpaX › Overture

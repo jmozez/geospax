@@ -16,6 +16,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Open data in the cloud, one click:** under *＋ Add*, Source Cooperative (type the `account/repository`),
+  Sentinel-2 COGs, Copernicus DEM 30 m and the raw Overture Maps files connect as public cloud storage.
 - **Overture Maps in the Explorer** (GeoSpaX › Overture Maps): buildings, roads and paths, places, water, land
   use, land cover, boundaries and addresses for the map view (up to about 50 km across), from the newest
   Overture release, as a download with the gauge. Only the parts of the files that cover the area are fetched.
