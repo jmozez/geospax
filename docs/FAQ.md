@@ -80,6 +80,15 @@ cloud storage, fetching only the parts that cover your area, and adds the layer 
 `~/GeoSpaX/Data/.geospax/overture/`). Overture data is open (ODbL for most themes, CDLA for some); cite it
 as "© OpenStreetMap contributors, Overture Maps Foundation".
 
+### Which R and Python does GeoSpaX use, and how do I change it?
+
+Open **Explorer › GeoSpaX › R & Python**. *R* shows the version and, for each kit (spatial data, maps,
+statistics…), which packages are installed; *Install or update packages…* opens R setup. *Python* lists every
+Python found on this computer: the system one, conda/mamba environments, pyenv versions, virtual environments
+(`~/.virtualenvs`, `~/venvs`) and a project's `.venv` in a data folder. Open one to see its geospatial packages
+(geopandas, rasterio, shapely…), and press **Use for Python steps** to run recipes with it; GeoSpaX remembers
+the choice. Installed something new? Press Refresh at the top of the Explorer.
+
 ### Lazy or Pro?
 
 **Lazy** shows layer cards, a task bar ("What do you want to do?") and plain-language next steps. **Pro** shows

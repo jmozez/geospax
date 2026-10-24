@@ -15,6 +15,7 @@ pub mod services;
 pub mod stac;
 pub mod cloud;
 pub mod geoparquet;
+pub mod pyenv;
 pub mod catalog;
 pub mod classify;
 pub mod devices;
@@ -397,6 +398,7 @@ impl Engine {
         }
         let automation = automation::Automation::new(automation_cfg, &state_dir);
         automation::sidecar::set_r_library(state_dir.join("r-library"));
+        pyenv::apply_saved(&state_dir);
         let phone = phone::PhoneLink::new(&state_dir, cfg.phone.clone());
         let engine = Engine {
             reg: RwLock::new(Registry { layers, by_id }),

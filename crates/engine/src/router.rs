@@ -565,6 +565,21 @@ impl Engine {
                 Ok(r) => ApiResponse::json(200, &r.json()),
                 Err(e) => ApiResponse::error(404, e),
             },
+            // Python environments (pyenv.rs): which are on this computer, their packages, which one steps use
+            ("GET", ["api", "python"]) => ApiResponse::json(200, &crate::pyenv::list(self)),
+            ("GET", ["api", "python", "packages"]) => match crate::pyenv::packages(self, &param(q, "path").unwrap_or_default()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("POST", ["api", "python", "use"]) => {
+                if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
+                    return ApiResponse::error(403, "this GeoSpaX was started with --restricted: the Python environment cannot be changed from here");
+                }
+                match crate::pyenv::choose(self, &param(q, "path").unwrap_or_default()) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
             // R (docs/R.md): is R there, which packages, and install what is missing
             ("GET", ["api", "r"]) => ApiResponse::json(200, &crate::rsetup::status()),
             ("POST", ["api", "r", "install"]) => {
