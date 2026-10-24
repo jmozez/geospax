@@ -22,6 +22,8 @@ pub const KINDS: &[(&str, &str)] = &[
     ("arcgis-feature", "ArcGIS FeatureServer"),
     ("stac", "STAC catalog"),
     ("cloud", "Cloud storage (S3, Google Cloud, Azure, web folder)"),
+    ("github", "GitHub repository"),
+    ("postgis", "PostGIS database"),
 ];
 
 fn file(state: &Path) -> PathBuf {
@@ -59,7 +61,11 @@ pub fn add(engine: &Engine, kind: &str, url: &str, title: Option<&str>, opts: &V
         return Err(format!("unknown service type {kind}"));
     }
     let url = base(url);
-    let cloud = kind == "cloud" && ["s3://", "gs://", "az://"].iter().any(|p| url.starts_with(p));
+    let cloud = (kind == "cloud" && ["s3://", "gs://", "az://"].iter().any(|p| url.starts_with(p))) || (kind == "github" && crate::github::parse(&url).is_ok())
+        || (kind == "postgis" && crate::db::pg_conn(&url).is_ok());
+    if kind == "postgis" {
+        crate::db::pg_conn(&url)?; // says why an address is not accepted (a password in it, …)
+    }
     if !(cloud || url.starts_with("http://") || url.starts_with("https://")) {
         return Err(if kind == "cloud" { "a cloud address starts with s3://, gs://, az:// or https://" } else { "the address must start with http:// or https://" }.into());
     }
@@ -79,7 +85,11 @@ pub fn add(engine: &Engine, kind: &str, url: &str, title: Option<&str>, opts: &V
     }
     let mut list = load(&engine.state_dir);
     let n = list.iter().filter_map(|s| s["id"].as_str()?.strip_prefix("svc").and_then(|x| x.parse::<u32>().ok())).max().unwrap_or(0) + 1;
-    let host = url.split('/').nth(2).unwrap_or("service").to_string();
+    let host = match crate::github::parse(&url) {
+        Ok((o, r, _, _)) if kind == "github" => format!("{o}/{r}"),
+        _ if kind == "postgis" => url.split('?').next().unwrap_or("").rsplit('/').next().unwrap_or("database").to_string(),
+        _ => url.split('/').nth(2).unwrap_or("service").to_string(),
+    };
     let mut svc = probe;
     svc["id"] = json!(format!("svc{n}"));
     svc["title"] = json!(title.filter(|t| !t.trim().is_empty()).map(str::to_string).unwrap_or(host));
@@ -129,6 +139,8 @@ fn layers_of(svc: &Value) -> Result<Vec<Value>, String> {
         "xyz" => vec![json!({ "id": "tiles", "title": svc["title"].as_str().unwrap_or("Tiles"), "type": "tiles" })],
         "stac" => crate::stac::collections(url)?,
         "cloud" => crate::cloud::list(svc, "")?,
+        "github" => crate::github::list(svc, "")?,
+        "postgis" => crate::db::list(svc)?,
         "wms" => {
             let raw = String::from_utf8_lossy(&crate::raster::http(&format!("{url}{sep}SERVICE=WMS&REQUEST=GetCapabilities"), None, 30)?).to_string();
             if !raw.contains("Capabilities") {
@@ -273,9 +285,9 @@ pub fn fetch(engine: &Arc<Engine>, id: &str, layer: &str, bbox: [f64; 4]) -> Res
 }
 
 /// `ogr2ogr` in-process: one layer (or all) of `src` into `dest`.
-fn vector_translate(src: &str, layer: Option<&str>, dest: &Path, args: &[String]) -> Result<(), String> {
+pub(crate) fn vector_translate(src: &str, layer: Option<&str>, dest: &Path, args: &[String]) -> Result<(), String> {
     use std::ffi::CString;
-    let ds = gdal::Dataset::open(Path::new(src)).map_err(|e| format!("could not read the service ({e})"))?;
+    let ds = crate::catalog::open_vector(Path::new(src)).map_err(|e| format!("could not read the source ({e})"))?;
     let mut all: Vec<String> = args.to_vec();
     if let Some(l) = layer {
         all.push(l.to_string());

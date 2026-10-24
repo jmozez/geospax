@@ -6,6 +6,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased]
 
 ### Fixed
+- Dialogs (Add web service, folder chooser) float over the app instead of pushing it up the page.
+- The folded bottom panel shows its tabs; no more empty band under the map.
 - Expanded web services in the Explorer no longer fold up whenever a layer is added.
 
 ### Changed
@@ -16,6 +18,31 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Design tab (CAD-style drafting):** line, polyline, polygon, rectangle, circle, point and text; offset (parallel
+  copies) and road from centreline (width → road surface); dimensions with length labels; COGO traverse
+  (bearings and distances, quadrant or azimuth, DMS) → parcel with area, perimeter and misclosure. A command
+  line takes `25<90` (distance<bearing), `@10,5` (metres east, north) or `lon,lat`; object snaps (vertex,
+  midpoint, nearest; F3), ortho (F8) and polar tracking (15°, F10); live length and bearing while drawing. Shapes
+  go into "Design · …" layers (GeoPackage) with lengths and areas. **DXF:** export the design layers to AutoCAD
+  (2004+, UTM metres, one CAD layer per design layer, dimension text as MTEXT); import a DXF in a coordinate
+  system you name.
+- **3D terrain view:** any elevation raster as lit 3D terrain in the map (View › 3D terrain, or *3D view* on the
+  raster): its colours draped on the relief, a hillshade under the other layers, 1.5× height; right-drag or two
+  fingers to tilt and turn. No R needed (rayshader stays available as an R template for print-quality renders).
+- **PostGIS databases in the Explorer:** *＋ Add › PostGIS database* (`postgresql://user@host:5432/dbname`). Its
+  spatial tables and views are listed; a click copies a table to the map (into a GeoPackage, so it works
+  offline). The password comes from `~/.pgpass` or `PGPASSWORD`, as for psql and QGIS: GeoSpaX never stores
+  it, and refuses an address with a password in it.
+- **GitHub repositories in the Explorer:** *＋ Add › GitHub repository* (`owner/repo` or a github.com link to a
+  branch or folder). Browse its folders; data files go on the map (GeoTIFFs read in place, vector files copied
+  and added as layers), and a recipe is added to your recipes, after you confirm when it runs Python or R
+  code. Public repositories work as they are; set `GITHUB_TOKEN` for private ones and a higher rate limit.
+- **R & Python in the Explorer** (GeoSpaX › R & Python): R's version and each kit with its packages
+  (installed or missing, with *Install or update packages…*); every Python on the computer (PATH, conda and
+  mamba environments, pyenv, virtual environments, a project's `.venv` in a data folder) with its geospatial
+  packages, and **Use for Python steps** to choose the one recipes run with (kept for the next start).
+- **Open data in the cloud, one click:** under *＋ Add*, Source Cooperative (type the `account/repository`),
+  Sentinel-2 COGs, Copernicus DEM 30 m and the raw Overture Maps files connect as public cloud storage.
 - **Overture Maps in the Explorer** (GeoSpaX › Overture Maps): buildings, roads and paths, places, water, land
   use, land cover, boundaries and addresses for the map view (up to about 50 km across), from the newest
   Overture release, as a download with the gauge. Only the parts of the files that cover the area are fetched.

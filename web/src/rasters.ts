@@ -41,6 +41,8 @@ export interface RasterInfo {
   stats?: { min: number; max: number; mean: number; std: number; p2: number; p98: number }[];
   legend: RasterLegend;
   overlay: { url: string; coordinates: [number, number][] };
+  /** the same, as map tiles (z/x/y), for rasters too big for one sharp image */
+  tiles?: string;
 }
 
 interface RasterState {
@@ -104,6 +106,11 @@ export class RasterPane {
   }
 
   // ---- for the Contents pane, which lists rasters with the layers (one state for both panes)
+  /** every raster on the map */
+  all(): RasterInfo[] {
+    return [...this.rasters];
+  }
+
   byId(id: string): RasterInfo | undefined {
     return this.rasters.find((r) => r.id === id);
   }
@@ -142,6 +149,17 @@ export class RasterPane {
     const r = this.byId(id);
     return r ? this.legend(r.legend) : '';
   }
+  /** One image for a raster that fits in one (up to 1,600 px across); map tiles for a larger one (a
+   *  satellite scene), down to its own resolution, so it stays sharp at street level. */
+  private sourceOf(r: RasterInfo): maplibregl.SourceSpecification {
+    if (r.tiles && Math.max(r.width, r.height) > 1600) {
+      const lat = ((r.bounds[1] + r.bounds[3]) / 2) * Math.PI / 180;
+      const native = Math.log2((156543.03 * Math.cos(lat)) / Math.max(0.05, r.pixel_m || 30));
+      return { type: 'raster', tiles: [this.backend.url(r.tiles.replace(/^\//, ''))], tileSize: 256, bounds: r.bounds as [number, number, number, number], maxzoom: Math.max(0, Math.min(22, Math.ceil(native) + 1)) };
+    }
+    return { type: 'image', url: this.backend.url(r.overlay.url.replace(/^\//, '')), coordinates: r.overlay.coordinates as never };
+  }
+
   /** The MapLibre source and layer of one raster, or null when it is hidden. */
   partsFor(id: string): { sid: string; source: maplibregl.SourceSpecification; layer: maplibregl.LayerSpecification } | null {
     const r = this.byId(id);
@@ -149,7 +167,7 @@ export class RasterPane {
     const sid = `raster:${r.id}`;
     return {
       sid,
-      source: { type: 'image', url: this.backend.url(r.overlay.url.replace(/^\//, '')), coordinates: r.overlay.coordinates as never },
+      source: this.sourceOf(r),
       layer: {
         id: sid,
         type: 'raster',
@@ -215,7 +233,7 @@ export class RasterPane {
       const s = this.st(r.id);
       if (!s.visible) continue;
       const sid = `raster:${r.id}`;
-      sources[sid] = { type: 'image', url: this.backend.url(r.overlay.url.replace(/^\//, '')), coordinates: r.overlay.coordinates as never };
+      sources[sid] = this.sourceOf(r);
       layers.push({
         id: sid,
         type: 'raster',

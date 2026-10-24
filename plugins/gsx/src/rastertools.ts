@@ -287,7 +287,7 @@ export const RASTER_TOOLS: Tool[] = [
       { name: 'background', label: 'Background points', kind: 'number', default: 5000, description: 'Random cells for presence-background fitting and evaluation.' },
       { name: 'folds', label: 'Cross-validation folds', kind: 'number', default: 5 },
       { name: 'future', label: 'Future rasters (optional)', kind: 'rasters', description: 'The same variables for a future climate (e.g. Data › Future climate, CMIP6), in the same order: adds future suitability and range gain / loss.' },
-      { name: 'block_deg', label: 'Block size (°, blank = automatic)', kind: 'number', description: 'Spatial blocks for cross-validation, in degrees; automatic: about a sixth of the study area’s width, so every fold gets blocks.' },
+      { name: 'block_deg', label: 'Block size (°, blank = automatic)', kind: 'number', description: 'Spatial blocks for cross-validation, in degrees; automatic: a sixth of the study area’s width, made smaller until the presences fall in at least twice as many blocks as folds.' },
     ],
     run(ctx) {
       const occ = ctx.layer('occurrences');
@@ -354,12 +354,18 @@ export const RASTER_TOOLS: Tool[] = [
       const pS = pres.map((v) => model.predict(v));
       const bS = bg.map((v) => model.predict(v));
       const tss = A.maxTssThreshold(pS, bS);
-      // blocks: given, or about a sixth of the study area (at least 4× as many blocks as folds)
+      // blocks: given, or automatic (below)
       const k = Math.max(2, Math.round(num(ctx, 'folds', 5)));
       const bb = lonLatBounds(g);
+      // automatic: start at a sixth of the study area and halve until presences fall in at least
+      // twice as many blocks as folds (clustered occurrences otherwise sit in one block, and the
+      // cross-validation cannot run)
+      const presenceBlocks = (d: number) => new Set(presXY.map(([x, y]) => `${Math.floor(x / d)}:${Math.floor(y / d)}`)).size;
+      let autoDeg = Math.max(0.01, Math.min(bb[2] - bb[0], bb[3] - bb[1]) / 6);
+      while (autoDeg > 0.01 && presenceBlocks(autoDeg) < 2 * k) autoDeg = Math.max(0.01, autoDeg / 2);
       const blockDeg = ctx.params.block_deg !== undefined && ctx.params.block_deg !== null && ctx.params.block_deg !== ''
         ? num(ctx, 'block_deg', 1)
-        : Number(Math.max(0.01, Math.min(bb[2] - bb[0], bb[3] - bb[1]) / 6).toPrecision(2));
+        : Number(autoDeg.toPrecision(2));
       const cv = blockedCv<M>({ pres, presXY, bg, bgXY, k, blockDeg, fit, predict: (v, m) => m.predict(v) });
       const binary = new Float32Array(n).fill(Number.NaN);
       if (tss) for (let i = 0; i < n; i++) if (Number.isFinite(suit[i])) binary[i] = suit[i] >= tss.threshold ? 1 : 0;
