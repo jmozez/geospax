@@ -773,6 +773,16 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'array' })); },
   },
   {
+    id: 'design.divide', tab: 'design', group: 'Survey', title: 'Divide', icon: 'ruler',
+    hint: 'Points dividing a line into equal parts, as AutoCAD DIVIDE',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'divide' })); },
+  },
+  {
+    id: 'design.measure', tab: 'design', group: 'Survey', title: 'Measure', icon: 'ruler',
+    hint: 'A point every so many metres along a line, labelled with its chainage, as AutoCAD MEASURE',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'measure' })); },
+  },
+  {
     id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
     hint: 'Delete the feature you click, as AutoCAD ERASE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },
