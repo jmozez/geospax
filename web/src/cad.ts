@@ -38,21 +38,25 @@
 //   Measure       a distance: a point every so many metres along the line (MEASURE), with its chainage
 //   Block         click a feature (where you click is its base point), name it: saved for Insert
 //   Insert        choose a block, then click where each copy goes; type an angle first to turn them
+//   Offset        lines and shapes: a distance, or a click it goes through (OFFSET T)
+//   Arc           start, a point on the arc, end (ARC 3P)
+//   Ellipse       centre, end of one axis, then the other half-axis in m or a click (ELLIPSE)
+//   Lock layer    click a feature to lock or unlock its layer; Modify tools skip locked layers (LAYLCK)
 //
 // Distances and bearings are worked out on a local plane around the first point (metres east and
 // north), which is accurate to a few centimetres over a town; the layers stay in WGS 84.
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
-import type { CadBlock } from './symbology';
+import type { CadBlock, CadInsert } from './symbology';
 import { align, breakAt, chamfer, divide, stretch, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 type LL = [number, number];
 type XY = [number, number];
-export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align'];
+export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'arc' | 'ellipse' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | 'stretch' | ModifyTool;
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer' | 'list' | 'align' | 'lock';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer', 'list', 'align', 'lock'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
 type Block = CadBlock;
 /** where blocks lived before they were kept in the project: moved over the first time */
@@ -75,6 +79,14 @@ export interface CadHost {
   /** the project's blocks (Design › Block / Insert), and saving a new list */
   blocks: () => CadBlock[];
   setBlocks: (b: CadBlock[]) => void;
+  /** design layers locked against edits (Design › Lock), and saving a new list */
+  locked: () => string[];
+  /** where blocks were placed (DXF export writes them as block references) */
+  inserts: () => CadInsert[];
+  setInserts: (v: CadInsert[]) => void;
+  /** a layer's hatch pattern, if it has one (DXF export draws it as lines) */
+  hatch: (id: string) => string | undefined;
+  setLocked: (ids: string[]) => void;
   /** show a field as labels on a layer (dimensions, annotations) */
   labels: (id: string, field: string, placement: 'point' | 'line' | 'line-center') => void;
   /** a new design layer's drafting look: colour, hollow or filled, line width */
@@ -144,6 +156,30 @@ export function offsetLine(pts: XY[], d: number): XY[] {
   return out;
 }
 
+/** A closed ring `d` metres outward (negative: inward), corners mitred; the ring is given without its closing point. */
+export function offsetRing(ring: XY[], d: number): XY[] {
+  const n = ring.length;
+  if (n < 3) return ring;
+  const signed = ring.reduce((s, p, i) => { const q = ring[(i + 1) % n]; return s + p[0] * q[1] - q[0] * p[1]; }, 0);
+  // the right of a counter-clockwise ring is outward
+  const dd = signed > 0 ? d : -d;
+  const wrapped = [ring[n - 1], ...ring, ring[0]];
+  return offsetLine(wrapped, dd).slice(1, n + 1);
+}
+
+/** How far `p` lies to the right (+) or left (−) of a polyline, at its nearest segment. */
+export function sideDistance(pts: XY[], p: XY): number {
+  let best = Infinity, sign = 1;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+    const d = dist(p, [a[0] + t * dx, a[1] + t * dy]);
+    if (d < best) { best = d; sign = dx * (p[1] - a[1]) - dy * (p[0] - a[0]) > 0 ? -1 : 1; }
+  }
+  return best * sign;
+}
+
 /** A road (or any corridor) of `width` metres around a centreline: one closed ring. */
 export function corridor(pts: XY[], width: number): XY[] {
   const l = offsetLine(pts, -width / 2);
@@ -187,6 +223,38 @@ export function parseBearing(s: string): number | null {
 
 const circle = (c: XY, r: number, n = 72): XY[] => Array.from({ length: n }, (_, i) => polar(c, r, (360 * i) / n));
 
+/** ARC by three points (start, a point on it, end): the circle through them, walked from start to end
+ *  the way that passes the middle point; null when the points are in a line. */
+export function arc3(a: XY, b: XY, c: XY, step = 5): XY[] | null {
+  const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+  if (Math.abs(d) < 1e-9) return null;
+  const sq = (p: XY) => p[0] * p[0] + p[1] * p[1];
+  const o: XY = [(sq(a) * (b[1] - c[1]) + sq(b) * (c[1] - a[1]) + sq(c) * (a[1] - b[1])) / d, (sq(a) * (c[0] - b[0]) + sq(b) * (a[0] - c[0]) + sq(c) * (b[0] - a[0])) / d];
+  const r = dist(o, a);
+  const ang = (p: XY) => Math.atan2(p[1] - o[1], p[0] - o[0]);
+  const norm = (x: number) => ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const t0 = ang(a), sweepC = norm(ang(c) - t0), sweepB = norm(ang(b) - t0);
+  // counter-clockwise from a reaches b before c, or the arc goes the other way round
+  const sweep = sweepB <= sweepC ? sweepC : sweepC - 2 * Math.PI;
+  const n = Math.max(2, Math.ceil(Math.abs((sweep * 180) / Math.PI) / step));
+  return Array.from({ length: n + 1 }, (_, i) => { const t = t0 + (sweep * i) / n; return [o[0] + r * Math.cos(t), o[1] + r * Math.sin(t)] as XY; });
+}
+
+/** ELLIPSE from its centre, the end of one axis and the other half-axis length (m). */
+export function ellipse(c: XY, end: XY, half: number, n = 72): XY[] {
+  const a = dist(c, end), th = Math.atan2(end[1] - c[1], end[0] - c[0]);
+  return Array.from({ length: n }, (_, i) => {
+    const t = (2 * Math.PI * i) / n, x = a * Math.cos(t), y = half * Math.sin(t);
+    return [c[0] + x * Math.cos(th) - y * Math.sin(th), c[1] + x * Math.sin(th) + y * Math.cos(th)] as XY;
+  });
+}
+
+/** the other half-axis of an ellipse: how far `p` is from the first axis */
+const halfAxis = (c: XY, end: XY, p: XY) => {
+  const l = dist(c, end) || 1;
+  return Math.abs(((end[0] - c[0]) * (p[1] - c[1]) - (end[1] - c[1]) * (p[0] - c[0])) / l);
+};
+
 export class CadDesigner {
   private tool: CadTool | null = null;
   private pts: LL[] = [];
@@ -197,7 +265,7 @@ export class CadDesigner {
   polar = true;
   snap = true;
   private bar: HTMLElement;
-  private picked: { layer: string; coords: LL[] } | null = null;
+  private picked: { layer: string; coords: LL[]; closed: boolean } | null = null;
   private sel: Sel | null = null;
   /** Insert: the block being placed and the angle each copy is turned by */
   private inserting: { block: Block; angle: number } | null = null;
@@ -205,6 +273,8 @@ export class CadDesigner {
   private undoStack: Op[][] = [];
   private redoStack: Op[][] = [];
   private batch: Op[] | null = null;
+  /** what is typed so far, for previews (Polar array draws its copies as you type) */
+  private preview = '';
   private onMove = (e: maplibregl.MapMouseEvent) => this.move(e);
   private onClick = (e: maplibregl.MapMouseEvent) => void this.click(e);
   private onDbl = (e: maplibregl.MapMouseEvent) => { e.preventDefault(); void this.finish(); };
@@ -253,6 +323,7 @@ export class CadDesigner {
     this.plane = null;
     this.picked = null;
     this.sel = null;
+    this.preview = '';
     const m = this.h.map;
     m.doubleClickZoom.disable();
     m.on('mousemove', this.onMove);
@@ -304,10 +375,13 @@ export class CadDesigner {
       case 'polygon': return n === 0 ? 'Polygon: first corner' : `Polygon: next corner · Enter closes (${n} so far)`;
       case 'rect': return n === 0 ? 'Rectangle: first corner' : 'Rectangle: opposite corner, or @width,height in m';
       case 'circle': return n === 0 ? 'Circle: centre' : 'Circle: radius in m, or click a point on the edge';
+      case 'arc': return n === 0 ? 'Arc: start point' : n === 1 ? 'Arc: a point on the arc' : 'Arc: end point';
+      case 'ellipse': return n === 0 ? 'Ellipse: centre' : n === 1 ? 'Ellipse: end of one axis' : 'Ellipse: other half-axis in m, or click';
       case 'point': return 'Point: click or type lon,lat';
       case 'text': return 'Text: click where it goes';
       case 'dimension': return n === 0 ? 'Dimension: first point' : 'Dimension: second point';
-      case 'offset': return this.picked ? 'Offset: distance in m (+ right, − left of the line)' : 'Offset: click the line to copy';
+      case 'offset': return this.picked ? `Offset: distance in m (${this.picked.closed ? '+ outward, − inward' : '+ right, − left'}), or click a point it goes through` : 'Offset: click the line or shape to copy';
+      case 'lock': return 'Lock: click a feature to lock or unlock its layer';
       case 'road': return n < 2 ? 'Road: centreline points · Enter when done' : 'Road: next centreline point · Enter, then the width';
       case 'move': case 'copy': return !this.sel ? `${this.tool === 'move' ? 'Move' : 'Copy'}: click the feature` : n === 0 ? 'Base point' : 'Second point (or @dx,dy in m)';
       case 'rotate': return !this.sel ? 'Rotate: click the feature' : n === 0 ? 'Base point' : 'Angle in degrees (counter-clockwise), or click';
@@ -350,6 +424,7 @@ export class CadDesigner {
         <button data-done title="Finish (Enter)">Finish</button><button data-cancel title="Cancel (Esc)">✕</button>
       </span>`;
     const input = this.bar.querySelector<HTMLInputElement>('input')!;
+    input.addEventListener('input', () => { this.preview = input.value; this.draw(); });
     input.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
@@ -448,6 +523,7 @@ export class CadDesigner {
     if (!this.tool) return;
     const p = this.constrain([e.lngLat.lng, e.lngLat.lat], e.point);
     if (this.tool === 'offset' && !this.picked) return this.pick(e);
+    if (this.tool === 'offset' && this.picked) return this.offsetThrough(p);
     if (isModify(this.tool) && !this.sel) return this.pickFeature(e);
     if (this.tool === 'join' && this.sel) return this.doJoin(e);
     await this.add(p);
@@ -456,9 +532,11 @@ export class CadDesigner {
   private pick(e: maplibregl.MapMouseEvent) {
     const R = 6;
     const f = this.h.map.queryRenderedFeatures([[e.point.x - R, e.point.y - R], [e.point.x + R, e.point.y + R]])
-      .find((x) => x.geometry.type === 'LineString' && !x.layer.id.startsWith('cad-'));
-    if (!f) return this.h.setStatus('Click on a line to offset', 4000);
-    this.picked = { layer: f.layer.source, coords: (f.geometry as GeoJSON.LineString).coordinates as LL[] };
+      .find((x) => (x.geometry.type === 'LineString' || x.geometry.type === 'Polygon') && !x.layer.id.startsWith('cad-'));
+    if (!f) return this.h.setStatus('Click on a line or shape to offset', 4000);
+    const closed = f.geometry.type === 'Polygon';
+    const coords = (closed ? (f.geometry as GeoJSON.Polygon).coordinates[0].slice(0, -1) : (f.geometry as GeoJSON.LineString).coordinates) as LL[];
+    this.picked = { layer: f.layer.source, coords, closed };
     this.plane = new Plane(this.picked.coords[0]);
     this.renderBar();
     this.draw();
@@ -479,6 +557,7 @@ export class CadDesigner {
       }
       case 'line': case 'dimension': case 'rect': if (n === 2) await this.commit(); break;
       case 'circle': if (n === 2) await this.commit(); break;
+      case 'arc': case 'ellipse': if (n === 3) await this.commit(); break;
       case 'insert': await this.placeBlock(p); break;
       case 'break': if (n === 1) await this.doBreak(p); break;
       case 'stretch': if (n === 4) await this.doStretch(); break;
@@ -516,6 +595,11 @@ export class CadDesigner {
       if (this.tool === 'rotate' && this.pts.length === 1) return this.transform(rotate(this.plane!.xy(this.pts[0]), v), false);
       if (this.tool === 'scale' && this.pts.length === 1) return v > 0 ? this.transform(scale(this.plane!.xy(this.pts[0]), v), false) : this.h.setStatus('The factor must be above 0', 4000);
       if (this.tool === 'fillet') return this.doFillet(v);
+    }
+    if (this.tool === 'ellipse' && this.pts.length === 2 && /^\d+(\.\d+)?$/.test(s) && Number(s) > 0) {
+      const p = this.plane!, c = p.xy(this.pts[0]), e = p.xy(this.pts[1]), l = dist(c, e) || 1;
+      // a point the typed distance off the first axis stands in for the click
+      return this.add(p.ll([c[0] - ((e[1] - c[1]) / l) * Number(s), c[1] + ((e[0] - c[0]) / l) * Number(s)]));
     }
     if (this.tool === 'circle' && this.pts.length === 1 && /^\d+(\.\d+)?$/.test(s)) {
       return this.add(this.plane!.ll(polar(this.plane!.xy(last), Number(s), 90)));
@@ -665,6 +749,21 @@ export class CadDesigner {
           await this.save('polygons', { type: 'Polygon', coordinates: [ring(rect)] }, { kind: 'rectangle', area_m2: r2(area(rect)), perimeter_m: r2(perimeter(rect, true)) });
           break;
         }
+        case 'arc': {
+          const a = arc3(xy[0], xy[1], xy[2]);
+          if (!a) { this.h.setStatus('The three points are in a line: no arc through them', 5000); break; }
+          await this.save('lines', { type: 'LineString', coordinates: a.map((q) => p.ll(q)) }, { kind: 'arc', length_m: r2(perimeter(a, false)) });
+          break;
+        }
+        case 'ellipse': {
+          const [c, e] = xy, b = halfAxis(c, e, xy[2]), a = dist(c, e);
+          if (!(a > 0 && b > 0)) { this.h.setStatus('An ellipse needs two axes longer than 0', 5000); break; }
+          const el = ellipse(c, e, b);
+          // Ramanujan's perimeter
+          const per = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+          await this.save('polygons', { type: 'Polygon', coordinates: [ring(el)] }, { kind: `ellipse ${r2(2 * a)}×${r2(2 * b)} m`, area_m2: r2(Math.PI * a * b), perimeter_m: r2(per) });
+          break;
+        }
         case 'circle': {
           const r = dist(xy[0], xy[1]);
           const c = circle(xy[0], r);
@@ -707,14 +806,38 @@ export class CadDesigner {
   }
 
   private async doOffset(d: number) {
-    if (!this.picked || !Number.isFinite(d) || d === 0) return this.h.setStatus('Type the offset distance in m (+ right, − left)', 5000);
-    const p = new Plane(this.picked.coords[0]);
-    const out = offsetLine(this.picked.coords.map((q) => p.xy(q)), d).map((q) => p.ll(q));
-    await this.save('lines', { type: 'LineString', coordinates: out }, { kind: `offset ${d} m` });
-    this.h.setStatus(`Parallel line ${Math.abs(d)} m to the ${d > 0 ? 'right' : 'left'} saved`, 4000);
+    const pk = this.picked;
+    if (!pk || !Number.isFinite(d) || d === 0) return this.h.setStatus(`Type the offset distance in m (${pk?.closed ? '+ outward, − inward' : '+ right, − left'}), or click a point it goes through`, 5000);
+    const p = new Plane(pk.coords[0]);
+    const xy = pk.coords.map((q) => p.xy(q));
+    if (pk.closed) {
+      const ring = offsetRing(xy, d).map((q) => p.ll(q));
+      const r = [...ring.map((q) => p.xy(q))];
+      await this.save('polygons', { type: 'Polygon', coordinates: [[...ring, ring[0]]] }, { kind: `offset ${d} m`, area_m2: Math.round(area(r) * 100) / 100, perimeter_m: Math.round(perimeter(r, true) * 100) / 100 });
+      this.h.setStatus(`Shape ${Math.abs(d)} m ${d > 0 ? 'outside' : 'inside'} saved`, 4000);
+    } else {
+      const out = offsetLine(xy, d).map((q) => p.ll(q));
+      await this.save('lines', { type: 'LineString', coordinates: out }, { kind: `offset ${d} m` });
+      this.h.setStatus(`Parallel line ${Math.abs(d)} m to the ${d > 0 ? 'right' : 'left'} saved`, 4000);
+    }
     this.picked = null;
     this.renderBar();
     this.draw();
+  }
+
+  /** Offset › Through (AutoCAD OFFSET T): the distance is wherever the click is */
+  private async offsetThrough(at: LL) {
+    const pk = this.picked!;
+    const p = new Plane(pk.coords[0]);
+    const xy = pk.coords.map((q) => p.xy(q));
+    const q = p.xy(at);
+    let d = sideDistance(pk.closed ? [...xy, xy[0]] : xy, q);
+    if (pk.closed) {
+      const n = xy.length;
+      const signed = xy.reduce((s, a, i) => { const b = xy[(i + 1) % n]; return s + a[0] * b[1] - b[0] * a[1]; }, 0);
+      d = signed > 0 ? d : -d;
+    }
+    await this.doOffset(Math.round(d * 1000) / 1000);
   }
 
   // ---------------------------------------------------------------- modify
@@ -730,6 +853,8 @@ export class CadDesigner {
       .find((x) => x.layer.id.includes('#') && !x.layer.id.startsWith('cad-') && !x.layer.id.startsWith('basemap') && Number.isFinite(Number(x.id)));
     if (!hit) return this.h.setStatus('No feature there: click on a line, shape or point', 4000);
     const layer = hit.layer.id.replace(/#.*$/, '');
+    if (this.tool === 'lock') return this.toggleLock(layer);
+    if (this.h.locked().includes(layer)) return this.h.setStatus(`${this.layerName(layer)} is locked: unlock it with Design › Lock`, 5000);
     const fid = Number(hit.id);
     const at: LL = [e.lngLat.lng, e.lngLat.lat];
     try {
@@ -747,6 +872,18 @@ export class CadDesigner {
     if (this.tool === 'trim' || this.tool === 'extend') return this.doTrimExtend();
     this.renderBar();
     this.draw();
+  }
+
+  private layerName(id: string) {
+    return this.h.layers().find((l) => l.id === id)?.name ?? id;
+  }
+
+  /** Lock (AutoCAD LAYLCK / LAYULK): a locked layer is shown and snapped to but not changed */
+  private toggleLock(layer: string) {
+    const locked = this.h.locked();
+    const on = !locked.includes(layer);
+    this.h.setLocked(on ? [...locked, layer] : locked.filter((l) => l !== layer));
+    this.h.setStatus(`${this.layerName(layer)} ${on ? 'locked: Modify tools leave it alone' : 'unlocked'}`, 4000);
   }
 
   /** the picked feature through a plane transform: replaced (move, rotate, scale) or copied */
@@ -1026,6 +1163,7 @@ export class CadDesigner {
       const feature: GeoJSON.Feature = { type: 'Feature', geometry, properties: ins.block.properties };
       const r = await this.api<{ fid: number }>(`api/layers/${encodeURIComponent(ins.block.layer)}/features`, 'POST', feature);
       this.record({ kind: 'add', layer: ins.block.layer, fid: r.fid, feature });
+      this.h.setInserts([...this.h.inserts(), { block: ins.block.name, layer: ins.block.layer, fid: r.fid, at, angle: ins.angle, geometry }]);
       await this.h.changed(ins.block.layer);
     } catch (err) {
       this.h.setStatus(`Could not insert (was its layer removed?): ${err instanceof Error ? err.message : err}`, 8000);
@@ -1066,16 +1204,24 @@ export class CadDesigner {
   }
 
   /** ARRAYPOLAR: n items around the centre over the fill angle (the original is the first) */
-  private async doPolar(v: string) {
-    const m = v.match(/^(\d+)(?:,(-?\d+(?:\.\d+)?))?$/);
-    if (!m) return this.h.setStatus('Type items, or items,angle (e.g. 8 or 6,180)', 5000);
+  /** the copies a Polar array of "items[,angle]" makes, or why it cannot */
+  private polarCopies(v: string): GeoJSON.Geometry[] | string {
+    const m = v.replace(/\s+/g, '').match(/^(\d+)(?:,(-?\d+(?:\.\d+)?))?$/);
+    if (!m) return 'Type items, or items,angle (e.g. 8 or 6,180)';
     const n = Number(m[1]), fill = m[2] === undefined ? 360 : Number(m[2]);
-    if (n < 2 || n > 1000 || fill === 0) return this.h.setStatus('Between 2 and 1000 items, over a non-zero angle', 5000);
+    if (n < 2 || n > 1000 || fill === 0) return 'Between 2 and 1000 items, over a non-zero angle';
     const s = this.sel!, p = this.plane!, c = p.xy(this.pts[0]);
     // a full circle spaces n items evenly; a part circle puts the last item at the end of the angle
     const step = Math.abs(fill) >= 360 ? fill / n : fill / (n - 1);
     const copies: GeoJSON.Geometry[] = [];
     for (let i = 1; i < n; i++) copies.push(mapGeometry(s.feature.geometry, (q) => p.ll(rotate(c, step * i)(p.xy(q)))));
+    return copies;
+  }
+
+  private async doPolar(v: string) {
+    const copies = this.polarCopies(v);
+    if (typeof copies === 'string') return this.h.setStatus(copies, 5000);
+    this.preview = '';
     const [first, ...rest] = copies;
     return this.write(first, true, rest);
   }
@@ -1217,11 +1363,24 @@ S90°W 25</textarea></label>
     const ids = this.h.layers().filter((l) => l.name.startsWith('Design · ')).map((l) => l.id);
     if (!ids.length) return this.h.setStatus('Nothing to export yet: draw with the Design tools first', 6000);
     try {
+      // a placed block still as it was placed goes out as a block reference; one since moved, edited or
+      // erased is plain linework (and is forgotten)
+      const same = (a: GeoJSON.Geometry, b: GeoJSON.Geometry) => JSON.stringify(mapGeometry(a, (q) => q.map((v) => Math.round(v * 1e7)) as LL)) === JSON.stringify(mapGeometry(b, (q) => q.map((v) => Math.round(v * 1e7)) as LL));
+      const kept: CadInsert[] = [];
+      for (const i of this.h.inserts()) {
+        if (!ids.includes(i.layer)) continue;
+        const f = await this.h.backend.json<GeoJSON.Feature>(`api/layers/${encodeURIComponent(i.layer)}/features/${i.fid}`).catch(() => null);
+        if (f?.geometry && same(f.geometry, i.geometry)) kept.push(i);
+      }
+      if (kept.length !== this.h.inserts().length) this.h.setInserts(kept);
+      const used = new Set(kept.map((i) => i.block));
+      const blocks = this.loadBlocks().filter((b) => used.has(b.name)).map((b) => ({ name: b.name, geometry: b.geometry }));
+      const inserts = kept.map((i) => ({ block: i.block, layer: i.layer, fid: i.fid, at: i.at, angle: i.angle }));
       const r = await this.h.backend.json<{ path: string; features: number; epsg: number }>('api/design/dxf', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layers: ids }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layers: ids, blocks, inserts, hatch: Object.fromEntries(ids.map((id) => [id, this.h.hatch(id)]).filter(([, h]) => h)) }),
       });
       window.open(this.h.backend.url(`api/design/dxf?path=${encodeURIComponent(r.path)}`), '_blank', 'noopener');
-      this.h.setStatus(`DXF: ${r.features} entities in EPSG:${r.epsg} (metres), one AutoCAD layer per design layer`, 8000);
+      this.h.setStatus(`DXF: ${r.features} entities${kept.length ? ` (${kept.length} block references)` : ''} in EPSG:${r.epsg} (metres), one AutoCAD layer per design layer`, 8000);
     } catch (e) {
       this.h.setStatus(`DXF export: ${e instanceof Error ? e.message : e}`, 8000);
     }
@@ -1273,6 +1432,10 @@ S90°W 25</textarea></label>
     if (this.sel?.feature.geometry) {
       feats.push({ type: 'Feature', properties: {}, geometry: this.sel.feature.geometry });
       // Move and Copy follow the pointer from the base point
+      if (this.tool === 'arraypolar' && this.pts.length === 1 && this.plane && this.preview) {
+        const copies = this.polarCopies(this.preview);
+        if (typeof copies !== 'string') for (const g of copies) feats.push({ type: 'Feature', properties: {}, geometry: g });
+      }
       if ((this.tool === 'move' || this.tool === 'copy') && this.pts.length === 1 && this.cursor && this.plane) {
         const p = this.plane, d = this.diff(this.pts[0], this.cursor);
         feats.push({ type: 'Feature', properties: {}, geometry: mapGeometry(this.sel.feature.geometry, (q) => p.ll(translate(d)(p.xy(q)))) });
@@ -1286,6 +1449,12 @@ S90°W 25</textarea></label>
       } else if (this.tool === 'rect') {
         const [a, b] = [xy[0], xy[xy.length - 1]];
         feats.push({ type: 'Feature', properties: { dim: `${fmt(Math.abs(b[0] - a[0]))} × ${fmt(Math.abs(b[1] - a[1]))}` }, geometry: { type: 'Polygon', coordinates: [[a, [b[0], a[1]], b, [a[0], b[1]], a].map((q) => this.plane!.ll(q as XY))] } });
+      } else if (this.tool === 'arc' && xy.length >= 3) {
+        const a = arc3(xy[0], xy[1], xy[2]);
+        if (a) feats.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: a.map((q) => this.plane!.ll(q)) } });
+      } else if (this.tool === 'ellipse' && xy.length >= 3) {
+        const el = ellipse(xy[0], xy[1], halfAxis(xy[0], xy[1], xy[2]));
+        feats.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...el, el[0]].map((q) => this.plane!.ll(q))] } });
       } else if (this.tool === 'circle') {
         const r = dist(xy[0], xy[xy.length - 1]);
         feats.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...circle(xy[0], r), circle(xy[0], r)[0]].map((q) => this.plane!.ll(q))] } });
