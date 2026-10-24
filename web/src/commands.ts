@@ -819,6 +819,11 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'lengthen' })); },
   },
   {
+    id: 'design.chamfer', tab: 'design', group: 'Modify', title: 'Chamfer', icon: 'curve',
+    hint: 'Cut a corner straight at a distance along each leg (a junction splay), as AutoCAD CHAMFER',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'chamfer' })); },
+  },
+  {
     id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
     hint: 'Delete the feature you click, as AutoCAD ERASE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },

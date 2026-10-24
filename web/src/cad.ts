@@ -22,6 +22,7 @@
 //   Trim          click the part of a line to cut away between the lines that cross it
 //   Extend        click near a line's end: it runs on to the next line it meets
 //   Fillet        click near a corner, then the radius: the corner becomes a tangent arc
+//   Chamfer       click near a corner, then d or d1,d2 (m): the corner cut straight (CHAMFER)
 //   Array         rows,columns,dx,dy (m): copies in a grid, as ARRAYRECT (dy < 0 goes south)
 //   Polar array   the centre, then items[,angle] (default 360°): copies turned around it (ARRAYPOLAR)
 //   Explode       a polygon becomes its outline as lines, a multi-part feature its parts (EXPLODE)
@@ -38,15 +39,15 @@
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { CadBlock } from './symbology';
-import { breakAt, divide, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
+import { breakAt, chamfer, divide, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 type LL = [number, number];
 type XY = [number, number];
 export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen'];
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen' | 'chamfer';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen', 'chamfer'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
 type Block = CadBlock;
 /** where blocks lived before they were kept in the project: moved over the first time */
@@ -311,6 +312,7 @@ export class CadDesigner {
       case 'trim': return 'Trim: click the part of a line to cut away';
       case 'extend': return 'Extend: click near the end of a line';
       case 'fillet': return !this.sel ? 'Fillet: click near a corner' : 'Fillet radius in m';
+      case 'chamfer': return !this.sel ? 'Chamfer: click near a corner' : 'Distance in m, or d1,d2 along each leg';
       case 'array': return !this.sel ? 'Array: click the feature' : 'rows,columns,dx,dy in m (e.g. 2,10,20,-36)';
       case 'divide': return !this.sel ? 'Divide: click the line' : 'Number of equal parts';
       case 'arraypolar': return !this.sel ? 'Polar array: click the feature' : n === 0 ? 'Centre of the array' : 'items[,angle to fill] (e.g. 8 or 6,180)';
@@ -489,6 +491,7 @@ export class CadDesigner {
     if (this.tool === 'offset' && this.picked) return this.doOffset(Number(s));
     if (this.tool === 'array' && this.sel) return this.doArray(s);
     if (this.tool === 'lengthen' && this.sel) return this.doLengthen(s);
+    if (this.tool === 'chamfer' && this.sel) return this.doChamfer(s);
     if (this.tool === 'arraypolar' && this.sel && this.pts.length === 1) return this.doPolar(s);
     if (this.tool === 'insert' && this.inserting && /^-?\d+(\.\d+)?$/.test(s)) {
       this.inserting.angle = Number(s);
@@ -1055,6 +1058,22 @@ export class CadDesigner {
     if (!copies.length) return this.h.setStatus('Nothing to copy (1 row, 1 column)', 4000);
     const [first, ...rest] = copies;
     return this.write(first, true, rest);
+  }
+
+  private async doChamfer(v: string) {
+    const m = v.match(/^(\d+(?:\.\d+)?)(?:,(\d+(?:\.\d+)?))?$/);
+    if (!m) return this.h.setStatus('Type a distance, or d1,d2 (m)', 5000);
+    const d1 = Number(m[1]), d2 = m[2] === undefined ? d1 : Number(m[2]);
+    const s = this.sel!, p = this.plane!, g = s.feature.geometry;
+    const closed = g.type === 'Polygon';
+    const coords = g.type === 'LineString' ? (g.coordinates as LL[]) : closed ? (g.coordinates[0] as LL[]) : null;
+    if (!coords) return this.h.setStatus(`Chamfer works on lines and polygons (this is a ${g.type})`, 5000);
+    const line = coords.map((q) => p.xy(q));
+    const i = nearestVertex(closed ? line.slice(0, -1) : line, p.xy(s.at));
+    const out = chamfer(line, i, d1, d2, closed);
+    if (!out) return this.h.setStatus('That corner cannot take this chamfer (an end, a straight corner, or a leg shorter than the distance)', 6000);
+    const ring = out.map((q) => p.ll(q));
+    return this.write(closed ? { type: 'Polygon', coordinates: [ring, ...(g.coordinates.slice(1) as LL[][])] } : { type: 'LineString', coordinates: ring }, false);
   }
 
   private async doFillet(r: number) {
