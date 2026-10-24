@@ -55,6 +55,7 @@ export interface Command {
 
 // 24×24 monochrome glyphs; the ribbon tints them with `currentColor`.
 export const ICONS: Record<string, string> = {
+  split: 'M3 5h7v6H3zM14 13h7v6h-7zM10 8h3v2h-3zM11 10h2v5h-2zM12 14h2v2h-2z',
   move: 'M12 2l3 3h-2v6h6V9l3 3-3 3v-2h-6v6h2l-3 3-3-3h2v-6H5v2l-3-3 3-3v2h6V5H9z',
   copy: 'M8 3h10v12H8zM5 7h1v12h10v1H5z',
   rotate: 'M12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-1.8-4.3L14 10h6V4l-2.3 2.3A8 8 0 0 0 12 4z',
@@ -796,6 +797,16 @@ export const COMMANDS: Command[] = [
     id: 'design.arraypolar', tab: 'design', group: 'Modify', title: 'Polar array', icon: 'rotate',
     hint: 'Copies of a feature turned around a centre (posts round a roundabout), as AutoCAD ARRAYPOLAR',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'arraypolar' })); },
+  },
+  {
+    id: 'design.explode', tab: 'design', group: 'Modify', title: 'Explode', icon: 'split',
+    hint: 'A polygon into its outline lines, or a multi-part feature into its parts, as AutoCAD EXPLODE',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'explode' })); },
+  },
+  {
+    id: 'design.join', tab: 'design', group: 'Modify', title: 'Join', icon: 'line',
+    hint: 'Two lines whose ends meet become one, as AutoCAD JOIN',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'join' })); },
   },
   {
     id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
