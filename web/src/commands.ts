@@ -55,6 +55,12 @@ export interface Command {
 
 // 24×24 monochrome glyphs; the ribbon tints them with `currentColor`.
 export const ICONS: Record<string, string> = {
+  move: 'M12 2l3 3h-2v6h6V9l3 3-3 3v-2h-6v6h2l-3 3-3-3h2v-6H5v2l-3-3 3-3v2h6V5H9z',
+  copy: 'M8 3h10v12H8zM5 7h1v12h10v1H5z',
+  rotate: 'M12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-1.8-4.3L14 10h6V4l-2.3 2.3A8 8 0 0 0 12 4z',
+  scissors: 'M6 3a3 3 0 1 0 2.2 5L11 11l-2.8 3a3 3 0 1 0 1.4 1.4L12 13l7 7h2L13.4 12 21 4h-2l-7 7-2.4-2.4A3 3 0 0 0 6 3zm0 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm0 12a1 1 0 1 1 0 2 1 1 0 0 1 0-2z',
+  arrowRight: 'M3 11h13V7l5 5-5 5v-4H3zM3 5h2v14H3z',
+  curve: 'M4 20V10a6 6 0 0 1 6-6h10v2H10a4 4 0 0 0-4 4v10z',
   refresh: 'M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z',
   save: 'M5 3h11l3 3v15H5zM8 3v6h7V4M8 14h8v7H8z',
   layers: 'M12 3l9 5-9 5-9-5 9-5zm0 18L3 16l3-1.7 6 3.3 6-3.3L21 16l-9 5z',
@@ -720,6 +726,56 @@ export const COMMANDS: Command[] = [
     id: 'design.road', tab: 'design', group: 'Construct', title: 'Road from centreline', icon: 'road', big: true,
     hint: 'Draw a centreline, then give the width: the road surface as a polygon, plus its centreline',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'road' })); },
+  },
+  {
+    id: 'design.move', tab: 'design', group: 'Modify', title: 'Move', icon: 'move',
+    hint: 'Move a feature from a base point to a second point (or @dx,dy), as AutoCAD MOVE',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'move' })); },
+  },
+  {
+    id: 'design.copy', tab: 'design', group: 'Modify', title: 'Copy', icon: 'copy',
+    hint: 'Copy a feature from a base point to a second point, as AutoCAD COPY',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'copy' })); },
+  },
+  {
+    id: 'design.rotate', tab: 'design', group: 'Modify', title: 'Rotate', icon: 'rotate',
+    hint: 'Rotate a feature about a base point by an angle, as AutoCAD ROTATE',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'rotate' })); },
+  },
+  {
+    id: 'design.scale', tab: 'design', group: 'Modify', title: 'Scale', icon: 'zoomIn',
+    hint: 'Scale a feature about a base point by a factor, as AutoCAD SCALE',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'scale' })); },
+  },
+  {
+    id: 'design.mirror', tab: 'design', group: 'Modify', title: 'Mirror', icon: 'compare',
+    hint: 'A mirrored copy across a line of two points, as AutoCAD MIRROR',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'mirror' })); },
+  },
+  {
+    id: 'design.trim', tab: 'design', group: 'Modify', title: 'Trim', icon: 'scissors',
+    hint: 'Cut a line back to the lines that cross it, as AutoCAD TRIM',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'trim' })); },
+  },
+  {
+    id: 'design.extend', tab: 'design', group: 'Modify', title: 'Extend', icon: 'arrowRight',
+    hint: 'Run a line on to the next line it meets, as AutoCAD EXTEND',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'extend' })); },
+  },
+  {
+    id: 'design.fillet', tab: 'design', group: 'Modify', title: 'Fillet', icon: 'curve',
+    hint: 'Round a corner with an arc of a given radius, as AutoCAD FILLET',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'fillet' })); },
+  },
+  {
+    id: 'design.array', tab: 'design', group: 'Modify', title: 'Array', icon: 'grid',
+    hint: 'Copies of a feature on a grid of rows and columns (lots along a road), as AutoCAD ARRAYRECT',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'array' })); },
+  },
+  {
+    id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
+    hint: 'Delete the feature you click, as AutoCAD ERASE',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },
   },
   {
     id: 'design.dimension', tab: 'design', group: 'Survey', title: 'Dimension', icon: 'ruler',

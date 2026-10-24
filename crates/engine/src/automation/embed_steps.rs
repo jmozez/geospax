@@ -644,7 +644,8 @@ pub(super) fn classify(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     for &l in labels.iter().filter(|l| **l > 0) {
         count[l as usize - 1] += 1;
     }
-    let pal = palette(names.len());
+    // classes named as land cover keep their conventional colours, others a qualitative palette
+    let pal: Vec<String> = palette(names.len()).into_iter().zip(&names).map(|(c, n)| crate::automation::automap::land_cover_color(n).map(str::to_string).unwrap_or(c)).collect();
     let ha = e.pixel_area_ha();
     let name = sanitize(p_str(p, "name").unwrap_or("classified"));
     let out = out_path(sc, &name)?;

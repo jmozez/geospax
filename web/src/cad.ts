@@ -13,16 +13,33 @@
 // F8 ortho (right angles to the last segment), F10 polar tracking (every 15°), F3 object snaps
 // (vertex, midpoint, nearest point on a segment), U or Ctrl+Z steps back one point, Esc cancels.
 //
+// Modify (AutoCAD's Modify panel) works on any feature of any vector layer: click it, then
+//   Move / Copy   base point, then the second point (or @dx,dy)
+//   Rotate        base point, then an angle in degrees (counter-clockwise) or a click
+//   Scale         base point, then a factor
+//   Mirror        two points of the mirror line (a mirrored copy is added)
+//   Erase         the feature is deleted
+//   Trim          click the part of a line to cut away between the lines that cross it
+//   Extend        click near a line's end: it runs on to the next line it meets
+//   Fillet        click near a corner, then the radius: the corner becomes a tangent arc
+//   Array         rows,columns,dx,dy (m): copies in a grid, as ARRAYRECT (dy < 0 goes south)
+//
 // Distances and bearings are worked out on a local plane around the first point (metres east and
 // north), which is accurate to a few centimetres over a town; the layers stay in WGS 84.
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
+import { extend, fillet, mapGeometry, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 type LL = [number, number];
 type XY = [number, number];
-export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road';
+export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | ModifyTool;
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array'];
+const isModify = (t: CadTool | null): t is ModifyTool => !!t && (MODIFY as string[]).includes(t);
+/** a feature picked for Modify: its layer, id, full geometry and where it was clicked */
+interface Sel { layer: string; fid: number; feature: GeoJSON.Feature; at: LL }
 
 export interface CadHost {
   map: maplibregl.Map;
@@ -153,6 +170,7 @@ export class CadDesigner {
   snap = true;
   private bar: HTMLElement;
   private picked: { layer: string; coords: LL[] } | null = null;
+  private sel: Sel | null = null;
   private onMove = (e: maplibregl.MapMouseEvent) => this.move(e);
   private onClick = (e: maplibregl.MapMouseEvent) => void this.click(e);
   private onDbl = (e: maplibregl.MapMouseEvent) => { e.preventDefault(); void this.finish(); };
@@ -192,6 +210,7 @@ export class CadDesigner {
     this.pts = [];
     this.plane = null;
     this.picked = null;
+    this.sel = null;
     const m = this.h.map;
     m.doubleClickZoom.disable();
     m.on('mousemove', this.onMove);
@@ -214,6 +233,7 @@ export class CadDesigner {
     this.pts = [];
     this.cursor = null;
     this.picked = null;
+    this.sel = null;
     this.bar.hidden = true;
     this.draw();
   }
@@ -231,6 +251,15 @@ export class CadDesigner {
       case 'dimension': return n === 0 ? 'Dimension: first point' : 'Dimension: second point';
       case 'offset': return this.picked ? 'Offset: distance in m (+ right, − left of the line)' : 'Offset: click the line to copy';
       case 'road': return n < 2 ? 'Road: centreline points · Enter when done' : 'Road: next centreline point · Enter, then the width';
+      case 'move': case 'copy': return !this.sel ? `${this.tool === 'move' ? 'Move' : 'Copy'}: click the feature` : n === 0 ? 'Base point' : 'Second point (or @dx,dy in m)';
+      case 'rotate': return !this.sel ? 'Rotate: click the feature' : n === 0 ? 'Base point' : 'Angle in degrees (counter-clockwise), or click';
+      case 'scale': return !this.sel ? 'Scale: click the feature' : n === 0 ? 'Base point' : 'Scale factor (2 = twice the size)';
+      case 'mirror': return !this.sel ? 'Mirror: click the feature' : n === 0 ? 'First point of the mirror line' : 'Second point of the mirror line';
+      case 'erase': return 'Erase: click the feature to delete';
+      case 'trim': return 'Trim: click the part of a line to cut away';
+      case 'extend': return 'Extend: click near the end of a line';
+      case 'fillet': return !this.sel ? 'Fillet: click near a corner' : 'Fillet radius in m';
+      case 'array': return !this.sel ? 'Array: click the feature' : 'rows,columns,dx,dy in m (e.g. 2,10,20,-36)';
       default: return '';
     }
   }
@@ -348,6 +377,7 @@ export class CadDesigner {
     if (!this.tool) return;
     const p = this.constrain([e.lngLat.lng, e.lngLat.lat], e.point);
     if (this.tool === 'offset' && !this.picked) return this.pick(e);
+    if (isModify(this.tool) && !this.sel) return this.pickFeature(e);
     await this.add(p);
   }
 
@@ -377,6 +407,12 @@ export class CadDesigner {
       }
       case 'line': case 'dimension': case 'rect': if (n === 2) await this.commit(); break;
       case 'circle': if (n === 2) await this.commit(); break;
+      case 'move': case 'copy': if (n === 2) await this.transform(translate(this.diff(this.pts[0], this.pts[1])), this.tool === 'copy'); break;
+      case 'mirror': if (n === 2) await this.transform(mirror(this.plane.xy(this.pts[0]), this.plane.xy(this.pts[1])), true); break;
+      case 'rotate': if (n === 2) {
+        const [a, b] = [this.plane.xy(this.pts[0]), this.plane.xy(this.pts[1])];
+        await this.transform(rotate(a, (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI), false);
+      } break;
     }
     this.renderBar();
     this.draw();
@@ -387,6 +423,13 @@ export class CadDesigner {
     const last = this.pts[this.pts.length - 1];
     const s = v.replace(/\s+/g, '');
     if (this.tool === 'offset' && this.picked) return this.doOffset(Number(s));
+    if (this.tool === 'array' && this.sel) return this.doArray(s);
+    if (this.sel && /^-?\d+(\.\d+)?$/.test(s)) {
+      const v = Number(s);
+      if (this.tool === 'rotate' && this.pts.length === 1) return this.transform(rotate(this.plane!.xy(this.pts[0]), v), false);
+      if (this.tool === 'scale' && this.pts.length === 1) return v > 0 ? this.transform(scale(this.plane!.xy(this.pts[0]), v), false) : this.h.setStatus('The factor must be above 0', 4000);
+      if (this.tool === 'fillet') return this.doFillet(v);
+    }
     if (this.tool === 'circle' && this.pts.length === 1 && /^\d+(\.\d+)?$/.test(s)) {
       return this.add(this.plane!.ll(polar(this.plane!.xy(last), Number(s), 90)));
     }
@@ -517,6 +560,158 @@ export class CadDesigner {
     this.draw();
   }
 
+  // ---------------------------------------------------------------- modify
+  private diff(a: LL, b: LL): XY {
+    const p = this.plane!, x = p.xy(a), y = p.xy(b);
+    return [y[0] - x[0], y[1] - x[1]];
+  }
+
+  /** the feature under the pointer: its layer and id from the map, its full geometry from the engine */
+  private async pickFeature(e: maplibregl.MapMouseEvent) {
+    const R = 6;
+    const hit = this.h.map.queryRenderedFeatures([[e.point.x - R, e.point.y - R], [e.point.x + R, e.point.y + R]])
+      .find((x) => x.layer.id.includes('#') && !x.layer.id.startsWith('cad-') && !x.layer.id.startsWith('basemap') && Number.isFinite(Number(x.id)));
+    if (!hit) return this.h.setStatus('No feature there: click on a line, shape or point', 4000);
+    const layer = hit.layer.id.replace(/#.*$/, '');
+    const fid = Number(hit.id);
+    const at: LL = [e.lngLat.lng, e.lngLat.lat];
+    try {
+      const feature = await this.h.backend.json<GeoJSON.Feature>(`api/layers/${encodeURIComponent(layer)}/features/${fid}`);
+      if (!feature.geometry) return this.h.setStatus('That feature has no geometry', 4000);
+      this.sel = { layer, fid, feature, at };
+      this.plane = new Plane(at);
+    } catch (err) {
+      return this.h.setStatus(`Could not read the feature: ${err instanceof Error ? err.message : err}`, 6000);
+    }
+    if (this.tool === 'erase') return this.doErase();
+    if (this.tool === 'trim' || this.tool === 'extend') return this.doTrimExtend();
+    this.renderBar();
+    this.draw();
+  }
+
+  /** the picked feature through a plane transform: replaced (move, rotate, scale) or copied */
+  private async transform(f: (p: XY) => XY, copy: boolean) {
+    const s = this.sel!, p = this.plane!;
+    const geometry = mapGeometry(s.feature.geometry, (q) => p.ll(f(p.xy(q))));
+    await this.write(geometry, copy);
+  }
+
+  private async write(geometry: GeoJSON.Geometry, copy: boolean, extra?: GeoJSON.Geometry[]) {
+    const s = this.sel!;
+    const url = `api/layers/${encodeURIComponent(s.layer)}/features`;
+    const props = Object.fromEntries(Object.entries(s.feature.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k)));
+    try {
+      if (copy) await this.h.backend.json(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'Feature', geometry, properties: props }) });
+      else await this.h.backend.json(`${url}/${s.fid}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ geometry }) });
+      for (const g of extra ?? []) await this.h.backend.json(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'Feature', geometry: g, properties: props }) });
+      await this.h.changed(s.layer);
+      this.h.setStatus(`${this.tool} done`, 3000);
+    } catch (err) {
+      this.h.setStatus(`Could not save: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    this.sel = null;
+    this.pts = [];
+    this.plane = null;
+    this.renderBar();
+    this.draw();
+  }
+
+  private async doErase() {
+    const s = this.sel!;
+    try {
+      await this.h.backend.json(`api/layers/${encodeURIComponent(s.layer)}/features/${s.fid}`, { method: 'DELETE' });
+      await this.h.changed(s.layer);
+      this.h.setStatus('Erased', 3000);
+    } catch (err) {
+      this.h.setStatus(`Could not erase: ${err instanceof Error ? err.message : err}`, 8000);
+    }
+    this.sel = null;
+    this.draw();
+  }
+
+  /** the lines of the picked feature and, as cutting edges, every other line and outline in view */
+  private lines(g: GeoJSON.Geometry): LL[][] {
+    switch (g.type) {
+      case 'LineString': return [g.coordinates as LL[]];
+      case 'MultiLineString': return g.coordinates as LL[][];
+      case 'Polygon': return g.coordinates as LL[][];
+      case 'MultiPolygon': return (g.coordinates as LL[][][]).flat();
+      default: return [];
+    }
+  }
+
+  private cutters(): XY[][] {
+    const s = this.sel!, p = this.plane!;
+    const out: XY[][] = [];
+    for (const f of this.h.map.queryRenderedFeatures()) {
+      if (!f.layer.id.includes('#') || f.layer.id.startsWith('cad-') || f.layer.id.startsWith('basemap')) continue;
+      if (f.layer.id.replace(/#.*$/, '') === s.layer && Number(f.id) === s.fid) continue;
+      for (const l of this.lines(f.geometry)) out.push(l.map((q) => p.xy(q)));
+    }
+    return out;
+  }
+
+  private async doTrimExtend() {
+    const s = this.sel!, p = this.plane!;
+    const g = s.feature.geometry;
+    if (g.type !== 'LineString') {
+      this.sel = null;
+      return this.h.setStatus(`${this.tool === 'trim' ? 'Trim' : 'Extend'} works on single lines (this is a ${g.type})`, 5000);
+    }
+    const line = (g.coordinates as LL[]).map((q) => p.xy(q));
+    const at = p.xy(s.at);
+    if (this.tool === 'extend') {
+      const out = extend(line, this.cutters(), at);
+      if (!out) {
+        this.sel = null;
+        this.draw();
+        return this.h.setStatus('Nothing to extend to in that direction (in view)', 5000);
+      }
+      return this.write({ type: 'LineString', coordinates: out.map((q) => p.ll(q)) }, false);
+    }
+    const pieces = trim(line, this.cutters(), at);
+    if (!pieces) {
+      this.sel = null;
+      this.draw();
+      return this.h.setStatus('No line crosses it: nothing to trim against (Erase removes it whole)', 5000);
+    }
+    if (!pieces.length) return this.doErase();
+    const [first, ...rest] = pieces.map((l) => ({ type: 'LineString', coordinates: l.map((q) => p.ll(q)) }) as GeoJSON.Geometry);
+    return this.write(first, false, rest);
+  }
+
+  /** ARRAYRECT: copies of the picked feature on a grid, the original in the first cell */
+  private async doArray(v: string) {
+    const m = v.match(/^(\d+),(\d+),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+    if (!m) return this.h.setStatus('Type rows,columns,dx,dy (e.g. 2,10,20,-36)', 5000);
+    const [rows, cols, dx, dy] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+    if (rows < 1 || cols < 1 || rows * cols > 2000) return this.h.setStatus('Between 1 and 2000 copies in all', 5000);
+    const s = this.sel!, p = this.plane!;
+    const copies: GeoJSON.Geometry[] = [];
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        if (r || c) copies.push(mapGeometry(s.feature.geometry, (q) => p.ll(translate([c * dx, r * dy])(p.xy(q)))));
+    if (!copies.length) return this.h.setStatus('Nothing to copy (1 row, 1 column)', 4000);
+    const [first, ...rest] = copies;
+    return this.write(first, true, rest);
+  }
+
+  private async doFillet(r: number) {
+    const s = this.sel!, p = this.plane!;
+    const g = s.feature.geometry;
+    if (!(r > 0)) return this.h.setStatus('The radius must be above 0', 4000);
+    const closed = g.type === 'Polygon';
+    const coords = g.type === 'LineString' ? (g.coordinates as LL[]) : g.type === 'Polygon' ? (g.coordinates[0] as LL[]) : null;
+    if (!coords) return this.h.setStatus(`Fillet works on lines and polygons (this is a ${g.type})`, 5000);
+    const line = coords.map((q) => p.xy(q));
+    const i = nearestVertex(closed ? line.slice(0, -1) : line, p.xy(s.at));
+    const out = fillet(line, i, r, closed);
+    if (!out) return this.h.setStatus('That corner cannot take this radius (a straight corner, an end point, or legs shorter than the arc needs)', 6000);
+    const ring = out.map((q) => p.ll(q));
+    const geometry: GeoJSON.Geometry = closed ? { type: 'Polygon', coordinates: [ring, ...(g.coordinates.slice(1) as LL[][])] } : { type: 'LineString', coordinates: ring };
+    return this.write(geometry, false);
+  }
+
   // ---------------------------------------------------------------- traverse (COGO)
   private traverseDialog() {
     const c = this.h.map.getCenter();
@@ -619,6 +814,14 @@ S90°W 25</textarea></label>
     const feats: GeoJSON.Feature[] = [];
     const all = this.cursor && this.tool ? [...this.pts, this.cursor] : [...this.pts];
     if (this.picked) feats.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: this.picked.coords } });
+    if (this.sel?.feature.geometry) {
+      feats.push({ type: 'Feature', properties: {}, geometry: this.sel.feature.geometry });
+      // Move and Copy follow the pointer from the base point
+      if ((this.tool === 'move' || this.tool === 'copy') && this.pts.length === 1 && this.cursor && this.plane) {
+        const p = this.plane, d = this.diff(this.pts[0], this.cursor);
+        feats.push({ type: 'Feature', properties: {}, geometry: mapGeometry(this.sel.feature.geometry, (q) => p.ll(translate(d)(p.xy(q)))) });
+      }
+    }
     if (this.tool && this.plane && all.length >= 2) {
       const xy = all.map((q) => this.plane!.xy(q));
       if (this.tool === 'rect') {
