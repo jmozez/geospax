@@ -404,7 +404,48 @@ const FIXED_CLASSES: &[(&str, &[(&str, &str)], &str)] = &[(
     "LISA classes in their conventional colours: red high-high, blue low-low, orange and light blue outliers, grey not significant",
 )];
 
+/// The conventional colour of a land-cover class named in plain words (ESA WorldCover / Dynamic World
+/// style): green forest, blue water, red built-up… None when the name is not a land-cover class.
+pub fn land_cover_color(name: &str) -> Option<&'static str> {
+    let n = name.to_ascii_lowercase();
+    let has = |w: &[&str]| w.iter().any(|x| n.contains(x));
+    Some(if has(&["mangrove"]) {
+        "#00cf75"
+    } else if has(&["forest", "tree", "woodland", "plantation"]) {
+        "#1b7837"
+    } else if has(&["shrub", "scrub", "bush"]) {
+        "#ffbb22"
+    } else if has(&["grass", "pasture", "savanna", "meadow"]) {
+        "#e6e65c"
+    } else if has(&["crop", "agri", "farm", "garden"]) {
+        "#f096ff"
+    } else if has(&["built", "urban", "settlement", "city", "town", "building", "impervious"]) {
+        "#e31a1c"
+    } else if has(&["bare", "sand", "rock", "gravel", "soil"]) {
+        "#b4b4b4"
+    } else if has(&["snow", "ice", "glacier"]) {
+        "#f0f0f0"
+    } else if has(&["wetland", "swamp", "marsh", "bog"]) {
+        "#0096a0"
+    } else if has(&["water", "river", "lake", "sea", "ocean", "reservoir"]) {
+        "#1f78b4"
+    } else if has(&["cloud"]) {
+        "#ffffff"
+    } else {
+        return None;
+    })
+}
+
 pub fn unique(field: &str, mut list: Vec<(String, u64, bool)>) -> (Value, String) {
+    // land-cover classes in plain words get their conventional colours
+    if list.len() >= 2 && list.len() <= 12 && list.iter().all(|x| land_cover_color(&x.0).is_some()) {
+        list.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        let classes: Vec<Value> = list.iter().map(|(v, c, _)| json!({ "value": v, "color": land_cover_color(v), "count": c })).collect();
+        return (
+            json!({ "kind": "unique", "field": field, "ramp": "fixed", "classes": classes, "other": OTHER_COLOR, "othersCount": 0 }),
+            format!("'{field}' holds land-cover classes, so each gets its conventional colour: green forest, blue water, red built-up"),
+        );
+    }
     if let Some((_, colors, why)) = FIXED_CLASSES.iter().find(|(f, _, _)| *f == field) {
         let classes: Vec<Value> = colors
             .iter()
@@ -557,6 +598,14 @@ mod tests {
         assert_eq!(graduated("change", diverging).0["ramp"], "rdylbu");
         let ph: Vec<f64> = (0..60).map(|i| 5.0 + (i as f64 / 10.0).sin()).collect();
         assert_eq!(graduated("ph", ph).0["ramp"], "viridis");
+    }
+
+    #[test]
+    fn land_cover_names_get_conventional_colours() {
+        assert_eq!(super::land_cover_color("Forest"), Some("#1b7837"));
+        assert_eq!(super::land_cover_color("built-up"), Some("#e31a1c"));
+        assert_eq!(super::land_cover_color("mangrove forest"), Some("#00cf75"));
+        assert_eq!(super::land_cover_color("Group 3"), None);
     }
 
     #[test]
