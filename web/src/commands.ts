@@ -768,6 +768,11 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'fillet' })); },
   },
   {
+    id: 'design.array', tab: 'design', group: 'Modify', title: 'Array', icon: 'grid',
+    hint: 'Copies of a feature on a grid of rows and columns (lots along a road), as AutoCAD ARRAYRECT',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'array' })); },
+  },
+  {
     id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
     hint: 'Delete the feature you click, as AutoCAD ERASE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },

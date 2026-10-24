@@ -22,6 +22,7 @@
 //   Trim          click the part of a line to cut away between the lines that cross it
 //   Extend        click near a line's end: it runs on to the next line it meets
 //   Fillet        click near a corner, then the radius: the corner becomes a tangent arc
+//   Array         rows,columns,dx,dy (m): copies in a grid, as ARRAYRECT (dy < 0 goes south)
 //
 // Distances and bearings are worked out on a local plane around the first point (metres east and
 // north), which is accurate to a few centimetres over a town; the layers stay in WGS 84.
@@ -34,8 +35,8 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '
 type LL = [number, number];
 type XY = [number, number];
 export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet'];
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array'];
 const isModify = (t: CadTool | null): t is ModifyTool => !!t && (MODIFY as string[]).includes(t);
 /** a feature picked for Modify: its layer, id, full geometry and where it was clicked */
 interface Sel { layer: string; fid: number; feature: GeoJSON.Feature; at: LL }
@@ -258,6 +259,7 @@ export class CadDesigner {
       case 'trim': return 'Trim: click the part of a line to cut away';
       case 'extend': return 'Extend: click near the end of a line';
       case 'fillet': return !this.sel ? 'Fillet: click near a corner' : 'Fillet radius in m';
+      case 'array': return !this.sel ? 'Array: click the feature' : 'rows,columns,dx,dy in m (e.g. 2,10,20,-36)';
       default: return '';
     }
   }
@@ -421,6 +423,7 @@ export class CadDesigner {
     const last = this.pts[this.pts.length - 1];
     const s = v.replace(/\s+/g, '');
     if (this.tool === 'offset' && this.picked) return this.doOffset(Number(s));
+    if (this.tool === 'array' && this.sel) return this.doArray(s);
     if (this.sel && /^-?\d+(\.\d+)?$/.test(s)) {
       const v = Number(s);
       if (this.tool === 'rotate' && this.pts.length === 1) return this.transform(rotate(this.plane!.xy(this.pts[0]), v), false);
@@ -675,6 +678,22 @@ export class CadDesigner {
     if (!pieces.length) return this.doErase();
     const [first, ...rest] = pieces.map((l) => ({ type: 'LineString', coordinates: l.map((q) => p.ll(q)) }) as GeoJSON.Geometry);
     return this.write(first, false, rest);
+  }
+
+  /** ARRAYRECT: copies of the picked feature on a grid, the original in the first cell */
+  private async doArray(v: string) {
+    const m = v.match(/^(\d+),(\d+),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+    if (!m) return this.h.setStatus('Type rows,columns,dx,dy (e.g. 2,10,20,-36)', 5000);
+    const [rows, cols, dx, dy] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+    if (rows < 1 || cols < 1 || rows * cols > 2000) return this.h.setStatus('Between 1 and 2000 copies in all', 5000);
+    const s = this.sel!, p = this.plane!;
+    const copies: GeoJSON.Geometry[] = [];
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        if (r || c) copies.push(mapGeometry(s.feature.geometry, (q) => p.ll(translate([c * dx, r * dy])(p.xy(q)))));
+    if (!copies.length) return this.h.setStatus('Nothing to copy (1 row, 1 column)', 4000);
+    const [first, ...rest] = copies;
+    return this.write(first, true, rest);
   }
 
   private async doFillet(r: number) {

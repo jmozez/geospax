@@ -33,7 +33,7 @@ away.
   WorldClim, CHELSA, CMIP6, SoilGrids, GBIF, OBIS, iNaturalist, GADM, Copernicus DEM, GEBCO, Hansen forest
   change, ecoregions.
 - **Design and CAD.** Lines, polygons, roads from a centreline, offsets, dimensions, a traverse (COGO)
-  with its misclosure; Move, Copy, Rotate, Scale, Mirror, Trim, Extend, Fillet and Erase on any
+  with its misclosure; Move, Copy, Rotate, Scale, Mirror, Array, Trim, Extend, Fillet and Erase on any
   feature; snap, ortho and polar, typed input such as `25<90` and `@10,5`, and DXF to and from AutoCAD.
 - **Automation.** Every result is a re-runnable recipe; triggers run them when a device is plugged in, a
   folder changes, a schedule fires or a live sensor crosses a threshold.
