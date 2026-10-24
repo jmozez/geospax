@@ -47,7 +47,15 @@ STAC_ITEMS = [
                 "metadata": {"href": "BASE/stac/meta.xml", "type": "application/xml"}}}
     for d, c in (("09-01", 5.0), ("10-01", 60.0), ("08-01", 12.0))]
 
-FIXTURE = os.path.join(HERE, "fixtures", "overture-buildings.parquet")  # 3 row groups of 4 buildings
+FIXTURE = os.path.join(HERE, "fixtures", "overture-buildings.parquet")
+
+
+def gh_files():
+    """The mock GitHub repository o/r on branch main: path -> bytes."""
+    rec = lambda f, new: open(os.path.join(ROOT, "recipes", f), encoding="utf-8").read().replace(f"recipe: {f[:-5]}", f"recipe: {new}", 1).encode()
+    return {"data/plots.geojson": json.dumps(FEATURES).encode(), "data/scene.tif": open(SCENE["path"], "rb").read(),
+            "recipes/kriging.yaml": rec("interpolate-samples.yaml", "gh-kriging"), "recipes/py-stats.yaml": rec("python-spatial-stats.yaml", "gh-py-stats"),
+            "README.md": b"# data"}  # 3 row groups of 4 buildings
 
 
 def bucket(name="geo"):
@@ -129,6 +137,12 @@ class Mock(BaseHTTPRequestHandler):
     def do_HEAD(self):
         if self.object(True):
             return
+        if urlparse(self.path).path.startswith("/ghraw/o/r/main/"):
+            data = gh_files().get(unquote(urlparse(self.path).path[len("/ghraw/o/r/main/"):]))
+            self.send_response(200 if data is not None else 404)
+            self.send_header("Content-Length", str(len(data or b"")))
+            self.send_header("Accept-Ranges", "bytes")
+            return self.end_headers()
         if urlparse(self.path).path == "/stac/scene.tif":
             self.send_response(200)
             self.send_header("Content-Type", "image/tiff")
@@ -152,6 +166,44 @@ class Mock(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k.lower(): v[0] for k, v in parse_qs(u.query).items()}
         p = u.path
+        # GitHub's API (contents of a folder or a file) and raw file downloads, for the repository o/r
+        base = f"http://127.0.0.1:{self.server.server_port}"
+        if p == "/gh/repos/o/r":
+            return self.send({"default_branch": "main", "full_name": "o/r"})
+        if p.startswith("/gh/repos/o/r/contents"):
+            files = gh_files()
+            path = unquote(p[len("/gh/repos/o/r/contents"):]).strip("/")
+            if q.get("ref") != "main":
+                return self.send({"message": "No commit found for the ref"}, code=404)
+            if path in files:
+                return self.send({"type": "file", "name": path.split("/")[-1], "path": path, "size": len(files[path]), "download_url": f"{base}/ghraw/o/r/main/{path}"})
+            pre = path + "/" if path else ""
+            kids = {}
+            for f, b in files.items():
+                if f.startswith(pre):
+                    head = f[len(pre):].split("/")[0]
+                    kids[head] = "dir" if "/" in f[len(pre):] else "file"
+            if not kids:
+                return self.send({"message": "Not Found"}, code=404)
+            return self.send([{"name": n, "path": pre + n, "type": t, "size": len(files.get(pre + n, b"")), "download_url": f"{base}/ghraw/o/r/main/{pre + n}" if t == "file" else None} for n, t in sorted(kids.items())])
+        if p.startswith("/ghraw/o/r/main/"):
+            data = gh_files().get(unquote(p[len("/ghraw/o/r/main/"):]))
+            if data is None:
+                return self.send({"error": "not found"}, code=404)
+            rng = self.headers.get("Range")  # raw.githubusercontent.com serves byte ranges
+            if rng and rng.startswith("bytes="):
+                a_, b_ = rng[6:].split("-")
+                a_, b_ = int(a_), min(int(b_) if b_ else len(data) - 1, len(data) - 1)
+                self.send_response(206)
+                self.send_header("Content-Range", f"bytes {a_}-{b_}/{len(data)}")
+                chunk = data[a_:b_ + 1]
+            else:
+                self.send_response(200)
+                chunk = data
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Length", str(len(chunk)))
+            self.end_headers()
+            return self.wfile.write(chunk)
         if p.strip("/") in ("geo", "ovt"):  # S3 ListObjects (path style): one level, folders as CommonPrefixes
             objs = bucket(p.strip("/"))
             prefix = q.get("prefix", "")
@@ -397,6 +449,40 @@ def main():
         check(code == 200 and len(r.get("layers", [])) == 1, f"geoparquet: a file in a data folder becomes a layer ({code} {r})")
     finally:
         ovt.kill()
+    # GitHub: a repository is connected as owner/repo, its folders are listed (data files and recipes only),
+    # a GeoJSON becomes a layer, a GeoTIFF is read in place, a plain recipe is added to the recipes, and a
+    # recipe that runs code is only added once approved
+    gsrv = start(a.bin, data, os.path.join(tmp, "state-gh"), port + 4, extra_env={"GEOSPAX_GITHUB_API": f"{m}/gh"})
+    try:
+        gb = f"http://127.0.0.1:{port + 4}"
+        code, body, _ = call(gb, "POST", "/api/services?kind=github&url=https%3A%2F%2Fgithub.com%2Fo%2Fr")
+        svc = json.loads(body).get("service", {}) if code == 200 else {}
+        check(code == 200 and svc.get("title") == "o/r", f"github: repository connected as o/r ({code} {body[:160].decode(errors='replace')})")
+        gid = svc.get("id", "")
+        ls = json.loads(call(gb, "GET", f"/api/services/{gid}/layers")[1]).get("layers", [])
+        check([l["id"] for l in ls] == ["data", "recipes"], f"github: top folders, README left out ({[l['id'] for l in ls]})")
+        ls = json.loads(call(gb, "GET", f"/api/services/{gid}/list?path=data")[1]).get("layers", [])
+        check(sorted((l["id"], l["kind"]) for l in ls) == [("data/plots.geojson", "vector"), ("data/scene.tif", "raster")], f"github: a folder's data files ({ls})")
+        code, body, _ = call(gb, "POST", f"/api/services/{gid}/open?path=data%2Fplots.geojson")
+        r = json.loads(body) if body else {}
+        check(code == 200 and len(r.get("layers", [])) == 1, f"github: a GeoJSON becomes a layer ({code} {r})")
+        code, body, _ = call(gb, "POST", f"/api/services/{gid}/open?path=data%2Fscene.tif")
+        r = json.loads(body) if body else {}
+        check(code == 200 and len(r.get("rasters", [])) == 1, f"github: a GeoTIFF goes on the map ({code} {r})")
+        code, body, _ = call(gb, "POST", f"/api/services/{gid}/open?path=recipes%2Fkriging.yaml")
+        r = json.loads(body) if body else {}
+        check(code == 200 and (r.get("recipe") or {}).get("id") == "gh-kriging", f"github: a recipe is added ({code} {str(r)[:160]})")
+        code, body, _ = call(gb, "POST", f"/api/services/{gid}/open?path=recipes%2Fpy-stats.yaml")
+        check(code == 502 and b"runs Python or R code" in body, f"github: a recipe that runs code needs approval ({code} {body[:120]})")
+        code, body, _ = call(gb, "POST", f"/api/services/{gid}/open?path=recipes%2Fpy-stats.yaml&approve=code")
+        check(code == 200, f"github: ... and is added once approved ({code} {body[:160]})")
+        ids = [r["id"] for r in json.loads(call(gb, "GET", "/api/recipes")[1]).get("recipes", [])]
+        check("gh-kriging" in ids and "gh-py-stats" in ids, "github: both recipes are listed")
+        code, _, _ = call(gb, "GET", f"/api/services/{gid}/list?path=..%2Fx")
+        check(code == 502, f"github: paths outside the repository are refused ({code})")
+    finally:
+        gsrv.kill()
+        time.sleep(0.5)
     # Python environments: a project's .venv in a data folder is found next to the system Python, its
     # packages are read, an arbitrary program is refused, and choosing it is kept for the next start
     pdata = os.path.join(tmp, "pydata")

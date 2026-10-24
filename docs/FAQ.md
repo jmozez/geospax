@@ -80,6 +80,15 @@ cloud storage, fetching only the parts that cover your area, and adds the layer 
 `~/GeoSpaX/Data/.geospax/overture/`). Overture data is open (ODbL for most themes, CDLA for some); cite it
 as "© OpenStreetMap contributors, Overture Maps Foundation".
 
+### Can I open data or recipes from a GitHub repository?
+
+Yes. In the **Explorer**, under *Web services*, press **＋ Add**, choose **GitHub repository** and type
+`owner/repository` (or paste its github.com link, also to a branch or a folder). Open its folders and click a
+file: GeoTIFFs are read in place, vector files are copied and added as layers, and a recipe (`.yaml`) is added
+to **GeoSpaX › Recipes**. A recipe that runs Python or R code asks first: only add those from people you
+trust. Without a token GitHub allows about 60 folder listings an hour; for more, and for private
+repositories, start GeoSpaX with `GITHUB_TOKEN` set (for example `GITHUB_TOKEN=$(gh auth token)`).
+
 ### Which R and Python does GeoSpaX use, and how do I change it?
 
 Open **Explorer › GeoSpaX › R & Python**. *R* shows the version and, for each kit (spatial data, maps,

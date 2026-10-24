@@ -194,11 +194,17 @@ impl Engine {
                 }
             }
             // cloud storage: one folder of a connection, and a file of it put on the map
-            ("GET", ["api", "services", id, "list"]) => match crate::services::get(self, id).and_then(|s| crate::cloud::list(&s, &param(q, "path").unwrap_or_default())) {
+            ("GET", ["api", "services", id, "list"]) => match crate::services::get(self, id).and_then(|s| {
+                let p = param(q, "path").unwrap_or_default();
+                if s["kind"] == "github" { crate::github::list(&s, &p) } else { crate::cloud::list(&s, &p) }
+            }) {
                 Ok(v) => ApiResponse::json(200, &json!({ "layers": v })),
                 Err(e) => ApiResponse::error(502, e),
             },
-            ("POST", ["api", "services", id, "open"]) => match crate::services::get(self, id).and_then(|s| crate::cloud::open(self, &s, &param(q, "path").unwrap_or_default())) {
+            ("POST", ["api", "services", id, "open"]) => match crate::services::get(self, id).and_then(|s| {
+                let p = param(q, "path").unwrap_or_default();
+                if s["kind"] == "github" { crate::github::open(self, &s, &p, param(q, "approve").as_deref() == Some("code")) } else { crate::cloud::open(self, &s, &p) }
+            }) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(502, e),
             },
