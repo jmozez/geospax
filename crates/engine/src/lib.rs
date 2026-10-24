@@ -498,6 +498,7 @@ impl Engine {
     /// (device, folder, schedule, after). Adapters call this once after wrapping the engine in an `Arc`.
     pub fn start_services(self: &Arc<Self>) {
         self.automation.start(self); // hooks the device hub before its first scan
+        plugins::restore_results(self); // plugin tools' earlier results, as recipe outputs are
         self.devices.start(self.clone());
         self.phone.start_if_enabled(self); // only if switched on before (or --phone)
     }
