@@ -38,8 +38,8 @@ In the **Explorer** pane (left, next to Contents) press **Connect a folder…** 
 right-click in the Explorer), choose a folder anywhere on your computer and press **Connect this folder**. It
 appears under *Folders*, stays there the next time you start GeoSpaX, and its files go on the map with a
 double-click or **+**. The **✕** next to it removes the connection; the folder and its files are not touched.
-When the web edition is opened to other devices (`--host 0.0.0.0`), folders cannot be connected from the
-app, so a phone on the Wi-Fi can never list your computer's folders; start it with `--data <folder>` instead.
+When the web edition is opened to other devices with `--restricted` (for a class or a group), folders cannot
+be connected from the app; start it with `--data <folder>` instead.
 
 ### How do I add a WMS, WMTS, WFS or ArcGIS service?
 
@@ -170,8 +170,17 @@ No. Everything runs on your computer. The web edition answers only this computer
 
 ### How do I open GeoSpaX on my phone?
 
-Start the web edition with `--host 0.0.0.0`, then open the link it prints (with its access token) on the
-phone, on the same Wi-Fi. To send photos and tracks from the phone, use **Data › Phone over Wi-Fi**.
+On the computer, start the web edition open to the Wi-Fi with a password of your choice:
+
+```sh
+geospax-server --host 0.0.0.0 --token pick-a-password
+```
+
+Find the computer's address (`hostname -I` on Linux, `ipconfig` on Windows) and open
+`http://<address>:8080/?token=pick-a-password` on the phone, on the same Wi-Fi (on Fedora, allow the port once
+with `sudo firewall-cmd --add-port=8080/tcp`). With the password the phone can do everything the computer can:
+Explorer folders, web services, cloud storage, STAC and Overture downloads. Sharing it with a class? Add
+`--restricted` to turn those off. To send photos and tracks from the phone, use **Data › Phone over Wi-Fi**.
 
 ### Something does not work. How do I report it?
 
