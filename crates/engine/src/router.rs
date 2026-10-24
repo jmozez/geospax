@@ -139,7 +139,7 @@ impl Engine {
             ("GET", ["api", "services"]) => ApiResponse::json(200, &crate::services::list(self)),
             ("POST", ["api", "services"]) => {
                 if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
-                    return ApiResponse::error(403, "GeoSpaX is open to other devices, so web services can only be added on a copy started for this computer alone");
+                    return ApiResponse::error(403, "this GeoSpaX was started with --restricted, so web services cannot be added from here");
                 }
                 let opts = json!({ "public": param(q, "public").map(|v| v != "0" && v != "false"), "endpoint": param(q, "endpoint"), "region": param(q, "region"), "account": param(q, "account") });
                 match crate::services::add(self, &param(q, "kind").unwrap_or_default(), &param(q, "url").unwrap_or_default(), param(q, "title").as_deref(), &opts) {
@@ -168,7 +168,7 @@ impl Engine {
                 let bbox = (b.len() == 4).then(|| [b[0], b[1], b[2], b[3]]);
                 let href = v["href"].as_str().unwrap_or("");
                 if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
-                    return ApiResponse::error(403, "this GeoSpaX is open to other devices: it does not fetch web addresses for them");
+                    return ApiResponse::error(403, "this GeoSpaX was started with --restricted: it does not fetch web addresses");
                 }
                 if !(href.starts_with("https://") || href.starts_with("http://")) {
                     return ApiResponse::error(400, "the asset is not a web address");
@@ -182,7 +182,7 @@ impl Engine {
             ("GET", ["api", "overture"]) => ApiResponse::json(200, &json!({ "themes": crate::geoparquet::OVERTURE.iter().map(|t| json!({ "id": t.0, "title": t.1 })).collect::<Vec<_>>() })),
             ("POST", ["api", "overture"]) => {
                 if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
-                    return ApiResponse::error(403, "this GeoSpaX is open to other devices: it does not download for them");
+                    return ApiResponse::error(403, "this GeoSpaX was started with --restricted: it does not download");
                 }
                 let b: Vec<f64> = param(q, "bbox").unwrap_or_default().split(',').filter_map(|x| x.trim().parse().ok()).collect();
                 if b.len() != 4 {

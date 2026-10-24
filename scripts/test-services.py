@@ -9,8 +9,9 @@ with byte ranges), and an S3 bucket (ListObjects with folders; objects with byte
 back through the engine as images, features are downloaded for an area into a layer on the map, a
 broken address is refused with a reason, a STAC collection is searched by area, date and cloud and its
 asset is streamed and downloaded cut to an area (a job with the transfer gauge), cloud storage is browsed
-folder by folder and its GeoTIFF and GeoJSON go on the map, and a server open to other devices refuses
-new services.
+folder by folder and its GeoTIFF and GeoJSON go on the map, and a server open to other devices
+lets whoever has its token add services, refuses requests without it, and refuses new services when
+started with --restricted.
 
     python3 scripts/test-services.py [--bin target/release/geospax-server]
 """
@@ -231,11 +232,11 @@ def call(base, method, path, timeout=60, body=None):
         return e.code, e.read(), e.headers.get("Content-Type", "")
 
 
-def start(bin, data, state, port, host="127.0.0.1", extra_env=None):
+def start(bin, data, state, port, host="127.0.0.1", extra_env=None, restricted=False):
     env = dict(os.environ, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost", **(extra_env or {}))
     args = [bin, "--data", data, "--state-dir", state, "--port", str(port), "--no-device-mounts", "--no-triggers"]
     if host != "127.0.0.1":
-        args += ["--host", host, "--token", "t0ken"]
+        args += ["--host", host, "--token", "t0ken"] + (["--restricted"] if restricted else [])
     p = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
     for _ in range(60):
         try:
@@ -396,18 +397,26 @@ def main():
         check(code == 200 and len(r.get("layers", [])) == 1, f"geoparquet: a file in a data folder becomes a layer ({code} {r})")
     finally:
         ovt.kill()
-    # open to other devices: no new services (the engine would fetch any address for them)
-    shared = start(a.bin, data, os.path.join(tmp, "state2"), port + 1, host="0.0.0.0")
-    try:
-        req = urllib.request.Request(f"http://127.0.0.1:{port + 1}/api/services?kind=xyz&url=http%3A%2F%2Fx%2F%7Bz%7D", method="POST", headers={"Authorization": "Bearer t0ken"})
+    # open to other devices: the token is the password, and whoever has it can add services; without it
+    # nothing is answered; started with --restricted, new services are refused even with the token
+    def post(p, path, token):
+        req = urllib.request.Request(f"http://127.0.0.1:{p}{path}", method="POST", headers={"Authorization": f"Bearer {token}"} if token else {})
         try:
-            urllib.request.urlopen(req, timeout=10)
-            code = 200
+            urllib.request.urlopen(req, timeout=20)
+            return 200
         except urllib.error.HTTPError as e:
-            code = e.code
-        check(code == 403, f"a server open to other devices refuses new services ({code})")
-    finally:
-        shared.kill()
+            return e.code
+    add_xyz = f"/api/services?kind=xyz&url={quote(m + '/xyz/{z}/{x}/{y}.png', safe='')}"
+    for restricted, label in ((False, "open to other devices"), (True, "--restricted")):
+        srv2 = start(a.bin, data, os.path.join(tmp, f"state-r{int(restricted)}"), port + 1, host="0.0.0.0", restricted=restricted)
+        try:
+            code = post(port + 1, add_xyz, "t0ken")
+            check(code == (403 if restricted else 200), f"{label}: with the token, a new service is {'refused' if restricted else 'added'} ({code})")
+            code = post(port + 1, add_xyz, None)
+            check(code == 401, f"{label}: without the token, nothing is answered ({code})")
+        finally:
+            srv2.kill()
+            time.sleep(0.5)
     print(f"\n{'PASS' if not failed else 'FAIL'}: {len(failed)} failed")
     sys.exit(1 if failed else 0)
 
