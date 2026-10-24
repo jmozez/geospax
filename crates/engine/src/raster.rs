@@ -1064,6 +1064,16 @@ impl RasterHandle {
         Ok(png)
     }
 
+    /// One 256 × 256 Web Mercator tile in the raster's style: rasters stay sharp at every zoom (the
+    /// single overlay image is capped in size, so a large scene would blur at street level).
+    pub fn tile_png(&self, z: u32, x: u32, y: u32) -> Result<Vec<u8>, String> {
+        const HALF: f64 = 20037508.342789244;
+        let size = 2.0 * HALF / 2f64.powi(z as i32);
+        let (minx, maxy) = (-HALF + x as f64 * size, HALF - y as f64 * size);
+        let rgba = self.render_rgba(&self.style(), [minx, maxy - size, minx + size, maxy], 256, 256)?;
+        encode_png(rgba, 256, 256)
+    }
+
     pub fn json(&self) -> Value {
         let i = &self.info;
         let style = self.style();
@@ -1077,6 +1087,7 @@ impl RasterHandle {
             "stats": i.stats.iter().map(|s| json!({ "min": s.min, "max": s.max, "mean": s.mean, "std": s.std, "p2": s.p2, "p98": s.p98, "valid": s.valid })).collect::<Vec<_>>(),
             "legend": legend(i, &style), "why": why, "style": style,
             "overlay": { "url": format!("/api/rasters/{}/overlay.png?v={v}", i.id), "coordinates": [[b[0], b[3]], [b[2], b[3]], [b[2], b[1]], [b[0], b[1]]] },
+            "tiles": format!("/api/rasters/{}/tiles/{{z}}/{{x}}/{{y}}.png?v={v}", i.id),
         })
     }
 }
