@@ -57,7 +57,7 @@ fn save_connections(engine: &Engine) -> Result<(), String> {
     std::fs::write(connections_file(&engine.state_dir), serde_json::to_vec_pretty(&list).unwrap()).map_err(|e| e.to_string())
 }
 
-const SHARED: &str = "GeoSpaX is open to other devices (started with --host), so folders can only be connected on a copy started for this computer alone; or start it with --data <folder>";
+const SHARED: &str = "this GeoSpaX was started with --restricted, so folders cannot be connected from here; start it without --restricted, or with --data <folder>";
 
 /// Connect a folder: it shows in the Explorer from now on (and after a restart).
 pub fn connect(engine: &Engine, path: &str) -> Result<Value, String> {

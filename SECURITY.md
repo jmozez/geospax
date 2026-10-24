@@ -15,6 +15,11 @@ The access token comes from `--token T`, the `GEOSPAX_TOKEN` environment variabl
 is generated at start (32 random bytes) and printed as a link: `http://host:8080/?token=…`. Opening the
 link stores the token in an `HttpOnly`, `SameSite=Strict` cookie. Scripts send `Authorization: Bearer <token>`.
 
+Whoever has the token can use everything, as on the host computer: connect its folders in the Explorer,
+add web services and cloud storage, and download (STAC, Overture Maps, online data), all of which make the
+host fetch web addresses. Start with `--restricted` (or `GEOSPAX_RESTRICTED=1`) when the token is shared with a
+class or a group: folder connections, new web services and downloads are then refused.
+
 Always open: the static web UI files, `GET /api/health`, and webhook URLs (`/api/hooks/<secret>`), each of
 which carries its own secret.
 

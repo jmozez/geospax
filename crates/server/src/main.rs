@@ -31,6 +31,8 @@ struct Args {
     web: PathBuf,
     gzip: bool,
     token: Option<String>,
+    /// open to other devices with the old limits: no folder connections, web services or downloads
+    restricted: bool,
 }
 
 fn parse_args() -> Args {
@@ -50,6 +52,7 @@ fn parse_args_from(argv: Vec<String>) -> Args {
         web: "web/dist".into(),
         gzip: true,
         token: std::env::var("GEOSPAX_TOKEN").ok().filter(|t| !t.is_empty()),
+        restricted: std::env::var("GEOSPAX_RESTRICTED").is_ok_and(|v| v == "1"),
     };
     let mut it = argv.into_iter();
     let mut web_given = false;
@@ -59,6 +62,7 @@ fn parse_args_from(argv: Vec<String>) -> Args {
             "--data" => a.cfg.data.push(v().into()),
             "--host" => a.host = v(),
             "--token" => a.token = Some(v()),
+            "--restricted" => a.restricted = true,
             "--port" => a.port = v().parse().expect("port"),
             "--web" => {
                 a.web = v().into();
@@ -161,7 +165,10 @@ options:
   --host ADDR            listen address (default 127.0.0.1: this computer only)    --port N   (default 8080)
                          Any other address (e.g. 0.0.0.0) requires an access token; one is generated and
                          printed as a login link unless given
-  --token T              access token for the API (or GEOSPAX_TOKEN); required by every client
+  --token T              access token for the API (or GEOSPAX_TOKEN); required by every client. Whoever has
+                         it can use everything, as on this computer (folders, web services, downloads)
+  --restricted           with another address: no folder connections, web services or downloads, for a
+                         copy shared with a class or group (or GEOSPAX_RESTRICTED=1)
   --web DIR              web UI folder (default web/dist, or the installed copy)
   --inbox DIR            drop folder: files put here are mapped by the matching recipe (repeatable)
   --watch DIR            treat a folder as a device (repeatable)
@@ -363,8 +370,10 @@ fn main() {
 async fn serve(args: Args) {
     let engine = Arc::new(Engine::open(args.cfg.clone()).expect("failed to open engine"));
     engine.start_services(); // device watcher + live GNSS sources
-    // open to other devices: no folder connections from the Explorer (they could list any folder)
-    engine.shared.store(!auth::is_loopback(&args.host), std::sync::atomic::Ordering::Relaxed);
+    // Every client from another device must present the token, and whoever has it is trusted as on this
+    // computer (it can already run recipes and install plugins). --restricted keeps a copy shared with a
+    // class or group from connecting folders, adding web services or downloading.
+    engine.shared.store(args.restricted && !auth::is_loopback(&args.host), std::sync::atomic::Ordering::Relaxed);
     println!(
         "engine: {} layers, reader={}, state={}",
         engine.layers().len(),

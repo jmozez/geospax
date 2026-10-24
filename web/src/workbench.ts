@@ -803,7 +803,7 @@ export class Workbench {
   private browseCache = new Map<string, BrowseListing>();
   private browseLoading = false;
   private browseRoots: { title: string; path: string; about: string; connection?: boolean }[] | null = null;
-  /** false when GeoSpaX is open to other devices: no folder connections then */
+  /** false when GeoSpaX was started with --restricted: no folder connections or web services then */
   private canConnect = true;
   /** containers (GeoPackages, zips) opened in the tree, and what is inside them */
   private insideCache = new Map<string, InsideItem[] | string>();

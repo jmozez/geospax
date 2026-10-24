@@ -9,6 +9,9 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Expanded web services in the Explorer no longer fold up whenever a layer is added.
 
 ### Changed
+- **From a phone or another computer, the password (access token) unlocks everything:** Explorer folder
+  connections, web services, cloud storage, STAC and Overture downloads now work there too. Start with
+  `--restricted` to keep them off when sharing GeoSpaX with a class or group.
 - The **Catalog** pane is now the **Explorer** (as in VS Code; ArcGIS Pro calls it Catalog, QGIS Browser).
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
