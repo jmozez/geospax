@@ -26,6 +26,8 @@
 //   Polar array   the centre, then items[,angle] (default 360°): copies turned around it (ARRAYPOLAR)
 //   Explode       a polygon becomes its outline as lines, a multi-part feature its parts (EXPLODE)
 //   Join          click two lines whose ends meet (within 1 m): they become one line (JOIN)
+//   Break         click a line, then the point to split it at: two lines (BREAK at point)
+//   Lengthen      click near an end, then +5 / -3 (m) or =40 for the total length (LENGTHEN)
 //   Divide        a number of equal parts: points on the line between them (DIVIDE)
 //   Measure       a distance: a point every so many metres along the line (MEASURE), with its chainage
 //   Block         click a feature (where you click is its base point), name it: saved for Insert
@@ -36,15 +38,15 @@
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { CadBlock } from './symbology';
-import { divide, extend, fillet, join, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
+import { breakAt, divide, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 type LL = [number, number];
 type XY = [number, number];
 export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'point' | 'text' | 'dimension' | 'offset' | 'road' | 'insert' | ModifyTool;
-export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join';
-const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join'];
+export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'arraypolar' | 'divide' | 'measure' | 'block' | 'explode' | 'join' | 'break' | 'lengthen';
+const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'explode', 'join', 'break', 'lengthen'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
 type Block = CadBlock;
 /** where blocks lived before they were kept in the project: moved over the first time */
@@ -314,6 +316,8 @@ export class CadDesigner {
       case 'arraypolar': return !this.sel ? 'Polar array: click the feature' : n === 0 ? 'Centre of the array' : 'items[,angle to fill] (e.g. 8 or 6,180)';
       case 'block': return 'Block: click the feature; the click is its base point';
       case 'explode': return 'Explode: click a polygon or multi-part feature';
+      case 'break': return !this.sel ? 'Break: click the line' : 'Point to break it at';
+      case 'lengthen': return !this.sel ? 'Lengthen: click near the end to change' : '+metres, -metres, or =total length';
       case 'join': return !this.sel ? 'Join: click the first line' : 'Join: click the line to join to it';
       case 'insert': return this.inserting ? `Insert ${this.inserting.block.name}: click where it goes (angle ${this.inserting.angle}°; type another to turn it) · Enter ends` : 'Insert: no blocks yet';
       case 'measure': return !this.sel ? 'Measure: click the line (near the end to start from)' : 'Distance between points in m';
@@ -466,6 +470,7 @@ export class CadDesigner {
       case 'line': case 'dimension': case 'rect': if (n === 2) await this.commit(); break;
       case 'circle': if (n === 2) await this.commit(); break;
       case 'insert': await this.placeBlock(p); break;
+      case 'break': if (n === 1) await this.doBreak(p); break;
       case 'move': case 'copy': if (n === 2) await this.transform(translate(this.diff(this.pts[0], this.pts[1])), this.tool === 'copy'); break;
       case 'mirror': if (n === 2) await this.transform(mirror(this.plane.xy(this.pts[0]), this.plane.xy(this.pts[1])), true); break;
       case 'rotate': if (n === 2) {
@@ -483,6 +488,7 @@ export class CadDesigner {
     const s = v.replace(/\s+/g, '');
     if (this.tool === 'offset' && this.picked) return this.doOffset(Number(s));
     if (this.tool === 'array' && this.sel) return this.doArray(s);
+    if (this.tool === 'lengthen' && this.sel) return this.doLengthen(s);
     if (this.tool === 'arraypolar' && this.sel && this.pts.length === 1) return this.doPolar(s);
     if (this.tool === 'insert' && this.inserting && /^-?\d+(\.\d+)?$/.test(s)) {
       this.inserting.angle = Number(s);
@@ -884,6 +890,32 @@ export class CadDesigner {
     }
     this.sel = null;
     this.draw();
+  }
+
+  private selLine(): XY[] | null {
+    const g = this.sel!.feature.geometry, p = this.plane!;
+    return g.type === 'LineString' ? (g.coordinates as LL[]).map((q) => p.xy(q)) : null;
+  }
+
+  private async doBreak(at: LL) {
+    const line = this.selLine(), p = this.plane!;
+    if (!line) return this.h.setStatus('Break works on single lines', 4000);
+    const parts = breakAt(line, p.xy(at));
+    if (!parts) return this.h.setStatus('That is at the end of the line: pick a point along it', 4000);
+    const [a, b] = parts.map((l) => ({ type: 'LineString', coordinates: l.map((q) => p.ll(q)) }) as GeoJSON.Geometry);
+    return this.write(a, false, [b]);
+  }
+
+  private async doLengthen(v: string) {
+    const line = this.selLine(), p = this.plane!;
+    if (!line) return this.h.setStatus('Lengthen works on single lines', 4000);
+    const m = v.match(/^([+=-]?)(\d+(?:\.\d+)?)$/);
+    if (!m) return this.h.setStatus('Type +5, -3 or =40 (metres)', 5000);
+    const L = line.reduce((t, q, i) => (i ? t + Math.hypot(q[0] - line[i - 1][0], q[1] - line[i - 1][1]) : 0), 0);
+    const delta = m[1] === '=' ? Number(m[2]) - L : m[1] === '-' ? -Number(m[2]) : Number(m[2]);
+    const out = lengthen(line, p.xy(this.sel!.at), delta);
+    if (!out) return this.h.setStatus('That would leave nothing of the line', 4000);
+    return this.write({ type: 'LineString', coordinates: out.map((q) => p.ll(q)) }, false);
   }
 
   /** JOIN: the second line clicked is added onto the first (ends within 1 m) and removed */
