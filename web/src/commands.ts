@@ -814,6 +814,21 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'insert' })); },
   },
   {
+    id: 'design.union', tab: 'design', group: 'Modify', title: 'Union', icon: 'copy',
+    hint: 'Two shapes joined into one, as AutoCAD UNION',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'union' })); },
+  },
+  {
+    id: 'design.subtract', tab: 'design', group: 'Modify', title: 'Subtract', icon: 'copy',
+    hint: 'The second shape cut out of the first, as AutoCAD SUBTRACT',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'subtract' })); },
+  },
+  {
+    id: 'design.intersect', tab: 'design', group: 'Modify', title: 'Intersect', icon: 'copy',
+    hint: 'Only where two shapes overlap, as AutoCAD INTERSECT',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'intersect' })); },
+  },
+  {
     id: 'design.arraypolar', tab: 'design', group: 'Modify', title: 'Polar array', icon: 'rotate',
     hint: 'Copies of a feature turned around a centre (posts round a roundabout), as AutoCAD ARRAYPOLAR',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'arraypolar' })); },
@@ -877,6 +892,16 @@ export const COMMANDS: Command[] = [
     id: 'design.dimension', tab: 'design', group: 'Survey', title: 'Dimension', icon: 'ruler',
     hint: 'A measured dimension line with its length as a label',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dimension' })); },
+  },
+  {
+    id: 'design.dimangle', tab: 'design', group: 'Survey', title: 'Angle', icon: 'ruler',
+    hint: 'An angular dimension: the vertex, then a point on each side, as AutoCAD DIMANGULAR',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dimangle' })); },
+  },
+  {
+    id: 'design.leader', tab: 'design', group: 'Survey', title: 'Leader', icon: 'arrowRight',
+    hint: 'A note with an arrow pointing at something, as AutoCAD QLEADER',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'leader' })); },
   },
   {
     id: 'design.traverse', tab: 'design', group: 'Survey', title: 'Traverse (COGO)', icon: 'calc', big: true,
