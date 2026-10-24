@@ -1415,4 +1415,8 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .cad-modes { display: flex; gap: 4px; }
 .cad-modes button { padding: 2px 8px; }
 .cad-modes button.on { background: var(--accent); color: #111; border-color: var(--accent); }
+.cad-layer-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cad-layer-table th, .cad-layer-table td { padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--line, #2a2f36); }
+.cad-layer-table input[type=number] { width: 64px; }
+.cad-layer-table input[type=color] { width: 36px; height: 22px; padding: 0; border: 0; background: none; }
 .cad-trav textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
