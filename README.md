@@ -49,6 +49,12 @@ tank and dimensions, all typed into the command line. *Export DXF* hands it to A
 
 <p align="center"><img src="docs/assets/tour-design.png" alt="GeoSpaX Design tab: a 76-lot subdivision plan over Esri World Imagery of Lae" width="900" /></p>
 
+**Rivers and catchments.** The Markham valley above Lae from the Copernicus 30 m DEM (1,547 × 1,253
+cells): GeoSpaX's `hydro.network` fills depressions, routes flow (D8), extracts 879 stream links coloured
+by Strahler order and outlines 13 drainage basins, in 1.5 seconds, over Esri World Imagery.
+
+<p align="center"><img src="docs/assets/tour-hydrology.png" alt="GeoSpaX: Strahler-ordered streams and drainage basins of the Markham valley over Esri World Imagery" width="900" /></p>
+
 ## Download
 
 | System | Installer |
