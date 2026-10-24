@@ -70,8 +70,9 @@ pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value
     if !block_list.is_empty() {
         let bl = ds.create_layer(LayerOptions { name: "blocks", srs: None, ty: OGRwkbGeometryType::wkbUnknown, options: None }).map_err(e)?;
         let _ = FieldDefn::new("Layer", OGRFieldType::OFTString).map_err(e)?.add_to_layer(&bl);
-        let _ = FieldDefn::new("BlockName", OGRFieldType::OFTString).map_err(e)?.add_to_layer(&bl);
-        let bi = bl.defn().field_index("BlockName").map_err(e)?;
+        // GDAL names a definition's field "Block"; the INSERTs that use it carry "BlockName"
+        let _ = FieldDefn::new("Block", OGRFieldType::OFTString).map_err(e)?.add_to_layer(&bl);
+        let bi = bl.defn().field_index("Block").map_err(e)?;
         let li = bl.defn().field_index("Layer").map_err(e)?;
         for b in block_list {
             let Some(name) = b["name"].as_str().map(block_name) else { continue };
