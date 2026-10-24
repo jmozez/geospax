@@ -89,6 +89,15 @@ to **GeoSpaX › Recipes**. A recipe that runs Python or R code asks first: only
 trust. Without a token GitHub allows about 60 folder listings an hour; for more, and for private
 repositories, start GeoSpaX with `GITHUB_TOKEN` set (for example `GITHUB_TOKEN=$(gh auth token)`).
 
+### Can GeoSpaX read from a PostGIS database?
+
+Yes. In the **Explorer**, under *Web services*, press **＋ Add**, choose **PostGIS database** and type
+`postgresql://user@host:5432/dbname` (add `?sslmode=require` for a cloud database). Put the password in
+`~/.pgpass` (one line: `host:port:dbname:user:password`, then `chmod 600 ~/.pgpass`), the same file psql and
+QGIS use; GeoSpaX never stores passwords and refuses an address that contains one. Open the connection to
+see the spatial tables and click one to put it on the map: it is copied into a GeoPackage under
+`~/GeoSpaX/Data/.geospax/databases/`, so it keeps working offline and can be styled, analysed and exported.
+
 ### Which R and Python does GeoSpaX use, and how do I change it?
 
 Open **Explorer › GeoSpaX › R & Python**. *R* shows the version and, for each kit (spatial data, maps,

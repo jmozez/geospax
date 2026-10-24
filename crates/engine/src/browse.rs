@@ -303,7 +303,7 @@ pub fn inside(engine: &Engine, path: &str) -> Result<Value, String> {
     Ok(json!({ "path": path, "items": items }))
 }
 
-fn geometry_word(t: &str) -> &'static str {
+pub(crate) fn geometry_word(t: &str) -> &'static str {
     // OGRwkbGeometryType as a number (2.5D and ISO Z/M variants folded): 1/4 points, 2/5 lines, 3/6 polygons
     if let Ok(n) = t.parse::<u64>() {
         return match (n & 0x7fff_ffff) % 1000 {

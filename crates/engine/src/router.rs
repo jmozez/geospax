@@ -196,14 +196,26 @@ impl Engine {
             // cloud storage: one folder of a connection, and a file of it put on the map
             ("GET", ["api", "services", id, "list"]) => match crate::services::get(self, id).and_then(|s| {
                 let p = param(q, "path").unwrap_or_default();
-                if s["kind"] == "github" { crate::github::list(&s, &p) } else { crate::cloud::list(&s, &p) }
+                match s["kind"].as_str() {
+                    Some("github") => crate::github::list(&s, &p),
+                    Some("postgis") => crate::db::list(&s),
+                    _ => crate::cloud::list(&s, &p),
+                }
             }) {
                 Ok(v) => ApiResponse::json(200, &json!({ "layers": v })),
                 Err(e) => ApiResponse::error(502, e),
             },
             ("POST", ["api", "services", id, "open"]) => match crate::services::get(self, id).and_then(|s| {
                 let p = param(q, "path").unwrap_or_default();
-                if s["kind"] == "github" { crate::github::open(self, &s, &p, param(q, "approve").as_deref() == Some("code")) } else { crate::cloud::open(self, &s, &p) }
+                match s["kind"].as_str() {
+                    Some("github") => crate::github::open(self, &s, &p, param(q, "approve").as_deref() == Some("code")),
+                    Some("postgis") => {
+                        // a table: all of it, or the part in the map view (bbox=w,s,e,n)
+                        let b: Vec<f64> = param(q, "bbox").unwrap_or_default().split(',').filter_map(|x| x.parse().ok()).collect();
+                        crate::db::open_table(self, &s, &p, (b.len() == 4).then(|| [b[0], b[1], b[2], b[3]]))
+                    }
+                    _ => crate::cloud::open(self, &s, &p),
+                }
             }) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(502, e),
