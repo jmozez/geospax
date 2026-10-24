@@ -80,7 +80,7 @@ tools:
       - { name: "background", label: "Background points", kind: number, default: 5000, description: "Random cells for presence-background fitting and evaluation." }
       - { name: "folds", label: "Cross-validation folds", kind: number, default: 5 }
       - { name: "future", label: "Future rasters (optional)", kind: rasters, description: "The same variables for a future climate (e.g. Data › Future climate, CMIP6), in the same order: adds future suitability and range gain / loss." }
-      - { name: "block_deg", label: "Block size (°, blank = automatic)", kind: number, description: "Spatial blocks for cross-validation, in degrees; automatic: about a sixth of the study area’s width, so every fold gets blocks." }
+      - { name: "block_deg", label: "Block size (°, blank = automatic)", kind: number, description: "Spatial blocks for cross-validation, in degrees; automatic: a sixth of the study area’s width, made smaller until the presences fall in at least twice as many blocks as folds." }
   - id: "priority-sites"
     name: "Unprotected priority sites"
     summary: "High-scoring habitat points that fall outside every protected area."
