@@ -32,6 +32,7 @@
 // north), which is accurate to a few centimetres over a town; the layers stay in WGS 84.
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
+import type { CadBlock } from './symbology';
 import { divide, extend, fillet, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -42,11 +43,9 @@ export type CadTool = 'line' | 'polyline' | 'polygon' | 'rect' | 'circle' | 'poi
 export type ModifyTool = 'move' | 'copy' | 'rotate' | 'scale' | 'mirror' | 'erase' | 'trim' | 'extend' | 'fillet' | 'array' | 'divide' | 'measure' | 'block';
 const MODIFY: ModifyTool[] = ['move', 'copy', 'rotate', 'scale', 'mirror', 'erase', 'trim', 'extend', 'fillet', 'array', 'divide', 'measure', 'block'];
 /** a saved block: a geometry in metres around its base point, and the layer and attributes it came with */
-interface Block { name: string; layer: string; geometry: GeoJSON.Geometry; properties: Record<string, unknown> }
-const BLOCKS_KEY = 'geospax.cad.blocks';
-const loadBlocks = (): Block[] => {
-  try { return JSON.parse(localStorage.getItem(BLOCKS_KEY) ?? '[]'); } catch { return []; }
-};
+type Block = CadBlock;
+/** where blocks lived before they were kept in the project: moved over the first time */
+const OLD_BLOCKS_KEY = 'geospax.cad.blocks';
 const isModify = (t: CadTool | null): t is ModifyTool => !!t && (MODIFY as string[]).includes(t);
 /** one Design edit, as it can be undone: a feature added, changed or deleted */
 type Op =
@@ -62,6 +61,9 @@ export interface CadHost {
   layers: () => LayerInfo[];
   /** a layer's data changed (re-read it and redraw) */
   changed: (id: string, info?: LayerInfo) => Promise<void>;
+  /** the project's blocks (Design › Block / Insert), and saving a new list */
+  blocks: () => CadBlock[];
+  setBlocks: (b: CadBlock[]) => void;
   /** show a field as labels on a layer (dimensions, annotations) */
   labels: (id: string, field: string, placement: 'point' | 'line' | 'line-center') => void;
   /** a new design layer's drafting look: colour, hollow or filled, line width */
@@ -248,7 +250,7 @@ export class CadDesigner {
     m.getCanvas().style.cursor = 'crosshair';
     this.ensurePreview();
     if (tool === 'insert') {
-      const blocks = loadBlocks();
+      const blocks = this.loadBlocks();
       if (!blocks.length) {
         this.stop();
         return this.h.setStatus('No blocks yet: make one with Block (click a feature, give it a name)', 6000);
@@ -820,7 +822,22 @@ export class CadDesigner {
     return this.write(first, false, rest);
   }
 
-  /** BLOCK: the picked feature in metres around the click, kept in this browser under a name */
+  /** the project's blocks; ones saved in this browser by an older version are moved into the project */
+  private loadBlocks(): Block[] {
+    const blocks = this.h.blocks();
+    try {
+      const old = JSON.parse(localStorage.getItem(OLD_BLOCKS_KEY) ?? '[]') as Block[];
+      if (old.length) {
+        const merged = [...blocks, ...old.filter((o) => !blocks.some((b) => b.name === o.name))];
+        this.h.setBlocks(merged);
+        localStorage.removeItem(OLD_BLOCKS_KEY);
+        return merged;
+      }
+    } catch { /* no browser storage */ }
+    return blocks;
+  }
+
+  /** BLOCK: the picked feature in metres around the click, kept in the project under a name */
   private makeBlock() {
     const s = this.sel!, p = this.plane!;
     const name = window.prompt('Block name (e.g. house 10x12)', '')?.trim();
@@ -832,9 +849,9 @@ export class CadDesigner {
     const props = Object.fromEntries(Object.entries(s.feature.properties ?? {}).filter(([k]) => !/^(fid|ogc_fid)$/i.test(k)));
     // the plane is centred on the click, so plane metres are offsets from the base point
     const geometry = mapGeometry(s.feature.geometry, (q) => p.xy(q));
-    const blocks = loadBlocks().filter((b) => b.name !== name);
+    const blocks = this.loadBlocks().filter((b) => b.name !== name);
     blocks.push({ name, layer: s.layer, geometry, properties: props });
-    try { localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks)); } catch { /* storage full or off */ }
+    this.h.setBlocks(blocks);
     this.h.setStatus(`Block "${name}" saved (${blocks.length} in all): Insert places it`, 5000);
     this.sel = null;
     this.draw();

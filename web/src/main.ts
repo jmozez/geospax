@@ -2536,6 +2536,11 @@ async function main() {
       applyStyle();
       saveProject();
     },
+    blocks: () => project.cadBlocks ?? [],
+    setBlocks: (b) => {
+      project.cadBlocks = b;
+      saveProject();
+    },
     look: (id, look) => {
       const st = project.layers[id];
       if (!st) return;
