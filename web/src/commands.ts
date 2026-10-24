@@ -675,6 +675,11 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:projection', { detail: 'mercator' })); },
   },
   {
+    id: 'view.terrain3d', tab: 'view', group: 'Projection', title: '3D terrain', icon: 'mountain',
+    hint: 'The selected elevation raster (or the first one) as 3D terrain: drag with the right mouse button or two fingers to tilt and turn; press again for the flat map',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:terrain3d')); },
+  },
+  {
     id: 'view.projGlobe', tab: 'view', group: 'Projection', title: 'Globe', icon: 'globe',
     hint: '3D globe when zoomed out (true areas and directions at world scale), flat when zoomed in',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:projection', { detail: 'globe' })); },

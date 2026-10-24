@@ -104,6 +104,11 @@ export class RasterPane {
   }
 
   // ---- for the Contents pane, which lists rasters with the layers (one state for both panes)
+  /** every raster on the map */
+  all(): RasterInfo[] {
+    return [...this.rasters];
+  }
+
   byId(id: string): RasterInfo | undefined {
     return this.rasters.find((r) => r.id === id);
   }
