@@ -5,7 +5,7 @@
 #
 #   /usr/bin/geospax, /usr/bin/geospax-server, /usr/share/geospax/{web,recipes,samples,plugins}, menu entry,
 #   icons and docs. rpmbuild reads the libraries both binaries need (GDAL, WebKitGTK …) and requires them by
-#   soname, so build on the release you ship for: CI builds one on Fedora 44 (.fc44) and one on AlmaLinux 10
+#   soname, so build on the release you ship for: CI builds one on Fedora 43 (.fc43), one on Fedora 44 (.fc44) and one on AlmaLinux 10
 #   (.el10, for RHEL, Rocky and AlmaLinux 10).
 set -euo pipefail
 cd "$(dirname "$0")/.."

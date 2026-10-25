@@ -27,7 +27,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ### Added
 - **GeoSpaX Field for Android (APK):** record points, lines, areas, GPS tracks and photos offline, then send them to GeoSpaX through the phone link.
 - **AppImage for any Linux distribution** (one file, no installing; updates itself in-app), tested in CI on Fedora, Arch, openSUSE and Debian.
-- **RPM packages:** one for Fedora 44 (`.fc44`) and one for RHEL, Rocky Linux and AlmaLinux 10 (`.el10`, needs EPEL), each built and install-tested on its own system in CI and attached to each release.
+- **RPM packages:** one each for Fedora 43 and 44 (`.fc43`, `.fc44`) and one for RHEL, Rocky Linux and AlmaLinux 10 (`.el10`, needs EPEL), each built and install-tested on its own system in CI and attached to each release.
 - **Updates from inside the app:** the desktop app looks for a new version once a day; on Windows (installed
   with the setup program) **Install and restart** downloads it, checks its signature and installs it. The
   .deb and the portable ZIP get a notice with a link.
