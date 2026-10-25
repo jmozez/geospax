@@ -5,7 +5,14 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+## [3.0.2] — 2026-10-25
+
 ### Fixed
+- **Desktop: "Failed to fetch"** when getting online data, saving a recipe, running a plugin tool or editing:
+  the engine's answer to the WebView's CORS preflight now allows the request headers (Windows above all).
+- **Suitability (WLC):** a criterion without `:-` is scored higher-is-better again (all were treated as
+  lower-is-better).
+- See-through grids (suitability cells, hexagons) draw without light seams between cells.
 - Dialogs (Add web service, folder chooser) float over the app instead of pushing it up the page.
 - The folded bottom panel shows its tabs; no more empty band under the map.
 - Expanded web services in the Explorer no longer fold up whenever a layer is added.
@@ -18,6 +25,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Fedora package (.rpm)**, built and install-tested on Fedora 44 in CI and attached to each release.
+- **Updates from inside the app:** the desktop app looks for a new version once a day; on Windows (installed
+  with the setup program) **Install and restart** downloads it, checks its signature and installs it. The
+  .deb and the portable ZIP get a notice with a link.
 - **Design tab (CAD-style drafting):** line, polyline, polygon, rectangle, circle, point and text; offset (parallel
   copies) and road from centreline (width → road surface); dimensions with length labels; COGO traverse
   (bearings and distances, quadrant or azimuth, DMS) → parcel with area, perimeter and misclosure. A command

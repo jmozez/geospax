@@ -51,10 +51,14 @@ impl ApiResponse {
         Self::json(status, &json!({ "error": msg.into() }))
     }
     /// Headers every response carries (custom-scheme fetches are cross-origin).
-    pub fn common_headers() -> [(&'static str, &'static str); 4] {
+    pub fn common_headers() -> [(&'static str, &'static str); 6] {
         [
             ("Access-Control-Allow-Origin", "*"),
             ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"),
+            // the desktop page (tauri.localhost) calls the engine on another origin (gis.localhost on
+            // Windows), so a request with a Content-Type (JSON, YAML) is preflighted and needs this
+            ("Access-Control-Allow-Headers", "*"),
+            ("Access-Control-Max-Age", "86400"),
             (
                 "Access-Control-Expose-Headers",
                 "Server-Timing, X-Tile-Features, X-Tile-Cache, X-Tile-Source, X-Tile-Truncated, X-Arrow-Rows",
@@ -1069,6 +1073,14 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preflight_allows_request_headers() {
+        // the desktop page calls the engine cross-origin (Windows: gis.localhost); without this every
+        // POST/PUT with a Content-Type failed in WebView2 with "Failed to fetch"
+        let h = ApiResponse::common_headers();
+        assert!(h.iter().any(|(k, v)| *k == "Access-Control-Allow-Headers" && *v == "*"));
+    }
 
     #[test]
     fn decodes_query_components() {

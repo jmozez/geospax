@@ -8,7 +8,8 @@ use geospax_engine::{ApiRequest, ApiResponse, Engine, EngineConfig};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::http::Response;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 /// Data sources: CLI args, else GEOSPAX_DATA (OS path list), else ./data when it exists (source
 /// checkout). None means "installed app started from the menu": use the home layout below.
@@ -80,6 +81,47 @@ async fn tile(
     });
     let bytes = rx.await.map_err(|e| e.to_string())??;
     Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// An update found by `update_check`, kept until `update_install` downloads it.
+#[derive(Default)]
+struct PendingUpdate(std::sync::Mutex<Option<Update>>);
+
+/// How this copy is updated: "installer" (Windows, installed with the setup program: the update is
+/// downloaded, its signature checked and installed in place) or "notice" (the .deb, the portable ZIP:
+/// the app only says a new version is out and links to it).
+#[tauri::command]
+fn update_kind() -> &'static str {
+    let installed = geospax_engine::exe_dir().is_some_and(|d| d.join("uninstall.exe").is_file());
+    if cfg!(windows) && installed { "installer" } else { "notice" }
+}
+
+/// Ask the release feed for a newer version; returns its version, notes and date, or null.
+#[tauri::command]
+async fn update_check(app: tauri::AppHandle, pending: tauri::State<'_, PendingUpdate>) -> Result<Option<serde_json::Value>, String> {
+    let found = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+    let info = found.as_ref().map(|u| serde_json::json!({ "version": u.version, "notes": u.body, "date": u.date.map(|d| d.to_string()) }));
+    *pending.0.lock().unwrap() = found;
+    Ok(info)
+}
+
+/// Download the update found by `update_check` (progress as "update-progress" events), check its
+/// signature, run the installer and restart into the new version.
+#[tauri::command]
+async fn update_install(app: tauri::AppHandle, pending: tauri::State<'_, PendingUpdate>) -> Result<(), String> {
+    let update = pending.0.lock().unwrap().take().ok_or("No update to install: check again")?;
+    let (events, mut done) = (app.clone(), 0u64);
+    update
+        .download_and_install(
+            move |n, total| {
+                done += n as u64;
+                let _ = events.emit("update-progress", serde_json::json!({ "done": done, "total": total }));
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    app.restart()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -157,7 +199,9 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(engine)
-        .invoke_handler(tauri::generate_handler![tile])
+        .manage(PendingUpdate::default())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![tile, update_kind, update_check, update_install])
         .setup(|app| {
             // Headless automation: GEOSPAX_URL_QUERY="bench=1&transport=invoke"
             // reloads the UI with that query (auto-runs the camera-tour benchmark).

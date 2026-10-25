@@ -3,6 +3,8 @@
 // on a phone. A small Markdown renderer: everything is escaped first, then headings, lists, tables,
 // code, links, bold and italics are added back. Links to other guides open in place.
 
+import { findUpdate, showUpdate } from './updates';
+
 export interface DocsBackend {
   json<T>(path: string, init?: RequestInit): Promise<T>;
 }
@@ -244,17 +246,10 @@ export class DocsViewer {
       out.className = 'about-update';
       out.textContent = 'Checking…';
       try {
-        const res = await fetch('https://api.github.com/repos/jmozez/geospax/releases/latest', { headers: { accept: 'application/vnd.github+json' } });
-        if (res.status === 404) {
-          out.innerHTML = `No release published yet · <a href="${repo}/releases" target="_blank" rel="noopener">Downloads</a>`;
-          return;
-        }
-        if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
-        const r = (await res.json()) as { tag_name: string; html_url: string; body?: string };
-        const latest = r.tag_name.replace(/^v/, '');
-        if (!version || newer(latest, version)) {
+        const u = await findUpdate(version);
+        if (u) {
           out.className = 'about-update new';
-          out.innerHTML = `Update available: <b>${esc(latest)}</b> · <a href="${esc(r.html_url)}" target="_blank" rel="noopener">Download</a>${r.body ? `<details><summary>Release notes</summary><div class="doc">${renderMarkdown(r.body)}</div></details>` : ''}`;
+          showUpdate(out, u);
         } else {
           out.className = 'about-update ok';
           out.textContent = `You have the latest version (${version})`;
