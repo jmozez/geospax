@@ -159,6 +159,7 @@ ranks cells rather than giving tonnes; built-up and water cells are left out.
 | System | Installer |
 |---|---|
 | Windows 10 / 11 | [`GeoSpaX_<version>_x64-setup.exe`](https://github.com/jmozez/geospax/releases/latest) (no administrator rights needed) or the portable ZIP |
+| Any Linux | [`GeoSpaX-<version>-x86_64.AppImage`](https://github.com/jmozez/geospax/releases/latest): one file, no installing; `chmod +x GeoSpaX-*.AppImage`, then run it. Needs a 2024-or-newer distribution (glibc 2.39). |
 | Debian 13 / Ubuntu | [`geospax_<version>_amd64.deb`](https://github.com/jmozez/geospax/releases/latest), then `sudo apt install ./geospax_<version>_amd64.deb` |
 | Fedora 44 | [`geospax-<version>-1.fc44.x86_64.rpm`](https://github.com/jmozez/geospax/releases/latest), then `sudo dnf install ./geospax-<version>-1.fc44.x86_64.rpm` |
 | RHEL, Rocky Linux, AlmaLinux 10 | [`geospax-<version>-1.el10.x86_64.rpm`](https://github.com/jmozez/geospax/releases/latest); enable EPEL first (`sudo dnf install epel-release`), then `sudo dnf install ./geospax-<version>-1.el10.x86_64.rpm` |
