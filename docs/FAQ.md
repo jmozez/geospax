@@ -10,6 +10,7 @@ Download the installer for your system from the [releases page](https://github.c
   password is needed. A portable ZIP is there too.
 - **Debian 13 / Ubuntu:** `geospax_<version>_amd64.deb`, then `sudo apt install ./geospax_<version>_amd64.deb`.
 - **Fedora 44:** `geospax-<version>-1.fc44.x86_64.rpm`, then `sudo dnf install ./geospax-<version>-1.fc44.x86_64.rpm`.
+- **RHEL, Rocky Linux, AlmaLinux 10:** `geospax-<version>-1.el10.x86_64.rpm`; enable EPEL first (`sudo dnf install epel-release`).
 - **Any system with Docker:** the web edition, `docker compose up -d`.
 
 Start **GeoSpaX** from the Start menu or the applications menu. The [user guide](USER_GUIDE.md) has the details.

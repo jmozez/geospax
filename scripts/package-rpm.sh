@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# GeoSpaX: build the Fedora installer (.rpm) with rpmbuild. Same layout as the .deb (scripts/package-linux.sh):
+# GeoSpaX: build the RPM for Fedora or Enterprise Linux (RHEL, Rocky, AlmaLinux) with rpmbuild. Same layout as the .deb (scripts/package-linux.sh):
 #
 #   scripts/package-rpm.sh [--no-build] [OUT_DIR]          default OUT_DIR: releases/
 #
 #   /usr/bin/geospax, /usr/bin/geospax-server, /usr/share/geospax/{web,recipes,samples,plugins}, menu entry,
 #   icons and docs. rpmbuild reads the libraries both binaries need (GDAL, WebKitGTK …) and requires them by
-#   soname, so build on the Fedora release you ship for (CI: the current one, in a fedora container).
+#   soname, so build on the release you ship for: CI builds one on Fedora 44 (.fc44) and one on AlmaLinux 10
+#   (.el10, for RHEL, Rocky and AlmaLinux 10).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 BUILD=1 OUT=releases

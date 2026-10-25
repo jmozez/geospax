@@ -161,6 +161,7 @@ ranks cells rather than giving tonnes; built-up and water cells are left out.
 | Windows 10 / 11 | [`GeoSpaX_<version>_x64-setup.exe`](https://github.com/jmozez/geospax/releases/latest) (no administrator rights needed) or the portable ZIP |
 | Debian 13 / Ubuntu | [`geospax_<version>_amd64.deb`](https://github.com/jmozez/geospax/releases/latest), then `sudo apt install ./geospax_<version>_amd64.deb` |
 | Fedora 44 | [`geospax-<version>-1.fc44.x86_64.rpm`](https://github.com/jmozez/geospax/releases/latest), then `sudo dnf install ./geospax-<version>-1.fc44.x86_64.rpm` |
+| RHEL, Rocky Linux, AlmaLinux 10 | [`geospax-<version>-1.el10.x86_64.rpm`](https://github.com/jmozez/geospax/releases/latest); enable EPEL first (`sudo dnf install epel-release`), then `sudo dnf install ./geospax-<version>-1.el10.x86_64.rpm` |
 | Any system (web edition) | `docker compose up -d`, then open the link printed by `docker compose logs geospax` |
 
 macOS is not packaged yet; use the web edition or [build from source](docs/DEVELOPMENT.md).
