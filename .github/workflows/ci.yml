@@ -10,6 +10,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a GitHub release with this tag (e.g. v3.0.2); leave empty for a plain build"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -398,7 +403,8 @@ jobs:
 
   release:
     name: GitHub release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # on a pushed tag, or from "Run workflow" with a release tag (the release then creates the tag)
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
     needs: [linux, fedora, el10, appimage-test, android, windows-native]
     runs-on: ubuntu-latest
     permissions:
@@ -430,9 +436,13 @@ jobs:
           name: geospax-field-apk
           path: releases
       - name: Update feed (latest.json) from the updater signatures
-        run: python3 scripts/update-feed.py "${GITHUB_REF_NAME}" releases
+        run: python3 scripts/update-feed.py "$TAG" releases
+        env:
+          TAG: ${{ inputs.release_tag || github.ref_name }}
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: |
             releases/*.deb
             releases/*.rpm
