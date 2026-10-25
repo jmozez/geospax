@@ -248,9 +248,14 @@ jobs:
           path: releases/GeoSpaX-Field-*.apk
 
   fedora:
-    name: Fedora package (.rpm)
+    name: Fedora ${{ matrix.release }} package (.rpm)
     runs-on: ubuntu-latest
-    container: fedora:44
+    container: fedora:${{ matrix.release }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # one package per supported Fedora release: each links that release's GDAL and glibc
+        release: [43, 44]
     steps:
       - name: Tools for checkout
         run: dnf install -y -q git ca-certificates
@@ -263,8 +268,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: cargo-fedora44-${{ hashFiles('Cargo.lock') }}
-          restore-keys: cargo-fedora44-
+          key: cargo-fedora${{ matrix.release }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-fedora${{ matrix.release }}-
       - name: Build + package (.rpm)
         run: bash scripts/package-rpm.sh
       - name: Install test
@@ -276,7 +281,7 @@ jobs:
           curl -sf http://127.0.0.1:8097/api/health | grep -q '"version"' && curl -sf http://127.0.0.1:8097/ | grep -q '<title>GeoSpaX'
       - uses: actions/upload-artifact@v4
         with:
-          name: geospax-fedora-rpm
+          name: geospax-fedora${{ matrix.release }}-rpm
           path: releases/*.rpm
 
   el10:
@@ -421,7 +426,8 @@ jobs:
           path: releases
       - uses: actions/download-artifact@v4
         with:
-          name: geospax-fedora-rpm
+          pattern: geospax-fedora*-rpm
+          merge-multiple: true
           path: releases
       - uses: actions/download-artifact@v4
         with:

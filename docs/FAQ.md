@@ -11,7 +11,7 @@ Download the installer for your system from the [releases page](https://github.c
 - **Android (GeoSpaX Field):** `GeoSpaX-Field-<version>.apk`. Open it on the phone and allow *install unknown apps* for your browser once. It records points, lines, areas, tracks and photos offline; *Send* pairs with **Devices › Phone link** on your computer (scan its QR code) and uploads them over Wi-Fi.
 - **Any Linux:** `GeoSpaX-<version>-x86_64.AppImage`: make it executable (`chmod +x`, or *Properties › Allow executing*) and run it. No installing, no admin rights; it updates itself.
 - **Debian 13 / Ubuntu:** `geospax_<version>_amd64.deb`, then `sudo apt install ./geospax_<version>_amd64.deb`.
-- **Fedora 44:** `geospax-<version>-1.fc44.x86_64.rpm`, then `sudo dnf install ./geospax-<version>-1.fc44.x86_64.rpm`.
+- **Fedora 43 or 44:** the `.fc43` or `.fc44` package for your release (`rpm -E %fedora` prints it), then `sudo dnf install ./geospax-<version>-1.fc4N.x86_64.rpm`. The other release's package does not install: each needs its own release's GDAL and glibc.
 - **RHEL, Rocky Linux, AlmaLinux 10:** `geospax-<version>-1.el10.x86_64.rpm`; enable EPEL first (`sudo dnf install epel-release`).
 - **Any system with Docker:** the web edition, `docker compose up -d`.
 
