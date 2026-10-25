@@ -1,0 +1,37 @@
+# GeoSpaX web edition on Fly.io (docs/DEPLOY.md): one private workspace, signed in with an access token.
+#   fly launch --copy-config --no-deploy        # once: creates the app (pick a unique name)
+#   fly volumes create geospax_data --size 10   # once: maps, layers, runs and settings live here
+#   fly secrets set GEOSPAX_TOKEN=$(openssl rand -hex 24)
+#   fly deploy                                  # also to update to the newest release image
+app = "geospax-in4metrix"
+primary_region = "syd"   # Sydney: the closest Fly region to Papua New Guinea
+
+[build]
+  image = "ghcr.io/jmozez/geospax:latest"
+
+[experimental]
+  # the image's own start command, with data and state on the volume
+  entrypoint = ["geospax-server", "--host", "0.0.0.0", "--port", "8080", "--data", "/srv/data", "--state-dir", "/srv/state", "--no-device-mounts"]
+
+[[mounts]]
+  source = "geospax_data"
+  destination = "/srv"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # keep the machine up: recipes, triggers and downloads run in the background
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
