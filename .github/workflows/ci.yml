@@ -178,6 +178,24 @@ jobs:
           ./"$A" recipes > /dev/null
           echo "OK on ${{ matrix.distro }}"
 
+  flatpak:
+    name: Flatpak (io.github.jmozez.GeoSpaX, for Flathub)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: GeoSpaX.flatpak
+          manifest-path: packaging/flatpak/io.github.jmozez.GeoSpaX.yml
+          cache-key: flatpak-builder-${{ hashFiles('Cargo.lock', 'packaging/flatpak/*.yml') }}
+      - name: Metadata as Flathub checks it
+        run: |
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder appstream packaging/flatpak/io.github.jmozez.GeoSpaX.metainfo.xml || \
+            appstreamcli validate --no-net packaging/flatpak/io.github.jmozez.GeoSpaX.metainfo.xml
+
   fedora:
     name: Fedora package (.rpm)
     runs-on: ubuntu-latest

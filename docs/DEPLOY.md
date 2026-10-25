@@ -45,3 +45,22 @@ starts again on the next visit (a few seconds' wait), so you pay mostly while yo
 all the time. Recipes, triggers and downloads run only while the machine is up: to keep it running, set
 `auto_stop_machines = "off"` and `min_machines_running = 1`. Large rasters need more memory:
 `fly scale memory 4096`.
+
+## Flathub (the Linux app store)
+
+The Flatpak (`packaging/flatpak/io.github.jmozez.GeoSpaX.yml`) is built and checked in CI. Flathub builds every
+app on its own servers without network access, so its copy of the manifest lists the Rust crates and npm
+packages as sources. To submit:
+
+1. Generate those lists with the Flatpak builder tools
+   (<https://github.com/flatpak/flatpak-builder-tools>):
+   `flatpak-cargo-generator Cargo.lock -o cargo-sources.json` and
+   `flatpak-node-generator npm web/package-lock.json -o node-sources.json`.
+2. In the manifest's `geospax` module, replace `build-args: --share=network` with those two files as
+   sources, set `CARGO_HOME` to the vendored crates (`cargo --offline`) and `npm ci --offline`, and point
+   the source at a release tag (`type: git`, `tag: v<version>`, `commit: <sha>`) instead of `path: ../..`.
+3. Follow <https://docs.flathub.org/docs/for-app-authors/submission>: fork `flathub/flathub`, add the manifest
+   and the two files on a branch named after the app ID, and open the pull request. Flathub reviews it; the
+   app ID `io.github.jmozez.GeoSpaX` is verified from the `jmozez` GitHub account.
+
+After that, each GeoSpaX release is a small pull request to the app's Flathub repository (new tag and commit).
