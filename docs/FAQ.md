@@ -8,6 +8,7 @@ Download the installer for your system from the [releases page](https://github.c
 
 - **Windows 10 or 11:** `GeoSpaX_<version>_x64-setup.exe`. It installs for you only, so no administrator
   password is needed. A portable ZIP is there too.
+- **Android (GeoSpaX Field):** `GeoSpaX-Field-<version>.apk`. Open it on the phone and allow *install unknown apps* for your browser once. It records points, lines, areas, tracks and photos offline; *Send* pairs with **Devices › Phone link** on your computer (scan its QR code) and uploads them over Wi-Fi.
 - **Any Linux:** `GeoSpaX-<version>-x86_64.AppImage`: make it executable (`chmod +x`, or *Properties › Allow executing*) and run it. No installing, no admin rights; it updates itself.
 - **Debian 13 / Ubuntu:** `geospax_<version>_amd64.deb`, then `sudo apt install ./geospax_<version>_amd64.deb`.
 - **Fedora 44:** `geospax-<version>-1.fc44.x86_64.rpm`, then `sudo dnf install ./geospax-<version>-1.fc44.x86_64.rpm`.
