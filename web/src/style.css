@@ -1420,3 +1420,12 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .cad-layer-table input[type=number] { width: 64px; }
 .cad-layer-table input[type=color] { width: 36px; height: 22px; padding: 0; border: 0; background: none; }
 .cad-trav textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* a newer version is out (updates.ts): a bar at the top, and the same buttons in Help › About */
+.update-bar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 2000; max-width: min(640px, calc(100vw - 32px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; border-radius: 8px;
+  background: var(--panel, #1f2226); color: var(--fg); border: 1px solid var(--accent, #ff7a45); box-shadow: 0 6px 24px rgba(0, 0, 0, .35); font-size: 13px; }
+.update-bar details, .about-update details { flex: 1 1 100%; max-height: 240px; overflow: auto; }
+.update-bar button, .about-update button { padding: 4px 10px; }
+.update-bar .upd-msg:empty, .about-update .upd-msg:empty { display: none; }
+.about-update.new { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }

@@ -115,6 +115,38 @@ jobs:
           name: geospax-linux-deb
           path: releases/*.deb
 
+  fedora:
+    name: Fedora package (.rpm)
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Tools for checkout
+        run: dnf install -y -q git ca-certificates
+      - uses: actions/checkout@v4
+      - name: System packages, Rust, Node (scripts/setup-fedora.sh)
+        run: bash scripts/setup-fedora.sh
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-fedora44-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-fedora44-
+      - name: Build + package (.rpm)
+        run: bash scripts/package-rpm.sh
+      - name: Install test
+        run: |
+          dnf install -y -q ./releases/geospax-*.rpm
+          geospax-server --version && geospax --version
+          (geospax-server --port 8097 --no-device-mounts --no-triggers > /tmp/srv.log 2>&1 &)
+          for i in $(seq 30); do curl -fs http://127.0.0.1:8097/api/health >/dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:8097/api/health | grep -q '"version"' && curl -sf http://127.0.0.1:8097/ | grep -q '<title>GeoSpaX'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geospax-fedora-rpm
+          path: releases/*.rpm
+
   windows:
     name: Windows installer (cross-built on Debian 13, tested under Wine)
     runs-on: ubuntu-latest
@@ -124,6 +156,9 @@ jobs:
       # optional: a base64-encoded .pfx code-signing certificate; without it the installer is unsigned
       WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
       WINDOWS_SIGN_PASSWORD: ${{ secrets.WINDOWS_SIGN_PASSWORD }}
+      # optional: the updater key (npx tauri signer generate); with it, installed copies update in place
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Tools for checkout
         run: apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
@@ -157,6 +192,8 @@ jobs:
           name: geospax-windows
           path: |
             releases/GeoSpaX_*_x64-setup.exe
+            releases/GeoSpaX_*_x64-setup.exe.sig
+            releases/latest.json
             target/windows/GeoSpaX-*-windows-x64.zip
 
   windows-native:
@@ -204,7 +241,7 @@ jobs:
   release:
     name: GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, windows-native]
+    needs: [linux, fedora, windows-native]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -217,11 +254,18 @@ jobs:
         with:
           name: geospax-windows
           path: releases
+      - uses: actions/download-artifact@v4
+        with:
+          name: geospax-fedora-rpm
+          path: releases
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             releases/*.deb
+            releases/*.rpm
             releases/**/GeoSpaX_*_x64-setup.exe
+            releases/**/GeoSpaX_*_x64-setup.exe.sig
+            releases/**/latest.json
             releases/**/GeoSpaX-*-windows-x64.zip
           generate_release_notes: true
 

@@ -20,14 +20,15 @@ This guide gets you from zero to a finished map in a few minutes.
 
 | You have | Do this |
 |---|---|
-| **Windows 10 or 11** (64-bit) | Run `GeoSpaX_3.0.1_x64-setup.exe`. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start **GeoSpaX** from the Start menu. **GeoSpaX Web Server** in the same menu opens the web edition in your browser. The installer isn't code-signed yet, so Windows may say "Windows protected your PC": click *More info → Run anyway*. Prefer no installer? Unzip `GeoSpaX-3.0.1-windows-x64.zip` anywhere and run `geospax.exe`. |
-| **Debian 13** (desktop) | Download `geospax_3.0.1_amd64.deb`, then `sudo apt install ./geospax_3.0.1_amd64.deb`. Start **GeoSpaX** from the applications menu. |
+| **Windows 10 or 11** (64-bit) | Run `GeoSpaX_3.0.2_x64-setup.exe`. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start **GeoSpaX** from the Start menu. **GeoSpaX Web Server** in the same menu opens the web edition in your browser. The installer isn't code-signed yet, so Windows may say "Windows protected your PC": click *More info → Run anyway*. Prefer no installer? Unzip `GeoSpaX-3.0.2-windows-x64.zip` anywhere and run `geospax.exe`. |
+| **Debian 13** (desktop) | Download `geospax_3.0.2_amd64.deb`, then `sudo apt install ./geospax_3.0.2_amd64.deb`. Start **GeoSpaX** from the applications menu. |
+| **Fedora 44** (desktop) | Download `geospax-3.0.2-1.fc44.x86_64.rpm`, then `sudo dnf install ./geospax-3.0.2-1.fc44.x86_64.rpm`. Start **GeoSpaX** from the applications menu. Another Fedora release: build a matching one with `scripts/setup-fedora.sh && scripts/package-rpm.sh`. |
 | Another Debian/Ubuntu release | The `.deb` above is built against GDAL 3.10 (`libgdal36`). Build a matching one: `scripts/setup-linux.sh && scripts/package-linux.sh` (it works out the right dependencies for your system), or use the web edition in a container. |
 | **Docker** (any OS, web edition) | `mkdir -p data inbox && docker compose up -d`, then open the `http://localhost:8080/?token=…` link printed by `docker compose logs geospax` (set `GEOSPAX_TOKEN` to keep a fixed token). The compose file also starts an MQTT broker for live sensors. *The image is built by CI on version tags; it has not been built in our own test sandbox yet.* |
 | macOS | Not packaged yet (it needs a Mac to build). Use the Docker web edition for now. |
 | The source code | `scripts/setup-linux.sh`, then `cd web && npm ci && npx vite build`, then `cargo build --release -p geospax-server` and `./target/release/geospax-server --data data`. See the [README](../README.md). |
 
-The `.deb` and the Windows installer both contain both editions (on Windows: `geospax.exe`, `geospax-server.exe`, and `geospax-web.cmd`, which starts the server on your `GeoSpaX` folders and opens the browser):
+The `.deb`, the `.rpm` and the Windows installer all contain both editions (on Windows: `geospax.exe`, `geospax-server.exe`, and `geospax-web.cmd`, which starts the server on your `GeoSpaX` folders and opens the browser):
 
 | Program | What it is |
 |---|---|
