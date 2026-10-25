@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1013" />
+  <title>GeoSpaX Field</title>
+</head>
+<body>
+  <div id="map"></div>
+
+  <header class="top">
+    <span id="gps" class="chip wait">Finding GPS…</span>
+    <span class="grow"></span>
+    <button type="button" id="basemap" class="chip-btn">Map</button>
+    <button type="button" id="sendBtn" class="chip-btn send">Send <span id="unsent" class="badge"></span></button>
+  </header>
+
+  <button type="button" id="locate" class="fab" aria-label="Back to my position">◎</button>
+  <div id="trackInfo" class="pill rec" hidden></div>
+  <div id="toast" class="pill" hidden></div>
+
+  <div id="draw" class="panel" hidden>
+    <p id="drawMsg"></p>
+    <div class="row">
+      <button type="button" id="drawHere">My position</button>
+      <button type="button" id="drawUndo">Undo</button>
+      <button type="button" id="drawCancel">Cancel</button>
+      <button type="button" id="drawDone" class="primary">Finish</button>
+    </div>
+  </div>
+
+  <nav id="bar" class="bar" aria-label="Record">
+    <button type="button" id="btnPoint"><b>●</b><span>Point</span></button>
+    <button type="button" id="btnLine"><b>╱</b><span>Line</span></button>
+    <button type="button" id="btnArea"><b>▱</b><span>Area</span></button>
+    <button type="button" id="btnTrack"><b>⦿</b><span>Track</span></button>
+    <button type="button" id="btnPhoto"><b>📷</b><span>Photo</span></button>
+    <button type="button" id="btnList"><b>☰</b><span>Records</span></button>
+  </nav>
+
+  <input type="file" id="photoInput" accept="image/*" capture="environment" hidden />
+  <dialog id="sheet"><div id="sheetBody"></div></dialog>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

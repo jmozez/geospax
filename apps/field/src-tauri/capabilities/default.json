@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "default",
+  "description": "GeoSpaX Field: GPS, QR pairing, and HTTP to the paired GeoSpaX on the local network",
+  "windows": ["main"],
+  "platforms": ["android", "iOS", "linux", "windows", "macOS"],
+  "permissions": [
+    "core:default",
+    "geolocation:default",
+    "geolocation:allow-watch-position",
+    "geolocation:allow-clear-watch",
+    "geolocation:allow-request-permissions",
+    "geolocation:allow-check-permissions",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://*:*" }, { "url": "http://*:*" }]
+    }
+  ]
+}
