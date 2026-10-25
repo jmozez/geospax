@@ -124,6 +124,9 @@ jobs:
       # optional: a base64-encoded .pfx code-signing certificate; without it the installer is unsigned
       WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
       WINDOWS_SIGN_PASSWORD: ${{ secrets.WINDOWS_SIGN_PASSWORD }}
+      # optional: the updater key (npx tauri signer generate); with it, installed copies update in place
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Tools for checkout
         run: apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
@@ -157,6 +160,8 @@ jobs:
           name: geospax-windows
           path: |
             releases/GeoSpaX_*_x64-setup.exe
+            releases/GeoSpaX_*_x64-setup.exe.sig
+            releases/latest.json
             target/windows/GeoSpaX-*-windows-x64.zip
 
   windows-native:
@@ -222,6 +227,8 @@ jobs:
           files: |
             releases/*.deb
             releases/**/GeoSpaX_*_x64-setup.exe
+            releases/**/GeoSpaX_*_x64-setup.exe.sig
+            releases/**/latest.json
             releases/**/GeoSpaX-*-windows-x64.zip
           generate_release_notes: true
 

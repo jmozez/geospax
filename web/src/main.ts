@@ -1,3 +1,4 @@
+import { startupCheck } from './updates';
 import * as maplibregl from 'maplibre-gl';
 import { AutomatePane, type RunInfo } from './automate';
 import { DevicesPane, type LiveGeoJSON } from './devices';
@@ -1655,6 +1656,8 @@ function startHud() {
     .then((h) => {
       const tag = document.querySelector('h1 .tag');
       if (tag && h.version) tag.textContent = `v${h.version}`;
+      // desktop: once a day, a banner when a newer version is out (Windows installs it in place)
+      if (h.version && !params.has('bench')) void startupCheck(h.version);
     })
     .catch(() => {});
   const hud = $('#hud');

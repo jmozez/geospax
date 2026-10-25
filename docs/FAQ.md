@@ -191,8 +191,16 @@ the assistant and R.
 
 ### How do I update GeoSpaX?
 
-**Help › About GeoSpaX › Check for updates** compares your version with the newest release and links to the
-download.
+The desktop app looks for a new version once a day when it starts and shows a bar at the top when one is
+out; **Help › About GeoSpaX › Check for updates** looks at any time.
+
+- **Windows, installed with the setup program:** press **Install and restart**. The update is downloaded,
+  its signature is checked against the key built into GeoSpaX, and it installs over your copy; your data and
+  settings stay. (Versions before 3.0.2 cannot do this yet: install 3.0.2 or later once by hand.)
+- **Linux (.deb), the Windows portable ZIP and the web edition:** the bar links to the release; install the new
+  `.deb` (`sudo apt install ./geospax_*.deb`) or unpack the new ZIP over the old folder.
+
+**Later** hides the bar until the next version after that one.
 
 ### Does GeoSpaX send my data anywhere?
 

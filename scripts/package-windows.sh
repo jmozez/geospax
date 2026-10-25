@@ -121,8 +121,17 @@ PY
 
 echo "== installer (Tauri NSIS bundler)"
 # The overlay adds the staged folder as resources; tauri-build checks they exist, so staging comes first.
+# In-app updates (docs/INSTALL.md): with TAURI_SIGNING_PRIVATE_KEY set, the installer is also signed for
+# the updater (setup.exe.sig) and releases/latest.json is written; installed copies read it from the
+# newest GitHub release. Without the key the installer is built as before and updates are notices only.
+UPDATER_CONFIG=()
+if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+  UPDATER_CONFIG=(--config '{"bundle":{"createUpdaterArtifacts":true}}')
+else
+  echo "   (no TAURI_SIGNING_PRIVATE_KEY: no updater signature, installed copies will only be told of new versions)"
+fi
 (cd apps/desktop && npx tauri build --target "$TARGET" --bundles nsis \
-  --config ../../packaging/windows/tauri.windows.json "${SIGN_CONFIG[@]}" --features custom-protocol)
+  --config ../../packaging/windows/tauri.windows.json "${SIGN_CONFIG[@]}" "${UPDATER_CONFIG[@]}" --features custom-protocol)
 SETUP=$(ls -t "$REL"/bundle/nsis/GeoSpaX_"$VERSION"_x64-setup.exe | awk 'NR==1')
 # every DLL the desktop imports that is not part of Windows must be in the staged folder
 python3 - "$OBJDUMP" "$GDAL_WIN" "$STAGE" "$REL/geospax.exe" <<'PY'
@@ -139,8 +148,20 @@ if missing:
 print(f"geospax.exe: all {len(need)} imports are Windows DLLs or staged")
 PY
 mkdir -p releases
-rm -f releases/GeoSpaX_*_x64-setup.exe
+rm -f releases/GeoSpaX_*_x64-setup.exe releases/GeoSpaX_*_x64-setup.exe.sig releases/latest.json
 cp "$SETUP" releases/
+if [ -f "$SETUP.sig" ]; then
+  cp "$SETUP.sig" releases/
+  # the update feed: the release this installer will be published in, and its updater signature
+  python3 - "$VERSION" "$SETUP.sig" "$(basename "$SETUP")" > releases/latest.json <<'PY'
+import json, sys, datetime
+version, sig, name = sys.argv[1], open(sys.argv[2]).read().strip(), sys.argv[3]
+url = f"https://github.com/jmozez/geospax/releases/download/v{version}/{name}"
+print(json.dumps({"version": version, "notes": f"https://github.com/jmozez/geospax/releases/tag/v{version}",
+                  "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                  "platforms": {"windows-x86_64": {"signature": sig, "url": url}}}, indent=2))
+PY
+fi
 
 echo "== portable ZIP"
 PORT=$ROOT/target/windows/GeoSpaX-$VERSION-windows-x64
