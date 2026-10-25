@@ -1,0 +1,32 @@
+[package]
+name = "geospax-field"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "GeoSpaX Field: record points, lines, areas, tracks and photos offline and send them to GeoSpaX"
+
+# its own workspace: the phone app shares no Rust code with the engine and keeps its own lock file
+[workspace]
+
+[lib]
+name = "geospax_field_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+tauri-plugin-geolocation = "2"
+tauri-plugin-barcode-scanner = "2"
+# the desktop's phone link uses a self-signed certificate on the local network
+tauri-plugin-http = { version = "2", features = ["dangerous-settings"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
