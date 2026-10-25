@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GeoSpaX · the open-source GIS where maps make themselves</title>
+  <meta name="description" content="GeoSpaX: open-source GIS for Windows, Linux and the web. Drop in data or plug in a device and get a finished map, report and analysis. MIT licence." />
+  <meta property="og:title" content="GeoSpaX · maps that make themselves" />
+  <meta property="og:description" content="Open-source GIS: automatic maps, 1,130 analysis tools, 12 domain plugins, design and CAD. Windows, Linux and web." />
+  <meta property="og:image" content="https://geospax.in4metrix.dev/img/screenshot-pro.webp" />
+  <meta property="og:url" content="https://geospax.in4metrix.dev/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="30" height="30" /> GeoSpaX</a>
+      <nav aria-label="Sections">
+        <a href="#features">Features</a>
+        <a href="#tours">Tours</a>
+        <a href="#plugins">Plugins</a>
+        <a href="#download">Download</a>
+        <a href="https://github.com/jmozez/geospax" rel="noopener">GitHub</a>
+      </nav>
+      <a class="btn small" href="#download">Download</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <p class="eyebrow"><span class="ver" data-version>Open source</span> · MIT licence</p>
+        <h1>The open-source GIS where <em>maps make themselves.</em></h1>
+        <p class="lead">Drop in data, or plug in a phone, GPS, drone card or sensor logger. GeoSpaX styles it, lays out the
+          map, writes the report and exports PNG, PDF and SVG. When you want control, a full ArcGIS Pro-style
+          workbench is one click away.</p>
+        <div class="cta">
+          <a class="btn primary" href="#download" data-primary-download>Download for free</a>
+          <a class="btn ghost" href="#webapp" data-webapp>Open the web app</a>
+        </div>
+        <p class="platforms">Windows 10/11 · Debian &amp; Ubuntu · Fedora · Web</p>
+        <figure class="shot hero-shot">
+          <img src="/img/screenshot-pro.webp" width="1600" height="960" alt="GeoSpaX Pro in the dark theme: Overture roads and buildings of Lae, Papua New Guinea, over a Sentinel-2 scene" />
+        </figure>
+      </div>
+    </section>
+
+    <section id="features" class="band">
+      <div class="wrap">
+        <h2>Everything a GIS does, without the hours</h2>
+        <div class="grid features">
+          <article><h3>Two modes, one engine</h3><p><b>Lazy</b>: layer cards, a task bar and plain-language next steps. <b>Pro</b>: an ArcGIS Pro-style ribbon, layer tree, attribute table, editing and every pane.</p></article>
+          <article><h3>Maps that style themselves</h3><p>AutoMap picks the field, classes and colours and says why. Full symbology for points, lines, polygons, labels and rasters when you want your own.</p></article>
+          <article><h3>Finished maps and reports</h3><p>Layouts with legend, scale bar, north arrow and inset; Equal Earth for world maps; 150–1200 dpi PNG, vector PDF and SVG; map series.</p></article>
+          <article><h3>About 1,130 analysis tools</h3><p>Vector, raster, terrain, hydrology, imagery and LiDAR in one Toolbox, plus hot spots, kriging and twelve domain plugins.</p></article>
+          <article><h3>Data from anywhere</h3><p>Files, devices and phones, and online data cut to your area with citations: WorldClim, SoilGrids, GBIF, OBIS, GADM, Copernicus DEM, GEBCO, Hansen forest change.</p></article>
+          <article><h3>Design and CAD</h3><p>Roads from a centreline, lots, dimensions, traverses with misclosure, snapping and typed input, and DXF to and from AutoCAD.</p></article>
+          <article><h3>Automation</h3><p>Every result is a re-runnable recipe. Triggers run it when a device is plugged in, a folder changes, a schedule fires or a sensor crosses a threshold.</p></article>
+          <article><h3>R, Python and AI</h3><p>R and Python as recipe steps with an R console; an assistant (Ollama, OpenAI-compatible or Claude) and an MCP server.</p></article>
+          <article><h3>Private by default</h3><p>Everything runs on your computer and works offline. Nothing is uploaded unless you choose to.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="tours">
+      <div class="wrap">
+        <h2>See it at work</h2>
+        <p class="sub">Real data around Lae and the Huon Gulf, Papua New Guinea, over Esri World Imagery.</p>
+        <div class="tours">
+          <figure class="shot"><img loading="lazy" src="/img/tour-design.webp" alt="A 76-lot subdivision drawn with the Design tab" /><figcaption><b>Design a subdivision.</b> A 76-lot estate with access roads, a reserve and dimensions, typed into the command line and exported to AutoCAD as DXF.</figcaption></figure>
+          <figure class="shot"><img loading="lazy" src="/img/tour-hydrology.webp" alt="Strahler-ordered streams and drainage basins" /><figcaption><b>Rivers and catchments.</b> 834 stream links by Strahler order and 11 drainage basins from the Copernicus DEM.</figcaption></figure>
+          <figure class="shot"><img loading="lazy" src="/img/tour-landcover.webp" alt="ESA WorldCover land cover of Lae" /><figcaption><b>Land cover.</b> ESA WorldCover 10 m for Lae, downloaded for the area with Online data.</figcaption></figure>
+          <figure class="shot"><img loading="lazy" src="/img/tour-classification.webp" alt="Supervised land-cover classification from satellite embeddings" /><figcaption><b>Supervised classification.</b> Six classes from AlphaEarth satellite embeddings; 81 % leave-one-out accuracy.</figcaption></figure>
+          <figure class="shot"><img loading="lazy" src="/img/tour-lidar.webp" alt="LiDAR buildings of San Francisco in 3D" /><figcaption><b>LiDAR in 3D.</b> 23 million USGS 3DEP points gridded in 12 seconds; buildings raised to their roof heights.</figcaption></figure>
+          <figure class="shot"><img loading="lazy" src="/img/tour-network.webp" alt="Road distance to the nearest hospital in Lae" /><figcaption><b>Network analysis.</b> Road distance from every street in Lae to the nearest of 12 hospitals and clinics.</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="plugins" class="band">
+      <div class="wrap">
+        <h2>Twelve domain plugins</h2>
+        <p class="sub">One tested toolkit behind every domain, so a tool behaves the same everywhere. Click a map to enlarge it.</p>
+        <div class="plugins" data-plugins></div>
+      </div>
+    </section>
+
+    <section id="download">
+      <div class="wrap">
+        <h2>Download GeoSpaX</h2>
+        <p class="sub">Free and open source. <span data-release>The latest release</span> · <a href="https://github.com/jmozez/geospax/releases" rel="noopener">all releases</a></p>
+        <div class="grid downloads">
+          <article class="dl" data-os="windows">
+            <h3>Windows 10 / 11</h3>
+            <p>Installer for your user only, no admin rights needed. Updates itself from inside the app.</p>
+            <a class="btn primary" data-asset="setup.exe" href="https://github.com/jmozez/geospax/releases/latest">Download installer</a>
+            <a class="alt" data-asset="windows-x64.zip" href="https://github.com/jmozez/geospax/releases/latest">Portable ZIP</a>
+          </article>
+          <article class="dl" data-os="debian">
+            <h3>Debian 13 / Ubuntu</h3>
+            <p>Desktop app and web edition in one package.</p>
+            <a class="btn primary" data-asset=".deb" href="https://github.com/jmozez/geospax/releases/latest">Download .deb</a>
+            <code>sudo apt install ./geospax_*.deb</code>
+          </article>
+          <article class="dl" data-os="fedora">
+            <h3>Fedora 44</h3>
+            <p>Desktop app and web edition in one package.</p>
+            <a class="btn primary" data-asset=".rpm" href="https://github.com/jmozez/geospax/releases/latest">Download .rpm</a>
+            <code>sudo dnf install ./geospax-*.rpm</code>
+          </article>
+          <article class="dl" id="webapp" data-os="web">
+            <h3>Web app</h3>
+            <p data-webapp-text>Run the web edition on your own server with one command, then open it in any browser.</p>
+            <a class="btn primary" data-webapp href="https://github.com/jmozez/geospax#download">Run the web edition</a>
+            <code>docker run -p 8080:8080 ghcr.io/jmozez/geospax</code>
+          </article>
+        </div>
+        <p class="note">Android field app: coming soon.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <span>© J. Moses · GeoSpaX is MIT-licensed.</span>
+      <span><a href="https://github.com/jmozez/geospax" rel="noopener">Source</a> · <a href="https://github.com/jmozez/geospax/issues" rel="noopener">Report a problem</a> · <a href="https://github.com/jmozez/geospax/blob/main/docs/USER_GUIDE.md" rel="noopener">User guide</a></span>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" aria-label="Enlarged map"><img alt="" /><p></p><button type="button" aria-label="Close">×</button></dialog>
+  <script src="/main.js" defer></script>
+</body>
+</html>
