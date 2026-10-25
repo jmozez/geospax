@@ -59,7 +59,7 @@ if (WEBAPP_URL) {
 
 // which download suits this computer
 const ua = navigator.userAgent;
-const os = /Windows/.test(ua) ? 'windows' : /Fedora/.test(ua) ? 'fedora' : /Linux|X11/.test(ua) && !/Android/.test(ua) ? 'debian' : null;
+const os = /Windows/.test(ua) ? 'windows' : /Fedora|Red Hat|Rocky|AlmaLinux/.test(ua) ? 'fedora' : /Linux|X11/.test(ua) && !/Android/.test(ua) ? 'debian' : null;
 if (os) document.querySelector(`.dl[data-os="${os}"]`)?.classList.add('mine');
 
 // newest release: version and direct links to its files
@@ -80,6 +80,6 @@ fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { accep
     }
     const mine = os && document.querySelector(`.dl[data-os="${os}"] [data-asset]`);
     const hero = document.querySelector('[data-primary-download]');
-    if (mine && hero) { hero.href = mine.href; hero.textContent = `Download for ${os === 'windows' ? 'Windows' : os === 'fedora' ? 'Fedora' : 'Linux'}`; }
+    if (mine && hero) { hero.href = mine.href; hero.textContent = `Download for ${os === 'windows' ? 'Windows' : os === 'fedora' ? 'Fedora / RHEL' : 'Linux'}`; }
   })
   .catch(() => { /* offline or rate-limited: the links still lead to the releases page */ });
