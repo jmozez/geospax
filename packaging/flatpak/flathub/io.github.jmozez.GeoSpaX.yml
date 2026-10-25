@@ -1,0 +1,99 @@
+# Flathub submission manifest: the same build as ../io.github.jmozez.GeoSpaX.yml, but offline (Flathub builds
+# have no network): the source is the release tag and every crate and npm package is listed in
+# cargo-sources.json and node-sources.json. Regenerate those for each release (docs/DEPLOY.md, Flathub).
+id: io.github.jmozez.GeoSpaX
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+- org.freedesktop.Sdk.Extension.rust-stable
+- org.freedesktop.Sdk.Extension.node22
+command: geospax
+finish-args:
+- --share=ipc
+- --share=network
+- --socket=wayland
+- --socket=fallback-x11
+- --device=dri
+- --filesystem=home
+- --filesystem=/media
+- --filesystem=/run/media
+- --env=GDAL_DATA=/app/share/gdal
+- --env=PROJ_DATA=/app/share/proj
+modules:
+- name: proj
+  buildsystem: cmake-ninja
+  config-opts:
+  - -DCMAKE_BUILD_TYPE=Release
+  - -DBUILD_TESTING=OFF
+  - -DBUILD_APPS=OFF
+  - -DENABLE_CURL=ON
+  sources:
+  - type: archive
+    url: https://github.com/OSGeo/PROJ/releases/download/9.9.0/proj-9.9.0.tar.gz
+    sha256: 791a0610547eeabb17006cfd49cdbd2034f3240f47ed5e88a1031811f4e2bcf3
+- name: geos
+  buildsystem: cmake-ninja
+  config-opts:
+  - -DCMAKE_BUILD_TYPE=Release
+  - -DBUILD_TESTING=OFF
+  - -DBUILD_GEOSOP=OFF
+  sources:
+  - type: archive
+    url: https://github.com/libgeos/geos/releases/download/3.15.0/geos-3.15.0.tar.bz2
+    sha256: d5e5192a686d065eaed082de14dd26244c5c8e02bff16b2c6cce3265f648e00e
+- name: libgeotiff
+  buildsystem: cmake-ninja
+  config-opts:
+  - -DCMAKE_BUILD_TYPE=Release
+  - -DWITH_UTILITIES=OFF
+  sources:
+  - type: archive
+    url: https://github.com/OSGeo/libgeotiff/releases/download/1.7.4/libgeotiff-1.7.4.tar.gz
+    sha256: c598d04fdf2ba25c4352844dafa81dde3f7fd968daa7ad131228cd91e9d3dc47
+- name: gdal
+  buildsystem: cmake-ninja
+  config-opts:
+  - -DCMAKE_BUILD_TYPE=Release
+  - -DBUILD_TESTING=OFF
+  - -DBUILD_APPS=OFF
+  - -DBUILD_PYTHON_BINDINGS=OFF
+  - -DBUILD_JAVA_BINDINGS=OFF
+  - -DBUILD_CSHARP_BINDINGS=OFF
+  - -DGDAL_USE_GEOTIFF_INTERNAL=OFF
+  cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /lib/cmake
+  sources:
+  - type: archive
+    url: https://github.com/OSGeo/gdal/releases/download/v3.12.4/gdal-3.12.4.tar.gz
+    sha256: 68844ae29557b7efae4292c3b4cb3a3b8a79d14b765b89c5a7b17cbae7fa715a
+- name: geospax
+  buildsystem: simple
+  build-options:
+    append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
+    env:
+      CARGO_HOME: /run/build/geospax/cargo
+      PKG_CONFIG_PATH: /app/lib/pkgconfig:/app/lib64/pkgconfig
+      CARGO_NET_OFFLINE: 'true'
+      npm_config_cache: /run/build/geospax/flatpak-node/npm-cache
+      npm_config_offline: 'true'
+  build-commands:
+  - cd web && npm ci --offline --no-audit --no-fund && npx vite build --logLevel warn
+  - cargo build --release --offline --locked -p geospax --features geospax/custom-protocol
+  - install -Dm755 target/release/geospax /app/bin/geospax
+  - mkdir -p /app/share/geospax/samples /app/share/geospax/plugins
+  - cp -r recipes /app/share/geospax/recipes
+  - cp -r samples/. /app/share/geospax/samples/
+  - tar -C plugins --exclude=node_modules --exclude=src --exclude=tests -cf - . | tar -C /app/share/geospax/plugins -xf -
+  - install -Dm644 apps/desktop/src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.jmozez.GeoSpaX.png
+  - install -Dm644 apps/desktop/src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.jmozez.GeoSpaX.png
+  - install -Dm644 packaging/flatpak/io.github.jmozez.GeoSpaX.desktop /app/share/applications/io.github.jmozez.GeoSpaX.desktop
+  - install -Dm644 packaging/flatpak/io.github.jmozez.GeoSpaX.metainfo.xml /app/share/metainfo/io.github.jmozez.GeoSpaX.metainfo.xml
+  sources:
+  - type: git
+    url: https://github.com/jmozez/geospax.git
+    tag: v3.0.2
+  - cargo-sources.json
+  - node-sources.json

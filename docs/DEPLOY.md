@@ -52,15 +52,21 @@ The Flatpak (`packaging/flatpak/io.github.jmozez.GeoSpaX.yml`) is built and chec
 app on its own servers without network access, so its copy of the manifest lists the Rust crates and npm
 packages as sources. To submit:
 
-1. Generate those lists with the Flatpak builder tools
+1. The offline manifest and both lists are ready in `packaging/flatpak/flathub/`, pointing at tag `v3.0.2`.
+   For a later release, change the tag and regenerate the lists with the Flatpak builder tools
    (<https://github.com/flatpak/flatpak-builder-tools>):
-   `flatpak-cargo-generator Cargo.lock -o cargo-sources.json` and
-   `flatpak-node-generator npm web/package-lock.json -o node-sources.json`.
-2. In the manifest's `geospax` module, replace `build-args: --share=network` with those two files as
-   sources, set `CARGO_HOME` to the vendored crates (`cargo --offline`) and `npm ci --offline`, and point
-   the source at a release tag (`type: git`, `tag: v<version>`, `commit: <sha>`) instead of `path: ../..`.
-3. Follow <https://docs.flathub.org/docs/for-app-authors/submission>: fork `flathub/flathub`, add the manifest
-   and the two files on a branch named after the app ID, and open the pull request. Flathub reviews it; the
+   `flatpak-cargo-generator Cargo.lock -o packaging/flatpak/flathub/cargo-sources.json` and
+   `flatpak-node-generator npm web/package-lock.json -o packaging/flatpak/flathub/node-sources.json`.
+2. Once the tag exists, add `commit: <sha of the tag>` under the `tag:` line (Flathub requires both).
+3. Follow <https://docs.flathub.org/docs/for-app-authors/submission>: fork `flathub/flathub`, add the three
+   files from `packaging/flatpak/flathub/` on a branch named after the app ID, and open the pull request. Flathub reviews it; the
    app ID `io.github.jmozez.GeoSpaX` is verified from the `jmozez` GitHub account.
 
 After that, each GeoSpaX release is a small pull request to the app's Flathub repository (new tag and commit).
+
+## Publishing a release without pushing a tag
+
+Actions → ci → **Run workflow** on `main`, with *release_tag* set to the new version (for example `v3.0.2`).
+The run builds every package and the release job creates the tag and the GitHub release with all files.
+Add the `TAURI_SIGNING_PRIVATE_KEY` and Android keystore secrets first, so the update feed and the APK are
+signed with the permanent keys.
