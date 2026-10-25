@@ -1,0 +1,34 @@
+# Home page (site/) on Vercel, project geospax3 in the in4metrix team. Deployed by GitHub with the VERCEL_TOKEN
+# secret, so the Vercel account needs no access to this repository. The first run creates the project.
+name: site
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/site.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: deploy home page to Vercel
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Link (creates geospax3 on the first run) and deploy to production
+        if: env.VERCEL_TOKEN != ''
+        working-directory: site
+        run: |
+          npx --yes vercel@39.1.1 link --yes --project geospax3 --scope in4metrix --token "$VERCEL_TOKEN"
+          npx --yes vercel@39.1.1 deploy --prod --yes --scope in4metrix --token "$VERCEL_TOKEN"
