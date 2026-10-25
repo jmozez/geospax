@@ -20,10 +20,11 @@ primary_region = "syd"   # Sydney: the closest Fly region to Papua New Guinea
 [http_service]
   internal_port = 8080
   force_https = true
-  # keep the machine up: recipes, triggers and downloads run in the background
-  auto_stop_machines = "off"
+  # stops when idle and starts on the next visit (a few seconds): you pay mostly while you use it.
+  # Background recipes and triggers only run while it is up; for those, set "off" and min_machines_running = 1
+  auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
   [[http_service.checks]]
     grace_period = "20s"

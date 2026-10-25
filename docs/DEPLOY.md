@@ -40,5 +40,8 @@ Open `https://<app>.fly.dev/?token=<your token>` once; the browser remembers it.
 **Updates:** `fly deploy` pulls the newest release image (`ghcr.io/jmozez/geospax:latest`). Data, runs and
 settings stay on the volume.
 
-**Size:** `fly.toml` asks for a shared 2-CPU machine with 2 GB of memory and keeps it running so recipes and
-downloads finish in the background. Large rasters need more: `fly scale memory 4096`.
+**Size and cost:** `fly.toml` asks for a shared 2-CPU machine with 2 GB of memory that **stops when idle** and
+starts again on the next visit (a few seconds' wait), so you pay mostly while you use it; the volume is billed
+all the time. Recipes, triggers and downloads run only while the machine is up: to keep it running, set
+`auto_stop_machines = "off"` and `min_machines_running = 1`. Large rasters need more memory:
+`fly scale memory 4096`.
