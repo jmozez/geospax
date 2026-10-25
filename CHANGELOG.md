@@ -25,6 +25,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **First start is Lazy mode in the dark theme.** A mode or theme you pick is still remembered.
 
 ### Added
+- **Fedora package (.rpm)**, built and install-tested on Fedora 44 in CI and attached to each release.
 - **Updates from inside the app:** the desktop app looks for a new version once a day; on Windows (installed
   with the setup program) **Install and restart** downloads it, checks its signature and installs it. The
   .deb and the portable ZIP get a notice with a link.
