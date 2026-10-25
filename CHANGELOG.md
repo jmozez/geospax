@@ -5,6 +5,19 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+## [3.0.3] — 2026-10-26
+
+### Fixed
+- **Linux desktop: blank window** on systems with many fonts installed (seen on Fedora 43 with about 1,900):
+  the interface named fonts that only exist on Windows and macOS, and for each one WebKitGTK searched every
+  installed font, so the first paint took minutes at full CPU. The interface now uses only the generic
+  `system-ui`, `sans-serif` and `monospace` families.
+- **Linux desktop:** WebKitGTK's DMA-BUF renderer is turned off unless you set it yourself; it leaves the window
+  blank with the NVIDIA driver and some GPU and compositor combinations.
+
+### Added
+- **Fedora 43 package** (`.fc43`) next to Fedora 44's, each built and install-tested on its own release.
+
 ## [3.0.2] — 2026-10-25
 
 ### Fixed
