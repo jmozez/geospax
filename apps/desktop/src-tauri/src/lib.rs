@@ -143,6 +143,13 @@ pub fn run() {
     if let Some(code) = geospax_engine::automation::cli::main_if_subcommand(&argv) {
         std::process::exit(code);
     }
+    // WebKitGTK's DMA-BUF renderer leaves the window blank with the NVIDIA driver (and some other GPU/
+    // compositor pairs); the older shared-memory path draws everywhere. A value the user set wins.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // SAFETY: still single-threaded here, before Tauri, GTK or the engine start any thread
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+    }
     let watch: Vec<PathBuf> = std::env::var_os("GEOSPAX_WATCH").map(|v| std::env::split_paths(&v).collect()).unwrap_or_default();
     let auto: Vec<String> = std::env::var("GEOSPAX_AUTO").map(|v| v.split(',').filter(|s| !s.is_empty()).map(String::from).collect()).unwrap_or_default();
     let mut inbox: Vec<PathBuf> = Vec::new();
