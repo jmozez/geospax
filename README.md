@@ -51,9 +51,10 @@ tank and dimensions, all typed into the command line. *Export DXF* hands it to A
 
 <p align="center"><img src="docs/assets/tour-design.png" alt="GeoSpaX Design tab: a 76-lot subdivision plan over Esri World Imagery of Lae" width="900" /></p>
 
-**Rivers and catchments.** The Markham valley above Lae from the Copernicus 30 m DEM (1,547 × 1,253
-cells): GeoSpaX's `hydro.network` fills depressions, routes flow (D8), extracts 879 stream links coloured
-by Strahler order and outlines 13 drainage basins, in 1.5 seconds, over Esri World Imagery.
+**Rivers and catchments.** The Huon Peninsula coast east of Lae from the Copernicus DEM at 60 m
+(1,909 × 1,400 cells, sea masked out): GeoSpaX's `hydro.network` fills depressions, routes flow (D8),
+extracts 834 stream links coloured by Strahler order (1 to 5) and outlines the 11 drainage basins that lie
+wholly inside the DEM (basins cut by its edge are left out), over Esri World Imagery.
 
 <p align="center"><img src="docs/assets/tour-hydrology.png" alt="GeoSpaX: Strahler-ordered streams and drainage basins of the Markham valley over Esri World Imagery" width="900" /></p>
 
@@ -90,41 +91,41 @@ over 2,646 Overture road segments (service area with the network tools of the To
 Each domain plugin run in GeoSpaX on open data around Lae and the Huon Gulf, Papua New Guinea, over Esri
 World Imagery. The plugins share one tested toolkit (GSX), so a tool behaves the same in every domain.
 
-**Agriculture · weighted suitability.** Where new gardens could go: 3,071 cells of 500 m scored by gentle
-slope, open (grass, shrub, crop) land and low ground from the Copernicus 30 m DEM and ESA WorldCover 2021;
-built-up and water cells are excluded.
+**Agriculture · weighted suitability.** Where new gardens could go: land cells of about 220 m (0.002°) scored
+by gentle slope (weight 3), open grass, shrub and crop land (2) and low ground (1) from the Copernicus 30 m
+DEM and ESA WorldCover 2021. Forest is kept out, which leaves 3,187 of 18,546 cells to score.
 
 <p align="center"><img src="docs/assets/plugin-agriculture.png" alt="GeoSpaX Agriculture plugin: cropland suitability around Lae from slope, open land and elevation" width="900" /></p>
 
-**Biodiversity · richness and diversity.** 4,842 OBIS marine records of the Huon Gulf summarised per
-0.1° cell: species richness (up to 279 taxa in one cell), Shannon, Simpson and evenness for the 99 cells
-with records.
+**Biodiversity · richness and diversity.** OBIS records of the Huon Gulf, kept to those on the seafloor
+(GEBCO depth below 0 m, birds left out: 3,536 of 4,842), summarised per 0.1° cell: 987 taxa in all,
+species richness up to 133 in one cell, and Shannon, Simpson and evenness for the 49 cells with records.
 
 <p align="center"><img src="docs/assets/plugin-biodiversity.png" alt="GeoSpaX Biodiversity plugin: species richness of OBIS records per cell in the Huon Gulf" width="900" /></p>
 
-**Climate · coastal flood exposure.** Lae's low-lying coast scored by elevation, built-up land and
-wetland (weighted linear combination); ground above 30 m is excluded.
+**Climate · coastal flood exposure.** The 462 cells of Lae's low-elevation coastal zone (10 m and
+below) scored by low ground (weight 3) and built-up land (2): exposure is highest on the waterfront and port.
 
 <p align="center"><img src="docs/assets/plugin-climate.png" alt="GeoSpaX Climate plugin: coastal flood exposure of Lae's low-lying coast" width="900" /></p>
 
-**Conservation · weighted hotspot grid.** The same OBIS records counted on 10 km hexagons: 67 of 203
-hexagons hold records, with the densest sampling along the Lae coast and the Huon Peninsula.
+**Conservation · weighted hotspot grid.** The same marine records counted on 10 km hexagons: 35 of 176
+hold records, densest off Lae and along the Huon Peninsula coast.
 
 <p align="center"><img src="docs/assets/plugin-conservation.png" alt="GeoSpaX Conservation plugin: 10 km hexagon hotspot grid of OBIS records" width="900" /></p>
 
-**Disaster · landslide susceptibility.** Slope, local relief and tree cover combined into a 0–1 score on
-the 500 m grid of the Markham valley edge.
+**Disaster · landslide susceptibility.** Slope (weight 4), local relief (2) and little tree cover (1)
+combined into a 0–1 score on the same land cells along the Markham valley; built-up and water cells score 0.
 
 <p align="center"><img src="docs/assets/plugin-disaster.png" alt="GeoSpaX Disaster plugin: landslide susceptibility from slope, relief and tree cover" width="900" /></p>
 
-**Environment · elevation profile.** A 39 km transect from the Saruwaged foothills to the Huon Gulf,
-sampled every 44 m on the Copernicus DEM: from 20 m to 1,173 m.
+**Environment · elevation profile.** A 38.9 km transect from the Saruwaged foothills to the Huon Gulf on
+the Copernicus 30 m DEM (882 samples, about 44 m apart): from 20 m to 1,175 m, with 2,833 m of climb.
 
 <p align="center"><img src="docs/assets/plugin-environment.png" alt="GeoSpaX Environment plugin: elevation profile along a transect to the Huon Gulf" width="900" /></p>
 
-**Forestry · fragmentation and connectivity.** 85 forest patches from Hansen tree cover (≥ 50 %):
-FRAGSTATS-style metrics, 30,119 ha of core forest more than 100 m from an edge, and 42 groups of patches
-joined by 52 links within a 1 km dispersal distance.
+**Forestry · fragmentation and connectivity.** 136 forest patches of 1 ha or more from Hansen tree cover
+(2000 canopy ≥ 50 %, 40,783 ha): FRAGSTATS-style metrics, 28,797 ha of core forest more than 100 m from an
+edge, and 33 links joining patches within a 500 m dispersal distance (105 connected groups).
 
 <p align="center"><img src="docs/assets/plugin-forestry.png" alt="GeoSpaX Forestry plugin: forest patches, core areas and 1 km connectivity links" width="900" /></p>
 
@@ -137,17 +138,19 @@ joined by 52 links within a 1 km dispersal distance.
 (see the Rivers and catchments tour above).
 
 **Land use and land cover · two-date change.** Forest of 2000 against forest left in 2023 (Hansen Global
-Forest Change) east of Lae: 3,689 ha lost, 43,907 ha unchanged.
+Forest Change) east of Lae: 3,800 ha lost, 43,831 ha unchanged, no gain (patches of 1 ha or more).
 
 <p align="center"><img src="docs/assets/plugin-lulc.png" alt="GeoSpaX Land use and land cover plugin: forest loss and persistence from 2000 to 2023" width="900" /></p>
 
-**Marine · DBSCAN clusters.** 631 OBIS fish records grouped into 15 clusters (5 km radius, 12 points of
-noise) over GEBCO 2026 bathymetry of the Huon Gulf.
+**Marine · DBSCAN clusters.** 409 OBIS fish records from the sea grouped into 9 clusters (5 km radius,
+9 records of noise) over GEBCO 2026 bathymetry of the Huon Gulf (shown from 0 to 3,000 m deep).
 
 <p align="center"><img src="docs/assets/plugin-marine.png" alt="GeoSpaX Marine plugin: clusters of fish records over GEBCO bathymetry of the Huon Gulf" width="900" /></p>
 
-**Soil · erosion risk.** Steep, exposed (crop, bare, grass) land with little tree cover scores highest;
-built-up and water cells are excluded.
+**Soil · erosion potential.** A RUSLE-style index on the land cells: the slope-steepness factor S
+(McCool) times the cover-management factor C from the WorldCover shares (forest 0.003, shrub and grass 0.05,
+crop 0.20, bare 0.35). Rainfall and soil erodibility are taken as even over this small area, so the index
+ranks cells rather than giving tonnes; built-up and water cells are left out.
 
 <p align="center"><img src="docs/assets/plugin-soil.png" alt="GeoSpaX Soil plugin: erosion risk from slope, exposed land and tree cover" width="900" /></p>
 
