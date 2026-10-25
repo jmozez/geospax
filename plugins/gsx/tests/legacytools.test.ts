@@ -116,3 +116,14 @@ describe('elevation profile', () => {
     await assert.rejects(Promise.resolve().then(() => tool('elevation-profile').run(ctx({ layer: 'l' }, { l: [line] }))), /need an elevation raster/);
   });
 });
+
+describe('weighted suitability criteria', () => {
+  it('scores a plain field:weight as higher-is-better and :- as lower-is-better', async () => {
+    const { TOOLS } = await import('../src/tools');
+    const feats = grid(2, (c, r) => c + r).map((f, i) => ({ ...f, properties: { ...f.properties, a: [0, 10, 0, 10][i], b: [0, 0, 10, 10][i] } }));
+    const out = await TOOLS.find((t) => t.id === 'suitability')!.run(ctx({ layer: 'g', criteria: 'a:1, b:1:-' }, { g: feats }));
+    const s = out.layers![0].features.map((f) => f.properties!.suitability);
+    // a high and b low is best; a low and b high is worst
+    assert.deepEqual(s, [0.5, 1, 0, 0.5]);
+  });
+});

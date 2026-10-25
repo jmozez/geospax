@@ -303,7 +303,12 @@ export function symbolLayers(a: MapLayerArgs): LayerSpecification[] {
       // hatching in one colour: the layer's colour when it has one, else the outline colour
       const ink = typeof color === 'string' ? color : f.strokeColor;
       out.push({ ...base, id: `${id}#fill`, type: 'fill', paint: { 'fill-pattern': `${HATCH_PREFIX}${f.pattern}|${ink}`, 'fill-opacity': op } } as LayerSpecification);
-    } else if (f?.fill !== false) out.push({ ...base, id: `${id}#fill`, type: 'fill', paint: { 'fill-color': color, 'fill-opacity': op } } as LayerSpecification);
+    } else if (f?.fill !== false) {
+      // see-through fills without an outline: antialiased edges are drawn twice where neighbours meet,
+      // which shows as light seams across grids, so draw those edges crisp instead
+      const seams = op < 1 && !((f?.strokeWidth ?? 0) > 0);
+      out.push({ ...base, id: `${id}#fill`, type: 'fill', paint: { 'fill-color': color, 'fill-opacity': op, ...(seams ? { 'fill-antialias': false } : {}) } } as LayerSpecification);
+    }
     if (f) {
       if (f.strokeWidth > 0)
         out.push({
