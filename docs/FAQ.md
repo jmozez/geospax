@@ -8,6 +8,7 @@ Download the installer for your system from the [releases page](https://github.c
 
 - **Windows 10 or 11:** `GeoSpaX_<version>_x64-setup.exe`. It installs for you only, so no administrator
   password is needed. A portable ZIP is there too.
+- **Any Linux:** `GeoSpaX-<version>-x86_64.AppImage`: make it executable (`chmod +x`, or *Properties › Allow executing*) and run it. No installing, no admin rights; it updates itself.
 - **Debian 13 / Ubuntu:** `geospax_<version>_amd64.deb`, then `sudo apt install ./geospax_<version>_amd64.deb`.
 - **Fedora 44:** `geospax-<version>-1.fc44.x86_64.rpm`, then `sudo dnf install ./geospax-<version>-1.fc44.x86_64.rpm`.
 - **RHEL, Rocky Linux, AlmaLinux 10:** `geospax-<version>-1.el10.x86_64.rpm`; enable EPEL first (`sudo dnf install epel-release`).
@@ -196,10 +197,10 @@ the assistant and R.
 The desktop app looks for a new version once a day when it starts and shows a bar at the top when one is
 out; **Help › About GeoSpaX › Check for updates** looks at any time.
 
-- **Windows, installed with the setup program:** press **Install and restart**. The update is downloaded,
+- **Windows (installed with the setup program) and the AppImage:** press **Install and restart**. The update is downloaded,
   its signature is checked against the key built into GeoSpaX, and it installs over your copy; your data and
   settings stay. (Versions before 3.0.2 cannot do this yet: install 3.0.2 or later once by hand.)
-- **Linux (.deb, .rpm), the Windows portable ZIP and the web edition:** the bar links to the release; install the
+- **.deb, .rpm, the Windows portable ZIP and the web edition:** the bar links to the release; install the
   new package (`sudo apt install ./geospax_*.deb` or `sudo dnf install ./geospax-*.rpm`) or unpack the new ZIP
   over the old folder.
 

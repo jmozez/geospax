@@ -115,6 +115,89 @@ jobs:
           name: geospax-linux-deb
           path: releases/*.deb
 
+  appimage:
+    name: AppImage (all Linux distributions; built on Ubuntu 24.04)
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - name: Tools for checkout
+        run: apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
+      - uses: actions/checkout@v4
+      - name: System packages, Rust, Node (scripts/setup-linux.sh)
+        run: bash scripts/setup-linux.sh
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /opt/cargo/registry
+            /opt/cargo/git
+            target
+          key: cargo-ubuntu2404-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-ubuntu2404-
+      - name: Build the AppImage
+        run: bash scripts/package-appimage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geospax-appimage
+          path: releases/GeoSpaX-*.AppImage*
+
+  appimage-test:
+    name: AppImage runs on ${{ matrix.distro }}
+    needs: appimage
+    runs-on: ubuntu-latest
+    container: ${{ matrix.distro }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # only the libraries every graphical desktop has (graphics drivers, X11/Wayland, fonts); the
+        # AppImage brings GDAL, PROJ, WebKitGTK and the rest itself
+        include:
+          - distro: fedora:44
+            desktop: dnf install -y -q mesa-libEGL mesa-libGL mesa-libgbm libdrm fontconfig harfbuzz fribidi libX11 libX11-xcb libxcb libwayland-client
+          - distro: archlinux:latest
+            desktop: pacman -Sy --noconfirm -q mesa fontconfig harfbuzz fribidi libx11 libxcb wayland libdrm
+          - distro: opensuse/tumbleweed:latest
+            desktop: zypper -n -q install Mesa-libEGL1 Mesa-libGL1 libgbm1 libdrm2 fontconfig libharfbuzz0 libfribidi0 libX11-6 libX11-xcb1 libxcb1 libwayland-client0 libcom_err2 libgpg-error0 findutils
+          - distro: debian:13
+            desktop: apt-get update -q && apt-get install -y -q --no-install-recommends libegl1 libgl1 libgbm1 libdrm2 libfontconfig1 libharfbuzz0b libfribidi0 libx11-6 libx11-xcb1 libxcb1 libwayland-client0 libgpg-error0 libcom-err2
+    steps:
+      - name: Desktop libraries of ${{ matrix.distro }}
+        run: ${{ matrix.desktop }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: geospax-appimage
+      - name: Run it (engine, GDAL, recipe steps)
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          A=$(ls GeoSpaX-*.AppImage); chmod +x "$A"
+          # every library the host still lacks, all at once (a desktop has them; a bare container may not)
+          ./"$A" --appimage-extract > /dev/null && LD_LIBRARY_PATH=squashfs-root/usr/lib ldd squashfs-root/usr/bin/geospax | grep "not found" || true
+          ./"$A" --version
+          ./"$A" steps | grep -q "data.fetch"
+          ./"$A" recipes > /dev/null
+          echo "OK on ${{ matrix.distro }}"
+
+  flatpak:
+    name: Flatpak (io.github.jmozez.GeoSpaX, for Flathub)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: GeoSpaX.flatpak
+          manifest-path: packaging/flatpak/io.github.jmozez.GeoSpaX.yml
+          cache-key: flatpak-builder-${{ hashFiles('Cargo.lock', 'packaging/flatpak/*.yml') }}
+      - name: Metadata as Flathub checks it
+        run: |
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder appstream packaging/flatpak/io.github.jmozez.GeoSpaX.metainfo.xml || \
+            appstreamcli validate --no-net packaging/flatpak/io.github.jmozez.GeoSpaX.metainfo.xml
+
   fedora:
     name: Fedora package (.rpm)
     runs-on: ubuntu-latest
@@ -225,7 +308,6 @@ jobs:
           path: |
             releases/GeoSpaX_*_x64-setup.exe
             releases/GeoSpaX_*_x64-setup.exe.sig
-            releases/latest.json
             target/windows/GeoSpaX-*-windows-x64.zip
 
   windows-native:
@@ -273,11 +355,12 @@ jobs:
   release:
     name: GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, fedora, el10, windows-native]
+    needs: [linux, fedora, el10, appimage-test, windows-native]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: geospax-linux-deb
@@ -294,11 +377,19 @@ jobs:
         with:
           name: geospax-el10-rpm
           path: releases
+      - uses: actions/download-artifact@v4
+        with:
+          name: geospax-appimage
+          path: releases
+      - name: Update feed (latest.json) from the updater signatures
+        run: python3 scripts/update-feed.py "${GITHUB_REF_NAME}" releases
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             releases/*.deb
             releases/*.rpm
+            releases/**/GeoSpaX-*.AppImage
+            releases/**/GeoSpaX-*.AppImage.sig
             releases/**/GeoSpaX_*_x64-setup.exe
             releases/**/GeoSpaX_*_x64-setup.exe.sig
             releases/**/latest.json

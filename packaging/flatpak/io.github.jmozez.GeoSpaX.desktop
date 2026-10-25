@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=GeoSpaX
+GenericName=Automated GIS
+Comment=Maps that make themselves: plug in a device or drop data, get a finished map
+Exec=geospax %F
+Icon=io.github.jmozez.GeoSpaX
+Terminal=false
+Categories=Science;Geography;
+Keywords=GIS;map;GPS;drone;satellite;remote sensing;sensor;recipe;
+StartupWMClass=geospax

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.jmozez.GeoSpaX</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>GeoSpaX</name>
+  <summary>Open-source GIS where maps make themselves</summary>
+  <developer id="io.github.jmozez">
+    <name>J. Moses</name>
+  </developer>
+  <description>
+    <p>
+      GeoSpaX is for people who want a finished map without spending hours on it. Drop in data, or plug in a
+      phone, GPS, drone card, camera or sensor logger, and GeoSpaX styles it, lays out the map, writes the
+      report and exports PNG, PDF and SVG. When you want control, a full workbench is one click away.
+    </p>
+    <ul>
+      <li>Two modes: Lazy, with plain-language next steps, and Pro, with a ribbon, layer tree, attribute table and editing</li>
+      <li>Maps that style themselves, and full symbology for points, lines, polygons, labels and rasters</li>
+      <li>About 1,130 analysis tools: vector, raster, terrain, hydrology, imagery, LiDAR, hot spots and kriging</li>
+      <li>Twelve domain plugins: agriculture, biodiversity, climate, conservation, forestry, marine, soil and more</li>
+      <li>Online data cut to your area with citations: WorldClim, SoilGrids, GBIF, OBIS, GADM, Copernicus DEM, GEBCO</li>
+      <li>Design and CAD with snapping, dimensions and DXF to and from AutoCAD</li>
+      <li>Re-runnable recipes with triggers, R and Python steps, and an AI assistant</li>
+    </ul>
+    <p>Everything runs on your computer and works offline.</p>
+  </description>
+  <launchable type="desktop-id">io.github.jmozez.GeoSpaX.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The Pro workbench: roads and buildings of Lae over a Sentinel-2 scene</caption>
+      <image>https://raw.githubusercontent.com/jmozez/geospax/main/docs/assets/screenshot-pro.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Design: a 76-lot subdivision plan with roads and dimensions</caption>
+      <image>https://raw.githubusercontent.com/jmozez/geospax/main/docs/assets/tour-design.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Hydrology: streams by Strahler order and drainage basins</caption>
+      <image>https://raw.githubusercontent.com/jmozez/geospax/main/docs/assets/tour-hydrology.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>LiDAR buildings raised to their roof heights in 3D</caption>
+      <image>https://raw.githubusercontent.com/jmozez/geospax/main/docs/assets/tour-lidar.png</image>
+    </screenshot>
+  </screenshots>
+  <url type="homepage">https://geospax.in4metrix.dev/</url>
+  <url type="bugtracker">https://github.com/jmozez/geospax/issues</url>
+  <url type="vcs-browser">https://github.com/jmozez/geospax</url>
+  <categories>
+    <category>Science</category>
+    <category>Geography</category>
+    <category>Education</category>
+  </categories>
+  <keywords>
+    <keyword>GIS</keyword>
+    <keyword>map</keyword>
+    <keyword>GDAL</keyword>
+    <keyword>GPS</keyword>
+    <keyword>remote sensing</keyword>
+    <keyword>cartography</keyword>
+  </keywords>
+  <content_rating type="oars-1.1" />
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">900</display_length>
+  </requires>
+  <releases>
+    <release version="3.0.2" date="2026-10-25">
+      <description>
+        <ul>
+          <li>Fixed: the desktop app could not get online data, save recipes or run plugin tools ("Failed to fetch")</li>
+          <li>Fixed: weighted suitability scored higher-is-better criteria the wrong way round</li>
+          <li>New: the app tells you when a new version is out</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>
