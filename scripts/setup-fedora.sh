@@ -14,7 +14,7 @@ echo "== system packages"
 $SUDO dnf install -y -q --allowerasing --setopt=install_weak_deps=False \
   gcc gcc-c++ make pkgconf-pkg-config clang clang-devel curl ca-certificates xz python3 file git findutils \
   gdal gdal-devel \
-  webkit2gtk4.1-devel gtk3-devel libsoup3-devel librsvg2-devel libappindicator-gtk3-devel libxdo-devel openssl-devel \
+  webkit2gtk4.1-devel gtk3-devel libsoup3-devel librsvg2-devel libappindicator-gtk3-devel openssl-devel \
   nodejs npm rpm-build binutils
 echo "GDAL $(gdal-config --version)"
 if ! command -v cargo >/dev/null && [ ! -x "$HOME/.cargo/bin/cargo" ]; then
