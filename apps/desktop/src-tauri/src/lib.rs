@@ -87,13 +87,14 @@ async fn tile(
 #[derive(Default)]
 struct PendingUpdate(std::sync::Mutex<Option<Update>>);
 
-/// How this copy is updated: "installer" (Windows, installed with the setup program: the update is
-/// downloaded, its signature checked and installed in place) or "notice" (the .deb, the portable ZIP:
-/// the app only says a new version is out and links to it).
+/// How this copy is updated: "installer" (Windows installed with the setup program, or an AppImage: the
+/// update is downloaded, its signature checked and installed in place) or "notice" (.deb, .rpm, Flatpak,
+/// the portable ZIP: the app only says a new version is out and links to it).
 #[tauri::command]
 fn update_kind() -> &'static str {
     let installed = geospax_engine::exe_dir().is_some_and(|d| d.join("uninstall.exe").is_file());
-    if cfg!(windows) && installed { "installer" } else { "notice" }
+    let appimage = cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_some();
+    if (cfg!(windows) && installed) || appimage { "installer" } else { "notice" }
 }
 
 /// Ask the release feed for a newer version; returns its version, notes and date, or null.

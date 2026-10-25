@@ -22,9 +22,13 @@ pub const NODATA: f64 = -9999.0;
 
 /// Cloud-optimised reads over HTTP (Copernicus DEM, Sentinel-2 COGs) without directory probing.
 pub fn configure_gdal() {
-    // Bundled data (Windows edition / portable ZIP): <exe dir>\share\gdal and <exe dir>\share\proj.
-    // System installs (Linux packages, OSGeo4W, conda) find their own data, and env vars always win.
-    if let Some(dir) = crate::exe_dir() {
+    // Bundled data: <exe dir>\share\{gdal,proj} (Windows edition, portable ZIP) or <exe dir>/../share/{gdal,proj}
+    // (AppImage, Flatpak: usr/bin next to usr/share). System installs (Linux packages, OSGeo4W, conda) find
+    // their own data, and env vars always win.
+    let bundled = crate::exe_dir().and_then(|d| {
+        [d.clone(), d.join("..")].into_iter().find(|c| c.join("share").join("proj").join("proj.db").is_file())
+    });
+    if let Some(dir) = bundled {
         let gdal_data = dir.join("share").join("gdal");
         if std::env::var_os("GDAL_DATA").is_none() && gdal_data.is_dir() {
             let _ = gdal::config::set_config_option("GDAL_DATA", &gdal_data.to_string_lossy());
