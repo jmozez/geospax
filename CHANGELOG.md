@@ -12,6 +12,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   Android APK. The .deb and .rpm packages are no longer built: the AppImage and Flatpak run on every
   distribution.
 
+### Added — phone app update notice
+- GeoSpaX Field checks once a day for a newer APK and offers to download it (it installs over the
+  old one; records stay on the phone). Its version now follows GeoSpaX: 3.0.3.
+
 ### Fixed — climate data
 - **Climate** (Data › Online data) now picks the detail for the area: CHELSA 2.1 at ~1 km for areas up
   to 4° a side, else the finest WorldClim grid giving at least 40 cells across (it used a ~18 km grid,

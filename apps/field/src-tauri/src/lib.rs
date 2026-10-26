@@ -6,7 +6,8 @@
 pub fn run() {
     let mut app = tauri::Builder::default()
         .plugin(tauri_plugin_geolocation::init())
-        .plugin(tauri_plugin_http::init());
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_opener::init());
     #[cfg(mobile)]
     {
         app = app.plugin(tauri_plugin_barcode_scanner::init());
