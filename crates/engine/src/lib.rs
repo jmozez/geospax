@@ -21,6 +21,7 @@ pub mod db;
 pub mod design;
 pub mod catalog;
 pub mod classify;
+pub mod crs;
 pub mod devices;
 pub mod docs;
 pub mod edit;

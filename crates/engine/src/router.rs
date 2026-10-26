@@ -428,6 +428,10 @@ impl Engine {
                 Ok(fid) => self.delete_reply(layer, &[fid]),
                 Err(_) => ApiResponse::error(400, "bad feature id"),
             },
+            ("POST", ["api", "layers", layer, "geometry-edit"]) => match self.geometry_edit(layer, &body_json(&req.body)) {
+                Ok((fids, l)) => ApiResponse::json(200, &json!({ "fids": fids, "layer": self.layer_json(&l) })),
+                Err(e) => ApiResponse::error(400, e),
+            },
             ("POST", ["api", "layers", layer, "features", "delete"]) => {
                 let fids = fid_list(&body_json(&req.body)["fids"]).unwrap_or_default();
                 self.delete_reply(layer, &fids)
@@ -494,6 +498,17 @@ impl Engine {
                 };
                 match self.table(l, &tq) {
                     Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }),
+            ("GET", ["api", "layers", layer, "download"]) => self.with_layer(layer, |l| {
+                match self.layer_download(l, query_param(&req.query, "format").unwrap_or("gpkg")) {
+                    Ok((bytes, name, ctype)) => ApiResponse {
+                        status: 200,
+                        content_type: ctype,
+                        headers: vec![("Content-Disposition", format!("attachment; filename=\"{}\"", name.replace('"', "")))],
+                        body: bytes,
+                    },
                     Err(e) => ApiResponse::error(400, e),
                 }
             }),
@@ -757,6 +772,18 @@ impl Engine {
                 }
             },
             ("GET", ["api", "recipes"]) => ApiResponse::json(200, &self.automation.summary_json()),
+            ("GET", ["api", "crs"]) => {
+                let q = param(&req.query, "q").unwrap_or_default();
+                let at = match (param(&req.query, "lon").and_then(|v| v.parse().ok()), param(&req.query, "lat").and_then(|v| v.parse().ok())) {
+                    (Some(lon), Some(lat)) => Some((lon, lat)),
+                    _ => None,
+                };
+                ApiResponse::json(200, &crate::crs::search(&q, at, 40))
+            }
+            ("GET", ["api", "crs", code]) => match crate::crs::describe(code) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(404, e),
+            },
             ("GET", ["api", "steps"]) => ApiResponse::json(200, &json!({ "steps": crate::automation::catalogue_json() })),
             ("POST", ["api", "preview", "map"]) => {
                 let body: serde_json::Value = match serde_json::from_slice(&req.body) {

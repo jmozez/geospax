@@ -7,7 +7,7 @@
 //   select   click, rectangle, by attributes (SQL WHERE), by location (another layer)
 //   history  undo / redo of whole edits (create, change, delete), across layers
 import type * as maplibregl from 'maplibre-gl';
-import { TerraDraw, TerraDrawLineStringMode, TerraDrawPointMode, TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawSelectMode, type GeoJSONStoreFeatures } from 'terra-draw';
+import { TerraDraw, TerraDrawFreehandMode, TerraDrawLineStringMode, TerraDrawPointMode, TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawSelectMode, type GeoJSONStoreFeatures } from 'terra-draw';
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter';
 import type { Backend, LayerInfo } from './backend';
 
@@ -28,14 +28,24 @@ export interface EditHost {
   openTable: (id: string) => void;
   setStatus: (text: string, ms?: number) => void;
   log: (line: string, level?: 'info' | 'warn' | 'error') => void;
+  /** attribute rules per field (Edit › Attribute rules): a list of allowed values and a default */
+  rules?: (id: string) => Record<string, AttrRule>;
+  setRules?: (id: string, r: Record<string, AttrRule>) => void;
+}
+
+export interface AttrRule {
+  values?: string[];
+  default?: string;
+  required?: boolean;
 }
 
 type Op =
   | { kind: 'add'; layer: string; fid: Fid; feature: FeatureJson }
   | { kind: 'update'; layer: string; fid: Fid; before: FeatureJson; after: FeatureJson }
-  | { kind: 'delete'; layer: string; features: { fid: Fid; feature: FeatureJson }[] };
+  | { kind: 'delete'; layer: string; features: { fid: Fid; feature: FeatureJson }[] }
+  | { kind: 'batch'; label: string; ops: Op[] };
 
-export type EditTool = 'idle' | 'point' | 'line' | 'polygon' | 'select' | 'box' | 'vertices';
+export type EditTool = 'idle' | 'point' | 'line' | 'polygon' | 'select' | 'box' | 'vertices' | 'lasso' | 'sketch';
 
 const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const enc = encodeURIComponent;
@@ -282,12 +292,17 @@ export class Editor {
     document.dispatchEvent(new CustomEvent('geospax:edit-history'));
   }
 
-  private describe(op: Op) {
+  private describe(op: Op): string {
+    if (op.kind === 'batch') return op.label;
     return op.kind === 'add' ? 'add feature' : op.kind === 'update' ? 'change feature' : `delete ${op.features.length} feature${op.features.length === 1 ? '' : 's'}`;
   }
 
   /** Run an op forwards or backwards. Re-created features get new fids; the op keeps track. */
-  private async apply(op: Op, backwards: boolean) {
+  private async apply(op: Op, backwards: boolean): Promise<void> {
+    if (op.kind === 'batch') {
+      for (const o of backwards ? [...op.ops].reverse() : op.ops) await this.apply(o, backwards);
+      return;
+    }
     if (op.kind === 'add') {
       if (backwards) await this.deleteFeatures(op.layer, [op.fid]);
       else op.fid = await this.addFeature(op.layer, op.feature);
@@ -314,6 +329,7 @@ export class Editor {
         new TerraDrawLineStringMode({ snapping: snap, styles: { lineStringColor: accent, lineStringWidth: 3, closingPointColor: accent } }),
         new TerraDrawPolygonMode({ snapping: snap, styles: { fillColor: accent, fillOpacity: 0.25, outlineColor: accent, outlineWidth: 2 } }),
         new TerraDrawRectangleMode({ styles: { fillColor: '#4cc9f0', fillOpacity: 0.15, outlineColor: '#4cc9f0', outlineWidth: 2 } }),
+        new TerraDrawFreehandMode({ styles: { fillColor: '#4cc9f0', fillOpacity: 0.15, outlineColor: '#4cc9f0', outlineWidth: 2 } }),
         new TerraDrawSelectMode({
           flags: Object.fromEntries(
             ['point', 'linestring', 'polygon'].map((m) => [m, { feature: { draggable: true, coordinates: { draggable: true, midpoints: true, deletable: true, snappable: true } } }]),
@@ -373,7 +389,8 @@ export class Editor {
     }
     const id = this.h.activeId();
     const l = this.layer(id);
-    if (tool !== 'box' && !l) {
+    if (tool === 'sketch') return; // sketch() set the mode
+    if (tool !== 'box' && tool !== 'lasso' && !l) {
       this.status('Pick a layer in Contents first: edits go into the active layer.', 6000);
       this.tool = 'idle';
       return;
@@ -388,6 +405,11 @@ export class Editor {
       if (!(await this.confirmFirstEdit(id!))) { this.tool = 'idle'; return; }
       this.ensureDraw().setMode(tool === 'line' ? 'linestring' : tool);
       this.status(tool === 'point' ? `Click to add points to ${l!.name}. Esc ends.` : `Click to add vertices; double-click (or click the first point) to finish. ${this.snapping ? 'Snapping is on.' : ''} Esc ends.`, 9000);
+      return;
+    }
+    if (tool === 'lasso') {
+      this.ensureDraw().setMode('freehand');
+      this.status('Lasso: click, draw around the features and click again to close: features of the active layer inside are selected.', 8000);
       return;
     }
     if (tool === 'box') {
@@ -434,6 +456,21 @@ export class Editor {
       if (f) this.selectInBox(f.geometry as GeoJSON.Polygon);
       return;
     }
+    if (this.tool === 'sketch' && this.sketchDone) {
+      const f = draw.getSnapshotFeature(drawId);
+      draw.removeFeatures([drawId]);
+      const done = this.sketchDone;
+      this.sketchDone = null;
+      void this.setTool('idle');
+      done((f?.geometry as Geometry) ?? null);
+      return;
+    }
+    if (mode === 'freehand') {
+      const f = draw.getSnapshotFeature(drawId);
+      draw.removeFeatures([drawId]);
+      if (f) this.selectInPolygon(f.geometry as GeoJSON.Polygon);
+      return;
+    }
     if (mode === 'select') return; // vertex edits are saved on Enter / Finish
     if (action !== 'draw') return;
     const id = this.h.activeId();
@@ -442,8 +479,8 @@ export class Editor {
     if (!id || !f) return;
     this.busy = true;
     try {
-      const feature: FeatureJson = { type: 'Feature', geometry: f.geometry as Geometry, properties: {} };
-      const props = await this.attributeForm(id, feature.properties, 'New feature');
+      const feature: FeatureJson = { type: 'Feature', geometry: this.tracing ? this.trace(f.geometry as Geometry) : (f.geometry as Geometry), properties: {} };
+      const props = await this.attributeForm(id, feature.properties, 'New feature', true);
       if (props === null) { this.status('Feature not added'); return; }
       feature.properties = props;
       const fid = await this.addFeature(id, feature);
@@ -454,6 +491,271 @@ export class Editor {
       this.fail(e);
     } finally {
       this.busy = false;
+    }
+  }
+
+  // ---------------------------------------------------------------- sketches, lasso, trace
+
+  private sketchDone: ((g: Geometry | null) => void) | null = null;
+  /** Trace: a new line or area follows existing features between two vertices snapped onto them. */
+  tracing = false;
+  private clipboard: { geometry: Geometry; properties: Record<string, unknown>; kind: string }[] = [];
+
+  /** Draw a temporary line or area (for split, cut, reshape, copy along a line); null if cancelled. */
+  sketch(kind: 'line' | 'polygon', text: string): Promise<Geometry | null> {
+    if (this.sketchDone) this.sketchDone(null);
+    return new Promise((resolve) => {
+      void this.setTool('idle').then(() => {
+        this.tool = 'sketch';
+        document.body.dataset.editTool = 'sketch';
+        this.sketchDone = resolve;
+        this.ensureDraw().setMode(kind === 'line' ? 'linestring' : 'polygon');
+        this.status(`${text} Double-click to finish; Esc cancels.`, 12000);
+        const esc = (e: KeyboardEvent) => {
+          if (e.key !== 'Escape') return;
+          document.removeEventListener('keydown', esc);
+          if (this.sketchDone === resolve) { this.sketchDone = null; resolve(null); }
+        };
+        document.addEventListener('keydown', esc);
+      });
+    });
+  }
+
+  /** Features of the active layer with a vertex inside a freehand lasso. */
+  private selectInPolygon(poly: GeoJSON.Polygon) {
+    const id = this.h.activeId();
+    if (!id) return this.status('Pick a layer in Contents first.');
+    const map = this.h.map;
+    const ring = poly.coordinates[0];
+    const pts = ring.map((c) => map.project([c[0], c[1]]));
+    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+    const hits = map.queryRenderedFeatures([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { layers: drawnLayers(map, id) });
+    const fids = new Set<number>();
+    for (const h of hits) {
+      const fid = Number(h.id);
+      if (!Number.isFinite(fid) || fids.has(fid)) continue;
+      if (vertices(h.geometry as Geometry).some((c) => pointInRing(c, ring))) fids.add(fid);
+    }
+    this.setSelection(id, fids);
+    this.status(`${fids.size} selected in ${this.layer(id)?.name ?? id} (lasso)`);
+  }
+
+  /** Replace each segment between two vertices of the same visible feature by the path along it. */
+  trace(g: Geometry): Geometry {
+    const map = this.h.map;
+    const ids = this.h.layers().flatMap((l) => drawnLayers(map, l.id));
+    if (!ids.length || (g.type !== 'LineString' && g.type !== 'Polygon')) return g;
+    const paths: { pts: number[][]; closed: boolean }[] = [];
+    for (const f of map.queryRenderedFeatures({ layers: ids })) {
+      const geo = f.geometry as Geometry;
+      if (geo.type === 'LineString') paths.push({ pts: geo.coordinates, closed: false });
+      else if (geo.type === 'MultiLineString') geo.coordinates.forEach((c) => paths.push({ pts: c, closed: false }));
+      else if (geo.type === 'Polygon') geo.coordinates.forEach((c) => paths.push({ pts: c.slice(0, -1), closed: true }));
+      else if (geo.type === 'MultiPolygon') geo.coordinates.forEach((p) => p.forEach((c) => paths.push({ pts: c.slice(0, -1), closed: true })));
+    }
+    const same = (a: number[], b: number[]) => Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
+    const along = (a: number[], b: number[]): number[][] | null => {
+      let best: number[][] | null = null;
+      for (const p of paths) {
+        const i = p.pts.findIndex((c) => same(c, a));
+        const j = p.pts.findIndex((c) => same(c, b));
+        if (i < 0 || j < 0 || i === j) continue;
+        const n = p.pts.length;
+        const fwd: number[][] = [];
+        const back: number[][] = [];
+        if (p.closed) {
+          for (let k = (i + 1) % n; k !== j; k = (k + 1) % n) fwd.push(p.pts[k]);
+          for (let k = (i - 1 + n) % n; k !== j; k = (k - 1 + n) % n) back.push(p.pts[k]);
+        } else if (i < j) {
+          for (let k = i + 1; k < j; k++) fwd.push(p.pts[k]);
+        } else {
+          for (let k = i - 1; k > j; k--) fwd.push(p.pts[k]);
+        }
+        const via = !p.closed || pathLen([a, ...fwd, b]) <= pathLen([a, ...back, b]) ? fwd : back;
+        if (!best || via.length < best.length) best = via;
+      }
+      return best;
+    };
+    const walk = (cs: number[][]) => {
+      const out: number[][] = [cs[0]];
+      for (let k = 1; k < cs.length; k++) {
+        const mid = along(cs[k - 1], cs[k]);
+        if (mid) out.push(...mid);
+        out.push(cs[k]);
+      }
+      return out;
+    };
+    if (g.type === 'LineString') return { type: 'LineString', coordinates: walk(g.coordinates) };
+    return { type: 'Polygon', coordinates: g.coordinates.map(walk) };
+  }
+
+  // ---------------------------------------------------------------- split, merge, cut, reshape, copy
+
+  /** Split / merge / cut / reshape the selected features of the active layer (engine: edit.rs). */
+  async geometryEdit(op: 'split' | 'merge' | 'cut' | 'reshape') {
+    const id = this.h.activeId();
+    const l = this.layer(id);
+    if (!id || !l) return this.status('Pick a layer in Contents first.');
+    const fids = this.selected(id);
+    if (!fids.length) return this.status(`Select the ${op === 'merge' ? 'features to merge' : 'features to change'} first (Edit › Select).`, 6000);
+    if (op === 'merge' && fids.length < 2) return this.status('Select two or more features to merge (Shift+click adds).', 6000);
+    if (l.geometry === 'point') return this.status(`${op} works on lines and polygons.`, 5000);
+    if ((op === 'cut' || op === 'reshape') && l.geometry !== 'polygon') return this.status(`${op} works on polygons.`, 5000);
+    if (!(await this.confirmFirstEdit(id))) return;
+    let sketch: Geometry | null = null;
+    if (op !== 'merge') {
+      const what = { split: 'Draw a line across the selected features to split them.', cut: 'Draw the area to cut out of the selected polygons.', reshape: 'Draw the new boundary: start and end on the polygon\'s edge.' }[op];
+      sketch = await this.sketch(op === 'cut' ? 'polygon' : 'line', what);
+      if (!sketch) return this.status(`${op} cancelled`);
+    }
+    try {
+      const before = await Promise.all(fids.map(async (fid) => ({ fid, feature: await this.getFeature(id, fid) })));
+      const r = await this.api<{ fids: Fid[]; layer: LayerInfo }>(`api/layers/${enc(id)}/geometry-edit`, 'POST', { op, fids, sketch });
+      await this.h.changed(id, r.layer);
+      const ops: Op[] = [];
+      for (const fid of r.fids) {
+        const after = await this.getFeature(id, fid);
+        const b = before.find((x) => x.fid === fid);
+        ops.push(b ? { kind: 'update', layer: id, fid, before: b.feature, after } : { kind: 'add', layer: id, fid, feature: after });
+      }
+      const gone = before.filter((b) => !r.fids.includes(b.fid));
+      if (gone.length) ops.push({ kind: 'delete', layer: id, features: gone });
+      const label = { split: 'split', merge: 'merge', cut: 'cut', reshape: 'reshape' }[op];
+      this.push({ kind: 'batch', label, ops });
+      this.setSelection(id, r.fids);
+      const n = r.fids.length;
+      this.status(op === 'merge' ? `Merged ${fids.length} features into one. Ctrl+Z undoes it.` : op === 'reshape' ? 'Reshaped. Ctrl+Z undoes it.' : `${op === 'split' ? 'Split' : 'Cut'}: ${n} features now (attributes copied). Ctrl+Z undoes it.`, 7000);
+    } catch (e) {
+      this.fail(e);
+    }
+  }
+
+  /** Copy the selected features (Ctrl+C on the map). */
+  async copySelected() {
+    const id = this.h.activeId();
+    const l = this.layer(id);
+    if (!id || !l) return this.status('Pick a layer in Contents first.');
+    const fids = this.selected(id);
+    if (!fids.length) return this.status('Select the features to copy first.');
+    this.clipboard = (await Promise.all(fids.slice(0, 5000).map((fid) => this.getFeature(id, fid))))
+      .filter((f) => f.geometry)
+      .map((f) => ({ geometry: f.geometry as Geometry, properties: f.properties ?? {}, kind: l.geometry }));
+    this.status(`${this.clipboard.length} feature${this.clipboard.length === 1 ? '' : 's'} copied: pick a layer and Paste.`);
+  }
+
+  /** Paste copied features into the active layer (same geometry type; matching fields keep values). */
+  async paste() {
+    const id = this.h.activeId();
+    const l = this.layer(id);
+    if (!id || !l) return this.status('Pick the layer to paste into first.');
+    if (!this.clipboard.length) return this.status('Nothing copied yet: select features and Copy.');
+    const fit = this.clipboard.filter((c) => c.kind === l.geometry);
+    if (!fit.length) return this.status(`The copied features are ${this.clipboard[0].kind}s; ${l.name} holds ${l.geometry}s.`, 6000);
+    await this.addMany(id, fit.map((c) => ({ type: 'Feature', geometry: c.geometry, properties: keepFields(c.properties, l) })), `paste ${fit.length}`);
+  }
+
+  /** Copies of the selected feature at equal steps along a drawn line (QGIS 4 "array along a line"). */
+  async copyAlongLine() {
+    const id = this.h.activeId();
+    const l = this.layer(id);
+    if (!id || !l) return this.status('Pick a layer in Contents first.');
+    const fids = this.selected(id);
+    if (fids.length !== 1) return this.status('Select one feature to copy along a line.', 5000);
+    const src = await this.getFeature(id, fids[0]);
+    if (!src.geometry) return this.status('That feature has no geometry.');
+    const srcGeom = src.geometry;
+    const line = await this.sketch('line', 'Draw the line to place the copies along (it starts at the feature).');
+    if (!line || line.type !== 'LineString') return;
+    const total = pathMetres(line.coordinates);
+    const v = await dialog('Copy along line', `<p class="dim">The line is ${total.toFixed(1)} m long.</p>
+      <label class="row"><span>Copies</span><input name="count" type="number" min="1" max="500" value="5"></label>
+      <label class="row"><span>or every (m)</span><input name="spacing" type="number" min="0" step="any" placeholder="spacing in metres"></label>`, [['ok', 'Place copies'], ['', 'Cancel']]);
+    if (v.button !== 'ok') return;
+    const spacing = Number(v.values.spacing);
+    const count = spacing > 0 ? Math.floor(total / spacing) : Math.max(1, Math.min(500, Number(v.values.count) || 5));
+    const step = spacing > 0 ? spacing : total / count;
+    const anchor = line.coordinates[0];
+    const feats: FeatureJson[] = [];
+    for (let k = 1; k <= count; k++) {
+      const p = pointAlong(line.coordinates, step * k);
+      if (!p) break;
+      feats.push({ type: 'Feature', geometry: translate(srcGeom, p[0] - anchor[0], p[1] - anchor[1]), properties: src.properties ?? {} });
+    }
+    await this.addMany(id, feats, `copy along line (${feats.length})`);
+  }
+
+  /** A point at the newest live GPS position (phone link, GNSS receiver, OwnTracks: Devices). */
+  async pointFromGps() {
+    const id = this.h.activeId();
+    const l = this.layer(id);
+    if (!id || !l) return this.status('Pick the point layer to add to first.');
+    if (l.geometry !== 'point') return this.status(`${l.name} holds ${l.geometry}s: GPS adds points.`, 5000);
+    const live = await this.api<GeoJSON.FeatureCollection>('api/devices/live', 'GET').catch(() => null);
+    const fixes = (live?.features ?? []).filter((f) => f.geometry?.type === 'Point');
+    const t = (f: GeoJSON.Feature) => Date.parse(String(f.properties?.time ?? f.properties?.t ?? '')) || 0;
+    const best = fixes.sort((a, b) => t(b) - t(a))[0];
+    if (!best) return this.status('No live GPS yet: connect a phone (Devices › Phone over Wi-Fi) or a GNSS receiver.', 8000);
+    if (!(await this.confirmFirstEdit(id))) return;
+    const acc = Number(best.properties?.accuracy ?? best.properties?.acc ?? NaN);
+    const age = t(best) ? Math.round((Date.now() - t(best)) / 1000) : null;
+    const feature: FeatureJson = { type: 'Feature', geometry: best.geometry as Geometry, properties: {} };
+    const props = await this.attributeForm(id, {}, `GPS point${Number.isFinite(acc) ? ` ±${Math.round(acc)} m` : ''}${age != null ? `, ${age} s old` : ''}`, true);
+    if (props === null) return;
+    feature.properties = props;
+    try {
+      const fid = await this.addFeature(id, feature);
+      this.push({ kind: 'add', layer: id, fid, feature });
+      this.setSelection(id, [fid]);
+      this.status(`GPS point added (${(best.properties?.device ?? best.properties?.name ?? 'device') as string}).`);
+    } catch (e) {
+      this.fail(e);
+    }
+  }
+
+  /** Value lists, defaults and required fields for the active layer (used by every attribute form). */
+  async attributeRules() {
+    const id = this.h.activeId();
+    const l = this.layer(id);
+    if (!id || !l || !this.h.rules || !this.h.setRules) return this.status('Pick a layer in Contents first.');
+    if (!l.fields.length) return this.status(`${l.name} has no fields yet: Edit › Add field.`);
+    const cur = this.h.rules(id);
+    const rows = l.fields.map((f) => {
+      const r = cur[f.name] ?? {};
+      return `<tr><td><b>${esc(f.name)}</b> <i class="dim">${esc(f.kind)}</i></td>
+        <td><input name="v:${esc(f.name)}" value="${esc((r.values ?? []).join(', '))}" placeholder="any value"></td>
+        <td><input name="d:${esc(f.name)}" value="${esc(r.default ?? '')}" placeholder="none"></td>
+        <td><input type="checkbox" name="r:${esc(f.name)}" ${r.required ? 'checked' : ''}></td></tr>`;
+    }).join('');
+    const v = await dialog(`Attribute rules · ${l.name}`, `<p class="dim">New and edited features get a list to pick from, a default value and required fields: consistent data from everyone who edits.</p>
+      <table class="rules"><tr><th>Field</th><th>Allowed values (comma-separated)</th><th>Default</th><th>Required</th></tr>${rows}</table>`, [['ok', 'Save rules'], ['', 'Cancel']]);
+    if (v.button !== 'ok') return;
+    const out: Record<string, AttrRule> = {};
+    for (const f of l.fields) {
+      const values = (v.values[`v:${f.name}`] ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+      const def = (v.values[`d:${f.name}`] ?? '').trim();
+      const required = v.root.querySelector<HTMLInputElement>(`[name="r:${CSS.escape(f.name)}"]`)?.checked ?? false;
+      if (values.length || def || required) out[f.name] = { ...(values.length ? { values } : {}), ...(def ? { default: def } : {}), ...(required ? { required } : {}) };
+    }
+    this.h.setRules(id, out);
+    this.status(`Rules saved for ${Object.keys(out).length} field${Object.keys(out).length === 1 ? '' : 's'} of ${l.name}.`);
+  }
+
+  private async addMany(id: string, feats: FeatureJson[], label: string) {
+    if (!feats.length) return;
+    if (!(await this.confirmFirstEdit(id))) return;
+    try {
+      const ops: Op[] = [];
+      const fids: Fid[] = [];
+      for (const f of feats) {
+        const fid = await this.addFeature(id, f);
+        fids.push(fid);
+        ops.push({ kind: 'add', layer: id, fid, feature: f });
+      }
+      this.push({ kind: 'batch', label, ops });
+      this.setSelection(id, fids);
+      this.status(`${feats.length} feature${feats.length === 1 ? '' : 's'} added to ${this.layer(id)?.name ?? id}. Ctrl+Z undoes it.`);
+    } catch (e) {
+      this.fail(e);
     }
   }
 
@@ -600,17 +902,33 @@ export class Editor {
   }
 
   /** A form with one input per field; resolves with the values, or null when cancelled. */
-  private async attributeForm(id: string, values: Record<string, unknown>, title: string): Promise<Record<string, unknown> | null> {
+  private async attributeForm(id: string, values: Record<string, unknown>, title: string, isNew = false): Promise<Record<string, unknown> | null> {
     const l = this.layer(id);
     const fields = l?.fields ?? [];
     if (!fields.length) return {};
+    const rules = this.h.rules?.(id) ?? {};
     const input = (f: { name: string; kind: string }) => {
-      const v = values[f.name];
+      const rule = rules[f.name];
+      const v = values[f.name] ?? (isNew ? rule?.default : undefined);
+      const req = rule?.required ? ' required' : '';
+      const mark = rule?.required ? ' *' : '';
+      if (rule?.values?.length) {
+        const opts = ['', ...rule.values].map((x) => `<option${String(v ?? '') === x ? ' selected' : ''}>${esc(x)}</option>`).join('');
+        return `<label class="row"><span>${esc(f.name)}${mark} <i>${esc(f.kind)}</i></span><select name="f:${esc(f.name)}"${req}>${opts}</select></label>`;
+      }
       const type = f.kind === 'integer' || f.kind === 'real' ? 'number' : 'text';
       const step = f.kind === 'real' ? ' step="any"' : '';
-      return `<label class="row"><span>${esc(f.name)} <i>${esc(f.kind)}</i></span><input name="f:${esc(f.name)}" type="${type}"${step} value="${esc(v ?? '')}"></label>`;
+      return `<label class="row"><span>${esc(f.name)}${mark} <i>${esc(f.kind)}</i></span><input name="f:${esc(f.name)}" type="${type}"${step}${req} value="${esc(v ?? '')}"></label>`;
     };
-    const r = await dialog(`${title} · ${l?.name ?? id}`, `<div class="attr-form">${fields.map(input).join('')}</div>`, [['ok', 'Save'], ['', 'Cancel']]);
+    let r = await dialog(`${title} · ${l?.name ?? id}`, `<div class="attr-form">${fields.map(input).join('')}</div>`, [['ok', 'Save'], ['', 'Cancel']]);
+    // a required field left empty: ask again (rules from Edit › Attribute rules)
+    for (let tries = 0; r.button === 'ok' && tries < 3; tries++) {
+      const missing = fields.filter((f) => rules[f.name]?.required && !(r.values[`f:${f.name}`] ?? '').trim()).map((f) => f.name);
+      if (!missing.length) break;
+      this.status(`Required: ${missing.join(', ')}`, 6000);
+      for (const f of fields) values[f.name] = r.values[`f:${f.name}`] ?? values[f.name];
+      r = await dialog(`${title} · ${l?.name ?? id}`, `<p class="err">Fill in ${esc(missing.join(', '))}.</p><div class="attr-form">${fields.map(input).join('')}</div>`, [['ok', 'Save'], ['', 'Cancel']]);
+    }
     if (r.button !== 'ok') return null;
     const out: Record<string, unknown> = {};
     for (const f of fields) {
@@ -816,7 +1134,7 @@ export class Editor {
           say(root, 'Calculating…');
           const r = await this.api<{ updated: number; layer: LayerInfo }>(`api/layers/${enc(id)}/calculate`, 'POST', body);
           await this.afterChange(id, r.layer);
-          this.undoStack = this.undoStack.filter((op) => op.layer !== id); // a calculation is not undoable feature by feature
+          this.undoStack = this.undoStack.filter((op) => opLayer(op) !== id); // a calculation is not undoable feature by feature
           document.dispatchEvent(new CustomEvent('geospax:edit-history'));
           this.status(`${name}: ${r.updated.toLocaleString()} feature${r.updated === 1 ? '' : 's'} calculated`, 7000);
           return true;
@@ -925,8 +1243,8 @@ export class Editor {
     if (r.button !== 'ok') return;
     try {
       const res = await this.api<{ layer?: LayerInfo; removed?: string }>(`api/layers/${enc(id)}/revert`, 'POST');
-      this.undoStack = this.undoStack.filter((op) => op.layer !== id);
-      this.redoStack = this.redoStack.filter((op) => op.layer !== id);
+      this.undoStack = this.undoStack.filter((op) => opLayer(op) !== id);
+      this.redoStack = this.redoStack.filter((op) => opLayer(op) !== id);
       this.clearSelection(id);
       await this.afterChange(id, res.layer);
       document.dispatchEvent(new CustomEvent('geospax:edit-history'));
@@ -951,4 +1269,78 @@ export class Editor {
       this.fail(e);
     }
   }
+}
+
+// ---------------------------------------------------------------- geometry helpers
+
+const opLayer = (op: Op): string => (op.kind === 'batch' ? (op.ops[0] ? opLayer(op.ops[0]) : '') : op.layer);
+
+function vertices(g: Geometry): number[][] {
+  switch (g.type) {
+    case 'Point': return [g.coordinates];
+    case 'MultiPoint': case 'LineString': return g.coordinates;
+    case 'MultiLineString': case 'Polygon': return g.coordinates.flat();
+    case 'MultiPolygon': return g.coordinates.flat(2);
+    default: return [];
+  }
+}
+
+function pointInRing(p: number[], ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+const R = 6371008.8;
+function metres(a: number[], b: number[]): number {
+  const rad = Math.PI / 180;
+  const h = Math.sin(((b[1] - a[1]) * rad) / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(((b[0] - a[0]) * rad) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function pathLen(cs: number[][]): number {
+  let m = 0;
+  for (let i = 1; i < cs.length; i++) m += Math.hypot(cs[i][0] - cs[i - 1][0], cs[i][1] - cs[i - 1][1]);
+  return m;
+}
+function pathMetres(cs: number[][]): number {
+  let m = 0;
+  for (let i = 1; i < cs.length; i++) m += metres(cs[i - 1], cs[i]);
+  return m;
+}
+/** The point `d` metres along a line, or null past its end. */
+function pointAlong(cs: number[][], d: number): number[] | null {
+  let left = d;
+  for (let i = 1; i < cs.length; i++) {
+    const seg = metres(cs[i - 1], cs[i]);
+    if (left <= seg + 1e-9) {
+      const t = seg ? left / seg : 0;
+      return [cs[i - 1][0] + t * (cs[i][0] - cs[i - 1][0]), cs[i - 1][1] + t * (cs[i][1] - cs[i - 1][1])];
+    }
+    left -= seg;
+  }
+  return null;
+}
+function translate(g: Geometry, dx: number, dy: number): Geometry {
+  const mv = (c: number[]) => [c[0] + dx, c[1] + dy, ...c.slice(2)];
+  switch (g.type) {
+    case 'Point': return { type: 'Point', coordinates: mv(g.coordinates) };
+    case 'MultiPoint': return { type: 'MultiPoint', coordinates: g.coordinates.map(mv) };
+    case 'LineString': return { type: 'LineString', coordinates: g.coordinates.map(mv) };
+    case 'MultiLineString': return { type: 'MultiLineString', coordinates: g.coordinates.map((l) => l.map(mv)) };
+    case 'Polygon': return { type: 'Polygon', coordinates: g.coordinates.map((r) => r.map(mv)) };
+    case 'MultiPolygon': return { type: 'MultiPolygon', coordinates: g.coordinates.map((p) => p.map((r) => r.map(mv))) };
+    default: return g;
+  }
+}
+/** Only the properties the target layer has a field for (names matched without case). */
+function keepFields(props: Record<string, unknown>, l: LayerInfo): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(props)) {
+    const f = l.fields.find((x) => x.name.toLowerCase() === k.toLowerCase());
+    if (f) out[f.name] = v;
+  }
+  return out;
 }

@@ -32,6 +32,7 @@ pub mod sidecar;
 pub mod stats_steps;
 pub mod steps;
 pub mod triggers;
+pub mod zonal_steps;
 
 use crate::jobs::{Job, Status};
 use crate::Engine;
@@ -51,6 +52,8 @@ pub const GALLERY: &[(&str, &str)] = &[
     ("track-to-map", include_str!("../../../../recipes/track-to-map.yaml")),
     ("drone-flight-report", include_str!("../../../../recipes/drone-flight-report.yaml")),
     ("points-to-hexbins", include_str!("../../../../recipes/points-to-hexbins.yaml")),
+    ("zonal-statistics", include_str!("../../../../recipes/zonal-statistics.yaml")),
+    ("check-topology", include_str!("../../../../recipes/check-topology.yaml")),
     ("points-to-hotspots", include_str!("../../../../recipes/points-to-hotspots.yaml")),
     ("interpolate-samples", include_str!("../../../../recipes/interpolate-samples.yaml")),
     ("python-spatial-stats", include_str!("../../../../recipes/python-spatial-stats.yaml")),
