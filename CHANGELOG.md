@@ -16,6 +16,13 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   blank with the NVIDIA driver and some GPU and compositor combinations.
 
 ### Added
+- **Layout window** (Share → Layout window, or Open in layout window in Finish my map): the map page in a
+  window of its own, for a second monitor or full screen, with zoom and pan. It redraws live as the map,
+  its layers or their styles change, and **Make final files** writes the PNG, PDF, SVG and the report.
+- **The report as a Word document** (`report.docx`) next to `report.html`: title, map, numbers, method
+  notes, decisions, data and provenance as real headings, tables and pictures, ready to edit.
+- Finish my map makes the **SVG** by default too; each finished map on the start screen shows its delete
+  button at all times.
 - **Fedora 43 package** (`.fc43`) next to Fedora 44's, each built and install-tested on its own release.
 
 ## [3.0.2] — 2026-10-25

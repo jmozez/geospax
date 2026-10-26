@@ -716,8 +716,9 @@ impl Engine {
                     Ok(v) => v,
                     Err(e) => return ApiResponse::error(400, format!("preview: {e}")),
                 };
+                let content_type = if body.get("format").and_then(|v| v.as_str()) == Some("svg") { "image/svg+xml" } else { "image/png" };
                 match self.automation.preview_map(self, &body) {
-                    Ok(png) => ApiResponse { status: 200, content_type: "image/png", headers: vec![("Cache-Control", "no-store".to_string())], body: png },
+                    Ok(bytes) => ApiResponse { status: 200, content_type, headers: vec![("Cache-Control", "no-store".to_string())], body: bytes },
                     Err(e) => ApiResponse::error(422, e),
                 }
             }

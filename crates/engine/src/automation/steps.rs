@@ -2,7 +2,7 @@
 //! parameters, does its work synchronously on the run's thread and returns outputs (for `${…}`
 //! references in later steps) plus plain-language "why" lines for the run log and the report.
 
-use super::{data_steps, detect_steps, embed_steps, hydro_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps, taxa_steps};
+use super::{report_docx, data_steps, detect_steps, embed_steps, hydro_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps, taxa_steps};
 use super::automap;
 use super::cartography::{self, Layout, MapLayer, MapSpec};
 use super::features::{self, Feat, FeatureSet, LocalProj, Val};
@@ -2436,15 +2436,21 @@ fn export_report(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                 Some(report::Figure { png: std::fs::read(sc.dir.join(f)).ok()?, title: title.clone(), file: f.clone() })
             })
             .collect(),
+        word: Some(format!("{}.docx", sanitize(p_str(p, "name").unwrap_or("report")))),
     };
     let html = report::render(&input);
     let name = sanitize(p_str(p, "name").unwrap_or("report"));
     let file = format!("{name}.html");
     std::fs::write(sc.dir.join(&file), html.as_bytes()).map_err(|e| e.to_string())?;
-    let copied = copy_to(sc, p, std::slice::from_ref(&file))?;
+    // the same report as an editable Word document, with the main map as a picture
+    let map_png = input.map_files.iter().find(|f| f.ends_with(".png")).and_then(|f| std::fs::read(sc.dir.join(f)).ok());
+    let docx = format!("{name}.docx");
+    std::fs::write(sc.dir.join(&docx), report_docx::render(&input, map_png.as_deref())?).map_err(|e| e.to_string())?;
+    let copied = copy_to(sc, p, &[file.clone(), docx.clone()])?;
     sc.artifacts.push(file.clone());
+    sc.artifacts.push(docx.clone());
     Ok(StepOut {
-        outputs: json!({ "html": sc.dir.join(&file), "files": [file], "title": title, "copied_to": copied }),
+        outputs: json!({ "html": sc.dir.join(&file), "docx": sc.dir.join(&docx), "files": [file, docx], "title": title, "copied_to": copied }),
         why: vec![format!("{} KB report: map, {} decisions, {} method notes, run log, provenance", html.len() / 1024, sc.styles.len(), sc.methods.len())],
     })
 }

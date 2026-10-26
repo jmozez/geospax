@@ -98,6 +98,7 @@ export const ICONS: Record<string, string> = {
   image: 'M3 5h18v14H3zm2 12h14l-4-5-3 3.5-2-2zM8.5 9a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
   download: 'M11 3h2v9l3-3 1.5 1.5L12 16 6.5 10.5 8 9l3 3zM5 19h14v2H5z',
   print: 'M7 8V3h10v5h4v8h-4v5H7v-5H3V8zm2 8h6v5H9z',
+  window: 'M3 4h18v13H3zm2 2v9h14V6zm3 13h8v2H8z',
   layout: 'M3 4h18v16H3zm2 2v12h4V6zm6 0v12h8V6z',
   fullscreen: 'M4 4h7v2H6v5H4zM20 4h-7v2h5v5h2zM4 20h7v-2H6v-5H4zM20 20h-7v-2h5v-5h2z',
   book: 'M4 4h7v16H4zm9 0h7v16h-7zM6 7h3v2H6zm9 0h3v2h-3z',
@@ -513,6 +514,11 @@ export const COMMANDS: Command[] = [
     id: 'home.finish', tab: 'share', group: 'Layout', title: 'Finish my map', icon: 'print', big: true,
     hint: 'The layers on the map, laid out with legend, scale bar and north arrow: PNG, PDF and a report',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:finish')); },
+  },
+  {
+    id: 'share.layout', tab: 'share', group: 'Layout', title: 'Layout window', icon: 'window', big: true,
+    hint: 'The map page in a window of its own (a second monitor, full screen): zoom in, and it redraws live as you edit the map',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:layout')); },
   },
   {
     id: 'home.start', tab: 'home', group: 'Project', title: 'Start', icon: 'start',

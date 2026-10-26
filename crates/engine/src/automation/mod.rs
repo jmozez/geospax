@@ -26,6 +26,7 @@ pub mod hydro_steps;
 pub mod lidar_steps;
 pub mod recipe;
 pub mod report;
+pub mod report_docx;
 pub mod scene_steps;
 pub mod sidecar;
 pub mod stats_steps;
@@ -198,6 +199,8 @@ fn content_type(name: &str) -> &'static str {
     match name.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
         "png" => "image/png",
         "svg" => "image/svg+xml",
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "pdf" => "application/pdf",
         "html" => "text/html; charset=utf-8",
         "json" => "application/json",
         "geojson" => "application/geo+json",
@@ -583,6 +586,7 @@ impl Automation {
     /// A quick look at a finished map before making it (Finish my map's preview): `style.apply` with
     /// `styles`, then `export.map` with `map` at low resolution, PNG only, in a temporary folder.
     /// Nothing is added to the run history.
+    /// `"format": "svg"` returns the page as SVG instead (the live layout window: sharp at any zoom).
     pub fn preview_map(&self, engine: &Arc<Engine>, body: &Value) -> Result<Vec<u8>, String> {
         static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -598,13 +602,14 @@ impl Automation {
             }
             let mut p = body.get("map").cloned().unwrap_or_else(|| json!({}));
             let o = p.as_object_mut().ok_or("map: expected the export.map parameters")?;
-            o.insert("format".into(), json!(["png"]));
+            let svg = body.get("format").and_then(Value::as_str) == Some("svg");
+            o.insert("format".into(), json!([if svg { "svg" } else { "png" }]));
             o.insert("name".into(), json!("preview"));
             o.insert("dpi".into(), json!(body.get("dpi").and_then(Value::as_f64).unwrap_or(60.0).clamp(36.0, 150.0)));
             o.remove("to");
             sc.step_id = "map".into();
             steps::execute(&mut sc, "export.map", &p)?;
-            std::fs::read(dir.join("preview.png")).map_err(|e| e.to_string())
+            std::fs::read(dir.join(if svg { "preview.svg" } else { "preview.png" })).map_err(|e| e.to_string())
         })();
         let _ = std::fs::remove_dir_all(&dir);
         result

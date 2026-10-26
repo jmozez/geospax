@@ -172,7 +172,10 @@ function mergeProject(saved: Project | null): Project {
 }
 
 let saveTimer: number | undefined;
+/** Finish my map, once the UI is up: a live layout window follows every change saved here */
+let finishMap: FinishMap | null = null;
 function saveProject() {
+  finishMap?.mapChanged();
   clearTimeout(saveTimer);
   saveTimer = window.setTimeout(async () => {
     if (map) project.view = { center: map.getCenter().toArray() as [number, number], zoom: map.getZoom() };
@@ -1931,6 +1934,7 @@ async function main() {
     onRunFinished: async (run: RunInfo) => {
       // Finish my map: show the result as soon as it is ready
       if ((run as unknown as { recipe?: string }).recipe === FINISH_RECIPE) {
+        finishMap?.runFinished(run.status === 'done', (run as unknown as { error?: string }).error);
         if (run.status === 'done') {
           workbench?.setStatus('Your map is finished: the report has the map, the PDF and the files', 8000);
           void openRunReport(run.id);
@@ -2684,6 +2688,8 @@ async function main() {
   document.addEventListener('geospax:start', () => void start.show());
   document.addEventListener('geospax:browse', () => start.browse());
   document.addEventListener('geospax:finish', () => finish.open());
+  document.addEventListener('geospax:layout', () => void finish.openLayout());
+  finishMap = finish;
   document.querySelector('#theme-switch')?.addEventListener('click', () => setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light'));
   document.addEventListener('geospax:theme', (e) => setTheme((e as CustomEvent<Theme>).detail));
   // a lazy mapper with nothing of their own on the map yet starts on the start screen

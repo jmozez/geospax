@@ -32,6 +32,8 @@ pub struct ReportInput {
     pub charts: Vec<(String, String, String)>,
     /// Further maps of the run (after the main one), as PNG pictures
     pub figures: Vec<Figure>,
+    /// the same report as a Word document, next to this one (linked at the top)
+    pub word: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -80,6 +82,9 @@ pub fn render(r: &ReportInput) -> String {
         esc(&r.title),
         esc(&r.subtitle)
     );
+    if let Some(w) = &r.word {
+        let _ = write!(h, "<p class=\"files\">Edit this report: <a href=\"{w}\" download>Word document ({w})</a></p>", w = esc(w));
+    }
     if !r.cards.is_empty() {
         h.push_str("<section class=\"cards\">");
         for (big, label) in &r.cards {

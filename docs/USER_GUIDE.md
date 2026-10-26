@@ -111,6 +111,15 @@ emptiest top corner and the scale bar in the emptiest bottom corner. Pick a corn
 Behind the scenes Finish my map is an ordinary recipe, `finished-map`, replaced each time: it has run
 history and provenance, and you can re-run it or give it a trigger like any other.
 
+**The layout window: the page beside your map.** **Share → Layout window** (or **Open in layout window** in
+Finish my map) opens the map page in a window of its own, like ArcGIS Pro's layout view or QGIS's print
+layout. Move it to a second monitor or press **F** for full screen. Scroll to zoom (the page is vector, so it
+stays sharp), drag to move, double-click or **0** to fit, **1** for actual size. While **Live** is on it
+redraws whenever you pan the map, switch a layer on or off or change a style, using the choices last made
+in Finish my map (title, layout, style, furniture). **Make final files** writes the PNG, the vector PDF, the
+SVG and the report, as a web page and as a **Word document (report.docx)** you can edit; the links appear
+under the toolbar and in the report.
+
 **Opening the app is already lazy.** Every layer GeoSpaX sees for the first time is styled by AutoMap,
 the same engine the recipes use: it picks the field that matters (never an ID), the classification and a
 colour-blind-safe colour scheme, and the Symbology pane says why ("✨ Styled automatically …"). Change
