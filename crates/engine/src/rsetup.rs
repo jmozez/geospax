@@ -185,6 +185,14 @@ ver <- function(p) tryCatch(as.character(utils::packageVersion(p)), error = func
 if (length(pk)) {{
   ok <- tryCatch({{ nrow(utils::available.packages()) > 0 }}, error = function(e) FALSE, warning = function(w) FALSE)
   if (!ok) cat("GSXNOREPO", getOption("repos")[["CRAN"]], "\n")
+  # how many packages (with their dependencies) will be downloaded and installed: the gauge's total
+  if (ok) tryCatch({{
+    ap <- utils::available.packages()
+    dep <- tools::package_dependencies(pk, db = ap, which = c("Depends", "Imports", "LinkingTo"), recursive = TRUE)
+    all <- unique(c(pk, unlist(dep)))
+    have <- rownames(utils::installed.packages(lib.loc = c(lib, .libPaths())))
+    cat("GSXPLAN", length(setdiff(intersect(all, rownames(ap)), have)), "\n")
+  }}, error = function(e) NULL)
 }}
 for (i in seq_along(pk)) {{
   cat("GSX", i, length(pk), pk[i], "\n")
@@ -221,7 +229,30 @@ cat("GSXFAILED", failed, "\n")
     let mut no_repo: Option<String> = None;
     let base = job.json()["done"].as_u64().unwrap_or(0);
     let mut failed: Vec<String> = Vec::new();
+    // the gauge: packages to install (with dependencies), installed so far, bytes downloaded
+    let (t0, mut planned, mut units, mut bytes, mut label) = (std::time::Instant::now(), 0u64, 0u64, 0u64, String::new());
+    let gauge = |planned: u64, units: u64, bytes: u64, label: &str| {
+        if planned == 0 {
+            return;
+        }
+        let frac = (units as f64 / planned as f64).min(0.99);
+        let el = t0.elapsed().as_secs_f64();
+        // bytes per finished package so far gives the expected total download
+        let total = (units > 0 && bytes > 0).then(|| (bytes as f64 / units.max(1) as f64 * planned as f64).max(bytes as f64) as u64);
+        let eta = (frac > 0.0).then(|| el / frac * (1.0 - frac));
+        let v = serde_json::json!({ "label": label, "fraction": frac, "bytes": bytes, "total": total, "rate": if el > 0.0 { bytes as f64 / el } else { 0.0 }, "eta_s": eta, "elapsed_s": el, "units": units, "planned": planned });
+        job.update(|s| s.transfer = Some(v));
+    };
     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+        // R prints the size of each file it downloads and a line for each package it installs
+        if let Some(n) = line.split("length ").nth(1).and_then(|r| r.split(" bytes").next()).and_then(|n| n.trim().parse::<u64>().ok()) {
+            bytes += n;
+            gauge(planned, units, bytes, &label);
+        }
+        if line.starts_with("* DONE (") || line.contains("successfully unpacked and MD5 sums checked") {
+            units += 1;
+            gauge(planned, units, bytes, &label);
+        }
         if job.cancel.load(Ordering::Relaxed) {
             let _ = child.kill();
             let _ = child.wait();
@@ -238,6 +269,8 @@ cat("GSXFAILED", failed, "\n")
                 let i: u64 = parts[1].parse().unwrap_or(1);
                 let p = parts[3].to_string();
                 job.log(format!("— {p} ({i} of {})", parts[2]));
+                label = format!("{p} ({i} of {})", parts[2]);
+                gauge(planned, units, bytes, &label);
                 job.update(|s| {
                     s.done = base + i - 1;
                     s.message = format!("Installing {p} ({i} of {})", parts[2]);
@@ -251,6 +284,11 @@ cat("GSXFAILED", failed, "\n")
                 let url = parts.get(1).unwrap_or(&"CRAN").to_string();
                 job.log(format!("✗ cannot reach the package repository {url}: check the internet connection or proxy"));
                 no_repo = Some(url);
+            }
+            Some(&"GSXPLAN") => {
+                planned = parts.get(1).and_then(|n| n.parse().ok()).unwrap_or(0);
+                job.log(format!("{planned} package(s) to download and install, with their dependencies"));
+                gauge(planned, units, bytes, &label);
             }
             Some(&"GSXFAILED") => failed = parts[1..].iter().map(|s| s.to_string()).collect(),
             _ if !line.trim().is_empty() => job.log(line.clone()),

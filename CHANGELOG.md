@@ -22,6 +22,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   and well-known tools have theirs (Buffer, Clip, Slope, Kriging, Viewshed …); 32 new glyphs.
 - A tool shared by several domain plugins (Slope zones is in five) is listed once, with its domains.
 
+### Changed — R package install gauge
+- R setup shows a coloured, moving progress bar with the size downloaded (of the expected total),
+  the speed, packages done (with their dependencies) and the time left; green when done, red on failure.
+
 ### Fixed — climate data
 - **Climate** (Data › Online data) now picks the detail for the area: CHELSA 2.1 at ~1 km for areas up
   to 4° a side, else the finest WorldClim grid giving at least 40 cells across (it used a ~18 km grid,

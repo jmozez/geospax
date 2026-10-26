@@ -963,7 +963,15 @@ body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='ac
 #rconsole .rc-have { color: var(--ok); }
 #rconsole .rc-progress { display: grid; grid-template-columns: 1fr; gap: 4px; }
 #rconsole .rc-progress[hidden] { display: none; }
-#rconsole .rc-progress progress { width: 100%; }
+#rconsole .rc-bar { position: relative; height: 18px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 14%, var(--panel, #1e1e1e)); overflow: hidden; }
+#rconsole .rc-bar i { position: absolute; inset: 0 auto 0 0; width: 2%; border-radius: 9px; background: linear-gradient(90deg, #f0883e, var(--accent)); transition: width .4s ease; }
+#rconsole .rc-bar.running i { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.22) 0 8px, transparent 8px 16px), linear-gradient(90deg, #f0883e, var(--accent)); background-size: 22px 22px, 100% 100%; animation: rc-stripes .8s linear infinite; }
+#rconsole .rc-bar.done i { background: linear-gradient(90deg, #2ea043, #3fb950); }
+#rconsole .rc-bar.failed i { background: linear-gradient(90deg, #da3633, #f85149); }
+#rconsole .rc-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#rconsole .rc-bar b { position: relative; display: block; text-align: center; font-size: 11px; line-height: 18px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+@keyframes rc-stripes { from { background-position: 0 0, 0 0; } to { background-position: 22px 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { #rconsole .rc-bar.running i { animation: none; } }
 
 /* Plugins › Manage plugins */
 #plugin-manager .sheet { width: min(980px, 100%); }

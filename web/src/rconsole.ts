@@ -4,6 +4,8 @@
 // method in the report. sf layers come in as `layer`, rasters as terra `raster`; what the code
 // returns comes back: sf → layers, SpatRaster → rasters, ggplot/tmap → figures, data frames → tables.
 // The templates are full, editable R: "show me the code" is the point.
+import { bytesText, etaText } from './downloads';
+import type { Transfer } from './automate';
 import type { Backend } from './backend';
 
 const esc = (s: unknown) =>
@@ -202,7 +204,7 @@ interface RStatus {
   install_note?: string;
 }
 
-interface JobInfo { id: number; status: string; message: string; progress: number; done: number; total: number; log?: string[] }
+interface JobInfo { id: number; status: string; message: string; progress: number; done: number; total: number; log?: string[]; transfer?: (Transfer & { units?: number; planned?: number }) | null }
 
 interface RunOut {
   figures?: Record<string, string[]>;
@@ -310,7 +312,7 @@ export class RConsole {
         ${extra.length ? `<label class="ck"><input type="checkbox" name="pkg" value="${esc(extra.join(','))}" checked /> Also: ${esc(extra.join(', '))}</label>` : ''}
         <label><span>Other packages</span><input name="more" placeholder="e.g. lidR, landscapemetrics, sdmTMB" /></label>
       </form>
-      <div class="rc-progress" hidden><progress max="1" value="0"></progress><span class="dim"></span>
+      <div class="rc-progress" hidden><div class="rc-bar running" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><b>0%</b></div><div class="rc-meta"><span class="rc-size"></span><span class="rc-eta"></span></div><span class="dim"></span>
         <pre class="rc-log" aria-live="polite" aria-label="Installation log"></pre></div>
       <p class="dim">Packages are ready-built binaries (CRAN on Windows and macOS, Posit Package Manager on Linux): nothing is compiled. Needs internet.${
         s.library ? ` Library: <code>${esc(s.library)}</code>` : ''
@@ -339,7 +341,17 @@ export class RConsole {
       return;
     }
     const prog = this.el.querySelector<HTMLElement>('.rc-progress')!;
-    const bar = prog.querySelector('progress')!;
+    const barEl = prog.querySelector<HTMLElement>('.rc-bar')!;
+    // a coloured bar: striped and moving while R downloads and builds, green when done, red on failure
+    const bar = {
+      set value(v: number) {
+        const pct = Math.round(Math.min(Math.max(v, 0), 1) * 100);
+        barEl.querySelector('i')!.style.width = `${Math.max(pct, 2)}%`;
+        barEl.querySelector('b')!.textContent = `${pct}%`;
+        barEl.setAttribute('aria-valuenow', String(pct));
+      },
+    };
+    barEl.className = 'rc-bar running';
     const label = prog.querySelector('span')!;
     this.el.querySelector<HTMLButtonElement>('#rc-install')!.disabled = true;
     try {
@@ -356,13 +368,21 @@ export class RConsole {
         if (atEnd) log.scrollTop = log.scrollHeight;
       };
       while (job.status === 'queued' || job.status === 'running') {
-        bar.value = job.progress;
+        const t = job.transfer;
+        bar.value = t ? t.fraction : job.progress;
         label.textContent = job.message || 'Starting R…';
+        // size downloaded (of the expected total), speed, packages done and time left, like a download gauge
+        prog.querySelector('.rc-size')!.textContent = t
+          ? `${bytesText(t.bytes)}${t.total ? ` of about ${bytesText(t.total)}` : ' downloaded'}${t.rate > 0 && t.bytes > 0 ? ` · ${bytesText(t.rate)}/s` : ''}${t.planned ? ` · ${t.units ?? 0} of ${t.planned} packages` : ''}`
+          : 'Working out what to download…';
+        prog.querySelector('.rc-eta')!.textContent = t ? etaText(t.eta_s) : '';
         show(job);
         await new Promise((r) => setTimeout(r, 700));
         job = await this.host.backend.json<JobInfo>(`api/jobs/${job.id}`);
       }
       bar.value = 1;
+      prog.querySelector('.rc-eta')!.textContent = job.status === 'done' ? 'done' : '';
+      barEl.className = `rc-bar ${job.status === 'done' ? 'done' : 'failed'}`;
       show(job);
       label.textContent = job.status === 'done' ? `✓ ${job.message}` : `✗ ${job.message}`;
       label.className = job.status === 'done' ? 'ok' : 'err';
