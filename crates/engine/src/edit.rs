@@ -225,7 +225,7 @@ fn copy_layer(src: &Path, src_layer: &str, filter: Option<&str>, dst: &Path, dst
 
 // ---------------------------------------------------------------- geodesic measures
 
-fn ring_area_m2(r: &[[f64; 2]]) -> f64 {
+pub(crate) fn ring_area_m2(r: &[[f64; 2]]) -> f64 {
     // spherical excess (Chamberlain & Duquette 2007, as Turf and QGIS's ellipsoidal fallback)
     let n = r.len();
     if n < 3 {
@@ -1049,5 +1049,328 @@ mod tests {
         assert_eq!(literal("O'Neil"), "'O''Neil'");
         assert_eq!(Engine::scope_sql("fid", Some("x > 1"), Some(&[3, 4])), " WHERE (x > 1) AND \"fid\" IN (3,4)");
         assert_eq!(Engine::scope_sql("fid", None, Some(&[])), " WHERE \"fid\" IN (NULL)");
+    }
+}
+
+// ---------------------------------------------------------------- geometry edits (Edit › Modify)
+
+/// A geometry GEOS made through the OGR C API, copied into an owned `Geometry` (via WKB) and the
+/// C one destroyed.
+fn take(h: gdal_sys::OGRGeometryH) -> Option<Geometry> {
+    if h.is_null() {
+        return None;
+    }
+    // SAFETY: h is a valid geometry we own; the buffer is sized by OGR_G_WkbSize.
+    unsafe {
+        let n = gdal_sys::OGR_G_WkbSize(h).max(0) as usize;
+        let mut buf = vec![0u8; n];
+        gdal_sys::OGR_G_ExportToWkb(h, gdal_sys::OGRwkbByteOrder::wkbNDR, buf.as_mut_ptr());
+        gdal_sys::OGR_G_DestroyGeometry(h);
+        Geometry::from_wkb(&buf).ok()
+    }
+}
+
+fn boundary(g: &Geometry) -> Option<Geometry> {
+    take(unsafe { gdal_sys::OGR_G_Boundary(g.c_geometry()) })
+}
+fn polygonize(g: &Geometry) -> Option<Geometry> {
+    take(unsafe { gdal_sys::OGR_G_Polygonize(g.c_geometry()) })
+}
+fn point_on_surface(g: &Geometry) -> Option<Geometry> {
+    take(unsafe { gdal_sys::OGR_G_PointOnSurface(g.c_geometry()) })
+}
+fn distance(a: &Geometry, b: &Geometry) -> f64 {
+    unsafe { gdal_sys::OGR_G_Distance(a.c_geometry(), b.c_geometry()) }
+}
+/// The single parts of a geometry (a polygon of a multipolygon, a line of a multilinestring …).
+fn parts(g: &Geometry) -> Vec<Geometry> {
+    let n = g.geometry_count();
+    let t = gdal::vector::geometry_type_flatten(g.geometry_type());
+    if n == 0 || matches!(t, G::wkbPolygon | G::wkbLineString | G::wkbPoint) {
+        return vec![g.clone()];
+    }
+    (0..n).flat_map(|i| parts(&g.get_geometry(i).clone())).collect()
+}
+
+/// A sketch (GeoJSON in WGS 84) in the layer's CRS, its type kept.
+fn sketch_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
+    let mut geom = Geometry::from_geojson(&g.to_string()).map_err(|e| format!("bad sketch: {e}"))?;
+    if let Some(srs) = lyr.spatial_ref() {
+        if !catalog::is_wgs84(&srs) {
+            let mut dst = srs.clone();
+            dst.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
+            let ct = CoordTransform::new(&wgs84()?, &dst).map_err(gerr)?;
+            geom.transform_inplace(&ct).map_err(gerr)?;
+        }
+    }
+    Ok(geom)
+}
+
+/// Fit a result to the layer's geometry type: parts are wrapped in a multi type when the layer
+/// holds those; a single-type layer gets one part per feature.
+fn fit_type(want: gdal_sys::OGRwkbGeometryType::Type, g: Geometry) -> Vec<Geometry> {
+    let multi = matches!(want, G::wkbMultiPolygon | G::wkbMultiLineString | G::wkbMultiPoint);
+    let ps = parts(&g);
+    if multi {
+        let mut m = Geometry::empty(want).unwrap();
+        for p in ps {
+            let _ = m.add_geometry(p);
+        }
+        vec![m]
+    } else {
+        ps
+    }
+}
+
+/// A line with both ends pushed out along their last segments by `frac` of the line's extent.
+fn extend_ends(line: &Geometry, frac: f64) -> Geometry {
+    let mut pts = Vec::new();
+    line.get_points(&mut pts);
+    if pts.len() < 2 || gdal::vector::geometry_type_flatten(line.geometry_type()) != G::wkbLineString {
+        return line.clone();
+    }
+    let e = line.envelope();
+    let d = (e.MaxX - e.MinX).max(e.MaxY - e.MinY) * frac;
+    let push = |a: (f64, f64, f64), b: (f64, f64, f64)| -> (f64, f64) {
+        let (dx, dy) = (a.0 - b.0, a.1 - b.1);
+        let n = (dx * dx + dy * dy).sqrt();
+        if n == 0.0 { (a.0, a.1) } else { (a.0 + dx / n * d, a.1 + dy / n * d) }
+    };
+    let n = pts.len();
+    let start = push(pts[0], pts[1]);
+    let end = push(pts[n - 1], pts[n - 2]);
+    let mut out = Geometry::empty(G::wkbLineString).unwrap();
+    out.add_point_2d(start);
+    for p in &pts {
+        out.add_point_2d((p.0, p.1));
+    }
+    out.add_point_2d(end);
+    out
+}
+
+/// Split a polygon by a line: the faces of its boundary noded with the line, inside it.
+fn split_polygon(g: &Geometry, line: &Geometry) -> Vec<Geometry> {
+    let Some(b) = boundary(g) else { return vec![] };
+    let Some(noded) = b.union(line) else { return vec![] };
+    let Some(faces) = polygonize(&noded) else { return vec![] };
+    parts(&faces).into_iter().filter(|f| point_on_surface(f).is_some_and(|p| g.contains(&p))).collect()
+}
+
+/// Split a line where a sketch crosses it.
+fn split_line(g: &Geometry, line: &Geometry) -> Vec<Geometry> {
+    let Some(noded) = g.union(line) else { return vec![] };
+    let tol = (g.envelope().MaxX - g.envelope().MinX).abs().max((g.envelope().MaxY - g.envelope().MinY).abs()) * 1e-9 + 1e-12;
+    parts(&noded)
+        .into_iter()
+        .filter(|p| {
+            // a piece of the original line: every vertex lies on it
+            let mut pts = Vec::new();
+            p.get_points(&mut pts);
+            pts.iter().all(|(x, y, _)| {
+                let mut pt = Geometry::empty(G::wkbPoint).unwrap();
+                pt.add_point_2d((*x, *y));
+                distance(&pt, g) <= tol
+            })
+        })
+        .collect()
+}
+
+impl Engine {
+    /// Split, merge, cut or reshape features (Edit › Modify). `body`: `op`, `fids` and, for split,
+    /// cut and reshape, `sketch` (GeoJSON in WGS 84: a line, or a polygon for cut). Returns the
+    /// changed and created feature ids.
+    pub fn geometry_edit(&self, id: &str, body: &Value) -> Result<(Vec<u64>, Arc<LayerHandle>), String> {
+        let op = body["op"].as_str().unwrap_or("");
+        let fids: Vec<u64> = body["fids"].as_array().map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
+        if fids.is_empty() {
+            return Err("select the features to change first".into());
+        }
+        let _g = EDIT.lock().unwrap();
+        let l = self.edit_layer(id)?;
+        let mut touched = Vec::new();
+        {
+            let mut ds = open_update(l.path())?;
+            let txn = ds.start_transaction().map_err(gerr)?;
+            {
+                let lyr = txn.layer_by_name(l.layer_name()).map_err(gerr)?;
+                let want = gdal::vector::geometry_type_flatten(lyr.defn().geometry_type());
+                let polygonal = matches!(want, G::wkbPolygon | G::wkbMultiPolygon);
+                let linear = matches!(want, G::wkbLineString | G::wkbMultiLineString);
+                let sketch = match body.get("sketch").filter(|s| !s.is_null()) {
+                    Some(s) => Some(sketch_in(&lyr, s)?),
+                    None => None,
+                };
+                // copy a feature with a new geometry (same attributes)
+                let nfields = lyr.defn().fields().count();
+                let values_of = |src: &Feature| -> Vec<Option<FieldValue>> { (0..nfields).map(|i| src.field(i).ok().flatten()).collect() };
+                let add_copy = |vals: &[Option<FieldValue>], g: Geometry| -> Result<u64, String> {
+                    let mut f = Feature::new(lyr.defn()).map_err(gerr)?;
+                    for (i, v) in vals.iter().enumerate() {
+                        if let Some(v) = v {
+                            let _ = f.set_field(i, v);
+                        }
+                    }
+                    f.set_geometry(g).map_err(gerr)?;
+                    f.create(&lyr).map_err(gerr)?;
+                    f.fid().ok_or_else(|| "the new feature got no id".to_string())
+                };
+                match op {
+                    "merge" => {
+                        if fids.len() < 2 {
+                            return Err("select two or more features to merge".into());
+                        }
+                        let mut acc: Option<Geometry> = None;
+                        for &fid in &fids {
+                            let f = lyr.feature(fid).ok_or_else(|| format!("no feature {fid}"))?;
+                            let g = f.geometry().ok_or("a feature without geometry")?.clone();
+                            acc = Some(match acc {
+                                None => g,
+                                Some(a) => a.union(&g).ok_or("the features could not be merged")?,
+                            });
+                        }
+                        let merged = fit_type(want, acc.unwrap());
+                        if merged.len() != 1 {
+                            return Err(format!("the merged shape has {} separate parts, but this layer holds single-part features; merge features that touch, or export to a layer with multi-part geometries", merged.len()));
+                        }
+                        let mut first = lyr.feature(fids[0]).unwrap();
+                        first.set_geometry(merged.into_iter().next().unwrap()).map_err(gerr)?;
+                        lyr.set_feature(first).map_err(gerr)?;
+                        for &fid in &fids[1..] {
+                            unsafe { gdal_sys::OGR_L_DeleteFeature(lyr.c_layer(), fid as i64) };
+                        }
+                        touched.push(fids[0]);
+                    }
+                    "split" | "cut" | "reshape" => {
+                        let sk = sketch.ok_or("draw the line (or area) to split, cut or reshape with")?;
+                        for &fid in &fids {
+                            let mut f = lyr.feature(fid).ok_or_else(|| format!("no feature {fid}"))?;
+                            let g = f.geometry().ok_or("a feature without geometry")?.clone();
+                            let pieces: Vec<Geometry> = match op {
+                                "split" if polygonal => split_polygon(&g, &sk),
+                                "split" if linear => split_line(&g, &sk),
+                                "split" => return Err("points cannot be split".into()),
+                                "cut" => {
+                                    if !polygonal {
+                                        return Err("cut works on polygons: draw an area over them".into());
+                                    }
+                                    let inside = g.intersection(&sk).filter(|x| !x.is_empty() && x.area() > 0.0);
+                                    let outside = g.difference(&sk).filter(|x| !x.is_empty() && x.area() > 0.0);
+                                    match (outside, inside) {
+                                        (Some(o), Some(i)) => vec![o, i],
+                                        _ => vec![],
+                                    }
+                                }
+                                _ => {
+                                    // reshape: faces the sketch makes with the boundary; outside ones are
+                                    // added (the line pushes the boundary out), otherwise the largest
+                                    // inside face is kept (the line cuts it in)
+                                    if !polygonal {
+                                        return Err("reshape works on polygons".into());
+                                    }
+                                    let b = boundary(&g).ok_or("no boundary")?;
+                                    // a sketch drawn from the boundary rarely starts exactly on it: extend
+                                    // both ends a little so they cross it (dangling bits are dropped)
+                                    let sk = extend_ends(&sk, 0.002);
+                                    let noded = b.union(&sk).ok_or("the line could not be noded")?;
+                                    let faces = parts(&polygonize(&noded).ok_or("no faces")?);
+                                    let (inside, outside): (Vec<Geometry>, Vec<Geometry>) = faces.into_iter().partition(|x| point_on_surface(x).is_some_and(|p| g.contains(&p)));
+                                    let shape = if !outside.is_empty() {
+                                        outside.iter().try_fold(g.clone(), |a, x| a.union(x))
+                                    } else {
+                                        inside.into_iter().max_by(|a, b| a.area().total_cmp(&b.area()))
+                                    };
+                                    shape.into_iter().collect()
+                                }
+                            };
+                            if pieces.is_empty() || (op == "split" && pieces.len() < 2) {
+                                continue;
+                            }
+                            let mut fitted: Vec<Geometry> = Vec::new();
+                            for p in pieces {
+                                fitted.extend(fit_type(want, p));
+                            }
+                            let mut it = fitted.into_iter();
+                            f.set_geometry(it.next().unwrap()).map_err(gerr)?;
+                            let snapshot = values_of(&f);
+                            lyr.set_feature(f).map_err(gerr)?;
+                            touched.push(fid);
+                            for g2 in it {
+                                touched.push(add_copy(&snapshot, g2)?);
+                            }
+                        }
+                        if touched.is_empty() {
+                            return Err(match op {
+                                "split" => "the line does not cross the selected features from side to side",
+                                "cut" => "the area does not overlap the selected polygons",
+                                _ => "the line does not cross the polygon's boundary twice",
+                            }
+                            .into());
+                        }
+                    }
+                    other => return Err(format!("unknown edit '{other}' (merge, split, cut or reshape)")),
+                }
+            }
+            txn.commit().map_err(gerr)?;
+        }
+        Ok((touched, self.reload(&l)?))
+    }
+}
+
+impl Engine {
+    /// A layer as a file to download (Share › Export data): GeoPackage, Shapefile (zipped), KML,
+    /// CSV (WKT geometry), GeoJSON or GeoParquet, in WGS 84 except GeoPackage and Shapefile, which
+    /// keep the layer's CRS. A definition query applies. Returns (bytes, file name, content type).
+    pub fn layer_download(&self, l: &LayerHandle, format: &str) -> Result<(Vec<u8>, String, &'static str), String> {
+        let (driver, ext, ctype, wgs, extra): (&str, &str, &'static str, bool, &[&str]) = match format {
+            "gpkg" | "geopackage" => ("GPKG", "gpkg", "application/geopackage+sqlite3", false, &[]),
+            "shp" | "shapefile" => ("ESRI Shapefile", "shp", "application/zip", false, &["-lco", "ENCODING=UTF-8"]),
+            "kml" => ("KML", "kml", "application/vnd.google-earth.kml+xml", true, &[]),
+            "csv" => ("CSV", "csv", "text/csv", true, &["-lco", "GEOMETRY=AS_WKT"]),
+            "geojson" | "json" => ("GeoJSON", "geojson", "application/geo+json", true, &["-lco", "RFC7946=YES"]),
+            "parquet" | "geoparquet" => ("Parquet", "parquet", "application/vnd.apache.parquet", false, &[]),
+            f => return Err(format!("unknown format '{f}' (gpkg, shp, kml, csv, geojson, parquet)")),
+        };
+        if DriverManager::get_driver_by_name(driver).is_err() {
+            return Err(format!("this GDAL has no {driver} driver"));
+        }
+        let stem = {
+            let s = catalog::sanitize(&l.info.name).replace('.', "_");
+            if s.trim_matches('_').is_empty() { "layer".to_string() } else { s }
+        };
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("geospax-dl-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let out = dir.join(format!("{stem}.{ext}"));
+        let mut args: Vec<String> = vec!["-f".into(), driver.into(), "-nln".into(), stem.clone()];
+        if wgs {
+            args.extend(["-t_srs".into(), "EPSG:4326".into()]);
+        }
+        if let Some(w) = Self::with_filter(l, None) {
+            args.extend(["-where".into(), w]);
+        }
+        args.extend(extra.iter().map(|s| s.to_string()));
+        let res = crate::services::vector_translate(&l.path().to_string_lossy(), Some(l.layer_name()), &out, &args);
+        let result = res.and_then(|_| {
+            if ext == "shp" {
+                // the Shapefile's parts in one zip
+                let mut buf = std::io::Cursor::new(Vec::new());
+                {
+                    let mut z = zip::ZipWriter::new(&mut buf);
+                    let opt = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+                    for e in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
+                        let name = e.file_name().to_string_lossy().to_string();
+                        z.start_file(name, opt).map_err(|e| e.to_string())?;
+                        std::io::Write::write_all(&mut z, &std::fs::read(e.path()).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+                    }
+                    z.finish().map_err(|e| e.to_string())?;
+                }
+                Ok((buf.into_inner(), format!("{stem}.zip"), ctype))
+            } else {
+                Ok((std::fs::read(&out).map_err(|e| e.to_string())?, format!("{stem}.{ext}"), ctype))
+            }
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+        result
     }
 }

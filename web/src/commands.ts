@@ -55,6 +55,17 @@ export interface Command {
 
 // 24×24 monochrome glyphs; the ribbon tints them with `currentColor`.
 export const ICONS: Record<string, string> = {
+  chevronLeft: 'M15.4 7.4L14 6l-6 6 6 6 1.4-1.4L10.8 12z',
+  lasso: 'M12 3C6.5 3 2 6.1 2 10c0 2.4 1.7 4.5 4.3 5.8-.2.5-.3 1-.3 1.6C6 19.4 7.6 21 9.6 21c1.3 0 2.4-.7 3-1.7l-1.7-1c-.3.5-.8.7-1.3.7-.9 0-1.6-.7-1.6-1.6 0-.3.1-.6.2-.9 1.2.3 2.4.5 3.8.5 5.5 0 10-3.1 10-7s-4.5-7-10-7zm0 12c-4.4 0-8-2.2-8-5s3.6-5 8-5 8 2.2 8 5-3.6 5-8 5z',
+  swipe: 'M11 2h2v20h-2zM4 6h5v2H6v8h3v2H4zm11 0h5v12h-5v-2h3V8h-3z',
+  paste: 'M19 3h-4.2C14.4 1.8 13.3 1 12 1s-2.4.8-2.8 2H5c-1.1 0-2 .9-2 2v15c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.6 0 1 .4 1 1s-.4 1-1 1-1-.4-1-1 .4-1 1-1zm7 17H5V5h2v3h10V5h2z',
+  tag: 'M21.4 11.6l-9-9C12.1 2.2 11.6 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .6.2 1.1.6 1.4l9 9c.4.4.9.6 1.4.6s1-.2 1.4-.6l7-7c.4-.4.6-.9.6-1.4s-.2-1.1-.6-1.4zM5.5 7C4.7 7 4 6.3 4 5.5S4.7 4 5.5 4 7 4.7 7 5.5 6.3 7 5.5 7z',
+  hatch: 'M3 3h18v18H3zm2 2v2.6L7.6 5zm0 5.4V14l9-9h-3.6zM5 17v2h1.6L19 6.6V5h-1.6zm4.4 2H13l6-6v-3.6zm6.6 0h3v-3z',
+  web: 'M12 2a10 10 0 100 20 10 10 0 000-20zm6.9 6h-2.9a15.6 15.6 0 00-1.4-3.6A8 8 0 0118.9 8zM12 4c.8 1.2 1.5 2.5 1.9 4h-3.8c.4-1.4 1.1-2.8 1.9-4zM4.3 14a8.2 8.2 0 010-4h3.4a16.5 16.5 0 000 4zm.8 2h2.9c.3 1.3.8 2.5 1.4 3.6A8 8 0 015.1 16zM8 8H5.1a8 8 0 014.3-3.6C8.8 5.5 8.3 6.7 8 8zm4 12c-.8-1.2-1.5-2.5-1.9-4h3.8c-.4 1.4-1.1 2.8-1.9 4zm2.3-6H9.7a14.7 14.7 0 010-4h4.6a14.7 14.7 0 010 4zm.3 5.6c.6-1.1 1.1-2.3 1.4-3.6h2.9a8 8 0 01-4.3 3.6zM16.3 14a16.5 16.5 0 000-4h3.4a8.2 8.2 0 010 4z',
+  topology: 'M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6zM10 6h4v2h-4zm0 10h4v2h-4zM6 10h2v4H6zm10 0h2v4h-2z',
+  chevronRight: 'M8.6 16.6L10 18l6-6-6-6-1.4 1.4 4.6 4.6z',
+  chevronUp: 'M7.4 15.4L6 14l6-6 6 6-1.4 1.4-4.6-4.6z',
+  chevronDown: 'M7.4 8.6L6 10l6 6 6-6-1.4-1.4-4.6 4.6z',
   erase2: 'M15.14,3C14.63,3 14.12,3.2 13.73,3.59L2.59,14.73C1.81,15.5 1.81,16.77 2.59,17.56L5.03,20H12.69L21.41,11.27C22.2,10.5 22.2,9.23 21.41,8.44L16.56,3.59C16.17,3.2 15.65,3 15.14,3M17,18L15,20H22V18',
   polarArray: 'M12,2A2,2 0 0,1 14,4A2,2 0 0,1 12,6A2,2 0 0,1 10,4A2,2 0 0,1 12,2M19,9A2,2 0 0,1 21,11A2,2 0 0,1 19,13A2,2 0 0,1 17,11A2,2 0 0,1 19,9M5,9A2,2 0 0,1 7,11A2,2 0 0,1 5,13A2,2 0 0,1 3,11A2,2 0 0,1 5,9M16,17A2,2 0 0,1 18,19A2,2 0 0,1 16,21A2,2 0 0,1 14,19A2,2 0 0,1 16,17M8,17A2,2 0 0,1 10,19A2,2 0 0,1 8,21A2,2 0 0,1 6,19A2,2 0 0,1 8,17M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10Z',
   joinLines: 'M3 11H9.5L12 8.5 14.5 11H21V13H14.5L12 15.5 9.5 13H3Z',
@@ -334,13 +345,13 @@ const GROUP_ORDER: Partial<Record<TabId, string[]>> = {
   // within a tab too: what comes first in the work comes first on the ribbon
   home: ['Project', 'Layer', 'Navigate', 'Selection', 'Inquiry', 'Symbology'],
   data: ['Add data', 'Sources', 'Online data'],
-  view: ['Basemap', 'Projection', 'Theme', 'Windows'],
-  edit: ['Create', 'Modify', 'Selection', 'Fields', 'Measure', 'Manage edits'],
+  view: ['Basemap', 'Projection', 'Compare', 'Time', 'Map grid', 'Theme', 'Windows'],
+  edit: ['Create', 'Modify', 'Clipboard', 'Selection', 'Fields', 'Measure', 'Manage edits'],
   design: ['Precision', 'Draw', 'Construct', 'Modify', 'Blocks', 'Survey', 'CAD exchange'],
-  imagery: ['Rasters', 'Satellite', 'Satellite embeddings', 'Terrain', 'LiDAR', 'Raster tools', 'AI models'],
-  analyze: ['Geoprocessing', 'Spatial statistics', 'Interpolation', 'Recipes', 'Tools', 'Assistant'],
-  share: ['Layout', 'Export'],
-  help: ['Docs', 'Support', 'About', 'Diagnostics'],
+  imagery: ['Rasters', 'Indices', 'Satellite', 'Satellite embeddings', 'Terrain', 'LiDAR', 'Raster tools', 'AI models'],
+  analyze: ['Geoprocessing', 'Tools', 'Network', 'Spatial statistics', 'Interpolation', 'Recipes', 'Assistant'],
+  share: ['Layout', 'Export map', 'Export data', 'Export', 'Publish'],
+  help: ['Learn', 'Docs', 'Support', 'About', 'Diagnostics'],
   // one tab for both scripting languages: R's groups first, then Python
   r: ['R', 'R maps', 'R rasters', 'R species models', 'R machine learning', 'Python'],
 };
@@ -406,6 +417,88 @@ const SELECTION: Command[] = [
   { id: 'sel.location', tab: 'home', group: 'Selection', title: 'By location', icon: 'nearby', hint: 'Select features that intersect, lie within, contain or are near another layer', run: editCmd('select-location') },
   { id: 'sel.zoom', tab: 'home', group: 'Selection', title: 'Zoom to selected', icon: 'zoomSel', run: editCmd('zoom-selection') },
   { id: 'sel.clear', tab: 'home', group: 'Selection', title: 'Clear selection', icon: 'clear', run: editCmd('clear-selection') },
+];
+
+/** A ribbon button that opens one tool (the first of `keys` that is installed), or searches for it. */
+const toolCmd = (keys: string[], search: string) => () => {
+  document.dispatchEvent(new CustomEvent('geospax:open-tool', { detail: { keys, search } }));
+};
+/** Map tools (mapextras.ts) and file tools (shareextras.ts), handled in main.ts. */
+const xCmd = (a: string) => () => { document.dispatchEvent(new CustomEvent('geospax:x', { detail: a })); };
+const geo = (t: string) => `p:geolibre-tools/${t}`;
+/** The everyday Analysis › Tools, by tool (GeoLibre's vector toolset). */
+const TOOL_KEYS: Record<string, string[]> = {
+  buffer: [geo('buffer_vector')], clip: [geo('clip')], intersect: [geo('intersect')], union: [geo('union')],
+  dissolve: [geo('dissolve')], merge: [geo('merge_vectors')], join: [geo('spatial_join')], near: [geo('near')],
+  summarize: [geo('summarize_within')], erase: [geo('erase')],
+};
+const tool = (id: string, tab: TabId, group: string, title: string, icon: string, keys: string[], hint: string, big = false): Command =>
+  ({ id, tab, group, title, icon, hint, big, run: toolCmd(keys, title) });
+
+/** The commands added in 3.1: every item from the ribbon review (docs/USER_GUIDE.md). */
+const EXTRA_COMMANDS: Command[] = [
+  // ---- Home
+  { id: 'home.lasso', tab: 'home', group: 'Selection', title: 'Lasso', icon: 'lasso', hint: 'Draw freehand around the features to select', run: editCmd('lasso') },
+  { id: 'home.labels', tab: 'home', group: 'Symbology', title: 'Labels', icon: 'tag', hint: 'Labels of the selected layer on or off', run: xCmd('labels') },
+  { id: 'home.coords', tab: 'home', group: 'Inquiry', title: 'Coordinates', icon: 'crosshair', hint: 'Show positions as degrees, DMS, UTM, MGRS or any EPSG system', run: xCmd('coords') },
+  // ---- View
+  { id: 'view.swipe', tab: 'view', group: 'Compare', title: 'Swipe', icon: 'swipe', big: true, hint: 'Drag a divider to see the map with and without the selected layer', run: xCmd('swipe') },
+  { id: 'view.spyglass', tab: 'view', group: 'Compare', title: 'Spyglass', icon: 'search', hint: 'A lens around the pointer shows the map without the selected layer', run: xCmd('spyglass') },
+  { id: 'view.time', tab: 'view', group: 'Time', title: 'Time slider', icon: 'clock', big: true, hint: 'Step the selected layer through time by a date or year field', run: xCmd('time') },
+  { id: 'view.grid', tab: 'view', group: 'Map grid', title: 'Grid', icon: 'grid', hint: 'Latitude and longitude lines with labels', run: xCmd('grid') },
+  { id: 'view.scale', tab: 'view', group: 'Map grid', title: 'Go to scale', icon: 'ruler', hint: 'Zoom to a map scale such as 1:50 000', run: xCmd('scale') },
+  { id: 'view.lockscale', tab: 'view', group: 'Map grid', title: 'Lock scale', icon: 'lock', hint: 'Keep the current scale while panning', run: xCmd('lockscale') },
+  { id: 'view.crs', tab: 'view', group: 'Projection', title: 'Coordinate system', icon: 'earth', hint: 'Show coordinates in any EPSG system (PNG94, UTM 55S …)', run: xCmd('crs') },
+  // ---- Edit
+  { id: 'edit.lasso', tab: 'edit', group: 'Modify', title: 'Lasso select', icon: 'lasso', hint: 'Select by drawing around features', run: editCmd('lasso') },
+  { id: 'edit.split', tab: 'edit', group: 'Modify', title: 'Split', icon: 'split', hint: 'Split the selected lines or polygons along a line you draw', run: editCmd('split') },
+  { id: 'edit.merge', tab: 'edit', group: 'Modify', title: 'Merge', icon: 'tMerge', hint: 'Merge the selected features into one (the first keeps its attributes)', run: editCmd('merge') },
+  { id: 'edit.cut', tab: 'edit', group: 'Modify', title: 'Cut', icon: 'scissors', hint: 'Cut an area you draw out of the selected polygons, as a new feature', run: editCmd('cut') },
+  { id: 'edit.reshape', tab: 'edit', group: 'Modify', title: 'Reshape', icon: 'vertices', hint: 'Redraw part of a polygon\'s boundary', run: editCmd('reshape') },
+  { id: 'edit.copy', tab: 'edit', group: 'Clipboard', title: 'Copy', icon: 'copy', keys: 'Ctrl+C', hint: 'Copy the selected features', run: editCmd('copy') },
+  { id: 'edit.paste', tab: 'edit', group: 'Clipboard', title: 'Paste', icon: 'paste', keys: 'Ctrl+V', hint: 'Paste copied features into the selected layer', run: editCmd('paste') },
+  { id: 'edit.copyalong', tab: 'edit', group: 'Clipboard', title: 'Copy along line', icon: 'polarArray', hint: 'Copies of the selected feature at equal steps along a line', run: editCmd('copy-along') },
+  { id: 'edit.trace', tab: 'edit', group: 'Create', title: 'Trace', icon: 'curve', hint: 'New edges follow existing features between snapped vertices (on/off)', run: editCmd('trace') },
+  { id: 'edit.gps', tab: 'edit', group: 'Create', title: 'GPS point', icon: 'pin', hint: 'A point at the newest live GPS position (phone or GNSS receiver)', run: editCmd('gps-point') },
+  { id: 'edit.rules', tab: 'edit', group: 'Fields', title: 'Attribute rules', icon: 'form', hint: 'Value lists, defaults and required fields for consistent data', run: editCmd('rules') },
+  tool('edit.topology', 'edit', 'Manage edits', 'Check topology', 'topology', ['r:check-topology'], 'Find overlaps, gaps and invalid polygons'),
+  // ---- Design
+  { id: 'design.survey', tab: 'design', group: 'Survey', title: 'Survey points', icon: 'fileAdd', hint: 'Points from a CSV of id, easting, northing (any EPSG system)', run: xCmd('survey') },
+  { id: 'design.areas', tab: 'design', group: 'Survey', title: 'Area table', icon: 'area', hint: 'Area and perimeter of each polygon, to copy or save', run: xCmd('areas') },
+  { id: 'design.hatch', tab: 'design', group: 'Modify', title: 'Hatch', icon: 'hatch', hint: 'Fill pattern for the selected polygon layer', run: xCmd('hatch') },
+  { id: 'design.copy', tab: 'design', group: 'CAD exchange', title: 'Copy features', icon: 'copy', hint: 'Copy the selected features (GIS layer ↔ drawing)', run: editCmd('copy') },
+  { id: 'design.paste', tab: 'design', group: 'CAD exchange', title: 'Paste features', icon: 'paste', hint: 'Paste them into the selected layer', run: editCmd('paste') },
+  // ---- Imagery
+  tool('imagery.index', 'imagery', 'Indices', 'Spectral index', 'leaf', ['p:gsx/spectral-index', 'p:geospax-climate/spectral-index'], 'NDVI, NDWI, NDBI, NBR … with the extent (Otsu)', true),
+  tool('imagery.ndi', 'imagery', 'Indices', 'Normalized difference', 'leaf', [geo('normalized_difference_index')], 'Any (A − B) / (A + B) of two bands'),
+  tool('imagery.hillshade', 'imagery', 'Terrain', 'Hillshade', 'sun', [geo('multidirectional_hillshade'), geo('hillshade')], 'Shaded relief from a DEM'),
+  tool('imagery.slope', 'imagery', 'Terrain', 'Slope', 'slope', [geo('slope')], 'Slope from a DEM'),
+  tool('imagery.aspect', 'imagery', 'Terrain', 'Aspect', 'compare', [geo('aspect')], 'Aspect (direction of slope)'),
+  tool('imagery.tri', 'imagery', 'Terrain', 'Ruggedness', 'mountain', [geo('ruggedness_index')], 'Terrain ruggedness index'),
+  tool('imagery.twi', 'imagery', 'Terrain', 'Wetness index', 'wetness', [geo('wetness_index')], 'Topographic wetness index'),
+  tool('imagery.viewshed', 'imagery', 'Terrain', 'Viewshed', 'identify', [geo('viewshed')], 'What can be seen from points'),
+  tool('imagery.profile', 'imagery', 'Terrain', 'Elevation profile', 'lineChart', ['p:gsx/elevation-profile'], 'Elevation along a line'),
+  tool('imagery.change', 'imagery', 'Raster tools', 'Change', 'compare', ['p:gsx/raster-change'], 'Change between two rasters (dates)'),
+  tool('imagery.clip', 'imagery', 'Raster tools', 'Clip raster', 'tClip', [geo('clip_raster_to_polygon')], 'Clip a raster to polygons'),
+  tool('imagery.mosaic', 'imagery', 'Raster tools', 'Mosaic', 'grid', [geo('mosaic')], 'Join rasters into one'),
+  tool('imagery.reproject', 'imagery', 'Raster tools', 'Reproject', 'earth', [geo('reproject_raster')], 'A raster in another coordinate system'),
+  tool('imagery.resample', 'imagery', 'Raster tools', 'Resample', 'expand', [geo('resample')], 'Change a raster\'s cell size'),
+  // ---- Analysis
+  tool('analyze.zonal', 'analyze', 'Tools', 'Zonal statistics', 'table', ['r:zonal-statistics'], 'Raster statistics per polygon, exact cell coverage'),
+  tool('analyze.servicearea', 'analyze', 'Network', 'Service area', 'road', [geo('network_service_area')], 'Areas reachable within a distance along roads', true),
+  tool('analyze.closest', 'analyze', 'Network', 'Closest facility', 'nearby', [geo('closest_facility_network')], 'The nearest facility along roads from each incident'),
+  tool('analyze.route', 'analyze', 'Network', 'Shortest path', 'navBack', [geo('shortest_path_network')], 'The shortest route between points'),
+  // ---- Share
+  ...([['gpkg', 'GeoPackage'], ['shp', 'Shapefile'], ['kml', 'KML'], ['csv', 'CSV'], ['geojson', 'GeoJSON'], ['parquet', 'GeoParquet']] as [string, string][]).map(([f, t]): Command => (
+    { id: `share.data.${f}`, tab: 'share', group: 'Export data', title: t, icon: 'download', hint: `Save the selected layer as ${t}`, run: xCmd(`download:${f}`) })),
+  ...([['pdf', 'PDF'], ['svg', 'SVG'], ['png', 'PNG'], ['report', 'Word report']] as [string, string][]).map(([f, t]): Command => (
+    { id: `share.map.${f}`, tab: 'share', group: 'Export map', title: t, icon: f === 'report' ? 'book' : 'image', hint: `The map as ${t} (Finish my map)`, run: () => { document.dispatchEvent(new CustomEvent('geospax:finish', { detail: f })); } })),
+  { id: 'share.publish', tab: 'share', group: 'Publish', title: 'Web map', icon: 'web', big: true, hint: 'An interactive map in one HTML file to open anywhere or put on a website', run: xCmd('publish') },
+  { id: 'share.package', tab: 'share', group: 'Publish', title: 'Package project', icon: 'package', hint: 'A .gspx file with the layers and styles, to send to a colleague', run: xCmd('package') },
+  { id: 'share.print', tab: 'share', group: 'Publish', title: 'Print', icon: 'print', keys: 'Ctrl+P', hint: 'Print the map as it is on screen', run: xCmd('print') },
+  // ---- Help
+  { id: 'help.tutorials', tab: 'help', group: 'Learn', title: 'Tutorials', icon: 'start', big: true, hint: 'Short guided lessons with the sample data', run: () => { document.dispatchEvent(new CustomEvent('geospax:tutorials')); } },
+  { id: 'help.search', tab: 'help', group: 'Learn', title: 'Search commands', icon: 'search', keys: 'Ctrl+K', hint: 'Find any command by name', run: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); } },
 ];
 
 export const COMMANDS: Command[] = [
@@ -475,11 +568,13 @@ export const COMMANDS: Command[] = [
     ['join', 'Spatial join', 'Spatial join', 'tJoin'],
     ['near', 'Near', 'Near', 'tNear'],
     ['summarize', 'Summarize within', 'Summarize', 'tSummarize'],
+    ['erase', 'Erase', 'Erase', 'eraser'],
   ] as [string, string, string, string][]).map(([id, title, q, ic]): Command => ({
     id: `analyze.tool.${id}`, tab: 'analyze', group: 'Tools', title, icon: ic,
-    hint: `${title}: open the tool in the Toolbox`,
-    run: (h) => { h.showTab('right', 'toolbox'); document.dispatchEvent(new CustomEvent('geospax:toolbox-search', { detail: q })); },
+    hint: `${title}: open the tool`,
+    run: toolCmd(TOOL_KEYS[id] ?? [], q),
   })),
+  ...EXTRA_COMMANDS,
   // ---- Help › Support
   {
     id: 'help.whatsnew', tab: 'help', group: 'Docs', title: "What's new", icon: 'news',

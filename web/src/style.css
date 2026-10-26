@@ -1582,3 +1582,44 @@ body.layout-page { margin: 0; height: 100vh; display: flex; flex-direction: colu
 /* Ask: the layer a question is about */
 .ask-ctx { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 4px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--sunken); color: var(--muted); font-size: 11.5px; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ask-ctx b { color: var(--fg); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+
+/* collapse / expand chevron at the end of each panel's tab strip */
+.dock-tabs .dock-fold { margin-left: auto; position: sticky; right: 0; background: var(--sunken); color: var(--muted); padding: 4px 8px; border: 0; border-bottom: 2px solid transparent; }
+.dock-tabs .dock-fold:hover { color: var(--fg); background: var(--panel); }
+.dock-tabs .dock-fold svg { opacity: 1; }
+#dock-left.collapsed .dock-tabs .dock-fold, #dock-right.collapsed .dock-tabs .dock-fold { order: -1; margin: 0; position: static; padding: 8px 0; }
+#dock-bottom.collapsed .dock-tabs .dock-fold { position: static; }
+
+/* View › Swipe / Spyglass: the overlay map without the selected layer */
+.gx-compare { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.gx-swipe-bar { position: absolute; top: 0; bottom: 0; width: 4px; margin-left: -2px; background: var(--accent); z-index: 3; cursor: ew-resize; box-shadow: 0 0 0 1px rgba(0,0,0,.25); touch-action: none; }
+.gx-swipe-bar::after { content: '⇆'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 15px; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
+.gx-spyglass { box-shadow: inset 0 0 0 3px var(--accent); }
+/* View › Time slider */
+.gx-time { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25); width: min(560px, calc(100% - 24px)); }
+.gx-time input[type=range] { flex: 1; accent-color: var(--accent); }
+.gx-time b { min-width: 88px; text-align: center; font-variant-numeric: tabular-nums; }
+.gx-time button { min-width: 34px; min-height: 34px; }
+/* Edit › Attribute rules, Design › Area table */
+table.rules { border-collapse: collapse; width: 100%; font-size: 12px; }
+table.rules th, table.rules td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+table.rules input:not([type=checkbox]) { width: 100%; }
+.crs-row { display: block; padding: 4px 2px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.crs-row small { display: block; margin-left: 22px; }
+/* Share › Print: only the map */
+@media print {
+  body.gx-printing #ribbon, body.gx-printing #ribbon-tabs, body.gx-printing .dock, body.gx-printing #statusbar, body.gx-printing header, body.gx-printing .mobile-bar { display: none !important; }
+  body.gx-printing #map { position: fixed !important; inset: 0 !important; }
+}
+/* Help › Tutorials */
+.tut-list { display: grid; gap: 8px; }
+.tut-item { display: grid; text-align: left; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunken); }
+.tut-item:hover { border-color: var(--accent); }
+.tut-item small { color: var(--muted); }
+.tut-ring { position: fixed; z-index: 9998; border: 3px solid var(--accent); border-radius: 8px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); transition: all .2s; }
+.tut-card { position: fixed; z-index: 9999; width: min(340px, calc(100vw - 24px)); background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.tut-card.center { left: 50%; top: 40%; transform: translate(-50%, -50%); }
+.tut-card h3 { margin: 4px 0 6px; font-size: 16px; }
+.tut-card p { margin: 0 0 10px; line-height: 1.45; }
+.tut-head { display: flex; justify-content: space-between; align-items: center; color: var(--muted); }
+.tut-nav { display: flex; justify-content: flex-end; gap: 8px; }

@@ -1,0 +1,23 @@
+# Summarise a raster inside polygons, with exact cell coverage (a cell half inside counts half).
+recipe: zonal-statistics
+version: 1
+title: Zonal statistics (exact cell coverage)
+description: >-
+  Mean, minimum, maximum, sum and more of a raster (elevation, NDVI, rainfall, land cover) inside
+  each polygon (parcels, catchments, districts). Every cell is weighted by the share of it inside the
+  polygon, as exactextract does, so small and thin polygons get correct values instead of none.
+inputs:
+  layer: { type: layer, default: auto, description: polygon layer of zones }
+  raster: { type: raster, default: "", description: raster to summarise (auto = the newest) }
+  stats: { type: string, default: "mean,min,max,sum,count,stdev", description: "statistics: mean, min, max, sum, count, stdev, median, majority, area" }
+steps:
+  - id: zones
+    use: io.open
+    with: { layer: "${inputs.layer}", kind: polygon }
+  - id: zonal
+    use: raster.zonal
+    with: { layer: "${zones.layer}", raster: "${inputs.raster}", stats: "${inputs.stats}" }
+  - id: style
+    use: automap.style
+    with: { layers: ["${zonal.layer}"] }
+outputs: [zonal]
