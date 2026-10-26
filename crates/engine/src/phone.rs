@@ -204,6 +204,11 @@ impl PhoneLink {
     }
 }
 
+/// Compare without leaking how many leading characters matched (the pairing token).
+fn same(a: &str, b: &str) -> bool {
+    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
 fn new_token() -> String {
     let mut b = [0u8; 16];
     if rustls::crypto::ring::default_provider().secure_random.fill(&mut b).is_err() {
@@ -406,7 +411,7 @@ fn route<R: BufRead>(engine: &Arc<Engine>, req: &Request, rd: &mut R) -> Reply {
         ("GET", "/favicon.ico") => return (404, "text/plain", Vec::new(), Vec::new()),
         _ => {}
     }
-    if param(&req.query, "t").as_deref() != Some(link.token().as_str()) {
+    if !same(param(&req.query, "t").as_deref().unwrap_or(""), &link.token()) {
         return json_response(401, &json!({ "error": "This phone is not paired (or the code changed): scan the QR code in GeoSpaX again." }));
     }
     // body for everything but uploads (those stream to disk)

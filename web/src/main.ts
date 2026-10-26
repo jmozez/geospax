@@ -73,6 +73,8 @@ void import("./ggchart").then((m) => m.loadChartStyle(backend));
     };
   }
   (window as unknown as { __clientLog: typeof send }).__clientLog = send;
+  // anything the Content Security Policy blocks goes to the log (it would otherwise fail silently)
+  document.addEventListener('securitypolicyviolation', (e) => send('warn', `CSP blocked ${e.violatedDirective}: ${e.blockedURI || 'inline'}`));
 }
 const params = new URLSearchParams(location.search);
 const wanted = params.get('transport') as Transport | null;
