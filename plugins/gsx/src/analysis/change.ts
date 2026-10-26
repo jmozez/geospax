@@ -2,7 +2,7 @@ import { maxOf, minOf } from './extent';
 // Change detection helpers for sampled rasters and two-date vector extents.
 //
 // Raster differencing complements the Whitebox change tools. Vector change is
-// the audit-fixed GeoSpaX v1 workflow: dissolve each date, derive loss/gain/
+// the audit-fixed earlier GeoSpaX workflow: dissolve each date, derive loss/gain/
 // persistence, report closure, annualised rates and the area method used.
 
 import { histogramND, otsuThreshold, type Histogram } from "./raster";

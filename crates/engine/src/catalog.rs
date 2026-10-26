@@ -311,7 +311,7 @@ fn auto_minzoom(count: u64, b: [f64; 4]) -> u8 {
 
 /// Read every vector layer of one dataset.
 pub fn load_layers(path: &Path) -> Result<Vec<LayerHandle>, String> {
-    // projects from GeoSpaX 1.4.2 (.gspx) and 2.0 (.geolibre.json): their embedded layers
+    // projects from earlier GeoSpaX (.gspx and .geolibre.json): their embedded layers
     if crate::project_import::is_project(path) {
         return crate::project_import::load(path);
     }

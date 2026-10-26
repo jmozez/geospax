@@ -28,7 +28,7 @@ export interface ProvenanceStamp {
   lineage: string;
 }
 
-const LINEAGE = "GeoSpaX v1 (jm0535/map-kit) conservation roadmap, audit-fixed implementations";
+const LINEAGE = "GeoSpaX conservation roadmap, audit-fixed implementations";
 
 export function makeProvenance(
   tool: string,

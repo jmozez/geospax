@@ -1,6 +1,6 @@
 // Terrain analysis — Horn slope/aspect for DEM raster windows.
 //
-// Ported methodology from GeoSpaX v1 (jm0535/map-kit) raster handling, but
+// Ported methodology from earlier GeoSpaX raster handling, but
 // implemented as pure, framework-free functions over sampled grids. The panel
 // samples the DEM through `app.readRasterWindow` over the current view; this
 // module operates solely on the returned flat `values` array.

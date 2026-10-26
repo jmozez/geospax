@@ -165,6 +165,12 @@ export class Workbench {
       void this.loadRunsSilently();
     });
     document.addEventListener('geospax:plugins-changed', () => this.buildRibbon());
+    // after packages are installed or updated, R and the Python environments are read again
+    document.addEventListener('geospax:envs-changed', async () => {
+      this.envPyPkgs.clear();
+      await this.loadEnvs().catch(() => undefined);
+      this.renderCatalog();
+    });
     // the mode and the selected layer decide what the ribbon offers
     document.addEventListener('geospax:mode', () => {
       this.buildRibbon();
@@ -1395,7 +1401,7 @@ export class Workbench {
           h += `<div class="node folder" data-gx="${esc(key)}" ${pad(0)}>${tw(key)}${icon('package', 13)}<span class="nm">${esc(k.title)}</span><span class="ct ${have === k.packages.length ? 'ok' : 'dim'}">${have}/${k.packages.length}</span></div>`;
           if (this.gxOpen.has(key)) h += k.packages.map((p) => row(2, r.packages[p] ? 'check' : 'none', p, r.packages[p] ?? 'not installed')).join('');
         }
-        h += row(1, 'download', 'Install or update packages…', '', 'data-gx-act="r-setup" data-gx-id=""');
+        h += row(1, 'update', 'Check for updates, install packages…', '', 'data-gx-act="r-setup" data-gx-id=""');
       }
     }
     // Python
@@ -1417,6 +1423,7 @@ export class Workbench {
           h += `<div class="pane-empty" ${pad(2)}>${pk.total} packages in all</div>`;
         }
         if (!e.current) h += row(1, 'play', 'Use for Python steps', '', `data-gx-act="py-use" data-gx-id="${esc(e.path)}"`);
+        h += row(1, 'update', 'Check for updates, install packages…', '', `data-gx-act="py-updates" data-gx-id="${esc(e.path)}"`);
       }
     }
     return h;
@@ -1444,6 +1451,7 @@ export class Workbench {
       case 'online': return void document.dispatchEvent(new CustomEvent('geospax:online', { detail: id }));
       case 'overture': return void this.overture(id);
       case 'r-setup': return void document.dispatchEvent(new CustomEvent('geospax:r', { detail: 'setup' }));
+      case 'py-updates': return void document.dispatchEvent(new CustomEvent('geospax:r', { detail: `python:${id}` }));
       case 'py-use': return void this.usePython(id);
       case 'recipe': return void document.dispatchEvent(new CustomEvent('geospax:run-recipe', { detail: id }));
       case 'run': return void this.host.openRun(id);

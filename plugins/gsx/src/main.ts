@@ -1,7 +1,6 @@
 // Conservation, landscape and biodiversity tools for GeoSpaX 3 (plugins/gsx). One JSON request on stdin, one JSON answer on stdout
-// (docs/PLUGINS.md). The analysis code in src/analysis comes from GeoSpaX 2.0 (@geospax/analysis,
-// jm0535/GeoSpaX) and 1.4.2 (jm0535/map-kit), by J. Moses, MIT; it is unchanged so its golden-value
-// tests still hold. This file only maps GeoSpaX parameters to those functions and writes results.
+// (docs/PLUGINS.md). The analysis code in src/analysis is by in4metrix, MIT; it is unchanged so
+// its golden-value tests still hold. This file only maps GeoSpaX parameters to those functions and writes results.
 //   node run.mjs <tool>         run a tool
 //   node run.mjs --manifest     print the tool list (gen-manifest.mjs turns it into plugin.yaml)
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -78,7 +77,7 @@ try {
   for (const l of out.layers ?? []) {
     if (!l.features.length) continue;
     const file = join(outDir, `${slug(l.name)}-${stamp}.geojson`);
-    // provenance travels with the layer (GeoSpaX 2.0 stamped every derived layer the same way)
+    // provenance travels with the layer (earlier GeoSpaX stamped every derived layer the same way)
     writeFileSync(file, JSON.stringify({ type: 'FeatureCollection', name: l.name, gsx: { tool: tool!.id, params, provenance: l.provenance ?? null }, features: l.features }));
     outputs.push(file);
   }

@@ -1,5 +1,5 @@
 // Raster / spectral-index helpers — normalized difference, stats, histogram
-// and Otsu threshold. Ported logic from GeoSpaX v1 js/geospax-raster.js
+// and Otsu threshold. Ported logic from earlier GeoSpaX js/geospax-raster.js
 // (Otsu, reclassification) but engineered as pure functions over sampled
 // raster windows so they run without any map SDK.
 //

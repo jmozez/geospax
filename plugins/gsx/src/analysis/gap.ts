@@ -1,4 +1,4 @@
-// Protection gap analysis - GeoSpaX v1 P0-2 (js/geospax-conservation.js
+// Protection gap analysis - earlier GeoSpaX P0-2 (js/geospax-conservation.js
 // GSX.protectionGap), ported with the equal-area reporting mode (P1-4b) as
 // the default measurement and provenance stamps on every result.
 //

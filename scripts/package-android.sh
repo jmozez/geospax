@@ -24,6 +24,14 @@ if [ ! -d src-tauri/gen/android ]; then
   echo "== tauri android init"
   npx tauri android init --ci
 fi
+# the launcher icon is the GeoSpaX logo, the same as the desktop app's (tauri android init puts Tauri's
+# own icon there). android-launcher.png is that logo with the padding Android's adaptive icons need
+# (phones show the middle two thirds, as a circle or squircle), on a white background
+echo "== launcher icon"
+ICONS=$(mktemp -d)
+npx tauri icon src-tauri/icons/android-launcher.png -o "$ICONS" >/dev/null
+cp -r "$ICONS/android/." src-tauri/gen/android/app/src/main/res/
+rm -rf "$ICONS"
 MANIFEST=src-tauri/gen/android/app/src/main/AndroidManifest.xml
 for perm in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA; do
   grep -q "android.permission.$perm" "$MANIFEST" || \
@@ -33,6 +41,10 @@ grep -q 'android.hardware.location.gps' "$MANIFEST" || \
   sed -i 's|<application|<uses-feature android:name="android.hardware.location.gps" android:required="false" />\n    <application|' "$MANIFEST"
 
 echo "== APK (aarch64 + armv7)"
+# one Rust build at a time: in parallel, the two targets' Tauri plugin build scripts copy the same
+# tauri-api build folder at once and one fails ("failed to copy tauri-api to the plugin project")
+export GRADLE_OPTS="${GRADLE_OPTS:-} -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false"
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-$(nproc)}"
 npx tauri android build --apk --target aarch64 armv7 --ci
 APK=$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -1)
 [ -n "$APK" ] || { echo "no APK built"; exit 1; }

@@ -94,6 +94,6 @@ modules:
   sources:
   - type: git
     url: https://github.com/jmozez/geospax.git
-    tag: v3.0.2
+    tag: v3.0.3
   - cargo-sources.json
   - node-sources.json

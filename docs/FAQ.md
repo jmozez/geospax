@@ -10,9 +10,7 @@ Download the installer for your system from the [releases page](https://github.c
   password is needed. A portable ZIP is there too.
 - **Android (GeoSpaX Field):** `GeoSpaX-Field-<version>.apk`. Open it on the phone and allow *install unknown apps* for your browser once. It records points, lines, areas, tracks and photos offline; *Send* pairs with **Devices › Phone link** on your computer (scan its QR code) and uploads them over Wi-Fi.
 - **Any Linux:** `GeoSpaX-<version>-x86_64.AppImage`: make it executable (`chmod +x`, or *Properties › Allow executing*) and run it. No installing, no admin rights; it updates itself.
-- **Debian 13 / Ubuntu:** `geospax_<version>_amd64.deb`, then `sudo apt install ./geospax_<version>_amd64.deb`.
-- **Fedora 43 or 44:** the `.fc43` or `.fc44` package for your release (`rpm -E %fedora` prints it), then `sudo dnf install ./geospax-<version>-1.fc4N.x86_64.rpm`. The other release's package does not install: each needs its own release's GDAL and glibc.
-- **RHEL, Rocky Linux, AlmaLinux 10:** `geospax-<version>-1.el10.x86_64.rpm`; enable EPEL first (`sudo dnf install epel-release`).
+- **Linux from Flathub:** `flatpak install flathub io.github.jmozez.GeoSpaX` (or GNOME Software / KDE Discover).
 - **Any system with Docker:** the web edition, `docker compose up -d`.
 
 Start **GeoSpaX** from the Start menu or the applications menu. The [user guide](USER_GUIDE.md) has the details.
@@ -201,8 +199,8 @@ out; **Help › About GeoSpaX › Check for updates** looks at any time.
 - **Windows (installed with the setup program) and the AppImage:** press **Install and restart**. The update is downloaded,
   its signature is checked against the key built into GeoSpaX, and it installs over your copy; your data and
   settings stay. (Versions before 3.0.2 cannot do this yet: install 3.0.2 or later once by hand.)
-- **.deb, .rpm, the Windows portable ZIP and the web edition:** the bar links to the release; install the
-  new package (`sudo apt install ./geospax_*.deb` or `sudo dnf install ./geospax-*.rpm`) or unpack the new ZIP
+- **Flatpak, the Windows portable ZIP and the web edition:** Flathub updates come with your system's
+  updates; otherwise the bar links to the release: unpack the new ZIP
   over the old folder.
 
 **Later** hides the bar until the next version after that one.

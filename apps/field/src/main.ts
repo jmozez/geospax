@@ -351,3 +351,39 @@ async function sendSheet() {
     }
   });
 }
+
+// ---------------------------------------------------------------- new version notice
+// Once a day, ask GitHub for the latest release; when its APK is newer than this one, say so and
+// offer the download (Android installs it over this version; records stay on the phone).
+async function checkUpdate() {
+  const KEY = 'geospax-field-update-check';
+  try {
+    if (Date.now() - Number(localStorage.getItem(KEY) ?? 0) < 86_400_000) return;
+    localStorage.setItem(KEY, String(Date.now()));
+  } catch { /* no storage: check every start */ }
+  try {
+    const { fetch } = await import('@tauri-apps/plugin-http');
+    const r = await fetch('https://api.github.com/repos/jmozez/geospax/releases/latest', { headers: { accept: 'application/vnd.github+json' } });
+    if (!r.ok) return;
+    const rel = (await r.json()) as { assets?: { name: string; browser_download_url: string }[] };
+    const apk = rel.assets?.find((a) => /^GeoSpaX-Field-[\d.]+\.apk$/.test(a.name));
+    const latest = apk?.name.match(/([\d.]+)\.apk$/)?.[1];
+    if (!apk || !latest || !newer(latest, __APP_VERSION__)) return;
+    openSheet(`<h2>GeoSpaX Field ${latest} is out</h2>
+      <p>You have ${__APP_VERSION__}. Download the new version and install it over this one: your records stay on the phone.</p>
+      <p><button id="getUpdate" class="primary">Download ${latest}</button> <button id="laterUpdate">Later</button></p>`);
+    $('#getUpdate').addEventListener('click', async () => {
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(apk.browser_download_url);
+      sheet.close();
+    });
+    $('#laterUpdate').addEventListener('click', () => sheet.close());
+  } catch { /* offline in the field: try again tomorrow */ }
+}
+/** true when version a is later than b ("3.0.10" > "3.0.9") */
+function newer(a: string, b: string) {
+  const x = a.split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+}
+setTimeout(() => void checkUpdate(), 3000);

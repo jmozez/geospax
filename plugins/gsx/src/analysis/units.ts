@@ -1,4 +1,4 @@
-// Area units and equal-area measurement - GeoSpaX v1 P0-3 ("hectares as a
+// Area units and equal-area measurement - earlier GeoSpaX P0-3 ("hectares as a
 // first-class unit") and P1-4b ("equal-area reporting mode"), ported from
 // js/geospax-conservation.js and js/geospax-conservation-m2.js.
 //

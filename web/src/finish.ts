@@ -13,6 +13,20 @@ const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 export const FINISH_RECIPE = 'finished-map';
+/** the main window and the layout window (layout.ts) talk over this BroadcastChannel */
+export const LAYOUT_CHANNEL = 'geospax-layout';
+/** what the layout window draws: the styles of the visible layers and the export.map parameters */
+export interface LayoutSpec {
+  styles: Record<string, unknown>;
+  map: Record<string, unknown>;
+  title?: string;
+}
+export type LayoutMsg =
+  | { type: 'hello' }
+  | { type: 'bye' }
+  | { type: 'make' }
+  | { type: 'spec'; spec: LayoutSpec }
+  | { type: 'finished'; ok: boolean; error?: string };
 /** most pages in one series: each page is a full layout */
 export const MAX_PAGES = 40;
 
@@ -149,8 +163,20 @@ export class FinishMap {
   private el: HTMLElement;
   private previewSeq = 0;
   private previewTimer = 0;
+  private chan: BroadcastChannel | null = 'BroadcastChannel' in window ? new BroadcastChannel(LAYOUT_CHANNEL) : null;
+  /** a layout window said hello and has not said goodbye */
+  private layoutOpen = false;
+  private specTimer = 0;
 
   constructor(private host: FinishHost) {
+    this.chan?.addEventListener('message', (e: MessageEvent<LayoutMsg>) => {
+      const m = e.data;
+      if (m.type === 'hello') {
+        this.layoutOpen = true;
+        void this.sendSpec();
+      } else if (m.type === 'bye') this.layoutOpen = false;
+      else if (m.type === 'make') void this.makeFinal();
+    });
     this.el = document.createElement('div');
     this.el.id = 'finish';
     this.el.className = 'modal';
@@ -158,6 +184,10 @@ export class FinishMap {
     document.body.appendChild(this.el);
     this.el.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
+      if (t.closest('[data-layout]')) {
+        void this.openLayout();
+        return this.close();
+      }
       if (t === this.el || t.closest('[data-close]')) this.close();
     });
     this.el.addEventListener('submit', (e) => {
@@ -266,7 +296,7 @@ export class FinishMap {
       <fieldset><legend>Files</legend>
         <label class="ck"><input type="checkbox" name="png" checked /> Picture (PNG)</label>
         <label class="ck"><input type="checkbox" name="pdf" checked /> Print (vector PDF)</label>
-        <label class="ck"><input type="checkbox" name="svg" /> Editable (SVG)</label>
+        <label class="ck"><input type="checkbox" name="svg" checked /> Editable (SVG)</label>
         <label class="ck"><input type="checkbox" name="report" checked /> One-page report</label></fieldset>`;
     this.el.innerHTML = `<form class="sheet fin">
       <header><b>Finish my map</b><button type="button" data-close aria-label="Close">✕</button></header>
@@ -278,7 +308,7 @@ export class FinishMap {
         ${styleBox}
         ${lazy ? `<details><summary>More options</summary>${more}</details>` : more}
       </div></div>
-      <footer><span class="dim" id="finish-msg"></span><button type="button" data-close>Cancel</button><button class="primary" type="submit">Make the map</button></footer>
+      <footer><span class="dim" id="finish-msg"></span><button type="button" data-layout title="The page in a window of its own: zoom in, move it to a second monitor; it redraws as you edit the map">Open in layout window</button><button type="button" data-close>Cancel</button><button class="primary" type="submit">Make the map</button></footer>
     </form>`;
     this.el.hidden = false;
     this.el.querySelector<HTMLInputElement>('input[name=title]')?.select();
@@ -429,6 +459,70 @@ export class FinishMap {
 
   close() {
     this.el.hidden = true;
+    // the layout window follows the choices made here (title, layout, furniture)
+    this.mapChanged();
+  }
+
+  /** The map page in a window of its own (a second monitor, full screen), redrawn live as the map changes. */
+  async openLayout() {
+    if (!this.host.visible().length) return this.host.setStatus('Switch on at least one layer first: the layout shows what is on the map', 5000);
+    const url = 'layout.html';
+    if ('__TAURI_INTERNALS__' in window) {
+      try {
+        const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+        const open = await WebviewWindow.getByLabel('layout');
+        if (open) {
+          await open.setFocus();
+          return void this.sendSpec();
+        }
+        new WebviewWindow('layout', { url, title: 'GeoSpaX Layout', width: 1400, height: 950 });
+        return;
+      } catch {
+        /* fall through to a browser window */
+      }
+    }
+    if (!window.open(url, 'geospax-layout')) this.host.setStatus('The browser blocked the layout window: allow pop-ups for GeoSpaX', 8000);
+  }
+
+  /** The map, a layer or a style changed: a live layout window redraws (after a short pause). */
+  mapChanged() {
+    if (!this.layoutOpen) return;
+    clearTimeout(this.specTimer);
+    this.specTimer = window.setTimeout(() => void this.sendSpec(), 700);
+  }
+
+  /** A finished-map run ended: the layout window shows its files. */
+  runFinished(ok: boolean, error?: string) {
+    this.chan?.postMessage({ type: 'finished', ok, error } satisfies LayoutMsg);
+  }
+
+  /** What the layout window draws: the Finish my map choices when the dialog has been used, else one map of the view. */
+  private async spec(): Promise<LayoutSpec | null> {
+    const layers = this.host.visible();
+    if (!layers.length) return null;
+    const styles = Object.fromEntries(layers.map((l) => [l.id, l.style]));
+    const form = this.el.querySelector<HTMLFormElement>('form');
+    if (form) {
+      const plan = await this.plan(form);
+      if (typeof plan !== 'string') return { styles, map: plan.steps[0].with, title: plan.title };
+    }
+    const v = this.host.view();
+    const extent = [Math.max(v[0], -180), Math.max(v[1], -85), Math.min(v[2], 180), Math.min(v[3], 85)].map((x) => Math.round(x * 1e5) / 1e5);
+    const title = this.host.suggestTitle();
+    return { styles, title, map: { layers: layers.map((l) => l.id), title, subtitle: new Date().toLocaleDateString(), size: pageSize('auto'), extent, name: 'layout' } };
+  }
+
+  private async sendSpec() {
+    const spec = await this.spec();
+    if (spec) this.chan?.postMessage({ type: 'spec', spec } satisfies LayoutMsg);
+  }
+
+  /** "Make final files" from the layout window: the same as pressing Make in Finish my map. */
+  private async makeFinal() {
+    const form = this.el.querySelector<HTMLFormElement>('form');
+    if (form) return this.make(form);
+    // never opened: open it so the title and formats can be chosen
+    this.open();
   }
 
   /** What Finish my map will make, from the form: the export steps and their parameters. */
@@ -438,7 +532,7 @@ export class FinishMap {
     const title = String(f.get('title') || 'My map').trim();
     const subtitle = String(f.get('subtitle') ?? new Date().toLocaleDateString());
     // lazy mode hides the options: their defaults are the checked boxes above
-    const has = (k: string) => (form.querySelector(`[name=${k}]`) ? f.get(k) === 'on' : k !== 'svg');
+    const has = (k: string) => (form.querySelector(`[name=${k}]`) ? f.get(k) === 'on' : true);
     const formats = ['png', 'pdf', 'svg'].filter(has);
     if (!formats.length) formats.push('png');
     const area = f.get('area') ?? 'view';

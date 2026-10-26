@@ -40,17 +40,17 @@ const bioPicker = () => `<fieldset class="ol-bio"><legend>Bioclimatic variables<
   <div class="ol-bio-grid">${BIO.map((t, i) => `<label class="ck" title="${esc(t)}"><input type="checkbox" name="bio" value="${i + 1}" ${i === 0 || i === 11 ? 'checked' : ''} /> BIO${i + 1} <span class="dim">${esc(t)}</span></label>`).join('')}</div>
   <div class="ol-bio-quick"><button type="button" data-bio="all">All 19</button><button type="button" data-bio="temp">Temperature (1–11)</button><button type="button" data-bio="prec">Precipitation (12–19)</button><button type="button" data-bio="none">None</button></div></fieldset>`;
 
-const res = () => `<label><span>Resolution</span>${sel('resolution', [['10m', '10 arc-minutes (~18 km)'], ['5m', '5 arc-minutes (~9 km)'], ['2.5m', '2.5 arc-minutes (~4.5 km)'], ['30s', '30 arc-seconds (~1 km)']], '10m')}</label>`;
+const res = () => `<label><span>Resolution</span>${sel('resolution', [['auto', 'Auto: detailed enough for the area'], ['10m', '10 arc-minutes (~18 km)'], ['5m', '5 arc-minutes (~9 km)'], ['2.5m', '2.5 arc-minutes (~4.5 km)'], ['30s', '30 arc-seconds (~1 km)']], 'auto')}</label>`;
 
 const FORMS: Record<string, { title: string; lead: string; body: () => string }> = {
   worldclim: {
     title: 'Climate',
     lead: 'Present-day climate surfaces, cut to the area. WorldClim 2.1 (1970–2000) or CHELSA 2.1 (1981–2010, ~1 km).',
-    body: () => `<label><span>Dataset</span>${sel('source', [['worldclim', 'WorldClim 2.1 bioclim'], ['worldclim-monthly', 'WorldClim 2.1 monthly'], ['chelsa', 'CHELSA 2.1 bioclim (~1 km)']], 'worldclim')}</label>
+    body: () => `<label><span>Dataset</span>${sel('source', [['climate', 'Best for the area (CHELSA ~1 km, or WorldClim for large areas)'], ['worldclim', 'WorldClim 2.1 bioclim'], ['worldclim-monthly', 'WorldClim 2.1 monthly'], ['chelsa', 'CHELSA 2.1 bioclim (~1 km)']], 'climate')}</label>
       <div data-for="worldclim worldclim-monthly">${res()}</div>
       <div data-for="worldclim-monthly"><label><span>Variable</span>${sel('variable', [['tavg', 'Mean temperature'], ['tmin', 'Minimum temperature'], ['tmax', 'Maximum temperature'], ['prec', 'Precipitation'], ['srad', 'Solar radiation'], ['wind', 'Wind speed'], ['vapr', 'Water vapour pressure']], 'tavg')}</label>
         <label><span>Months</span><input name="months" value="1-12" placeholder="1-12, or 1,4,7,10" /></label></div>
-      <div data-for="worldclim chelsa">${bioPicker()}</div>`,
+      <div data-for="climate worldclim chelsa">${bioPicker()}</div>`,
   },
   'worldclim-future': {
     title: 'Future climate',
@@ -273,7 +273,7 @@ export class OnlineData {
       if (!months.length) return 'Months: give numbers from 1 to 12';
       w.months = months;
     }
-    if (['worldclim', 'worldclim-future', 'chelsa'].includes(source)) {
+    if (['climate', 'worldclim', 'worldclim-future', 'chelsa'].includes(source)) {
       const bio = f.getAll('bio').map(Number);
       if (!bio.length) return 'Tick at least one bioclimatic variable';
       w.variables = bio;

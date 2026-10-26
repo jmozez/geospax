@@ -1,8 +1,8 @@
 import { maxOf, minOf } from './analysis/extent';
-// Raster and species-distribution tools (GSX phase B, from GeoSpaX 2.0): spectral index with an
+// Raster and species-distribution tools (GSX phase B, from earlier GeoSpaX): spectral index with an
 // Otsu threshold, two-date raster change, slope zones and species distribution models (BIOCLIM,
 // Mahalanobis, presence-background logistic) with spatially blocked cross-validation. The maths is
-// GeoSpaX 2.0's src/analysis, unchanged; this file reads GeoSpaX rasters (Grid) and writes results.
+// src/analysis, unchanged; this file reads GeoSpaX rasters (Grid) and writes results.
 import proj4 from 'proj4';
 import type { Point } from 'geojson';
 import * as A from './analysis';
@@ -83,7 +83,7 @@ const arr = (f: Float32Array) => Array.from(f);
 const rasterParam = (name: string, label: string, description?: string): Param => ({ name, label, kind: 'raster', required: true, description });
 
 /** Spatially blocked k-fold CV with the blocks that hold presences dealt to the folds first, so
- *  no fold is left without presences when occurrences are clustered (2.0's crossValidateSdm
+ *  no fold is left without presences when occurrences are clustered (the original crossValidateSdm
  *  shuffles all blocks together). Same metrics: ROC AUC, max-TSS, continuous Boyce. */
 function blockedCv<M>(o: {
   pres: number[][]; presXY: Array<[number, number]>; bg: number[][]; bgXY: Array<[number, number]>;

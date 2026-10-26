@@ -223,7 +223,7 @@ fn r_wrapper(code: &str, inputs: &[(String, PathBuf)], params: &Value, packages:
     let inputs_r: Vec<String> = inputs.iter().map(|(n, p)| format!("{} = {}", r_str(n), r_str(&p.to_string_lossy()))).collect();
     let packages_r: Vec<String> = packages.iter().map(|p| r_str(p)).collect();
     format!(
-        r#"# GeoSpaX R step (generated). Your code is between the markers below.
+        r##"# GeoSpaX R step (generated). Your code is between the markers below.
 .lib <- Sys.getenv("GEOSPAX_R_LIBRARY")
 if (nzchar(.lib) && dir.exists(.lib)) .libPaths(c(.lib, .libPaths()))
 inputs <- list({inputs})
@@ -236,14 +236,36 @@ if (length(.missing) > 0) stop(paste0("missing R packages: ", paste(.missing, co
 .is_raster <- function(p) grepl("\\.(tif|tiff|vrt|nc|img|asc|jp2)$", tolower(p))
 for (.n in names(inputs)) assign(.n, if (.is_raster(inputs[[.n]]) && requireNamespace("terra", quietly = TRUE)) terra::rast(inputs[[.n]])
   else if (.has_sf) sf::st_read(inputs[[.n]], quiet = TRUE) else inputs[[.n]])
+# Charts follow the ggplot2 theme and palette chosen in GeoSpaX's Settings (theme_grey and the hue
+# palette unless changed): every ggplot made below uses them without asking.
+if (requireNamespace("ggplot2", quietly = TRUE)) local({{
+  .size <- as.numeric(Sys.getenv("GEOSPAX_CHART_BASE_SIZE", "11"))
+  .theme <- switch(Sys.getenv("GEOSPAX_CHART_THEME", "grey"),
+    bw = ggplot2::theme_bw, minimal = ggplot2::theme_minimal, classic = ggplot2::theme_classic,
+    light = ggplot2::theme_light, dark = ggplot2::theme_dark, ggplot2::theme_grey)
+  ggplot2::theme_set(.theme(base_size = .size))
+  .pal <- switch(Sys.getenv("GEOSPAX_CHART_PALETTE", "ggplot2"),
+    viridis = function(...) ggplot2::scale_colour_viridis_d(...),
+    `okabe-ito` = function(...) ggplot2::scale_colour_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#999999"), ...),
+    set2 = function(...) ggplot2::scale_colour_brewer(palette = "Set2", ...),
+    dark2 = function(...) ggplot2::scale_colour_brewer(palette = "Dark2", ...),
+    NULL)
+  if (!is.null(.pal)) {{
+    options(ggplot2.discrete.colour = .pal)
+    options(ggplot2.discrete.fill = function(...) ggplot2::scale_fill_discrete(type = .pal()$palette(8), ...))
+  }}
+}})
 figure_path <- function(name, ext = "png") file.path(outputs_dir, paste0(name, ".", ext))
 # A figure at print size: a ggplot, a tmap, or a function that draws (base graphics, terra::plot …).
 # rayshader: rayshader::render_snapshot(figure_path("relief")) or save_figure("relief", function() plot_map(hillshade)).
-save_figure <- function(name, plot, width = 180, height = 120, units = "mm", dpi = 300, formats = c("png", "pdf")) {{
+# PNG (at dpi), PDF and SVG by default, so every chart can be downloaded at print quality and as vectors.
+save_figure <- function(name, plot, width = 180, height = 120, units = "mm", dpi = 300, formats = c("png", "pdf", "svg")) {{
   inch <- c(mm = 1 / 25.4, cm = 1 / 2.54, `in` = 1)[[units]]
   for (.f in formats) {{
     path <- figure_path(name, .f)
-    if (inherits(plot, "ggplot")) ggplot2::ggsave(path, plot, width = width, height = height, units = units, dpi = dpi)
+    # ggsave writes SVG through svglite when installed, else with R's own svg device
+    svg_device <- if (.f == "svg" && !requireNamespace("svglite", quietly = TRUE)) grDevices::svg else NULL
+    if (inherits(plot, "ggplot")) ggplot2::ggsave(path, plot, width = width, height = height, units = units, dpi = dpi, device = svg_device)
     else if (inherits(plot, "tmap")) tmap::tmap_save(plot, path, width = width, height = height, units = units, dpi = dpi)
     else if (is.function(plot)) {{
       if (.f == "pdf") grDevices::pdf(path, width = width * inch, height = height * inch)
@@ -282,7 +304,7 @@ result <- function(...) {{
 if (inherits(.out, c("sf", "SpatRaster", "ggplot", "tmap"))) save_layer("result", .out) else if (is.list(.out) && !is.null(names(.out)) && !is.data.frame(.out)) {{
   for (.n in names(.out)) if (!is.null(.out[[.n]])) save_layer(.n, .out[[.n]])
 }}
-"#,
+"##,
         inputs = inputs_r.join(", "),
         params = r_literal(params),
         outputs = r_str(&outputs.to_string_lossy()),
@@ -311,6 +333,8 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
     c.arg(&script).current_dir(dir).stdin(Stdio::null()).stdout(out).stderr(err).env_clear();
     for k in ["PATH", "HOME", "USER", "LANG", "LC_ALL", "TZ", "TMPDIR", "PYTHONPATH", "VIRTUAL_ENV", "CONDA_PREFIX", "R_HOME", "R_LIBS", "R_LIBS_USER", "R_LIBS_SITE", "PROJ_DATA", "PROJ_LIB", "GDAL_DATA", "SYSTEMROOT",
         // Windows: Python and R need these to find temp dirs, user libraries and system DLLs
+        // a proxy and its certificates, so R and Python reach the internet where the app does (GDAL, curl)
+        "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy", "CURL_CA_BUNDLE", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE",
         "SYSTEMDRIVE", "WINDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PATHEXT", "COMSPEC", "R_USER", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE"] {
         if let Ok(v) = std::env::var(k) {
             c.env(k, v);
@@ -319,6 +343,9 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
     if let Some(lib) = r_library() {
         c.env("GEOSPAX_R_LIBRARY", lib);
     }
+    // the chart look chosen in Settings: the R prelude sets the ggplot2 theme and palette from these
+    let st = super::charts::style();
+    c.env("GEOSPAX_CHART_THEME", &st.theme).env("GEOSPAX_CHART_PALETTE", &st.palette).env("GEOSPAX_CHART_BASE_SIZE", st.base_size.to_string());
     c.env("PYTHONIOENCODING", "utf-8").env("PYTHONDONTWRITEBYTECODE", "1").env("GEOSPAX_STEP", "1");
     let t0 = Instant::now();
     let mut child = c.spawn().map_err(|e| format!("could not start {cmd}: {e}"))?;

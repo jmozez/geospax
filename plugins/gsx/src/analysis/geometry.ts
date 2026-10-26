@@ -1,6 +1,6 @@
 // Geometry helpers shared across the GeoSpaX analysis modules.
 //
-// Ported from GeoSpaX v1 (jm0535/map-kit, js/geospax-conservation.js) with the
+// Ported from earlier GeoSpaX with the
 // same failure philosophy: bad geometry is skipped and reported, never fatal,
 // and never silently changes the method that ran.
 

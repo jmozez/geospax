@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GeoSpaX Layout</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+  </head>
+  <body class="layout-page">
+    <header class="lv-top">
+      <span class="lv-brand"><img src="geospax-logo.png" alt="" width="22" height="22" /><b>Layout</b><span id="lv-title" class="lv-title"></span></span>
+      <label class="lv-live" title="Redraw this page whenever the map, its layers or their styles change"><input id="lv-live" type="checkbox" checked /> Live</label>
+      <span id="lv-state" class="lv-state" aria-live="polite"></span>
+      <span class="lv-gap"></span>
+      <span class="lv-zoom" role="group" aria-label="Zoom">
+        <button id="lv-out" type="button" title="Zoom out (−)" aria-label="Zoom out">−</button>
+        <button id="lv-pct" type="button" title="Actual size (1)">100%</button>
+        <button id="lv-in" type="button" title="Zoom in (+)" aria-label="Zoom in">+</button>
+        <button id="lv-fit" type="button" title="Fit the page in the window (0 or double-click)">Fit</button>
+      </span>
+      <button id="lv-full" type="button" title="Full screen (F)">⛶ Full screen</button>
+      <button id="lv-make" type="button" class="lv-primary" title="Make the final PNG, PDF, SVG and the report (HTML and Word)">Make final files</button>
+    </header>
+    <div id="lv-files" class="lv-files" aria-label="Final files"></div>
+    <main id="lv-stage" class="lv-stage" tabindex="0" aria-label="Map page: scroll to zoom, drag to move">
+      <div id="lv-page" class="lv-page"><p class="lv-empty">Waiting for the map…</p></div>
+    </main>
+    <script type="module" src="/src/layout.ts"></script>
+  </body>
+</html>

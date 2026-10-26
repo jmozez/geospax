@@ -1,4 +1,4 @@
-// Fragmentation and patch metrics, ported from GeoSpaX v1's landscape module.
+// Fragmentation and patch metrics, ported from earlier GeoSpaX's landscape module.
 //
 // The compact patchMetrics/summarizeFragmentation API is retained for existing
 // callers. fragmentationAnalysis exposes the complete original report: NP, CA,

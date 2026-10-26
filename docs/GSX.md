@@ -1,9 +1,7 @@
 # GSX tools
 
-The GSX tools bring the conservation, biodiversity and environmental analysis of **GeoSpaX 2.0**
-([jm0535/GeoSpaX](https://github.com/jm0535/GeoSpaX)) and **GeoSpaX 1.4.2**
-([jm0535/map-kit](https://github.com/jm0535/map-kit)) into GeoSpaX 3, in GeoSpaX 3's design. They are
-**twelve default plugins**, one per domain of 2.0, each with the tools 2.0 gave that domain:
+The GSX tools bring the conservation, biodiversity and environmental analysis into GeoSpaX 3. They are
+**twelve default plugins**, one per domain, each with its tools:
 
 | Plugin | Tools |
 | --- | --- |
@@ -42,7 +40,7 @@ A tool's dialog opens with its inputs already chosen, as in ArcGIS Pro's geoproc
 When nothing fits, the input stays empty and the tool says what it needs ("Choose a DEM").
 
 The analysis code (`plugins/gsx/src/analysis`, about 5,000 lines of TypeScript on Turf and proj4) is
-GeoSpaX 2.0's `@geospax/analysis`, unchanged, so its golden-value tests run as they did (103 of them,
+`@geospax/analysis`, unchanged, so its golden-value tests run as they did (103 of them,
 in CI). It needs **Node.js 18+** and nothing else; no tool here goes online.
 
 ## The tools (phase A)
@@ -99,7 +97,7 @@ half is vegetated (NDVI extent 50.0 %), a planted loss strip (found cell for cel
 slope 10° ± 0.2) and a species confined to one climate corner (cross-validated AUC above 0.85 for
 Mahalanobis and logistic, above 0.7 for BIOCLIM).
 
-## From GeoSpaX 1.4.2 (phase C)
+## From earlier GeoSpaX (phase C)
 
 | Tool | Toolbox | What it gives you |
 | --- | --- | --- |
@@ -111,10 +109,10 @@ Tool results can now carry charts (`figures` in the plugin answer, drawn as imag
 cannot run scripts). **Checked** (`tests/legacytools.test.ts`): a two-block pattern is strongly clustered
 with high-high and low-low on the right sides and no outliers; a checkerboard with rook neighbours gives
 Moran's I = −1 exactly; the global I equals the textbook double sum; a north-facing ramp DEM gives the
-profile length (11.1 km for 0.1° of latitude) and climb (1,000 m) it should. On the 1.4.2 sample
-transects, species richness gives I = 0.82 with 8 neighbours (1.4.2's guide expects about 0.8).
+profile length (11.1 km for 0.1° of latitude) and climb (1,000 m) it should. On the sample
+transects, species richness gives I = 0.82 with 8 neighbours (the earlier guide expects about 0.8).
 
-**Sample data** (Data › Sample data) brings back the 1.4.2 Papua New Guinea set: the survey transects,
+**Sample data** (Data › Sample data) brings back the Papua New Guinea set: the survey transects,
 birdwing butterflies and their host vines, forest patches, a habitat grid, streams, WorldClim
 temperature and rainfall and tree cover ([samples/png/README.md](../samples/png/README.md)). **1.4.2
 `.gspx` and 2.0 `.geolibre.json` projects** open like any file: their embedded layers come onto the map
@@ -137,7 +135,7 @@ kits can chain them) come with the domain kits.
 ```bash
 cd plugins/gsx
 npm ci
-npm test            # the GeoSpaX 2.0 analysis tests
+npm test            # the analysis tests
 npm run build       # src/ → run.mjs
 node gen-manifest.mjs   # src/tools.ts → plugin.yaml
 ```
@@ -174,7 +172,7 @@ reports run for real; the downloads need internet and are covered by the `data.f
 
 ## Online data from the 2.0 catalogue
 
-GeoSpaX 2.0 listed these sources; 3.0 fetches them, for the area on the map, with their citations
+earlier GeoSpaX listed these sources; 3.0 fetches them, for the area on the map, with their citations
 (Data › Online data and Data › Check species names; steps in [AUTOMATION.md](AUTOMATION.md)):
 
 | Source | What you get | Licence and credit |
@@ -194,5 +192,5 @@ automated requests (a Cloudflare browser challenge), so it needs another route.
 
 ## Credits
 
-The GSX analysis and its tests: **J. Moses**, GeoSpaX 1.4.2 and 2.0, MIT. Turf (MIT) and proj4js
+The GSX analysis and its tests: **in4metrix**, MIT. Turf (MIT) and proj4js
 (MIT) are bundled into `run.mjs`.
