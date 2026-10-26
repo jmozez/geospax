@@ -78,7 +78,7 @@
 <td><strong>Soil</strong></td>
 <td>spectral index, suitability, distance decay, overlay, raster change, change</td>
 </tr>
-</tbody></table></div><p>They ship with GeoSpaX and are on the <strong>Plugins</strong> tab (one group per domain), in the <strong>Toolbox</strong> under
+</tbody></table></div><p>They ship with GeoSpaX and are in the <strong>Explorer</strong> under <strong>Plugins</strong> (one per domain), in the <strong>Tools</strong> tab under
 <em>Plugins › <domain></em> and in the plugin manager marked <em>default plugin</em>. They are not on the Analysis,
 Imagery or Modelling tabs, which hold GeoSpaX&#39;s own tools. All twelve run the same code, the shared
 <strong>GSX library</strong> in <code>plugins/gsx</code> (<code>library: true</code>: not listed, but recipes, the API and MCP call its
@@ -206,7 +206,7 @@ FlatGeobuf …).</p>
 <td>Species Distribution</td>
 <td>Occurrences + environmental rasters (all their bands) → suitability (0–1) and the predicted range at the max-TSS threshold. BIOCLIM, Mahalanobis or presence-background logistic; seeded background sample; spatially blocked cross-validation with AUC, max TSS and the Boyce index</td>
 </tr>
-</tbody></table></div><p>The rasters come from the map (Data › Climate gives WorldClim or CHELSA; Data › Elevation the
+</tbody></table></div><p>The rasters come from the map (Explorer › Online data › Climate gives WorldClim or CHELSA; › Elevation the
 Copernicus DEM; Imagery the latest Sentinel-2 bands), and results go back to the map styled for what
 they are: suitability on a fixed 0–1 Viridis scale, change on a diverging red–blue scale centred on
 zero, classes with their own colours. Several environmental rasters are resampled onto the first
@@ -248,7 +248,7 @@ with high-high and low-low on the right sides and no outliers; a checkerboard wi
 Moran&#39;s I = −1 exactly; the global I equals the textbook double sum; a north-facing ramp DEM gives the
 profile length (11.1 km for 0.1° of latitude) and climb (1,000 m) it should. On the sample
 transects, species richness gives I = 0.82 with 8 neighbours (the earlier guide expects about 0.8).</p>
-<p><strong>Sample data</strong> (Data › Sample data) brings back the Papua New Guinea set: the survey transects,
+<p><strong>Sample data</strong> (Explorer › Sample data) brings back the Papua New Guinea set: the survey transects,
 birdwing butterflies and their host vines, forest patches, a habitat grid, streams, WorldClim
 temperature and rainfall and tree cover (<a href="https://github.com/jmozez/geospax/blob/main/samples/png/README.md" rel="noopener" target="_blank">samples/png/README.md</a>). <strong>1.4.2
 <code>.gspx</code> and 2.0 <code>.geolibre.json</code> projects</strong> open like any file: their embedded layers come onto the map
@@ -332,7 +332,7 @@ that download data run with the downloads swapped for local test rasters, so the
 reports run for real; the downloads need internet and are covered by the <code>data.fetch</code> tests.</p>
 <h2 id="online-data-from-the-20-catalogue"><a class="anchor" href="#online-data-from-the-20-catalogue">#</a>Online data from the 2.0 catalogue</h2>
 <p>earlier GeoSpaX listed these sources; 3.0 fetches them, for the area on the map, with their citations
-(Data › Online data and Data › Check species names; steps in <a href="/docs/automation">AUTOMATION.md</a>):</p>
+(Explorer › Online data, and its Check species names; steps in <a href="/docs/automation">AUTOMATION.md</a>):</p>
 <div class="table"><table><thead><tr>
 <th>Source</th>
 <th>What you get</th>

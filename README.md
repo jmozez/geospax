@@ -14,8 +14,8 @@ Desktop, web and phone · one Rust engine · MIT licence</p>
 <p align="center"><img src="docs/assets/screenshot-pro.webp" alt="GeoSpaX Pro: every building, road and place of central Lae, Papua New Guinea (Overture Maps), styled by type, with street and place names, over Esri World Imagery" width="900" /></p>
 
 <table><tr>
-<td width="50%"><img src="docs/assets/screenshot-lazy.webp" alt="GeoSpaX Lazy mode: layer cards, task bar and next steps" /><br /><b>Lazy mode</b>: layer cards that explain each layer, a task bar and one-click next steps.</td>
-<td width="50%"><img src="docs/assets/screenshot-globe.webp" alt="GeoSpaX starting on the globe over world imagery" /><br /><b>It starts on the globe</b>: a clean slate over world imagery.</td>
+<td width="50%"><img src="docs/assets/screenshot-lazy.webp" alt="GeoSpaX Lazy mode: layer cards, task bar and the Layer tab" /><br /><b>Lazy mode</b>: layer cards that explain each layer, a task bar, one-click next steps and the layer's story in the Layer tab.</td>
+<td width="50%"><img src="docs/assets/screenshot-globe.webp" alt="GeoSpaX starting on the globe over world imagery" /><br /><b>It starts on the globe</b>: a clean slate over world imagery, with the map's basemap, projection and next steps in the Layer tab.</td>
 </tr></table>
 
 GeoSpaX is for people who want a finished map without spending hours on it. Drop in data, or plug in a
@@ -27,6 +27,10 @@ away.
 
 - **Two modes, one engine.** *Lazy*: layer cards, a task bar and plain-language next steps. *Pro*: an ArcGIS
   Pro-style ribbon, layer tree, attribute table, editing and every pane.
+- **A workbench laid out like the work.** The ribbon runs Home, View, Edit, Design, Imagery, Analysis,
+  Share; on the left **Project · Explorer · Contents** (files, online data, recipes, R & Python, plugins
+  and devices live in the Explorer); on the right **Layer · Tools · Ask** (the selected layer's style,
+  labels, fields and source; the Toolbox; the assistant); under the map the attribute table and the runs.
 - **Maps that style themselves.** AutoMap picks the field, classes and colours and says why; full
   symbology for points, lines, polygons, labels and rasters when you want your own.
 - **Finished maps and reports.** Layout with legend, scale bar, north arrow and inset; Equal Earth for world
@@ -64,7 +68,7 @@ wholly inside the DEM (basins cut by its edge are left out), over Esri World Ima
 <p align="center"><img src="docs/assets/tour-hydrology.png" alt="GeoSpaX: Strahler-ordered streams and drainage basins of the Markham valley over Esri World Imagery" width="900" /></p>
 
 **Land cover.** ESA WorldCover 10 m (2021) for Lae and the Markham delta, downloaded for the area with
-*Data › Online data*, drawn in ESA's class colours over Esri World Imagery; the legend gives each class's
+*Explorer › Online data*, drawn in ESA's class colours over Esri World Imagery; the legend gives each class's
 share of the area.
 
 <p align="center"><img src="docs/assets/tour-landcover.png" alt="GeoSpaX: ESA WorldCover land cover of Lae over Esri World Imagery" width="900" /></p>
@@ -185,7 +189,7 @@ macOS is not packaged yet; use the web edition or [build from source](docs/DEVEL
 
 1. Start **GeoSpaX**. It opens on a clean map with the globe.
 2. Drop a file on the window (GeoJSON, GeoPackage, Shapefile, KML, GPX, CSV, GeoTIFF, LAS/LAZ), or choose
-   **Data › Sample data**.
+   **Explorer › Sample data**.
 3. Press **Finish my map**: a laid-out map and a one-page report, ready to print or share.
 
 The web edition (`geospax-server`) answers at <http://localhost:8080> on this computer only; see

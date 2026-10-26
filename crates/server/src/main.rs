@@ -33,6 +33,8 @@ struct Args {
     token: Option<String>,
     /// open to other devices with the old limits: no folder connections, web services or downloads
     restricted: bool,
+    /// public guest demo: no sign-in, a workspace per visitor, code and installs refused (guest.rs)
+    public: bool,
 }
 
 fn parse_args() -> Args {
@@ -53,6 +55,7 @@ fn parse_args_from(argv: Vec<String>) -> Args {
         gzip: true,
         token: std::env::var("GEOSPAX_TOKEN").ok().filter(|t| !t.is_empty()),
         restricted: std::env::var("GEOSPAX_RESTRICTED").is_ok_and(|v| v == "1"),
+        public: std::env::var("GEOSPAX_PUBLIC").is_ok_and(|v| v == "1"),
     };
     let mut it = argv.into_iter();
     let mut web_given = false;
@@ -63,6 +66,7 @@ fn parse_args_from(argv: Vec<String>) -> Args {
             "--host" => a.host = v(),
             "--token" => a.token = Some(v()),
             "--restricted" => a.restricted = true,
+            "--public" => a.public = true,
             "--port" => a.port = v().parse().expect("port"),
             "--web" => {
                 a.web = v().into();
@@ -169,6 +173,9 @@ options:
                          it can use everything, as on this computer (folders, web services, downloads)
   --restricted           with another address: no folder connections, web services or downloads, for a
                          copy shared with a class or group (or GEOSPAX_RESTRICTED=1)
+  --public               a public guest demo (or GEOSPAX_PUBLIC=1): no sign-in, a separate workspace for
+                         each visitor, no R/Python code, installs, folders or devices, and guest files
+                         deleted after 7 days
   --web DIR              web UI folder (default web/dist, or the installed copy)
   --inbox DIR            drop folder: files put here are mapped by the matching recipe (repeatable)
   --watch DIR            treat a folder as a device (repeatable)
@@ -373,7 +380,20 @@ async fn serve(args: Args) {
     // Every client from another device must present the token, and whoever has it is trusted as on this
     // computer (it can already run recipes and install plugins). --restricted keeps a copy shared with a
     // class or group from connecting folders, adding web services or downloading.
-    engine.shared.store(args.restricted && !auth::is_loopback(&args.host), std::sync::atomic::Ordering::Relaxed);
+    engine.shared.store((args.restricted || args.public) && !auth::is_loopback(&args.host), std::sync::atomic::Ordering::Relaxed);
+    if args.public {
+        engine.guest.store(true, std::sync::atomic::Ordering::Relaxed);
+        geospax_engine::automation::sidecar::GUEST.store(true, std::sync::atomic::Ordering::Relaxed);
+        // guest files older than a week go, at start and then every hour
+        let (state, data) = (engine.state_dir.clone(), args.cfg.data.clone());
+        std::thread::spawn(move || loop {
+            let n = geospax_engine::guest::clean(&state, &data);
+            if n > 0 {
+                println!("guest demo: removed {n} files and folders older than 7 days");
+            }
+            std::thread::sleep(std::time::Duration::from_secs(3600));
+        });
+    }
     println!(
         "engine: {} layers, reader={}, state={}",
         engine.layers().len(),
@@ -400,7 +420,8 @@ async fn serve(args: Args) {
     let index = args.web.join("index.html");
     let static_files = ServeDir::new(&args.web).fallback(ServeFile::new(index));
     // Beyond this computer, the API needs a token: it can run recipe code and install plugins
-    let token = args.token.clone().or_else(|| (!auth::is_loopback(&args.host)).then(auth::new_token));
+    // (the public guest demo has no sign-in: what could misuse the server is refused instead)
+    let token = if args.public { None } else { args.token.clone().or_else(|| (!auth::is_loopback(&args.host)).then(auth::new_token)) };
     let auth = Arc::new(auth::Auth { token: token.clone() });
     let mut app = Router::new()
         .route("/api/{*rest}", any(api))
@@ -422,6 +443,7 @@ async fn serve(args: Args) {
             let shown = if auth::is_loopback(&args.host) || args.host == "0.0.0.0" || args.host == "::" { "localhost".to_string() } else { args.host.clone() };
             println!("open http://{shown}:{}/?token={t}  (the API refuses requests without this token)", args.port);
         }
+        None if args.public => println!("public guest demo on port {}: no sign-in, a workspace per visitor", args.port),
         None => println!("open http://localhost:{}  (only this computer can connect)", args.port),
     }
     axum::serve(listener, app)

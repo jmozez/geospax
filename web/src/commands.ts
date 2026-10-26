@@ -292,18 +292,18 @@ export function icon(name: string, size = 20): string {
 
 // Ribbon tabs, in ArcGIS Pro's order of work: get data, map it, analyse, imagery, model, automate.
 export const TABS: { id: TabId; label: string }[] = [
-  // ArcGIS Pro's order (Map, Insert, Analysis, View, Edit, Imagery, Share, add-ins, Help), as RustGIS
+  // Data, R & Python, Automate and Plugins are not ribbon tabs: the Explorer holds them (Online data,
+  // Overture, Recipes, Results, R & Python, AI models, Plugins, Sample data, Devices), and their commands
+  // stay in Ctrl+K.
+  // in the order work goes: open and look (Home, View), make and prepare data (Edit for features,
+  // Design for drawings, Imagery for rasters), analyse it (Analysis), hand it on (Share), then Help
   { id: 'home', label: 'Home' },
-  { id: 'data', label: 'Data' },
-  { id: 'analyze', label: 'Analysis' },
   { id: 'view', label: 'View' },
   { id: 'edit', label: 'Edit' },
   { id: 'design', label: 'Design' },
   { id: 'imagery', label: 'Imagery' },
+  { id: 'analyze', label: 'Analysis' },
   { id: 'share', label: 'Share' },
-  { id: 'r', label: 'R & Python' },
-  { id: 'automate', label: 'Automate' },
-  { id: 'plugins', label: 'Plugins' },
   { id: 'help', label: 'Help' },
 ];
 
@@ -316,12 +316,14 @@ const ITEM_ORDER: Record<string, string[]> = {
 
 /** Group order per tab (groups not listed follow in the order they appear). */
 const GROUP_ORDER: Partial<Record<TabId, string[]>> = {
-  home: ['Project', 'Navigate', 'Layer', 'Selection', 'Inquiry', 'Symbology'],
+  // within a tab too: what comes first in the work comes first on the ribbon
+  home: ['Project', 'Layer', 'Navigate', 'Selection', 'Inquiry', 'Symbology'],
   data: ['Add data', 'Sources', 'Online data'],
-  analyze: ['Geoprocessing', 'Tools', 'Spatial statistics', 'Interpolation', 'Assistant'],
-  view: ['Theme', 'Projection', 'Basemap', 'Windows'],
-  edit: ['Create', 'Modify', 'Selection', 'Fields', 'Manage edits', 'Measure'],
-  design: ['Draw', 'Construct', 'Survey', 'Precision', 'CAD exchange'],
+  view: ['Basemap', 'Projection', 'Theme', 'Windows'],
+  edit: ['Create', 'Modify', 'Selection', 'Fields', 'Measure', 'Manage edits'],
+  design: ['Precision', 'Draw', 'Construct', 'Modify', 'Blocks', 'Survey', 'CAD exchange'],
+  imagery: ['Rasters', 'Satellite', 'Satellite embeddings', 'Terrain', 'LiDAR', 'Raster tools', 'AI models'],
+  analyze: ['Geoprocessing', 'Spatial statistics', 'Interpolation', 'Recipes', 'Tools', 'Assistant'],
   share: ['Layout', 'Export'],
   help: ['Docs', 'Support', 'About', 'Diagnostics'],
   // one tab for both scripting languages: R's groups first, then Python

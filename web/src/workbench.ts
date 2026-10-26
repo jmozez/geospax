@@ -51,7 +51,7 @@ const DEFAULT_LAYOUT: Layout = {
   right: 340,
   bottom: 232,
   collapsed: [],
-  tabs: { left: 'contents', right: 'symbology', bottom: 'automate' },
+  tabs: { left: 'contents', right: 'layer', bottom: 'automate' },
   ribbon: 'home',
   compact: true,
   ribbonPinned: true,
@@ -183,6 +183,46 @@ export class Workbench {
     document.addEventListener('geospax:reload-views', () => this.renderActivity());
     this.applyModeTabs();
     this.renderActivity();
+    this.wireMapProps();
+  }
+
+  /**
+   * The Layer tab with nothing selected shows the map itself (Figma, Felt and ArcGIS Pro show the
+   * document's properties then): basemap, projection, navigation and the way to a finished map.
+   */
+  private wireMapProps() {
+    const el = document.querySelector<HTMLElement>('#map-props');
+    if (!el) return;
+    const row = (cmd: string, ico: string, title: string, hint: string) =>
+      `<button class="mp-row" data-cmd="${cmd}">${icon(ico, 16)}<span><b>${esc(title)}</b><small>${esc(hint)}</small></span></button>`;
+    el.innerHTML = `
+      <div class="mp-head">${icon('earth', 18)}<div><b>Map</b><small>No layer selected: click one in Contents to style it</small></div></div>
+      <div class="mp-group"><h4>Appearance</h4>
+        ${row('home.basemap', 'gallery', 'Basemap', 'Imagery, streets, terrain or none')}
+        <div class="mp-seg" role="group" aria-label="Projection">
+          <button data-cmd="view.projGlobe">${icon('globe', 15)} Globe</button>
+          <button data-cmd="view.projMercator">${icon('flatmap', 15)} Flat</button>
+          <button data-cmd="view.terrain3d">${icon('mountain', 15)} 3D terrain</button>
+        </div>
+      </div>
+      <div class="mp-group"><h4>Navigate</h4>
+        ${row('view.zoomAll', 'extent', 'Full extent', 'Zoom to everything on the map')}
+        ${row('view.bookmarks', 'bookmark', 'Bookmarks', 'Saved views of this project')}
+      </div>
+      <div class="mp-group"><h4>Make</h4>
+        ${row('home.addData', 'fileAdd', 'Add data', 'Files, devices or online data for this area')}
+        ${row('home.finish', 'print', 'Finish my map', 'Layout, legend, PNG, PDF, SVG and a report')}
+      </div>`;
+    el.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-cmd]');
+      if (b) void this.run(b.dataset.cmd!);
+    });
+    const panel = document.querySelector<HTMLElement>('#panel');
+    const rsym = document.querySelector<HTMLElement>('#raster-sym');
+    const sync = () => { el.hidden = !(panel?.hidden ?? true) || !(rsym?.hidden ?? true); };
+    const mo = new MutationObserver(sync);
+    for (const n of [panel, rsym]) if (n) mo.observe(n, { attributes: true, attributeFilter: ['hidden'] });
+    sync();
   }
 
   /** The command host every ribbon button sees. */
@@ -413,14 +453,17 @@ export class Workbench {
       const next = this.nextHtml('rb-next');
       if (next) parts.push(`<div class="rb-group"><div class="rb-items next">${next}</div><div class="rb-title">Next steps for this layer</div></div>`);
     }
-    // Analyze: recipes straight from the engine — collapsed to one dropdown button by
+    // Analysis: recipes straight from the engine — collapsed to one dropdown button by
     // default (Pro collapses a gallery the same way) so the ribbon stays one row tall.
     if (this.layout.ribbon === 'analyze') {
       try {
         this.recipes = (await this.host.backend.json<{ recipes: RecipeInfo[] }>('api/recipes')).recipes;
         const r = { recipes: this.generalRecipes() };
+        // after the single tools and statistics, before the Toolbox and the assistant (GROUP_ORDER)
+        const at = groups.findIndex((g) => g.group === 'Tools');
+        const put = (html: string) => parts.splice(at < 0 ? parts.length : at, 0, html);
         if (this.layout.compact) {
-          parts.unshift(
+          put(
             `<div class="rb-group" data-group="recipes"><div class="rb-items">${this.comboHtml({
               menu: 'recipes',
               icon: 'wand',
@@ -443,7 +486,7 @@ export class Workbench {
             </button>`;
             })
             .join('');
-          parts.unshift(
+          put(
             `<div class="rb-group wide" data-group="recipes"><div class="rb-items recipes">${cards}</div>` +
               `<div class="rb-title">Recipes — click to run ${this.galleryToggle()}</div></div>`,
           );
@@ -709,7 +752,11 @@ export class Workbench {
     document.querySelectorAll<HTMLElement>('.dock-tabs').forEach((bar) => {
       const dock = (bar.dataset.dock ?? 'left') as Dock;
       bar.innerHTML = [...bar.querySelectorAll<HTMLElement>('button[data-tab]')]
-        .map((b) => `<button data-tab="${b.dataset.tab}">${esc(b.textContent ?? '')}</button>`)
+        .map((b) => {
+          const label = esc(b.textContent ?? '');
+          const ico = b.dataset.icon ? icon(b.dataset.icon, 14) : '';
+          return `<button data-tab="${b.dataset.tab}" title="${label}"${b.dataset.icon ? ` data-icon="${b.dataset.icon}"` : ''}>${ico}<span>${label}</span></button>`;
+        })
         .join('');
       bar.addEventListener('click', (e) => {
         const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
@@ -720,11 +767,35 @@ export class Workbench {
   }
 
   showTab(dock: Dock, tab: string) {
+    // panes that moved when the right panel became Layer / Tools / Ask: callers keep their old names
+    const moved: Record<string, [Dock, string]> = {
+      'right:inspector': ['right', 'layer'], 'right:symbology': ['right', 'layer'],
+      'right:attributes': ['bottom', 'attributes'], 'right:rasters': ['left', 'contents'], 'right:devices': ['left', 'catalog'],
+    };
+    const to = moved[`${dock}:${tab}`];
+    if (to) {
+      [dock, tab] = to;
+      if (tab === 'catalog') setTimeout(() => document.querySelector('#devices-box')?.scrollIntoView({ block: 'start' }), 50);
+    }
     this.layout.tabs[dock] = tab;
+    if (dock === 'bottom' && tab === 'attributes') this.fillAttributes();
     if (this.layout.collapsed.includes(dock)) this.layout.collapsed = this.layout.collapsed.filter((d) => d !== dock);
     this.saveLayout();
     this.applyLayout();
     document.dispatchEvent(new CustomEvent('geospax:show-pane', { detail: dock }));
+  }
+
+  /** The Attributes tab opened by itself: the selected layer's table, or how to get one. */
+  private fillingAttributes = false;
+  private fillAttributes() {
+    const el = document.querySelector<HTMLElement>('#attributes');
+    if (!el || el.hidden || (el.childElementCount && !el.querySelector(':scope > .attr-hint')) || this.fillingAttributes) return;
+    if (this.cmdHost().activeId()) {
+      this.fillingAttributes = true;
+      void this.run('edit.table').finally(() => { this.fillingAttributes = false; });
+    } else {
+      el.innerHTML = `<div class="pane-empty attr-hint">${icon('table', 22)}<p>Select a layer in Contents to see its rows here, or use <b>Attribute table</b> on the ribbon.</p></div>`;
+    }
   }
 
   toggleDock(dock: Dock) {
@@ -1319,11 +1390,11 @@ export class Workbench {
     const done = this.runs.filter((r) => r.status === 'done').slice(0, 20);
     return [
       node('online', 'Online data', 'globe', ONLINE_SOURCES.length),
-      kids('online', () => ONLINE_SOURCES.map((o) => leaf('online', o.id, o.title, 'download')).join('')),
+      kids('online', () => ONLINE_SOURCES.map((o) => leaf('online', o.id, o.title, 'download')).join('') + leaf('cmd', 'data.worms', 'Check species names…', 'spell', 'WoRMS')),
       node('overture', 'Overture Maps', 'layers', OVERTURE_THEMES.length),
       kids('overture', () => OVERTURE_THEMES.map(([id, title]) => leaf('overture', id, title, 'download', 'for the map view')).join('')),
       node('recipes', 'Recipes', 'play', this.gxData.recipes?.length),
-      kids('recipes', () => (this.gxData.recipes ? this.gxData.recipes.map((r) => leaf('recipe', r.id, r.title || r.id, recipeIcon(r))).join('') || '<div class="pane-empty">No recipes</div>' : '<div class="pane-empty">Reading…</div>')),
+      kids('recipes', () => leaf('cmd', 'automate.gallery', 'Recipe gallery…', 'gallery') + (this.gxData.recipes ? this.gxData.recipes.map((r) => leaf('recipe', r.id, r.title || r.id, recipeIcon(r))).join('') || '<div class="pane-empty">No recipes</div>' : '<div class="pane-empty">Reading…</div>')),
       node('results', 'Results', 'history', done.length),
       kids('results', () => done.map((r) => leaf('run', r.id, r.title || r.recipe, 'check', (r.artifacts ?? []).length ? `${(r.artifacts ?? []).length} files` : '')).join('') || '<div class="pane-empty">No finished runs yet</div>'),
       node('envs', 'R & Python', 'code'),
@@ -1331,7 +1402,7 @@ export class Workbench {
       node('models', 'AI models', 'brain', this.gxData.models?.length),
       kids('models', () => (this.gxData.models ? this.gxData.models.map((m) => leaf('model', m.name, m.name, 'brain')).join('') || leaf('models', '', 'Add a model…', 'plus') : '<div class="pane-empty">Reading…</div>')),
       node('plugins', 'Plugins', 'puzzle', this.gxData.plugins?.length),
-      kids('plugins', () => (this.gxData.plugins ? this.gxData.plugins.map((p) => leaf('plugin', p.id, p.name, pluginIcon(p))).join('') : '<div class="pane-empty">Reading…</div>')),
+      kids('plugins', () => leaf('cmd', 'plugins.manage', 'Manage plugins…', 'settings') + (this.gxData.plugins ? this.gxData.plugins.map((p) => leaf('plugin', p.id, p.name, pluginIcon(p))).join('') : '<div class="pane-empty">Reading…</div>')),
       `<div class="node source" data-shortcut="samples">${icon('gallery', 14)}<span class="nm">Sample data</span></div>`,
       `<div class="node source" data-shortcut="devices">${icon('phone', 14)}<span class="nm">Devices</span></div>`,
     ].join('');
@@ -1403,11 +1474,16 @@ export class Workbench {
         }
         h += row(1, 'update', 'Check for updates, install packages…', '', 'data-gx-act="r-setup" data-gx-id=""');
       }
+      // the R console and its templates (maps, charts, rasters, species and machine-learning models)
+      for (const c of COMMANDS.filter((x) => x.tab === 'r' && x.id.startsWith('r.') && x.id !== 'r.setup')) {
+        h += row(1, c.icon, c.id === 'r.console' ? 'R console…' : `${c.title} (${c.group.replace(/^R /, '')})`, '', `data-gx-act="cmd" data-gx-id="${esc(c.id)}" title="${esc(c.hint ?? c.title)}"`);
+      }
     }
     // Python
     const envs = this.envPy.environments;
     h += `<div class="node folder" data-gx="env:py" ${pad(-1)}>${tw('env:py')}${icon('python', 14)}<span class="nm">Python</span><span class="ct dim">${envs.length ? `${envs.length} environment${envs.length === 1 ? '' : 's'}` : 'not found'}</span></div>`;
     if (this.gxOpen.has('env:py')) {
+      h += row(1, 'python', 'Python steps…', 'spatial statistics and your own scripts', 'data-gx-act="cmd" data-gx-id="py.steps"');
       if (!envs.length) h += `<div class="pane-empty" ${pad(1)}>No Python found. Install Python 3 (python.org, or Miniforge for conda) and press Refresh.</div>`;
       for (const e of envs) {
         const key = `env:py:${e.path}`;
@@ -1457,6 +1533,8 @@ export class Workbench {
       case 'run': return void this.host.openRun(id);
       case 'model': case 'models': return void document.dispatchEvent(new CustomEvent('geospax:models'));
       case 'plugin': return void document.dispatchEvent(new CustomEvent('geospax:plugin-manager', { detail: id }));
+      // commands that lived on the Data, R & Python, Automate and Plugins ribbon tabs
+      case 'cmd': return void this.run(id);
     }
   }
 
@@ -1582,10 +1660,10 @@ export class Workbench {
     const bottom = this.layout.tabs.bottom;
     if (lazy) {
       if (this.layout.tabs.left === 'project') this.layout.tabs.left = 'contents';
-      if (!['inspector', 'toolbox', 'ask', 'devices', 'attributes'].includes(right)) this.layout.tabs.right = 'inspector';
-      if (bottom !== 'activity') this.layout.tabs.bottom = 'activity';
+      if (!['layer', 'toolbox', 'ask'].includes(right)) this.layout.tabs.right = 'layer';
+      if (!['activity', 'attributes'].includes(bottom)) this.layout.tabs.bottom = 'activity';
     } else {
-      if (right === 'inspector') this.layout.tabs.right = 'symbology';
+      if (!['layer', 'toolbox', 'ask'].includes(right)) this.layout.tabs.right = 'layer';
       if (bottom === 'activity') this.layout.tabs.bottom = 'automate';
     }
     this.applyLayout();

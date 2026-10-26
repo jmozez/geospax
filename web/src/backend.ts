@@ -86,6 +86,10 @@ export interface Backend {
   /** MapLibre tile URL template for a layer (optionally with extra attributes). */
   tileUrl(layerId: string, fields?: string[]): string;
   json<T>(path: string, init?: RequestInit): Promise<T>;
+  /** Public guest demo: this visitor's workspace id, sent with the project (see guest.rs). */
+  ws?: string;
+  /** When this client last asked the engine to change something (ms; guest demo: whose new layers). */
+  lastWriteAt: number;
   binary(path: string): Promise<{ bytes: ArrayBuffer; headers: Headers }>;
   /** Absolute URL for an engine path (images such as raster overlays). */
   url(path: string): string;
@@ -120,10 +124,14 @@ class HttpBackend implements Backend {
   transport: Transport = 'http';
   // Absolute base so URLs also resolve inside MapLibre's web workers.
   private base = new URL('.', document.baseURI).href;
+  ws?: string;
+  lastWriteAt = 0;
   tileUrl(id: string, fields?: string[]) {
     return `${this.base}tiles/${id}/{z}/{x}/{y}.mvt${fieldsQuery(fields)}`;
   }
   async json<T>(path: string, init?: RequestInit) {
+    if (this.ws && /^api\/project(\?|$)/.test(path)) path += `${path.includes('?') ? '&' : '?'}ws=${this.ws}`;
+    else if (init?.method && init.method !== 'GET' && !/^api\/(log|project)/.test(path)) this.lastWriteAt = Date.now();
     return jsonFetch<T>(this.base, path, init);
   }
   url(path: string) {
@@ -143,6 +151,7 @@ class TauriBackend implements Backend {
   // Tauri serves custom schemes as gis://localhost/ (macOS/Linux) and
   // http://gis.localhost/ (Windows/Android).
   private base = isWindows ? 'http://gis.localhost/' : 'gis://localhost/';
+  lastWriteAt = 0;
 
   constructor() {
     // `invoke` transport: MapLibre hands the request to the main thread,

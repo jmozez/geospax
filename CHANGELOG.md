@@ -5,6 +5,32 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Changed — panels, organised by purpose
+- Right panel: three tabs with icons, **Layer · Tools · Ask** (was up to six, the last cut off). Layer is
+  the selected layer's style (Lazy: its story), or with nothing selected the map: basemap, globe / flat /
+  3D, full extent, bookmarks, add data and Finish my map.
+- **Attributes** moved under the map; **Devices & phones** to the foot of the Explorer; the Rasters tab
+  is gone (rasters are rows of Contents). Left panel: **Project · Explorer · Contents**, Contents still
+  opens first. Tabs keep only their icons when a pane is narrow or folded.
+- **Layer** tab: a sticky header (name, size, coordinate system; show/hide, zoom, table, remove), a mini
+  legend, and Style · Labels · Fields · Source; Symbol, Appearance and Overviews fold and stay as left.
+- **Tools** tab: ☆ favourites at the top, recently used, and your recent runs (with a link to History).
+- **Ask** tab: the conversation is kept across reloads, **New chat** starts over, and a chip shows the
+  layer the questions are about.
+- Ribbon: eight tabs in the order of the work: Home, View, Edit, Design, Imagery, Analysis, Share, Help
+  (open and look, make and prepare data, analyse, hand on), and their groups ordered the same way. **Data**, **R & Python**,
+  **Automate** and **Plugins** are gone from it: the Explorer already holds online data, Overture,
+  recipes and results, R & Python, AI models, plugins, sample data and devices, and now also the R
+  console and its templates, Python steps, the recipe gallery, Manage plugins… and Check species names.
+  Every command is still in Ctrl+K.
+- About: **Official website** (geospax.in4metrix.dev) and its downloads; GitHub as Source code.
+
+### Added — public guest demo of the web edition
+- `geospax-server --public` (or `GEOSPAX_PUBLIC=1`, now set in `fly.toml`): no sign-in; every visitor has a
+  workspace of their own and starts clean (dark, Lazy, globe); R/Python code, plugin and package installs,
+  server folders, devices, saved recipes, settings and the AI assistant are refused; guest files are
+  deleted after 7 days. The header says "Guest demo" with a link to the full app.
+
 ## [3.0.3] — 2026-10-26
 
 ### Changed — fewer builds

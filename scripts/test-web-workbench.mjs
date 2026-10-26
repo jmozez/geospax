@@ -33,7 +33,7 @@ await page.waitForFunction(() => window.map && (typeof window.map?.loaded === 'f
 await page.waitForTimeout(1200);
 
 console.log('\n1 · shell');
-ok('ribbon tabs', (await page.$$('#ribbon-tabs .rb-tab')).length >= 11, `${(await page.$$('#ribbon-tabs .rb-tab')).length} tabs`);
+ok('ribbon tabs', (await page.$$('#ribbon-tabs .rb-tab')).length >= 8, `${(await page.$$('#ribbon-tabs .rb-tab')).length} tabs`);
 ok('ribbon buttons', (await page.$$('#ribbon-body .rb-btn')).length >= 8, `${(await page.$$('#ribbon-body .rb-btn')).length} buttons`);
 ok('three docks', (await page.$$('.dock')).length === 3);
 ok('three splitters', (await page.$$('.splitter')).length === 3);
@@ -45,7 +45,7 @@ ok('map is the largest pane', await page.evaluate(() => {
 await page.screenshot({ path: `${out}/workbench-01-home.png` });
 
 console.log('\n2 · ribbon tabs');
-for (const [tab, min] of [['data', 4], ['analyze', 4], ['view', 5], ['edit', 8], ['imagery', 4], ['share', 3], ['r', 8], ['automate', 3], ['plugins', 1], ['help', 4]]) {
+for (const [tab, min] of [['analyze', 4], ['view', 5], ['edit', 8], ['imagery', 4], ['share', 3], ['help', 4]]) {
   await page.click(`#ribbon-tabs [data-tab="${tab}"]`);
   await page.waitForTimeout(250);
   const n = (await page.$$('#ribbon-body .rb-btn')).length;

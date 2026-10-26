@@ -18,7 +18,7 @@ Start **GeoSpaX** from the Start menu or the applications menu. The [user guide]
 ### Why is the map empty when GeoSpaX starts?
 
 GeoSpaX opens on a clean map, showing the globe, like a new map in ArcGIS Pro. Add data with
-**Data › Add files**, by dropping files on the window, from the **Explorer** pane, or try **Data › Sample
+**Home › Add data**, by dropping files on the window, from the **Explorer** pane, or try **Explorer › Sample
 data**. Files you keep in the `Data` folder (`~/GeoSpaX/Data`, or `%USERPROFILE%\GeoSpaX\Data` on Windows)
 are put on the map automatically.
 
@@ -36,7 +36,7 @@ file itself is never deleted. The layer stays off the map at the next start unti
 
 ### How do I browse other folders?
 
-In the **Explorer** pane (left, next to Contents) press **Connect a folder…** (or **Data › Connect folder**, or
+In the **Explorer** pane (left, next to Contents) press **Connect a folder…** (or Ctrl+K › **Connect folder**, or
 right-click in the Explorer), choose a folder anywhere on your computer and press **Connect this folder**. It
 appears under *Folders*, stays there the next time you start GeoSpaX, and its files go on the map with a
 double-click or **+**. The **✕** next to it removes the connection; the folder and its files are not touched.
@@ -130,7 +130,7 @@ Projection**.
 
 ### How do I change colours, symbols and labels?
 
-Select the layer, then **Symbology** (Pro: right pane; Lazy: the card's **⋯**). Points can be circles, squares,
+Select the layer, then the **Layer** tab (right pane; Lazy: also the card's **⋯**). Points can be circles, squares,
 stars and more, sized by a field; lines can be dashed with a casing; polygons can be hollow; labels have font,
 size, halo and placement. Rasters have their own **Symbology** (⚙ on the raster): stretch, classes, RGB, ramp
 and opacity. **AutoMap** chooses a good style for you and says why.
@@ -144,13 +144,13 @@ data (climate, species, elevation …), online basemaps, R package downloads and
 
 ### Where are the conservation and biodiversity (GSX) tools?
 
-On the **Plugins** tab, under **Domain plugins (GSX)**: Agriculture, Biodiversity, Climate, Conservation and
-the rest. Each opens its tools and its ready-made analyses (kits). **Plugins › Manage** lists every plugin,
+In the **Explorer**, under **Plugins** (their tools are also in the **Tools** tab): Agriculture, Biodiversity, Climate, Conservation and
+the rest. Each opens its tools and its ready-made analyses (kits). **Explorer › Plugins › Manage plugins…** lists every plugin,
 including the GSX tool library they share.
 
 ### How do I install R packages?
 
-**R & Python › R setup** lists what is installed (✓) and what is missing (○). Tick what you need and press **Install
+**Explorer › R & Python › R › Check for updates, install packages…** (R setup) lists what is installed (✓) and what is missing (○). Tick what you need and press **Install
 selected**. A log shows each step as it happens: which package is downloaded, which were already installed,
 and the exact reason when one fails (most often no internet connection or a proxy). Packages go into GeoSpaX's
 own library, so your R setup is not changed.
@@ -222,7 +222,7 @@ Find the computer's address (`hostname -I` on Linux, `ipconfig` on Windows) and 
 `http://<address>:8080/?token=pick-a-password` on the phone, on the same Wi-Fi (on Fedora, allow the port once
 with `sudo firewall-cmd --add-port=8080/tcp`). With the password the phone can do everything the computer can:
 Explorer folders, web services, cloud storage, STAC and Overture downloads. Sharing it with a class? Add
-`--restricted` to turn those off. To send photos and tracks from the phone, use **Data › Phone over Wi-Fi**.
+`--restricted` to turn those off. To send photos and tracks from the phone, use **Explorer › Devices & phones › Send from phone**.
 
 ### Something does not work. How do I report it?
 
