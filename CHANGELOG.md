@@ -46,6 +46,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   is ticked by default; the GDAL bindings are flagged (they must match the GDAL library). A Python
   that the system (Fedora, Debian) or conda manages is not changed: the dialog shows the command.
 
+### Fixed — phone app logo
+- The GeoSpaX Field APK shows the GeoSpaX logo (the desktop app's) on the home screen, padded for
+  Android's round and rounded-square icon shapes, instead of the Tauri logo, and in its top bar.
+
 ### Fixed — climate data
 - **Climate** (Data › Online data) now picks the detail for the area: CHELSA 2.1 at ~1 km for areas up
   to 4° a side, else the finest WorldClim grid giving at least 40 cells across (it used a ~18 km grid,

@@ -24,6 +24,14 @@ if [ ! -d src-tauri/gen/android ]; then
   echo "== tauri android init"
   npx tauri android init --ci
 fi
+# the launcher icon is the GeoSpaX logo, the same as the desktop app's (tauri android init puts Tauri's
+# own icon there). android-launcher.png is that logo with the padding Android's adaptive icons need
+# (phones show the middle two thirds, as a circle or squircle), on a white background
+echo "== launcher icon"
+ICONS=$(mktemp -d)
+npx tauri icon src-tauri/icons/android-launcher.png -o "$ICONS" >/dev/null
+cp -r "$ICONS/android/." src-tauri/gen/android/app/src/main/res/
+rm -rf "$ICONS"
 MANIFEST=src-tauri/gen/android/app/src/main/AndroidManifest.xml
 for perm in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA; do
   grep -q "android.permission.$perm" "$MANIFEST" || \

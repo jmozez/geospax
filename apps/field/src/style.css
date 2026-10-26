@@ -62,3 +62,4 @@ details button { width: 100%; }
 .maplibregl-ctrl-bottom-right, .maplibregl-ctrl-bottom-left { bottom: calc(env(safe-area-inset-bottom) + 84px); }
 .maplibregl-ctrl-attrib { font-size: 11px; max-width: 70vw; }
 .pill { bottom: calc(env(safe-area-inset-bottom) + 150px); }
+.top .brand { width: 30px; height: 30px; flex: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
