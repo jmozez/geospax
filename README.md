@@ -14,8 +14,8 @@ Desktop, web and phone · one Rust engine · MIT licence</p>
 <p align="center"><img src="docs/assets/screenshot-pro.webp" alt="GeoSpaX Pro: every building, road and place of central Lae, Papua New Guinea (Overture Maps), styled by type, with street and place names, over Esri World Imagery" width="900" /></p>
 
 <table><tr>
-<td width="50%"><img src="docs/assets/screenshot-lazy.webp" alt="GeoSpaX Lazy mode: layer cards, task bar and next steps" /><br /><b>Lazy mode</b>: layer cards that explain each layer, a task bar and one-click next steps.</td>
-<td width="50%"><img src="docs/assets/screenshot-globe.webp" alt="GeoSpaX starting on the globe over world imagery" /><br /><b>It starts on the globe</b>: a clean slate over world imagery.</td>
+<td width="50%"><img src="docs/assets/screenshot-lazy.webp" alt="GeoSpaX Lazy mode: layer cards, task bar and the Layer tab" /><br /><b>Lazy mode</b>: layer cards that explain each layer, a task bar, one-click next steps and the layer's story in the Layer tab.</td>
+<td width="50%"><img src="docs/assets/screenshot-globe.webp" alt="GeoSpaX starting on the globe over world imagery" /><br /><b>It starts on the globe</b>: a clean slate over world imagery, with the map's basemap, projection and next steps in the Layer tab.</td>
 </tr></table>
 
 GeoSpaX is for people who want a finished map without spending hours on it. Drop in data, or plug in a
@@ -27,6 +27,10 @@ away.
 
 - **Two modes, one engine.** *Lazy*: layer cards, a task bar and plain-language next steps. *Pro*: an ArcGIS
   Pro-style ribbon, layer tree, attribute table, editing and every pane.
+- **A workbench laid out like the work.** The ribbon runs Home, View, Edit, Design, Imagery, Analysis,
+  Share; on the left **Project · Explorer · Contents** (files, online data, recipes, R & Python, plugins
+  and devices live in the Explorer); on the right **Layer · Tools · Ask** (the selected layer's style,
+  labels, fields and source; the Toolbox; the assistant); under the map the attribute table and the runs.
 - **Maps that style themselves.** AutoMap picks the field, classes and colours and says why; full
   symbology for points, lines, polygons, labels and rasters when you want your own.
 - **Finished maps and reports.** Layout with legend, scale bar, north arrow and inset; Equal Earth for world
