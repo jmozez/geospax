@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   linux:
-    name: build, test, package (Debian 13)
+    name: build and test (Debian 13)
     runs-on: ubuntu-latest
     # Debian 13 = GDAL 3.10, the same stack the release was tested on
     container: debian:trixie
@@ -105,20 +105,6 @@ jobs:
         run: |
           apt-get install -y -q --no-install-recommends postgresql postgresql-postgis util-linux
           GEOSPAX_REQUIRE_POSTGIS=1 python3 scripts/test-postgis.py --bin target/release/geospax-server
-      - name: Package (.deb)
-        run: scripts/package-linux.sh --no-build releases
-      - name: Install test
-        run: |
-          apt-get install -y -q ./releases/geospax_*.deb
-          geospax-server recipes | grep -c ' gallery '
-          (cd /tmp && mkdir -p d && geospax-server --data d --state-dir s --port 8097 --no-device-mounts &) && sleep 3
-          curl -sf http://127.0.0.1:8097/api/health | grep -q '"version"' && curl -sf http://127.0.0.1:8097/ | grep -q '<title>GeoSpaX'
-          (cd /tmp && geospax-server --data d --state-dir s2 --port 8098 --no-device-mounts --phone --phone-port 8766 &) && sleep 3
-          curl -skf https://127.0.0.1:8766/ | grep -q 'send from this phone' 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: geospax-linux-deb
-          path: releases/*.deb
 
   appimage:
     name: AppImage (all Linux distributions; built on Ubuntu 24.04)
@@ -247,75 +233,6 @@ jobs:
           name: geospax-field-apk
           path: releases/GeoSpaX-Field-*.apk
 
-  fedora:
-    name: Fedora ${{ matrix.release }} package (.rpm)
-    runs-on: ubuntu-latest
-    container: fedora:${{ matrix.release }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # one package per supported Fedora release: each links that release's GDAL and glibc
-        release: [43, 44]
-    steps:
-      - name: Tools for checkout
-        run: dnf install -y -q git ca-certificates
-      - uses: actions/checkout@v4
-      - name: System packages, Rust, Node (scripts/setup-fedora.sh)
-        run: bash scripts/setup-fedora.sh
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-fedora${{ matrix.release }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: cargo-fedora${{ matrix.release }}-
-      - name: Build + package (.rpm)
-        run: bash scripts/package-rpm.sh
-      - name: Install test
-        run: |
-          dnf install -y -q ./releases/geospax-*.rpm
-          geospax-server --version && geospax --version
-          (geospax-server --port 8097 --no-device-mounts --no-triggers > /tmp/srv.log 2>&1 &)
-          for i in $(seq 30); do curl -fs http://127.0.0.1:8097/api/health >/dev/null && break; sleep 1; done
-          curl -sf http://127.0.0.1:8097/api/health | grep -q '"version"' && curl -sf http://127.0.0.1:8097/ | grep -q '<title>GeoSpaX'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: geospax-fedora${{ matrix.release }}-rpm
-          path: releases/*.rpm
-
-  el10:
-    name: Enterprise Linux 10 package (.rpm for RHEL, Rocky, AlmaLinux)
-    runs-on: ubuntu-latest
-    container: almalinux:10
-    steps:
-      - name: Tools for checkout
-        run: dnf install -y -q git ca-certificates
-      - uses: actions/checkout@v4
-      - name: System packages, Rust, Node (scripts/setup-fedora.sh)
-        run: bash scripts/setup-fedora.sh
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-el10-${{ hashFiles('Cargo.lock') }}
-          restore-keys: cargo-el10-
-      - name: Build + package (.rpm)
-        run: bash scripts/package-rpm.sh
-      - name: Install test
-        run: |
-          dnf install -y -q ./releases/geospax-*.rpm
-          geospax-server --version && geospax --version
-          (geospax-server --port 8097 --no-device-mounts --no-triggers > /tmp/srv.log 2>&1 &)
-          for i in $(seq 30); do curl -fs http://127.0.0.1:8097/api/health >/dev/null && break; sleep 1; done
-          curl -sf http://127.0.0.1:8097/api/health | grep -q '"version"' && curl -sf http://127.0.0.1:8097/ | grep -q '<title>GeoSpaX'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: geospax-el10-rpm
-          path: releases/*.rpm
-
   windows:
     name: Windows installer (cross-built on Debian 13, tested under Wine)
     runs-on: ubuntu-latest
@@ -410,7 +327,7 @@ jobs:
     name: GitHub release
     # on a pushed tag, or from "Run workflow" with a release tag (the release then creates the tag)
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
-    needs: [linux, fedora, el10, appimage-test, android, windows-native]
+    needs: [linux, flatpak, appimage-test, android, windows-native]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -418,20 +335,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: geospax-linux-deb
-          path: releases
-      - uses: actions/download-artifact@v4
-        with:
           name: geospax-windows
-          path: releases
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: geospax-fedora*-rpm
-          merge-multiple: true
-          path: releases
-      - uses: actions/download-artifact@v4
-        with:
-          name: geospax-el10-rpm
           path: releases
       - uses: actions/download-artifact@v4
         with:
@@ -450,8 +354,6 @@ jobs:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
           files: |
-            releases/*.deb
-            releases/*.rpm
             releases/**/GeoSpaX-*.AppImage
             releases/**/GeoSpaX-*.AppImage.sig
             releases/**/GeoSpaX-Field-*.apk

@@ -7,6 +7,11 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [3.0.3] — 2026-10-26
 
+### Changed — fewer builds
+- Releases carry the Windows installer and ZIP, the Linux AppImage, the Flathub Flatpak and the
+  Android APK. The .deb and .rpm packages are no longer built: the AppImage and Flatpak run on every
+  distribution.
+
 ### Fixed — climate data
 - **Climate** (Data › Online data) now picks the detail for the area: CHELSA 2.1 at ~1 km for areas up
   to 4° a side, else the finest WorldClim grid giving at least 40 cells across (it used a ~18 km grid,

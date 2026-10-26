@@ -160,9 +160,7 @@ ranks cells rather than giving tonnes; built-up and water cells are left out.
 |---|---|
 | Windows 10 / 11 | [`GeoSpaX_<version>_x64-setup.exe`](https://github.com/jmozez/geospax/releases/latest) (no administrator rights needed) or the portable ZIP |
 | Any Linux | [`GeoSpaX-<version>-x86_64.AppImage`](https://github.com/jmozez/geospax/releases/latest): one file, no installing; `chmod +x GeoSpaX-*.AppImage`, then run it. Needs a 2024-or-newer distribution (glibc 2.39). |
-| Debian 13 / Ubuntu | [`geospax_<version>_amd64.deb`](https://github.com/jmozez/geospax/releases/latest), then `sudo apt install ./geospax_<version>_amd64.deb` |
-| Fedora 43 / 44 | [`geospax-<version>-1.fc43.x86_64.rpm` or `.fc44`](https://github.com/jmozez/geospax/releases/latest) (match your release: `rpm -E %fedora`), then `sudo dnf install ./geospax-<version>-1.fc4*.x86_64.rpm` |
-| RHEL, Rocky Linux, AlmaLinux 10 | [`geospax-<version>-1.el10.x86_64.rpm`](https://github.com/jmozez/geospax/releases/latest); enable EPEL first (`sudo dnf install epel-release`), then `sudo dnf install ./geospax-<version>-1.el10.x86_64.rpm` |
+| Linux (Flathub) | `flatpak install flathub io.github.jmozez.GeoSpaX`, or GNOME Software / KDE Discover |
 | Any system (web edition) | `docker compose up -d`, then open the link printed by `docker compose logs geospax` |
 
 macOS is not packaged yet; use the web edition or [build from source](docs/DEVELOPMENT.md).
