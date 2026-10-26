@@ -1,0 +1,75 @@
+# R step: a 3D relief of an area with rayshader (tylermorganwall/rayshader): the Copernicus 30 m DEM,
+# draped with rayshader's sphere shading, lakes, ray-traced shadows and ambient occlusion, then rendered
+# as a 3D block (path-traced with rayrender) and as a flat shaded relief. Needs R with rayshader
+# (R setup › 3D relief (rayshader)); no screen or OpenGL is needed: the scene is built off-screen.
+recipe: r-rayshader
+version: 1
+title: 3D relief with rayshader (R)
+description: >-
+  An area in: the Copernicus 30 m DEM for it, shaded with rayshader (sphere shading, water, ray-traced
+  shadows, ambient occlusion) and rendered as a 3D relief block and a flat relief map, in the report.
+  Needs R with rayshader.
+inputs:
+  area: { type: layer, default: auto, description: the area (any layer); without one, the map view }
+  buffer: { type: number, default: 500, description: margin around the area in metres }
+  exaggeration: { type: number, default: 1.5, description: vertical exaggeration of the 3D block }
+  texture: { type: text, default: imhof1, description: "rayshader texture: imhof1 … imhof4, desert, bw, unicorn" }
+steps:
+  - id: dem
+    use: dem.fetch
+    with: { aoi: "${inputs.area}", buffer: "${inputs.buffer}" }
+  - id: relief
+    use: r
+    with:
+      inputs: { dem: "${dem.raster}" }
+      params: { exaggeration: "${inputs.exaggeration}", texture: "${inputs.texture}" }
+      packages: [rayshader, rayrender, terra]
+      code: |
+        library(rayshader)
+
+        options(rgl.useNULL = TRUE)                # off-screen: no window or OpenGL needed
+
+        exaggeration <- as.numeric(params$exaggeration)
+        texture <- params$texture
+
+        # rayshader works on a matrix of heights; large DEMs are thinned to about a million cells
+        cell_m <- mean(terra::res(dem))            # dem.fetch gives metres (local UTM zone)
+        elevation <- raster_to_matrix(dem)
+        scale <- min(1, sqrt(1e6 / length(elevation)))
+        if (scale < 1) elevation <- resize_matrix(elevation, scale = scale)
+        z_scale <- cell_m / scale / exaggeration
+
+        relief <- elevation |>
+          sphere_shade(texture = texture) |>
+          add_water(detect_water(elevation), color = texture) |>
+          add_shadow(ray_shade(elevation, zscale = z_scale, multicore = TRUE), 0.5) |>
+          add_shadow(ambient_shade(elevation, zscale = z_scale, multicore = TRUE), 0)
+
+        # the flat shaded relief, at print size
+        save_figure("shaded_relief", function() plot_map(relief), width = 180, height = 180, formats = "png")
+
+        # the 3D block, path-traced (rayrender), lit from the north-west as maps are
+        relief |>
+          plot_3d(elevation, zscale = z_scale, solid = TRUE, shadow = TRUE, water = TRUE,
+                  theta = 135, phi = 35, zoom = 0.7, fov = 0, windowsize = c(1600, 1200))
+        render_highquality(
+          filename = figure_path("relief_3d"),
+          samples = 128, width = 1600, height = 1200,
+          light = TRUE, lightdirection = 315, lightaltitude = 35,
+          interactive = FALSE
+        )
+        rgl::close3d()
+
+        result(
+          cells = length(elevation),
+          resolution_m = round(cell_m / scale),
+          exaggeration = exaggeration,
+          min_m = round(min(elevation, na.rm = TRUE)),
+          max_m = round(max(elevation, na.rm = TRUE))
+        )
+        list()
+  - id: report
+    use: export.report
+    needs: [relief]
+    with: { title: "3D relief (rayshader) · ${run.date}" }
+outputs: [relief, report]

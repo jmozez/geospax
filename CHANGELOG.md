@@ -46,6 +46,17 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   is ticked by default; the GDAL bindings are flagged (they must match the GDAL library). A Python
   that the system (Fedora, Debian) or conda manages is not changed: the dialog shows the command.
 
+### Added — 3D relief with rayshader
+- **3D relief with rayshader (R)** (Ready-made analyses): the Copernicus 30 m DEM for an area,
+  shaded with rayshader (sphere shading, water, ray-traced shadows, ambient occlusion) and rendered
+  off-screen as a path-traced 3D block and a flat relief map, both in the report. Needs R with
+  rayshader (R setup › 3D relief, now with rayrender).
+
+### Changed — screenshots
+- New high-resolution screenshots (3200 × 1920): Lae with every building, road and place labelled
+  over satellite imagery in Pro and Lazy mode, the start-up globe, and Mount Wilhelm's DEM flat and
+  in 3D, on the home page, in the README and in the Flathub listing.
+
 ### Fixed — phone app logo
 - The GeoSpaX Field APK shows the GeoSpaX logo (the desktop app's) on the home screen, padded for
   Android's round and rounded-square icon shapes, instead of the Tauri logo, and in its top bar.

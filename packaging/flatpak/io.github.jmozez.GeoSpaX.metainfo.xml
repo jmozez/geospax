@@ -28,8 +28,16 @@
   <launchable type="desktop-id">io.github.jmozez.GeoSpaX.desktop</launchable>
   <screenshots>
     <screenshot type="default">
-      <caption>The Pro workbench: roads and buildings of Lae over a Sentinel-2 scene</caption>
+      <caption>The Pro workbench: buildings, roads and places of Lae with street names over satellite imagery</caption>
       <image>https://raw.githubusercontent.com/jmozez/geospax/main/docs/assets/screenshot-pro.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Lazy mode: layer cards, a task bar and next steps</caption>
+      <image>https://raw.githubusercontent.com/jmozez/geospax/main/docs/assets/screenshot-lazy.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>GeoSpaX starts on the globe</caption>
+      <image>https://raw.githubusercontent.com/jmozez/geospax/main/docs/assets/screenshot-globe.png</image>
     </screenshot>
     <screenshot>
       <caption>Design: a 76-lot subdivision plan with roads and dimensions</caption>

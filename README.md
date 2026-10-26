@@ -11,7 +11,12 @@ Desktop, web and phone · one Rust engine · MIT licence</p>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue"></a>
 </p>
 
-<p align="center"><img src="docs/assets/screenshot-pro.png" alt="GeoSpaX Pro (dark): Overture roads and buildings of Lae, Papua New Guinea, over a Sentinel-2 10 m scene" width="900" /></p>
+<p align="center"><img src="docs/assets/screenshot-pro.webp" alt="GeoSpaX Pro: every building, road and place of central Lae, Papua New Guinea (Overture Maps), styled by type, with street and place names, over Esri World Imagery" width="900" /></p>
+
+<table><tr>
+<td width="50%"><img src="docs/assets/screenshot-lazy.webp" alt="GeoSpaX Lazy mode: layer cards, task bar and next steps" /><br /><b>Lazy mode</b>: layer cards that explain each layer, a task bar and one-click next steps.</td>
+<td width="50%"><img src="docs/assets/screenshot-globe.webp" alt="GeoSpaX starting on the globe over world imagery" /><br /><b>It starts on the globe</b>: a clean slate over world imagery.</td>
+</tr></table>
 
 GeoSpaX is for people who want a finished map without spending hours on it. Drop in data, or plug in a
 phone, GPS, drone card, camera or sensor logger, and GeoSpaX styles it, lays out the map, writes the
@@ -85,6 +90,17 @@ roof heights with *Extrude in 3D* over Esri World Imagery.
 over 2,646 Overture road segments (service area with the network tools of the Toolbox).
 
 <p align="center"><img src="docs/assets/tour-network.png" alt="GeoSpaX: road distance to the nearest hospital across Lae's street network" width="900" /></p>
+
+**Mount Wilhelm in 30 m.** The Copernicus GLO-30 DEM for the area around Papua New Guinea's highest
+peak (839–4,471 m), fetched with *Online data › Elevation* in 4 seconds and tinted green to white, with
+its histogram and band statistics.
+
+<p align="center"><img src="docs/assets/tour-dem-wilhelm.webp" alt="GeoSpaX: Copernicus 30 m DEM of Mount Wilhelm, Papua New Guinea, in a hypsometric tint" width="900" /></p>
+
+The same DEM in 3D: *3D view* raises it as terrain over the imagery. For a print-quality 3D relief,
+the **3D relief with rayshader** analysis (R) renders it with ray-traced shadows and ambient occlusion.
+
+<p align="center"><img src="docs/assets/tour-dem-3d.webp" alt="GeoSpaX: Mount Wilhelm DEM as 3D terrain over Esri World Imagery" width="900" /></p>
 
 ## Plugin showcases
 

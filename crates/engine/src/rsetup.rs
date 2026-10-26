@@ -22,7 +22,7 @@ use std::sync::Arc;
 pub const KITS: &[(&str, &str, &[&str])] = &[
     ("spatial", "Spatial data (sf, terra, stars)", &["sf", "terra", "stars"]),
     ("maps", "Publication maps (tmap, ggplot2)", &["tmap", "ggplot2", "ggspatial", "patchwork", "viridisLite"]),
-    ("relief", "3D relief (rayshader)", &["rayshader"]),
+    ("relief", "3D relief (rayshader)", &["rayshader", "rayrender"]),
     ("sdm", "Species distribution models (biomod2, MaxEnt)", &["biomod2", "maxnet", "dismo", "predicts"]),
     ("ml", "Machine learning (tidymodels)", &["tidymodels", "ranger"]),
     ("data", "Data wrangling and databases (tidyverse, dbplyr)", &["tidyverse", "dbplyr", "DBI", "RSQLite", "duckdb"]),
