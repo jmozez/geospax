@@ -428,6 +428,7 @@ async fn serve(args: Args) {
         .route("/tiles/{*rest}", any(api))
         .with_state(engine)
         .fallback_service(static_files)
+        .layer(axum::middleware::from_fn(cache_policy))
         .layer(axum::middleware::from_fn_with_state(auth, auth::middleware));
     if args.gzip {
         // Gzip vector tiles and JSON, but not Arrow: float64 coordinates barely
@@ -452,4 +453,18 @@ async fn serve(args: Args) {
         })
         .await
         .unwrap();
+}
+
+/// Built files under /assets carry a content hash and never change; everything else of the page
+/// (index.html first) is checked with the server on every load, so browsers (phones above all)
+/// never keep running an old version after an update.
+async fn cache_policy(req: axum::extract::Request, next: axum::middleware::Next) -> axum::response::Response {
+    let path = req.uri().path().to_string();
+    let mut res = next.run(req).await;
+    if path.starts_with("/api/") || path.starts_with("/tiles/") || res.headers().contains_key(axum::http::header::CACHE_CONTROL) {
+        return res;
+    }
+    let value = if path.starts_with("/assets/") { "public, max-age=31536000, immutable" } else { "no-cache" };
+    res.headers_mut().insert(axum::http::header::CACHE_CONTROL, axum::http::HeaderValue::from_static(value));
+    res
 }
