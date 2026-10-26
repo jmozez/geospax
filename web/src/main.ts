@@ -108,11 +108,9 @@ const isLand = (id: string) => id === 'natural_earth.countries';
 
 let layers: LayerInfo[] = [];
 let project: Project = { version: 1, order: [], layers: {} };
-// Public guest demo (geospax-server --public): each visitor has a project of their own, and layers or
-// rasters on the server that are not in it stay hidden, unless they appeared soon after this visitor
-// asked for something (an upload, a download, a tool run): those are theirs.
+// Public guest demo (geospax-server --public): each visitor has a project of their own, and the server
+// lists only the layers and rasters this visitor made (guest.rs).
 let guestMode = false;
-const GUEST_WINDOW = 30 * 60 * 1000;
 const jobs = new Map<string, Job>(); // layer id -> latest job
 let map: maplibregl.Map;
 let rasterPane: RasterPane | null = null;
@@ -149,11 +147,6 @@ function defaultStyle(l: LayerInfo): LayerStyle {
 
 /** Saved project + layers discovered now (new layers get defaults, vanished ones are dropped). */
 function mergeProject(saved: Project | null): Project {
-  if (guestMode && Date.now() - backend.lastWriteAt > GUEST_WINDOW) {
-    const seen = new Set(saved?.order ?? []);
-    const hide = [...layers.map((l) => l.id), ...(rasterPane?.rasters.map((r) => `r:${r.id}`) ?? [])].filter((id) => !seen.has(id));
-    if (hide.length) saved = { version: 1, order: [], layers: {}, ...(saved ?? {}), removed: [...new Set([...(saved?.removed ?? []), ...hide])] };
-  }
   const defaultOrder = [...layers]
     .sort((a, b) => (isLand(a.id) ? -1 : 0) - (isLand(b.id) ? -1 : 0) || GEOM_ORDER[a.geometry] - GEOM_ORDER[b.geometry])
     .map((l) => l.id);
@@ -1572,7 +1565,6 @@ async function reloadLayers() {
   // Layers that appeared at runtime (device imports) join the project with default styles, on top.
   const known = new Set(project.order);
   project = mergeProject(project);
-  if (guestMode) layers = layers.filter((l) => !project.removed?.includes(l.id));
   const added = project.order.filter((id) => !known.has(id) && !id.startsWith('r:'));
   if (added.length) {
     saveProject();
@@ -1822,14 +1814,18 @@ async function main() {
   const about = await backend.json<{ guest?: boolean }>('api/about').catch(() => null);
   if (about?.guest && backend.edition === 'web') {
     guestMode = true;
+    // crypto.randomUUID needs HTTPS; getRandomValues works everywhere
+    const newId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
     let ws = '';
     try {
       ws = localStorage.getItem('geospax.ws') ?? '';
-      if (!/^[a-z0-9-]{8,64}$/.test(ws)) localStorage.setItem('geospax.ws', (ws = crypto.randomUUID()));
+      if (!/^[a-z0-9-]{8,64}$/.test(ws)) localStorage.setItem('geospax.ws', (ws = newId()));
     } catch {
-      ws = crypto.randomUUID(); // private window: a workspace for this visit only
+      ws = newId(); // private window: a workspace for this visit only
     }
     backend.ws = ws;
+    // sent with every request (map tiles and images too): the server shows this visitor only their own layers
+    document.cookie = `geospax_ws=${ws}; path=/; max-age=${7 * 86400}; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`;
     document.body.dataset.guest = '1';
   }
   const [{ layers: ls }, saved] = await Promise.all([
@@ -1841,7 +1837,6 @@ async function main() {
   // layers the user took off the map stay off (the file is kept), until they are added back
   layers = ls.filter((l) => !savedProject?.removed?.includes(l.id));
   project = mergeProject(savedProject);
-  if (guestMode) layers = layers.filter((l) => !project.removed?.includes(l.id));
   const firstSeen = layers.map((l) => l.id).filter((id) => !savedProject?.layers?.[id]);
   $('#edition').textContent = backend.edition === 'web' ? 'Web edition · Axum' : 'Desktop edition · Tauri';
   if (guestMode) {

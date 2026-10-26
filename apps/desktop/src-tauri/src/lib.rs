@@ -226,6 +226,7 @@ pub fn run() {
                 path: request.uri().path().to_string(),
                 query: request.uri().query().unwrap_or("").to_string(),
                 body: request.body().clone(),
+                ws: None,
             };
             proto_engine.dispatch(req, move |r| {
                 let mut b = Response::builder().status(r.status).header("Content-Type", r.content_type);

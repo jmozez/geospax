@@ -21,14 +21,19 @@ The download buttons read the newest GitHub release by themselves. Once the web 
 `fly.toml` runs the web edition as a **public guest demo** (`GEOSPAX_PUBLIC=1`, or `--public`):
 
 - no sign-in: anyone with the address can use it;
-- each visitor gets a workspace of their own (kept in their browser's id, `?ws=`), so nobody sees anyone
-  else's map, and starts clean: dark, Lazy mode, on the globe;
+- each visitor gets a workspace of their own (a random id in their browser, sent as the `geospax_ws`
+  cookie) and starts clean: dark, Lazy mode, on the globe;
+- the server keeps who made each layer, raster, run and job (`<state>/guests/owners.json`). A visitor sees,
+  reads (tiles, tables, exports), changes and deletes only their own; everything else answers *not found*,
+  also when a tool input or map preview names it. Data that was on the server before is nobody's;
+- uploads are at most 64 MB, a zip may unpack to at most 256 MB, and all guests' uploads together to 4 GB;
+  replies never show the server's folders, and visitors' messages never reach the server log;
 - what could misuse the server is refused: R and Python code, installing plugins or packages, folders of
   the server, devices, saved recipes, server settings and the AI assistant;
 - uploads, downloads, run results and guest projects not touched for 7 days are deleted (checked hourly).
 
 One machine runs (the data volume pins it) and it stops when idle, so you pay mostly while it is used.
-Also set a monthly spending limit in the Fly billing settings.
+Fly has no hard spending limit: watch the Cost Explorer in the Fly billing settings.
 
 Install `flyctl` (<https://fly.io/docs/flyctl/install/>), sign in with `fly auth login`, then from the
 repository folder:
@@ -61,7 +66,7 @@ The Flatpak (`packaging/flatpak/io.github.jmozez.GeoSpaX.yml`) is built and chec
 app on its own servers without network access, so its copy of the manifest lists the Rust crates and npm
 packages as sources. To submit:
 
-1. The offline manifest and both lists are ready in `packaging/flatpak/flathub/`, pointing at tag `v3.0.4`.
+1. The offline manifest and both lists are ready in `packaging/flatpak/flathub/`, pointing at tag `v3.0.5`.
    For a later release, change the tag and regenerate the lists with the Flatpak builder tools
    (<https://github.com/flatpak/flatpak-builder-tools>):
    `flatpak-cargo-generator Cargo.lock -o packaging/flatpak/flathub/cargo-sources.json` and

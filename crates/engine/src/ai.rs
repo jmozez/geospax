@@ -178,6 +178,7 @@ impl Engine {
             path: path.into(),
             query: query.into(),
             body: body.map(|b| b.to_string().into_bytes()).unwrap_or_default(),
+            ws: None,
         });
         let v: Value = serde_json::from_slice(&r.body).unwrap_or(Value::Null);
         if r.status >= 400 {
