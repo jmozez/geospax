@@ -2,7 +2,7 @@
 // straight at the files of the newest GitHub release (falling back to the releases page).
 
 // Where the hosted web app lives. Empty: the buttons explain how to run the web edition yourself.
-const WEBAPP_URL = '';
+const WEBAPP_URL = 'https://geospax.fly.dev';
 const REPO = 'jmozez/geospax';
 
 const PLUGINS = [
