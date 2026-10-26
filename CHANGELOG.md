@@ -5,6 +5,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+## [3.0.4] — 2026-10-26
+
 ### Changed — panels, organised by purpose
 - Right panel: three tabs with icons, **Layer · Tools · Ask** (was up to six, the last cut off). Layer is
   the selected layer's style (Lazy: its story), or with nothing selected the map: basemap, globe / flat /

@@ -333,6 +333,22 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - name: The tag names the version being built
+        run: |
+          v=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          [ "$TAG" = "v$v" ] || { echo "::error::release tag $TAG but Cargo.toml says $v"; exit 1; }
+        env:
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+      - name: Run again from Run workflow? Replace a release of this tag made from an older commit
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          old=$(git ls-remote origin "refs/tags/$TAG" | cut -f1)
+          if [ -n "$old" ] && [ "$old" != "$GITHUB_SHA" ]; then
+            gh release delete "$TAG" --cleanup-tag --yes || git push origin ":refs/tags/$TAG"
+          fi
+        env:
+          TAG: ${{ inputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:
           name: geospax-windows
