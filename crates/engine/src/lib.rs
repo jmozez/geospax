@@ -237,6 +237,8 @@ pub struct Engine {
     /// Public guest demo (`--public`): no sign-in, a project per visitor (`?ws=`), and what could
     /// misuse the server (code, installs, folders, settings) refused; see `guest.rs`.
     pub guest: std::sync::atomic::AtomicBool,
+    /// Guest demo: who made which layer, raster, run and job (guest.rs).
+    pub owners: guest::Owners,
     cache: Option<Mutex<LruCache<CacheKey, Arc<TileResult>>>>,
     pool: rayon::ThreadPool,
     pub(crate) job_pool: rayon::ThreadPool,
@@ -419,6 +421,7 @@ impl Engine {
             connections: RwLock::new(browse::load_connections(&state_dir)),
             shared: std::sync::atomic::AtomicBool::new(false),
             guest: std::sync::atomic::AtomicBool::new(false),
+            owners: Default::default(),
             cache,
             pool,
             job_pool,
