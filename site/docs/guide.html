@@ -277,23 +277,27 @@ selected (zoom, attribute table, symbology, AutoMap and the same next steps):</p
 </tr>
 </thead><tbody><tr>
 <td><strong>Home</strong></td>
-<td>Project · Navigate (previous/next extent, go to XY, find place, basemap) · Layer (add data, remove) · Selection · Inquiry (measure, identify) · Symbology</td>
-</tr>
-<tr>
-<td><strong>Analysis</strong></td>
-<td>Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Tools · Spatial statistics · Interpolation · Assistant</td>
+<td>Project · Layer (add data, basemap, remove) · Navigate (previous/next extent, go to XY, bookmarks) · Selection · Inquiry (identify, find place, measure) · Symbology</td>
 </tr>
 <tr>
 <td><strong>View</strong></td>
-<td>Navigate · Projection · Theme · Basemap · Windows</td>
+<td>Basemap · Projection (globe, flat, 3D terrain) · Theme · Windows</td>
 </tr>
 <tr>
 <td><strong>Edit</strong></td>
-<td>Editing · Selection · Measure</td>
+<td>Create · Modify · Selection · Fields · Measure · Manage edits (save, undo, discard)</td>
+</tr>
+<tr>
+<td><strong>Design</strong></td>
+<td>Precision (snapping, typed input) · Draw · Construct · Modify · Blocks · Survey · CAD exchange (DXF)</td>
 </tr>
 <tr>
 <td><strong>Imagery</strong></td>
-<td>Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools</td>
+<td>Rasters · Satellite (latest NDVI) · Satellite embeddings · Terrain · LiDAR · Raster tools · AI models</td>
+</tr>
+<tr>
+<td><strong>Analysis</strong></td>
+<td>Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Spatial statistics · Interpolation · Recipes · Tools · Assistant</td>
 </tr>
 <tr>
 <td><strong>Share</strong></td>
@@ -310,7 +314,7 @@ packages, R console, tmap, ggplot2 and rayshader maps, terra terrain, Earth Engi
 tidymodels, dbplyr, see <a href="/docs/r">R.md</a>; Python: environments and Python steps), <strong>AI models</strong>,
 <strong>Plugins</strong> (Manage plugins…, then each plugin), <strong>Sample data</strong> and <strong>Devices &amp; phones</strong>. Every
 one of these is also in <strong>Ctrl+K</strong>.</p>
-<p>The tabs follow ArcGIS Pro&#39;s order. When the window is too narrow for a tab, its rightmost groups fold
+<p>The tabs follow the order work goes: open and look at the map (Home, View), make and prepare data (Edit, Design, Imagery), analyse it (Analysis), then hand it on (Share); groups inside a tab follow the same rule. When the window is too narrow for a tab, its rightmost groups fold
 into <strong>▾</strong> menus instead of being cut off. <strong>Settings</strong> (Home tab, or the ⚙ at the top right) keeps theme,
 mode, units, basemap and automation choices. <strong>Help</strong> opens the guides and the FAQ as a searchable web page
 of its own (a new browser tab, or a window on the desktop).</p>
@@ -387,7 +391,7 @@ the bottom.</li>
 </tbody></table></div><p>Both show the same project: switching never changes the map.</p>
 <pre><code>┌──────────────────────────────────────────────────────────────────────┐
 │ GeoSpaX   ⤓ ⟳ ⤢ ⌘                          Ctrl+K for any command    │  title bar
-│ Home  Analysis  View  Edit  Design  Imagery  Share  Help            │  ribbon tabs
+│ Home  View  Edit  Design  Imagery  Analysis  Share  Help            │  ribbon tabs
 │ ┌ Refresh ┐ ┌ Contents ┐ ┌ Attribute ┐ ┌ Export ┐                     │  ribbon body
 │ └──Project┘ └── Layers ┘ └──Selection┘ └──  Map ┘                     │
 ├────────────┬──────────────────────────────────┬───────────────────────┤
@@ -406,7 +410,7 @@ the bottom.</li>
 </tr>
 </thead><tbody><tr>
 <td><strong>Ribbon</strong></td>
-<td>Eight tabs of commands (Home, Analysis, View, Edit, Design, Imagery, Share, Help; data sources, R &amp; Python, recipes and plugins live in the <strong>Explorer</strong>) with icons, tooltips and shortcuts. <strong>Analysis</strong> carries the recipes as a single dropdown button (<code>Recipes 10 ▾</code>) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The <strong>pin</strong> at the right of the tab strip (or <code>Ctrl+F1</code>) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map).</td>
+<td>Eight tabs of commands, in the order of the work (Home, View, Edit, Design, Imagery, Analysis, Share, Help; data sources, R &amp; Python, recipes and plugins live in the <strong>Explorer</strong>) with icons, tooltips and shortcuts. <strong>Analysis</strong> carries the recipes as a single dropdown button (<code>Recipes 10 ▾</code>) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The <strong>pin</strong> at the right of the tab strip (or <code>Ctrl+F1</code>) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map).</td>
 </tr>
 <tr>
 <td><strong>Contents</strong> (left)</td>

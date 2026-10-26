@@ -183,11 +183,12 @@ default) changes the ribbon and the layer list together:
 
   | Tab | Groups |
   | --- | --- |
-  | **Home** | Project · Navigate (previous/next extent, go to XY, find place, basemap) · Layer (add data, remove) · Selection · Inquiry (measure, identify) · Symbology |
-  | **Analysis** | Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Tools · Spatial statistics · Interpolation · Assistant |
-  | **View** | Navigate · Projection · Theme · Basemap · Windows |
-  | **Edit** | Editing · Selection · Measure |
-  | **Imagery** | Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools |
+  | **Home** | Project · Layer (add data, basemap, remove) · Navigate (previous/next extent, go to XY, bookmarks) · Selection · Inquiry (identify, find place, measure) · Symbology |
+  | **View** | Basemap · Projection (globe, flat, 3D terrain) · Theme · Windows |
+  | **Edit** | Create · Modify · Selection · Fields · Measure · Manage edits (save, undo, discard) |
+  | **Design** | Precision (snapping, typed input) · Draw · Construct · Modify · Blocks · Survey · CAD exchange (DXF) |
+  | **Imagery** | Rasters · Satellite (latest NDVI) · Satellite embeddings · Terrain · LiDAR · Raster tools · AI models |
+  | **Analysis** | Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Spatial statistics · Interpolation · Recipes · Tools · Assistant |
   | **Share** | Layout (Finish my map) · Export |
   | **Help** | Docs (user guide, FAQ, what's new) · Support · About · Diagnostics |
 
@@ -199,7 +200,7 @@ default) changes the ribbon and the layer list together:
   **Plugins** (Manage plugins…, then each plugin), **Sample data** and **Devices & phones**. Every
   one of these is also in **Ctrl+K**.
 
-  The tabs follow ArcGIS Pro's order. When the window is too narrow for a tab, its rightmost groups fold
+  The tabs follow the order work goes: open and look at the map (Home, View), make and prepare data (Edit, Design, Imagery), analyse it (Analysis), then hand it on (Share); groups inside a tab follow the same rule. When the window is too narrow for a tab, its rightmost groups fold
   into **▾** menus instead of being cut off. **Settings** (Home tab, or the ⚙ at the top right) keeps theme,
   mode, units, basemap and automation choices. **Help** opens the guides and the FAQ as a searchable web page
   of its own (a new browser tab, or a window on the desktop).
@@ -255,7 +256,7 @@ Both show the same project: switching never changes the map.
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ GeoSpaX   ⤓ ⟳ ⤢ ⌘                          Ctrl+K for any command    │  title bar
-│ Home  Analysis  View  Edit  Design  Imagery  Share  Help            │  ribbon tabs
+│ Home  View  Edit  Design  Imagery  Analysis  Share  Help            │  ribbon tabs
 │ ┌ Refresh ┐ ┌ Contents ┐ ┌ Attribute ┐ ┌ Export ┐                     │  ribbon body
 │ └──Project┘ └── Layers ┘ └──Selection┘ └──  Map ┘                     │
 ├────────────┬──────────────────────────────────┬───────────────────────┤
@@ -271,7 +272,7 @@ Both show the same project: switching never changes the map.
 
 | Where | What it does |
 | --- | --- |
-| **Ribbon** | Eight tabs of commands (Home, Analysis, View, Edit, Design, Imagery, Share, Help; data sources, R & Python, recipes and plugins live in the **Explorer**) with icons, tooltips and shortcuts. **Analysis** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The **pin** at the right of the tab strip (or `Ctrl+F1`) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map). |
+| **Ribbon** | Eight tabs of commands, in the order of the work (Home, View, Edit, Design, Imagery, Analysis, Share, Help; data sources, R & Python, recipes and plugins live in the **Explorer**) with icons, tooltips and shortcuts. **Analysis** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The **pin** at the right of the tab strip (or `Ctrl+F1`) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map). |
 | **Contents** (left) | The layer list: visibility, draw order, legend, symbology. Rasters are listed with the vector layers. Every result of an analysis (a recipe, a Toolbox tool, the Ask assistant, a trigger) is added here by itself, switched on and on top, as in ArcGIS Pro and QGIS; drag it or use ▲ ▼ to change what draws over what. |
 | **Explorer** (left) | Your files on disk, as ArcGIS Pro's Catalog, QGIS's Browser and VS Code's Explorer: **Folders** lists the data folders, your **folder connections** (**Connect a folder…** at the top, **Data › Connect folder** or right-click: pick any folder of this computer; it is kept for the next start and ✕ removes it, the folder itself is never touched) (and *Edits*, the copies of layers you edited) with every map file in them; double-click a file or press **+** to add it to the map, a ✓ marks files already on it, right-click for *Add*, *Copy path* and *Refresh*. **On the map** lists the layers by the file they come from (click one to make it active); **More** opens sample data, recipes, devices, rasters and run history. Only the data folders can be browsed, never the rest of the computer. |
 | **Project** (left) | Your map as a whole: where it is saved (it saves itself after every change), its layers, basemap, projection and view; **Save a copy…** downloads it as a file to keep or share, **Open…** reads one back (also a 1.4.2 `.gspx` or a 2.0 `.geolibre.json`, whose layers are imported), **New** starts again. **Bookmarks** remember map views by name (also *View › Bookmark view*). The data stays in your files; the project only points at them. Developer controls (tile transport, engine cache, benchmark, Arrow → deck.gl) are folded away under *Diagnostics*, also opened by *Help › Engine diagnostics*. |

@@ -17,7 +17,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **Tools** tab: ☆ favourites at the top, recently used, and your recent runs (with a link to History).
 - **Ask** tab: the conversation is kept across reloads, **New chat** starts over, and a chip shows the
   layer the questions are about.
-- Ribbon: eight tabs (Home, Analysis, View, Edit, Design, Imagery, Share, Help). **Data**, **R & Python**,
+- Ribbon: eight tabs in the order of the work: Home, View, Edit, Design, Imagery, Analysis, Share, Help
+  (open and look, make and prepare data, analyse, hand on), and their groups ordered the same way. **Data**, **R & Python**,
   **Automate** and **Plugins** are gone from it: the Explorer already holds online data, Overture,
   recipes and results, R & Python, AI models, plugins, sample data and devices, and now also the R
   console and its templates, Python steps, the recipe gallery, Manage plugins… and Check species names.

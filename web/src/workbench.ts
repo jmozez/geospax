@@ -453,14 +453,17 @@ export class Workbench {
       const next = this.nextHtml('rb-next');
       if (next) parts.push(`<div class="rb-group"><div class="rb-items next">${next}</div><div class="rb-title">Next steps for this layer</div></div>`);
     }
-    // Analyze: recipes straight from the engine — collapsed to one dropdown button by
+    // Analysis: recipes straight from the engine — collapsed to one dropdown button by
     // default (Pro collapses a gallery the same way) so the ribbon stays one row tall.
     if (this.layout.ribbon === 'analyze') {
       try {
         this.recipes = (await this.host.backend.json<{ recipes: RecipeInfo[] }>('api/recipes')).recipes;
         const r = { recipes: this.generalRecipes() };
+        // after the single tools and statistics, before the Toolbox and the assistant (GROUP_ORDER)
+        const at = groups.findIndex((g) => g.group === 'Tools');
+        const put = (html: string) => parts.splice(at < 0 ? parts.length : at, 0, html);
         if (this.layout.compact) {
-          parts.unshift(
+          put(
             `<div class="rb-group" data-group="recipes"><div class="rb-items">${this.comboHtml({
               menu: 'recipes',
               icon: 'wand',
@@ -483,7 +486,7 @@ export class Workbench {
             </button>`;
             })
             .join('');
-          parts.unshift(
+          put(
             `<div class="rb-group wide" data-group="recipes"><div class="rb-items recipes">${cards}</div>` +
               `<div class="rb-title">Recipes — click to run ${this.galleryToggle()}</div></div>`,
           );
