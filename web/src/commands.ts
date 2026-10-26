@@ -55,6 +55,21 @@ export interface Command {
 
 // 24×24 monochrome glyphs; the ribbon tints them with `currentColor`.
 export const ICONS: Record<string, string> = {
+  erase2: 'M15.14,3C14.63,3 14.12,3.2 13.73,3.59L2.59,14.73C1.81,15.5 1.81,16.77 2.59,17.56L5.03,20H12.69L21.41,11.27C22.2,10.5 22.2,9.23 21.41,8.44L16.56,3.59C16.17,3.2 15.65,3 15.14,3M17,18L15,20H22V18',
+  polarArray: 'M12,2A2,2 0 0,1 14,4A2,2 0 0,1 12,6A2,2 0 0,1 10,4A2,2 0 0,1 12,2M19,9A2,2 0 0,1 21,11A2,2 0 0,1 19,13A2,2 0 0,1 17,11A2,2 0 0,1 19,9M5,9A2,2 0 0,1 7,11A2,2 0 0,1 5,13A2,2 0 0,1 3,11A2,2 0 0,1 5,9M16,17A2,2 0 0,1 18,19A2,2 0 0,1 16,21A2,2 0 0,1 14,19A2,2 0 0,1 16,17M8,17A2,2 0 0,1 10,19A2,2 0 0,1 8,21A2,2 0 0,1 6,19A2,2 0 0,1 8,17M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10Z',
+  joinLines: 'M3 11H9.5L12 8.5 14.5 11H21V13H14.5L12 15.5 9.5 13H3Z',
+  rectangle: 'M2,4H8V6H16V4H22V10H20V14H22V20H16V18H8V20H2V14H4V10H2V4M16,10V8H8V10H6V14H8V16H16V14H18V10H16M4,6V8H6V6H4M18,6V8H20V6H18M4,16V18H6V16H4M18,16V18H20V16H18Z',
+  polyline: 'M2,3V9H4.95L6.95,15H6V21H12V16.41L17.41,11H22V5H16V9.57L10.59,15H9.06L7.06,9H8V3M4,5H6V7H4M18,7H20V9H18M8,17H10V19H8Z',
+  magnetOn: 'M3,7V13A9,9 0 0,0 12,22A9,9 0 0,0 21,13V7H17V13A5,5 0 0,1 12,18A5,5 0 0,1 7,13V7M17,5H21V2H17M3,5H7V2H3M13,1.5L9,9H11V14.5L15,7H13V1.5Z',
+  ortho: 'M12,2L16,6H13V13.85L19.53,17.61L21,15.03L22.5,20.5L17,21.96L18.53,19.35L12,15.58L5.47,19.35L7,21.96L1.5,20.5L3,15.03L4.47,17.61L11,13.85V6H8L12,2Z',
+  stretchCad: 'M18,16V13H15V22H13V2H15V11H18V8L22,12L18,16M2,12L6,16V13H9V22H11V2H9V11H6V8L2,12Z',
+  scaleTool: 'M10.59,12L14.59,8H11V6H18V13H16V9.41L12,13.41V16H20V4H8V12H10.59M22,2V18H12V22H2V12H6V2H22M10,14H4V20H10V14Z',
+  fillet: 'M4 20V13h2v5h5v2zM20 4v7h-2V6h-5V4z',
+  offset: 'M11,17H4A2,2 0 0,1 2,15V3A2,2 0 0,1 4,1H16V3H4V15H11V13L15,16L11,19V17M19,21V7H8V13H6V7A2,2 0 0,1 8,5H19A2,2 0 0,1 21,7V21A2,2 0 0,1 19,23H8A2,2 0 0,1 6,21V19H8V21H19Z',
+  mirror: 'M15 21H17V19H15M19 9H21V7H19M3 5V19C3 20.1 3.9 21 5 21H9V19H5V5H9V3H5C3.9 3 3 3.9 3 5M19 3V5H21C21 3.9 20.1 3 19 3M11 23H13V1H11M19 17H21V15H19M15 5H17V3H15M19 13H21V11H19M19 21C20.1 21 21 20.1 21 19H19Z',
+  roadCentre: 'M11,16H13V20H11M11,10H13V14H11M11,4H13V8H11M4,22H20V2H4V22Z',
+  pinOff: 'M2,5.27L3.28,4L20,20.72L18.73,22L12.8,16.07V22H11.2V16H6V14L8,12V11.27L2,5.27M16,12L18,14V16H17.82L8,6.18V4H7V2H17V4H16V12Z',
+  rotate3d: 'M12,5C16.97,5 21,7.69 21,11C21,12.68 19.96,14.2 18.29,15.29C19.36,14.42 20,13.32 20,12.13C20,9.29 16.42,7 12,7V10L8,6L12,2V5M12,19C7.03,19 3,16.31 3,13C3,11.32 4.04,9.8 5.71,8.71C4.64,9.58 4,10.68 4,11.88C4,14.71 7.58,17 12,17V14L16,18L12,22V19Z',
   // geoprocessing glyphs for the Toolbox
   'gp-filter': 'M3 3h18v18H3zm2 2v4h4V5zm5 0v4h4V5zm5 0v4h4V5zM5 10v4h4v-4zm5 0v4h4v-4zm5 0v4h4v-4zM5 15v4h4v-4zm5 0v4h4v-4zm5 0v4h4v-4zm-4.5-4.5h3v3h-3z',
   'gp-segment': 'M3 3h18v18H3zm2 2v6.5l4-2.5 3 3 3-5 4 2V5zm14 8.4-3.6-1.8-3 5-3.1-3.1L5 13.8V19h14z',
@@ -745,7 +760,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'line' })); },
   },
   {
-    id: 'design.polyline', tab: 'design', group: 'Draw', title: 'Polyline', icon: 'vertices',
+    id: 'design.polyline', tab: 'design', group: 'Draw', title: 'Polyline', icon: 'polyline',
     hint: 'A line of many segments; Enter or double-click finishes',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'polyline' })); },
   },
@@ -755,7 +770,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'polygon' })); },
   },
   {
-    id: 'design.rect', tab: 'design', group: 'Draw', title: 'Rectangle', icon: 'box',
+    id: 'design.rect', tab: 'design', group: 'Draw', title: 'Rectangle', icon: 'rectangle',
     hint: 'Two corners, or a corner and @width,height in metres',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'rect' })); },
   },
@@ -775,7 +790,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'ellipse' })); },
   },
   {
-    id: 'design.point', tab: 'design', group: 'Draw', title: 'Point', icon: 'pin',
+    id: 'design.point', tab: 'design', group: 'Draw', title: 'Point', icon: 'point',
     hint: 'A point (a pole, a valve, a survey mark)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'point' })); },
   },
@@ -785,12 +800,12 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'text' })); },
   },
   {
-    id: 'design.offset', tab: 'design', group: 'Construct', title: 'Offset', icon: 'compare',
+    id: 'design.offset', tab: 'design', group: 'Construct', title: 'Offset', icon: 'offset',
     hint: 'A parallel copy of a line at a typed distance (+ right, − left), as AutoCAD OFFSET',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'offset' })); },
   },
   {
-    id: 'design.road', tab: 'design', group: 'Construct', title: 'Road from centreline', icon: 'road', big: true,
+    id: 'design.road', tab: 'design', group: 'Construct', title: 'Road from centreline', icon: 'roadCentre', big: true,
     hint: 'Draw a centreline, then give the width: the road surface as a polygon, plus its centreline',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'road' })); },
   },
@@ -810,12 +825,12 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'rotate' })); },
   },
   {
-    id: 'design.scale', tab: 'design', group: 'Modify', title: 'Scale', icon: 'zoomIn',
+    id: 'design.scale', tab: 'design', group: 'Modify', title: 'Scale', icon: 'scaleTool',
     hint: 'Scale a feature about a base point by a factor, as AutoCAD SCALE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'scale' })); },
   },
   {
-    id: 'design.mirror', tab: 'design', group: 'Modify', title: 'Mirror', icon: 'compare',
+    id: 'design.mirror', tab: 'design', group: 'Modify', title: 'Mirror', icon: 'mirror',
     hint: 'A mirrored copy across a line of two points, as AutoCAD MIRROR',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'mirror' })); },
   },
@@ -830,7 +845,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'extend' })); },
   },
   {
-    id: 'design.fillet', tab: 'design', group: 'Modify', title: 'Fillet', icon: 'curve',
+    id: 'design.fillet', tab: 'design', group: 'Modify', title: 'Fillet', icon: 'fillet',
     hint: 'Round a corner with an arc of a given radius, as AutoCAD FILLET',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'fillet' })); },
   },
@@ -895,7 +910,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'explode' })); },
   },
   {
-    id: 'design.join', tab: 'design', group: 'Modify', title: 'Join', icon: 'line',
+    id: 'design.join', tab: 'design', group: 'Modify', title: 'Join', icon: 'joinLines',
     hint: 'Two lines whose ends meet become one, as AutoCAD JOIN',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'join' })); },
   },
@@ -915,7 +930,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'chamfer' })); },
   },
   {
-    id: 'design.stretch', tab: 'design', group: 'Modify', title: 'Stretch', icon: 'zoomTo',
+    id: 'design.stretch', tab: 'design', group: 'Modify', title: 'Stretch', icon: 'stretchCad',
     hint: 'Move only the vertices inside a window (widen a lot, shift a road end), as AutoCAD STRETCH',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'stretch' })); },
   },
@@ -930,7 +945,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'align' })); },
   },
   {
-    id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'trash',
+    id: 'design.erase', tab: 'design', group: 'Modify', title: 'Erase', icon: 'erase2',
     hint: 'Delete the feature you click, as AutoCAD ERASE',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'erase' })); },
   },
@@ -965,17 +980,17 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'traverse' })); },
   },
   {
-    id: 'design.snap', tab: 'design', group: 'Precision', title: 'Snap', icon: 'magnet',
+    id: 'design.snap', tab: 'design', group: 'Precision', title: 'Snap', icon: 'magnetOn',
     hint: 'Object snaps on/off: vertices, midpoints, nearest point (F3)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'snap' })); },
   },
   {
-    id: 'design.ortho', tab: 'design', group: 'Precision', title: 'Ortho', icon: 'crosshair',
+    id: 'design.ortho', tab: 'design', group: 'Precision', title: 'Ortho', icon: 'ortho',
     hint: 'Right angles to the last segment on/off (F8)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'ortho' })); },
   },
   {
-    id: 'design.polar', tab: 'design', group: 'Precision', title: 'Polar', icon: 'compare',
+    id: 'design.polar', tab: 'design', group: 'Precision', title: 'Polar', icon: 'polarArray',
     hint: 'Polar tracking every 15° on/off (F10)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'polar' })); },
   },
@@ -990,7 +1005,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:cad', { detail: 'dxf-import' })); },
   },
   {
-    id: 'view.terrain3d', tab: 'view', group: 'Projection', title: '3D terrain', icon: 'mountain',
+    id: 'view.terrain3d', tab: 'view', group: 'Projection', title: '3D terrain', icon: 'rotate3d',
     hint: 'The selected elevation raster (or the first one) as 3D terrain: drag with the right mouse button or two fingers to tilt and turn; press again for the flat map',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:terrain3d')); },
   },
@@ -1040,7 +1055,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:reset-layout')); },
   },
   {
-    id: 'view.ribbonAutoHide', tab: 'view', group: 'Windows', title: 'Auto-hide ribbon', icon: 'pin', keys: 'F1',
+    id: 'view.ribbonAutoHide', tab: 'view', group: 'Windows', title: 'Auto-hide ribbon', icon: 'pinOff', keys: 'F1',
     run: (h) => { h.toggleRibbon(); },
   },
   {

@@ -218,7 +218,7 @@ export class DocsViewer {
     this.show(
       'About GeoSpaX',
       `<div class="about">
-        <img src="geospax-logo.png" alt="GeoSpaX logo" class="about-logo" onerror="this.remove()">
+        <img src="geospax-logo.png" alt="GeoSpaX logo" class="about-logo">
         <h2>GeoSpaX</h2>
         <p>Spatial analysis and automatic mapping: data in, a finished map and report out. Desktop, web and phone, from one engine (Rust, GDAL).</p>
         <div class="about-card">
