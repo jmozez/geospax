@@ -64,7 +64,7 @@ wholly inside the DEM (basins cut by its edge are left out), over Esri World Ima
 <p align="center"><img src="docs/assets/tour-hydrology.png" alt="GeoSpaX: Strahler-ordered streams and drainage basins of the Markham valley over Esri World Imagery" width="900" /></p>
 
 **Land cover.** ESA WorldCover 10 m (2021) for Lae and the Markham delta, downloaded for the area with
-*Data › Online data*, drawn in ESA's class colours over Esri World Imagery; the legend gives each class's
+*Explorer › Online data*, drawn in ESA's class colours over Esri World Imagery; the legend gives each class's
 share of the area.
 
 <p align="center"><img src="docs/assets/tour-landcover.png" alt="GeoSpaX: ESA WorldCover land cover of Lae over Esri World Imagery" width="900" /></p>
@@ -185,7 +185,7 @@ macOS is not packaged yet; use the web edition or [build from source](docs/DEVEL
 
 1. Start **GeoSpaX**. It opens on a clean map with the globe.
 2. Drop a file on the window (GeoJSON, GeoPackage, Shapefile, KML, GPX, CSV, GeoTIFF, LAS/LAZ), or choose
-   **Data › Sample data**.
+   **Explorer › Sample data**.
 3. Press **Finish my map**: a laid-out map and a one-page report, ready to print or share.
 
 The web edition (`geospax-server`) answers at <http://localhost:8080> on this computer only; see

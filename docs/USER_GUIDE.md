@@ -184,16 +184,20 @@ default) changes the ribbon and the layer list together:
   | Tab | Groups |
   | --- | --- |
   | **Home** | Project · Navigate (previous/next extent, go to XY, find place, basemap) · Layer (add data, remove) · Selection · Inquiry (measure, identify) · Symbology |
-  | **Data** | Add data · **Online data** (climate, future climate, soil, species, boundaries, elevation) · Sources · Sample data |
   | **Analysis** | Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Tools · Spatial statistics · Interpolation · Assistant |
   | **View** | Navigate · Projection · Theme · Basemap · Windows |
   | **Edit** | Editing · Selection · Measure |
   | **Imagery** | Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools |
   | **Share** | Layout (Finish my map) · Export |
-  | **R & Python** | R: console · setup · tmap, ggplot2 and rayshader maps · terra terrain · Earth Engine · biomod2 and MaxEnt species models · tidymodels · dbplyr ([R.md](R.md)) · Python: spatial statistics · your own Python steps ([AUTOMATION.md](AUTOMATION.md)) |
-  | **Automate** | Recipes · Runs |
-  | **Plugins** | **Domain plugins (GSX)** (agriculture, biodiversity, climate, conservation …: each lists its tools and kits) · Manage · plugin tools that name no tab |
   | **Help** | Docs (user guide, FAQ, what's new) · Support · About · Diagnostics |
+
+  **Data, R & Python, recipes and plugins are in the Explorer** (left panel), not on the ribbon:
+  **Online data** (climate, future climate, soil, species, boundaries, elevation … and Check species
+  names), **Overture Maps**, **Recipes** (with the recipe gallery) and **Results**, **R & Python** (R:
+  packages, R console, tmap, ggplot2 and rayshader maps, terra terrain, Earth Engine, biomod2 and MaxEnt,
+  tidymodels, dbplyr, see [R.md](R.md); Python: environments and Python steps), **AI models**,
+  **Plugins** (Manage plugins…, then each plugin), **Sample data** and **Devices & phones**. Every
+  one of these is also in **Ctrl+K**.
 
   The tabs follow ArcGIS Pro's order. When the window is too narrow for a tab, its rightmost groups fold
   into **▾** menus instead of being cut off. **Settings** (Home tab, or the ⚙ at the top right) keeps theme,
@@ -204,7 +208,7 @@ default) changes the ribbon and the layer list together:
   three to a column, as in ArcGIS Pro. A plugin tool appears on the tab its manifest names
   ([PLUGINS.md](PLUGINS.md)).
 
-**Online data** (Data tab, or the Lazy task) gets free data for the area on the map, with no account:
+**Online data** (Explorer › Online data, or the Lazy task) gets free data for the area on the map, with no account:
 WorldClim 2.1 bioclim and monthly climate, WorldClim CMIP6 future climate (12 models, four SSPs, four
 periods), CHELSA 2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries, the
 Copernicus DEM, **ocean depth** (GEBCO 2026: sea depth and land height in one surface, drawn with sea level
@@ -214,7 +218,7 @@ tree cover in 2000 and the year of loss 2001–2025 at 30 m, for areas up to abo
 layer, and its citation goes into the run's methods and report. It is a recipe step, `data.fetch`, so a
 recipe can fetch data on a schedule too ([AUTOMATION.md](AUTOMATION.md)).
 
-**Check species names** (Data tab) matches a layer's scientific names against the World Register of
+**Check species names** (Explorer › Online data) matches a layer's scientific names against the World Register of
 Marine Species (WoRMS). You get a copy of the layer with each name's AphiaID, its status, the accepted
 name for synonyms (*Acropora formosa* → *Acropora muricata*), the classification, the habitat and a
 verdict to review: *ok*, *synonym*, *check spelling* (a fuzzy match, e.g. *Chelonia mydass*),
@@ -251,7 +255,7 @@ Both show the same project: switching never changes the map.
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ GeoSpaX   ⤓ ⟳ ⤢ ⌘                          Ctrl+K for any command    │  title bar
-│ Home Data Analysis View Edit Imagery Share R&Py Automate Plugins Help│  ribbon tabs
+│ Home  Analysis  View  Edit  Design  Imagery  Share  Help            │  ribbon tabs
 │ ┌ Refresh ┐ ┌ Contents ┐ ┌ Attribute ┐ ┌ Export ┐                     │  ribbon body
 │ └──Project┘ └── Layers ┘ └──Selection┘ └──  Map ┘                     │
 ├────────────┬──────────────────────────────────┬───────────────────────┤
@@ -267,7 +271,7 @@ Both show the same project: switching never changes the map.
 
 | Where | What it does |
 | --- | --- |
-| **Ribbon** | Eleven tabs of commands with icons, tooltips and shortcuts. **Analysis** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The **pin** at the right of the tab strip (or `Ctrl+F1`) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map). |
+| **Ribbon** | Eight tabs of commands (Home, Analysis, View, Edit, Design, Imagery, Share, Help; data sources, R & Python, recipes and plugins live in the **Explorer**) with icons, tooltips and shortcuts. **Analysis** carries the recipes as a single dropdown button (`Recipes 10 ▾`) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The **pin** at the right of the tab strip (or `Ctrl+F1`) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map). |
 | **Contents** (left) | The layer list: visibility, draw order, legend, symbology. Rasters are listed with the vector layers. Every result of an analysis (a recipe, a Toolbox tool, the Ask assistant, a trigger) is added here by itself, switched on and on top, as in ArcGIS Pro and QGIS; drag it or use ▲ ▼ to change what draws over what. |
 | **Explorer** (left) | Your files on disk, as ArcGIS Pro's Catalog, QGIS's Browser and VS Code's Explorer: **Folders** lists the data folders, your **folder connections** (**Connect a folder…** at the top, **Data › Connect folder** or right-click: pick any folder of this computer; it is kept for the next start and ✕ removes it, the folder itself is never touched) (and *Edits*, the copies of layers you edited) with every map file in them; double-click a file or press **+** to add it to the map, a ✓ marks files already on it, right-click for *Add*, *Copy path* and *Refresh*. **On the map** lists the layers by the file they come from (click one to make it active); **More** opens sample data, recipes, devices, rasters and run history. Only the data folders can be browsed, never the rest of the computer. |
 | **Project** (left) | Your map as a whole: where it is saved (it saves itself after every change), its layers, basemap, projection and view; **Save a copy…** downloads it as a file to keep or share, **Open…** reads one back (also a 1.4.2 `.gspx` or a 2.0 `.geolibre.json`, whose layers are imported), **New** starts again. **Bookmarks** remember map views by name (also *View › Bookmark view*). The data stays in your files; the project only points at them. Developer controls (tile transport, engine cache, benchmark, Arrow → deck.gl) are folded away under *Diagnostics*, also opened by *Help › Engine diagnostics*. |
@@ -327,9 +331,9 @@ hides, Enter opens the symbology, Alt+↑/↓ moves the layer in the drawing ord
 
 ## 2c. Plugins: tools from five ecosystems
 
-Everything about plugins is on the **Plugins** ribbon tab. **Manage plugins** (first button) lists
-what is installed, the runtimes found, and imports, reloads or uninstalls plugins; the plugins' own
-tools follow on the same tab, unless a plugin puts them on another tab (`tab:`). Every plugin is a
+Plugins are in the **Explorer** under **Plugins**. **Manage plugins…** (first row) lists what is
+installed, the runtimes found, and imports, reloads or uninstalls plugins; the plugins' own tools are
+in the **Tools** tab, and on a ribbon tab when a plugin names one (`tab:`). Every plugin is a
 folder with a manifest, and GeoSpaX reads five formats, so a tool written for another GIS shows up
 here:
 
@@ -446,7 +450,7 @@ point, Esc closes. **View › Projection** switches the map between Web Mercator
 **Your files are safe.** The first edit to a layer copies it, with its coordinate system, fields and
 feature ids, into a GeoPackage that GeoSpaX keeps in its state folder (`<state>/edits/`); from then on the
 layer (same name, same style) reads the copy, and it comes back the next time you start. The original
-file is never written. **Discard edits** goes back to it; **Export** (or Data › Export) saves the edited
+file is never written. **Discard edits** goes back to it; **Export** (or the attribute table's Export) saves the edited
 data wherever you like.
 
 **The attribute table** (the **Attributes** tab under the map) shows every field. Click a column name to sort (again for

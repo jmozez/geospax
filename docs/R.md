@@ -37,8 +37,8 @@ Printed output (`print`, `summary`, `show_query`) shows under the results. Figur
 also in the run's files and its report. Each console run is kept in the run history (the recipe
 `r-console`). It is replaced by the next run, so save code you want to keep as a recipe (below).
 
-Online data (Data › Climate, Species …) feeds straight in. For a species distribution model, get
-occurrences from GBIF and bioclim layers from WorldClim, then open **R & Python › biomod2** or **R & Python › MaxEnt**
+Online data (Explorer › Online data: Climate, Species …) feeds straight in. For a species distribution model, get
+occurrences from GBIF and bioclim layers from WorldClim, then open **Explorer › R & Python › R › biomod2** or **› MaxEnt**
 with the occurrences as `layer` and the climate raster as `raster`.
 
 ## R setup

@@ -1387,11 +1387,11 @@ export class Workbench {
     const done = this.runs.filter((r) => r.status === 'done').slice(0, 20);
     return [
       node('online', 'Online data', 'globe', ONLINE_SOURCES.length),
-      kids('online', () => ONLINE_SOURCES.map((o) => leaf('online', o.id, o.title, 'download')).join('')),
+      kids('online', () => ONLINE_SOURCES.map((o) => leaf('online', o.id, o.title, 'download')).join('') + leaf('cmd', 'data.worms', 'Check species names…', 'spell', 'WoRMS')),
       node('overture', 'Overture Maps', 'layers', OVERTURE_THEMES.length),
       kids('overture', () => OVERTURE_THEMES.map(([id, title]) => leaf('overture', id, title, 'download', 'for the map view')).join('')),
       node('recipes', 'Recipes', 'play', this.gxData.recipes?.length),
-      kids('recipes', () => (this.gxData.recipes ? this.gxData.recipes.map((r) => leaf('recipe', r.id, r.title || r.id, recipeIcon(r))).join('') || '<div class="pane-empty">No recipes</div>' : '<div class="pane-empty">Reading…</div>')),
+      kids('recipes', () => leaf('cmd', 'automate.gallery', 'Recipe gallery…', 'gallery') + (this.gxData.recipes ? this.gxData.recipes.map((r) => leaf('recipe', r.id, r.title || r.id, recipeIcon(r))).join('') || '<div class="pane-empty">No recipes</div>' : '<div class="pane-empty">Reading…</div>')),
       node('results', 'Results', 'history', done.length),
       kids('results', () => done.map((r) => leaf('run', r.id, r.title || r.recipe, 'check', (r.artifacts ?? []).length ? `${(r.artifacts ?? []).length} files` : '')).join('') || '<div class="pane-empty">No finished runs yet</div>'),
       node('envs', 'R & Python', 'code'),
@@ -1399,7 +1399,7 @@ export class Workbench {
       node('models', 'AI models', 'brain', this.gxData.models?.length),
       kids('models', () => (this.gxData.models ? this.gxData.models.map((m) => leaf('model', m.name, m.name, 'brain')).join('') || leaf('models', '', 'Add a model…', 'plus') : '<div class="pane-empty">Reading…</div>')),
       node('plugins', 'Plugins', 'puzzle', this.gxData.plugins?.length),
-      kids('plugins', () => (this.gxData.plugins ? this.gxData.plugins.map((p) => leaf('plugin', p.id, p.name, pluginIcon(p))).join('') : '<div class="pane-empty">Reading…</div>')),
+      kids('plugins', () => leaf('cmd', 'plugins.manage', 'Manage plugins…', 'settings') + (this.gxData.plugins ? this.gxData.plugins.map((p) => leaf('plugin', p.id, p.name, pluginIcon(p))).join('') : '<div class="pane-empty">Reading…</div>')),
       `<div class="node source" data-shortcut="samples">${icon('gallery', 14)}<span class="nm">Sample data</span></div>`,
       `<div class="node source" data-shortcut="devices">${icon('phone', 14)}<span class="nm">Devices</span></div>`,
     ].join('');
@@ -1471,11 +1471,16 @@ export class Workbench {
         }
         h += row(1, 'update', 'Check for updates, install packages…', '', 'data-gx-act="r-setup" data-gx-id=""');
       }
+      // the R console and its templates (maps, charts, rasters, species and machine-learning models)
+      for (const c of COMMANDS.filter((x) => x.tab === 'r' && x.id.startsWith('r.') && x.id !== 'r.setup')) {
+        h += row(1, c.icon, c.id === 'r.console' ? 'R console…' : `${c.title} (${c.group.replace(/^R /, '')})`, '', `data-gx-act="cmd" data-gx-id="${esc(c.id)}" title="${esc(c.hint ?? c.title)}"`);
+      }
     }
     // Python
     const envs = this.envPy.environments;
     h += `<div class="node folder" data-gx="env:py" ${pad(-1)}>${tw('env:py')}${icon('python', 14)}<span class="nm">Python</span><span class="ct dim">${envs.length ? `${envs.length} environment${envs.length === 1 ? '' : 's'}` : 'not found'}</span></div>`;
     if (this.gxOpen.has('env:py')) {
+      h += row(1, 'python', 'Python steps…', 'spatial statistics and your own scripts', 'data-gx-act="cmd" data-gx-id="py.steps"');
       if (!envs.length) h += `<div class="pane-empty" ${pad(1)}>No Python found. Install Python 3 (python.org, or Miniforge for conda) and press Refresh.</div>`;
       for (const e of envs) {
         const key = `env:py:${e.path}`;
@@ -1525,6 +1530,8 @@ export class Workbench {
       case 'run': return void this.host.openRun(id);
       case 'model': case 'models': return void document.dispatchEvent(new CustomEvent('geospax:models'));
       case 'plugin': return void document.dispatchEvent(new CustomEvent('geospax:plugin-manager', { detail: id }));
+      // commands that lived on the Data, R & Python, Automate and Plugins ribbon tabs
+      case 'cmd': return void this.run(id);
     }
   }
 

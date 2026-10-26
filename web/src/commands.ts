@@ -292,18 +292,16 @@ export function icon(name: string, size = 20): string {
 
 // Ribbon tabs, in ArcGIS Pro's order of work: get data, map it, analyse, imagery, model, automate.
 export const TABS: { id: TabId; label: string }[] = [
-  // ArcGIS Pro's order (Map, Insert, Analysis, View, Edit, Imagery, Share, add-ins, Help), as RustGIS
+  // Data, R & Python, Automate and Plugins are not ribbon tabs: the Explorer holds them (Online data,
+  // Overture, Recipes, Results, R & Python, AI models, Plugins, Sample data, Devices), and their commands
+  // stay in Ctrl+K. ArcGIS Pro's order (Map, Insert, Analysis, View, Edit, Imagery, Share, add-ins, Help), as RustGIS
   { id: 'home', label: 'Home' },
-  { id: 'data', label: 'Data' },
   { id: 'analyze', label: 'Analysis' },
   { id: 'view', label: 'View' },
   { id: 'edit', label: 'Edit' },
   { id: 'design', label: 'Design' },
   { id: 'imagery', label: 'Imagery' },
   { id: 'share', label: 'Share' },
-  { id: 'r', label: 'R & Python' },
-  { id: 'automate', label: 'Automate' },
-  { id: 'plugins', label: 'Plugins' },
   { id: 'help', label: 'Help' },
 ];
 

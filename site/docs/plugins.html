@@ -174,7 +174,7 @@ commands:                        # optional ribbon buttons
 <pre><code class="language-json">{ &quot;ok&quot;: true, &quot;message&quot;: &quot;report for field_samples.geojson&quot;, &quot;outputs&quot;: [&quot;…/out.geojson&quot;] }
 </code></pre>
 <p>A tool can name its ribbon tab with <strong><code>tab:</code></strong> (<code>home</code>, <code>data</code>, <code>style</code>, <code>analyze</code>, <code>imagery</code>,
-<code>modelling</code>, <code>automate</code>, <code>view</code>, <code>help</code>); tools that name none appear on the <strong>Plugins</strong> tab, grouped by
+<code>modelling</code>, <code>automate</code>, <code>view</code>, <code>help</code>); tools that name none are listed in the Explorer&#39;s <strong>Plugins</strong> and the <strong>Tools</strong> tab, grouped by
 their <code>group</code>.</p>
 <p>A plugin that reads GeoJSON sets <strong><code>geojson: true</code></strong> in <code>plugin.yaml</code>: every layer named by a <code>layer</code>
 parameter is then written to the workdir as GeoJSON, whatever its source format, and passed in
@@ -195,7 +195,7 @@ dialog shows them under the form, so a tool can report numbers without making a 
 layers. The reply to <code>POST …/run</code> names them in <code>&quot;added&quot;</code>, and the app styles them (AutoMap) and zooms to
 them. Write results into <code>out_dir</code>. A <code>kind: process</code> plugin whose program (the first word of <code>run:</code>)
 is not on <code>PATH</code> is listed as <em>needs &lt;program&gt;</em>.</p>
-<p>A non-zero exit turns the first line of stderr into the error shown in Plugins › Manage plugins. That is the
+<p>A non-zero exit turns the first line of stderr into the error shown in Explorer › Plugins › Manage plugins…. That is the
 whole ABI, so the same plugin shape works for a Rust binary, an R script
 (<code>run: Rscript ${plugin}/tools.R ${tool}</code>) or a WASI module
 (<code>run: wasmtime run --dir ${workdir} ${plugin}/tools.wasm -- ${tool}</code>).</p>
@@ -205,7 +205,7 @@ automation engine — so they get triggers, run history, artifacts and Auto swit
 <hr>
 <h2 id="4-installing-plugins"><a class="anchor" href="#4-installing-plugins">#</a>4. Installing plugins</h2>
 <ul>
-<li><strong>UI:</strong> bottom dock › <strong>Plugins</strong> › paste a folder or package path › <strong>Install</strong>.</li>
+<li><strong>UI:</strong> <strong>Explorer › Plugins › Manage plugins…</strong> › paste a folder or package path › <strong>Install</strong>.</li>
 <li><strong>CLI:</strong> <code>geospax-server plugins import ./my-plugin [--dir PLUGINDIR]</code>,
 <code>plugins list</code>, <code>plugins check ./my-plugin</code>.</li>
 <li><strong>Removing one:</strong> <strong>Uninstall</strong> on the plugin&#39;s card (it asks twice), <code>DELETE /api/plugins/{id}</code>, or

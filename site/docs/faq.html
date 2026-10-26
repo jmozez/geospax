@@ -38,7 +38,7 @@ password is needed. A portable ZIP is there too.</li>
 <p>Start <strong>GeoSpaX</strong> from the Start menu or the applications menu. The <a href="/docs/guide">user guide</a> has the details.</p>
 <h3 id="why-is-the-map-empty-when-geospax-starts"><a class="anchor" href="#why-is-the-map-empty-when-geospax-starts">#</a>Why is the map empty when GeoSpaX starts?</h3>
 <p>GeoSpaX opens on a clean map, showing the globe, like a new map in ArcGIS Pro. Add data with
-<strong>Data › Add files</strong>, by dropping files on the window, from the <strong>Explorer</strong> pane, or try <strong>Data › Sample
+<strong>Home › Add data</strong>, by dropping files on the window, from the <strong>Explorer</strong> pane, or try <strong>Explorer › Sample
 data</strong>. Files you keep in the <code>Data</code> folder (<code>~/GeoSpaX/Data</code>, or <code>%USERPROFILE%\GeoSpaX\Data</code> on Windows)
 are put on the map automatically.</p>
 <h3 id="does-sample-data-stay-on-my-map"><a class="anchor" href="#does-sample-data-stay-on-my-map">#</a>Does sample data stay on my map?</h3>
@@ -50,7 +50,7 @@ Contents, right-click it and choose <strong>Remove from map</strong>, or use <st
 file itself is never deleted. The layer stays off the map at the next start until you add it again from the
 <strong>Explorer</strong> pane.</p>
 <h3 id="how-do-i-browse-other-folders"><a class="anchor" href="#how-do-i-browse-other-folders">#</a>How do I browse other folders?</h3>
-<p>In the <strong>Explorer</strong> pane (left, next to Contents) press <strong>Connect a folder…</strong> (or <strong>Data › Connect folder</strong>, or
+<p>In the <strong>Explorer</strong> pane (left, next to Contents) press <strong>Connect a folder…</strong> (or Ctrl+K › <strong>Connect folder</strong>, or
 right-click in the Explorer), choose a folder anywhere on your computer and press <strong>Connect this folder</strong>. It
 appears under <em>Folders</em>, stays there the next time you start GeoSpaX, and its files go on the map with a
 double-click or <strong>+</strong>. The <strong>✕</strong> next to it removes the connection; the folder and its files are not touched.
@@ -129,11 +129,11 @@ and opacity. <strong>AutoMap</strong> chooses a good style for you and says why.
 data (climate, species, elevation …), online basemaps, R package downloads and the update check need one.</p>
 <h2 id="analysis-plugins-and-r"><a class="anchor" href="#analysis-plugins-and-r">#</a>Analysis, plugins and R</h2>
 <h3 id="where-are-the-conservation-and-biodiversity-gsx-tools"><a class="anchor" href="#where-are-the-conservation-and-biodiversity-gsx-tools">#</a>Where are the conservation and biodiversity (GSX) tools?</h3>
-<p>On the <strong>Plugins</strong> tab, under <strong>Domain plugins (GSX)</strong>: Agriculture, Biodiversity, Climate, Conservation and
-the rest. Each opens its tools and its ready-made analyses (kits). <strong>Plugins › Manage</strong> lists every plugin,
+<p>In the <strong>Explorer</strong>, under <strong>Plugins</strong> (their tools are also in the <strong>Tools</strong> tab): Agriculture, Biodiversity, Climate, Conservation and
+the rest. Each opens its tools and its ready-made analyses (kits). <strong>Explorer › Plugins › Manage plugins…</strong> lists every plugin,
 including the GSX tool library they share.</p>
 <h3 id="how-do-i-install-r-packages"><a class="anchor" href="#how-do-i-install-r-packages">#</a>How do I install R packages?</h3>
-<p><strong>R &amp; Python › R setup</strong> lists what is installed (✓) and what is missing (○). Tick what you need and press <strong>Install
+<p><strong>Explorer › R &amp; Python › R › Check for updates, install packages…</strong> (R setup) lists what is installed (✓) and what is missing (○). Tick what you need and press <strong>Install
 selected</strong>. A log shows each step as it happens: which package is downloaded, which were already installed,
 and the exact reason when one fails (most often no internet connection or a proxy). Packages go into GeoSpaX&#39;s
 own library, so your R setup is not changed.</p>
@@ -183,7 +183,7 @@ over the old folder.</li>
 <code>http://&lt;address&gt;:8080/?token=pick-a-password</code> on the phone, on the same Wi-Fi (on Fedora, allow the port once
 with <code>sudo firewall-cmd --add-port=8080/tcp</code>). With the password the phone can do everything the computer can:
 Explorer folders, web services, cloud storage, STAC and Overture downloads. Sharing it with a class? Add
-<code>--restricted</code> to turn those off. To send photos and tracks from the phone, use <strong>Data › Phone over Wi-Fi</strong>.</p>
+<code>--restricted</code> to turn those off. To send photos and tracks from the phone, use <strong>Explorer › Devices &amp; phones › Send from phone</strong>.</p>
 <h3 id="something-does-not-work-how-do-i-report-it"><a class="anchor" href="#something-does-not-work-how-do-i-report-it">#</a>Something does not work. How do I report it?</h3>
 <p>Open an issue at <a href="https://github.com/jmozez/geospax/issues" rel="noopener" target="_blank">https://github.com/jmozez/geospax/issues</a> with what you did, what you expected and what
 happened. <strong>Help › Engine diagnostics</strong> shows details worth including.</p>
