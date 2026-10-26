@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI assistant · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX ai assistant: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai" aria-current="page">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="ai-in-geospax"><a class="anchor" href="#ai-in-geospax">#</a>AI in GeoSpaX</h1>
+<p>GeoSpaX&#39;s AI features are optional and run where you choose. Nothing is sent anywhere until you pick a
+model, and with Ollama nothing leaves your computer.</p>
+<div class="table"><table><thead><tr>
+<th>Feature</th>
+<th>What it does</th>
+<th>Where it runs</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Ask</strong> (right pane)</td>
+<td>Answers questions about your data in plain words, selects features, starts recipes</td>
+<td>Ollama on this computer, any OpenAI-compatible server, or Claude with your API key</td>
+</tr>
+<tr>
+<td><strong>MCP server</strong> (<code>geospax-server mcp</code>)</td>
+<td>Gives AI assistants (Claude Desktop, Claude Code, editors) GeoSpaX&#39;s tools</td>
+<td>On this computer; the assistant you connect decides where its model runs</td>
+</tr>
+<tr>
+<td><strong>Satellite embeddings</strong> (<em>Imagery › Embeddings</em>)</td>
+<td>Finds places like your samples, groups the landscape, classifies from labelled points, maps change between years</td>
+<td>On this computer; the embeddings are read once from a public copy</td>
+</tr>
+<tr>
+<td><strong>Your own model</strong> (<em>Imagery › Detect objects</em>)</td>
+<td>Runs an ONNX object-detection or segmentation model you add over an image</td>
+<td>On this computer; GeoSpaX ships no model</td>
+</tr>
+</tbody></table></div><h2 id="1-ask"><a class="anchor" href="#1-ask">#</a>1. Ask</h2>
+<p>Open <strong>Analysis › Ask</strong>, the <strong>Ask</strong> tab of the right pane, or right-click a layer › <em>Ask about this
+layer…</em>. Type a question, for example:</p>
+<ul>
+<li><em>What layers do I have, and what is in them?</em></li>
+<li><em>How many survey sites are above 2000 m? Select them.</em></li>
+<li><em>Which reserve is the largest? Zoom to the reserves.</em></li>
+<li><em>Make hot spots of the incidents.</em> (runs the recipe)</li>
+</ul>
+<p>The assistant does not guess. It looks at your data through the same tools the app uses and gives
+figures only from what those tools return. Under each answer, <em>Looked at the data N times</em> lists every
+tool it called, with the layer and the filter. Selections and zooms it asks for happen on the map, and
+selected features show in the attribute table.</p>
+<h3 id="its-tools"><a class="anchor" href="#its-tools">#</a>Its tools</h3>
+<div class="table"><table><thead><tr>
+<th>Tool</th>
+<th>What it does</th>
+</tr>
+</thead><tbody><tr>
+<td><code>list_layers</code></td>
+<td>Layers (id, geometry, feature count, fields and types, definition query) and rasters</td>
+</tr>
+<tr>
+<td><code>describe_field</code></td>
+<td>Min, max, mean and quantiles of a number field; the most frequent values of a text field</td>
+</tr>
+<tr>
+<td><code>query_features</code></td>
+<td>Up to 50 attribute rows, filtered with a SQL <code>WHERE</code> clause and sorted, plus the total count</td>
+</tr>
+<tr>
+<td><code>select_features</code></td>
+<td>Selects features with a <code>WHERE</code> clause (highlighted on the map)</td>
+</tr>
+<tr>
+<td><code>zoom_to_layer</code></td>
+<td>Zooms the map (Ask only)</td>
+</tr>
+<tr>
+<td><code>list_recipes</code>, <code>run_recipe</code>, <code>get_run</code></td>
+<td>Lists the workflows, starts one, follows it</td>
+</tr>
+</tbody></table></div><p>Recipes that run Python or R code are never started by the assistant. Start those yourself from the
+Automate pane.</p>
+<h3 id="choosing-the-model"><a class="anchor" href="#choosing-the-model">#</a>Choosing the model</h3>
+<p>Click <strong>Model…</strong> in the Ask pane, or <strong>Analysis › Model…</strong>.</p>
+<div class="table"><table><thead><tr>
+<th>Choice</th>
+<th>Set up</th>
+<th>Privacy</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Ollama (on this computer)</strong>, the default</td>
+<td>Install from <a href="https://ollama.com" rel="noopener" target="_blank">ollama.com</a>, then <code>ollama pull llama3.2</code> (or <code>qwen2.5</code>, <code>llama3.1</code>, or any model that supports tools). Address: <code>http://127.0.0.1:11434</code>.</td>
+<td>Nothing leaves this computer.</td>
+</tr>
+<tr>
+<td><strong>OpenAI-compatible server</strong></td>
+<td>LM Studio (<code>http://127.0.0.1:1234</code>), llama.cpp server, vLLM, or a cloud provider that speaks <code>/v1/chat/completions</code>. An API key only if the server needs one.</td>
+<td>A local server keeps everything local. A cloud server receives your question and what the tools return.</td>
+</tr>
+<tr>
+<td><strong>Claude (your API key)</strong></td>
+<td>A key from <a href="https://console.anthropic.com" rel="noopener" target="_blank">console.anthropic.com</a>. Model <code>claude-opus-5-5</code> (default and most capable), <code>claude-sonnet-5-5</code> (faster), or <code>claude-haiku-5-5</code> (cheapest).</td>
+<td>Your question and what the tools return (layer names, field values) are sent to Anthropic.</td>
+</tr>
+</tbody></table></div><p><strong>Save and list models</strong> asks the server which models it has. The key is stored in <code>ai.json</code> in the
+GeoSpaX state folder, readable only by your user account. It is never sent back to the browser. Tick
+<em>Forget the saved key</em> to remove it.</p>
+<p>Small local models answer simple questions well. For long multi-step questions, use a larger model
+(<code>qwen2.5:14b</code>, <code>llama3.1:70b</code>) or Claude. With Claude on the Opus 5.5, Fable 5.1, or Sonnet 5.5
+models, a request Claude declines is retried on another Claude model, and you are told if it was
+still declined.</p>
+<h3 id="api"><a class="anchor" href="#api">#</a>API</h3>
+<div class="table"><table><thead><tr>
+<th>Route</th>
+<th></th>
+</tr>
+</thead><tbody><tr>
+<td><code>GET /api/ai/settings</code></td>
+<td><code>{provider, url, model, has_key, tools}</code>; the key itself is never returned</td>
+</tr>
+<tr>
+<td><code>PUT /api/ai/settings</code></td>
+<td><code>{provider: &quot;ollama&quot;|&quot;openai&quot;|&quot;anthropic&quot;, url, model, key?}</code>; omit <code>key</code> to keep it, <code>&quot;&quot;</code> to remove it</td>
+</tr>
+<tr>
+<td><code>GET /api/ai/models</code></td>
+<td>The models the configured server offers: <code>{models, error}</code></td>
+</tr>
+<tr>
+<td><code>POST /api/ask</code></td>
+<td><code>{question, history: [{role, text}]}</code> → <code>{answer, steps: [{tool, args, ok, error?}], actions: [{kind: &quot;select&quot;|&quot;zoom&quot;|&quot;run&quot;, …}]}</code>; 502 with <code>error</code> when the model server fails</td>
+</tr>
+</tbody></table></div><h2 id="2-mcp-server"><a class="anchor" href="#2-mcp-server">#</a>2. MCP server</h2>
+<p><code>geospax-server mcp</code> serves GeoSpaX&#39;s tools to any <a href="https://modelcontextprotocol.io" rel="noopener" target="_blank">Model Context Protocol</a>
+client over stdio. These are the tools above except <code>zoom_to_layer</code>, which needs the app. It opens your
+data folders like the app does, but without the web server, device watching or triggers. Only MCP
+messages go to stdout; notes go to stderr.</p>
+<p><strong>Claude Code</strong></p>
+<pre><code class="language-sh">claude mcp add geospax -- geospax-server mcp --data ~/GIS
+</code></pre>
+<p><strong>Claude Desktop</strong> (<code>claude_desktop_config.json</code>)</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;geospax&quot;: {
+      &quot;command&quot;: &quot;geospax-server&quot;,
+      &quot;args&quot;: [&quot;mcp&quot;, &quot;--data&quot;, &quot;/home/me/GIS&quot;]
+    }
+  }
+}
+</code></pre>
+<p>On Windows, use the full path, e.g. <code>&quot;C:\\Program Files\\GeoSpaX\\geospax-server.exe&quot;</code>, and a Windows
+data path.</p>
+<p>Options: <code>--data DIR</code> (repeatable), <code>--state-dir DIR</code> (default <code>&lt;first data folder&gt;/.geospax</code>, shared with
+the app, so recipes and runs are the same), <code>--recipes DIR</code>, <code>--threads N</code>.</p>
+<p>Tool errors come back as results with <code>isError: true</code>, so the assistant can correct its request (a wrong
+field name, for example). Results longer than 12,000 characters are cut, and the cut is marked.</p>
+<h2 id="3-satellite-embeddings"><a class="anchor" href="#3-satellite-embeddings">#</a>3. Satellite embeddings</h2>
+<p>Google DeepMind&#39;s <strong>AlphaEarth Foundations</strong> sums up a whole year of Sentinel-1 radar, Sentinel-2 and
+Landsat imagery, elevation, and climate for every 10 m pixel on land, as 64 numbers (an <em>embedding</em>).
+Places that look and behave alike over the year get alike embeddings. So a handful of samples is
+enough to map a land-cover type, a few groups describe a landscape, and comparing two years shows
+change. GeoSpaX reads the embeddings for your area only, from the public copy on
+<a href="https://source.coop/tge-labs/aef" rel="noopener" target="_blank">Source Cooperative</a>, and does all the analysis on your computer.</p>
+<p>Open <strong>Imagery › Embeddings</strong> (or <em>Similar places</em>, <em>Group landscape</em>, <em>Classify</em>, <em>Change</em>). Choose
+the area (the map view, or around a layer), the year, and what to do:</p>
+<div class="table"><table><thead><tr>
+<th>Task</th>
+<th>You give</th>
+<th>You get</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Look at the embeddings</strong></td>
+<td>an area</td>
+<td>Three of the 64 axes as red, green and blue: alike places get alike colours</td>
+</tr>
+<tr>
+<td><strong>Find places like my samples</strong></td>
+<td>a point layer on the kind of place you want</td>
+<td>Similarity to the samples on every pixel (1 = alike), and the area at ≥ 0.9</td>
+</tr>
+<tr>
+<td><strong>Group the landscape</strong></td>
+<td>the number of groups</td>
+<td>k groups of alike landscape (k-means), for you to name from what you know</td>
+</tr>
+<tr>
+<td><strong>Classify from labelled samples</strong></td>
+<td>points with a class field</td>
+<td>A class map, the area per class, and leave-one-out accuracy</td>
+</tr>
+<tr>
+<td><strong>Change between two years</strong></td>
+<td>two years</td>
+<td>How much each pixel changed (1 − similarity), and the changed area</td>
+</tr>
+</tbody></table></div><p>Each task becomes a recipe run, with a map, a report and the citation in its methods. Two of them
+are also in the Toolbox, and the Ask assistant can run them: <em>Places like my samples</em>
+(<code>embeddings-similar-places</code>) and <em>Classify from labelled samples</em> (<code>embeddings-classify</code>). The steps
+are listed in <a href="/docs/automation">AUTOMATION.md</a>.</p>
+<p><strong>Good to know</strong></p>
+<ul>
+<li>The data covers 2017–2025, on land and coastal waters. The default year is 2024.</li>
+<li>An area can be up to 60 km a side. Above about 20 km it is read coarser than 10 m, using the
+dataset&#39;s averaged overviews, to stay under 4 million pixels.</li>
+<li>The first time a UTM zone and year is used, GeoSpaX reads that zone&#39;s file list, about 490 files at
+2 KB each (a few seconds), and keeps it in <code>&lt;state&gt;/aef/</code>. A 4 km area of one year then reads in
+about 10 s.</li>
+<li>Accuracy from leave-one-out is optimistic when the samples sit close together. Check the map with
+independent points.</li>
+<li>Change in the embeddings means the year <em>looked</em> different: clearing, gardens, floods, building,
+but also an unusually wet year. Look at imagery before naming it.</li>
+<li><strong>Credit:</strong> <em>&quot;The AlphaEarth Foundations Satellite Embedding dataset is produced by Google and
+Google DeepMind.&quot;</em> (CC-BY 4.0). It is added to the methods and the map credits automatically.</li>
+<li>A mirror or a local copy in the same layout works too: set <code>GEOSPAX_AEF_BASE</code> to its address or
+folder.</li>
+</ul>
+<h2 id="4-your-own-model-object-detection-and-segmentation"><a class="anchor" href="#4-your-own-model-object-detection-and-segmentation">#</a>4. Your own model: object detection and segmentation</h2>
+<p><strong>Imagery › Detect objects</strong> runs a model <em>you</em> add over an image, on your computer. An image is a drone
+orthophoto, aerial photo or satellite image in a data folder. Two kinds of model work:</p>
+<div class="table"><table><thead><tr>
+<th>Model</th>
+<th>Output it must have</th>
+<th>You get</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Object detection</strong>: YOLOv5, YOLOv8, YOLO11 and models with the same output</td>
+<td><code>[1, 4+classes, boxes]</code> (v8/11), <code>[1, boxes, 5+classes]</code> (v5), or <code>[1, boxes, 6]</code> boxes already decided (x0, y0, x1, y1, score, class)</td>
+<td>A polygon layer: one box per object with <code>class</code>, <code>score</code> and <code>area_m2</code></td>
+</tr>
+<tr>
+<td><strong>Segmentation</strong> (U-Net, DeepLab, SegFormer exported with a per-pixel output)</td>
+<td><code>[1, classes, height, width]</code>, or one channel for yes/no</td>
+<td>A class raster with the area of each class</td>
+</tr>
+</tbody></table></div><p><strong>Adding a model.</strong> Use <strong>Imagery › Models…</strong>, choose the <code>.onnx</code> file, and give its classes (read from the
+file when it has them, as Ultralytics exports do), its <strong>licence</strong> and where it comes from. Export a
+YOLO model with <code>yolo export model=yourmodel.pt format=onnx</code>, or PyTorch with <code>torch.onnx.export</code>.
+GeoSpaX <strong>ships no model</strong>. Many popular pretrained weights have licences of their own: Ultralytics
+YOLO is AGPL-3.0 or needs a commercial licence, and SAM is Apache-2.0. Some are trained on data with
+other terms. The licence you state is printed in the methods of every report made with the model;
+without one the report says &quot;licence not stated&quot;.</p>
+<p><strong>How it runs.</strong> The image is read in tiles of the model&#39;s input size (512 px for models of any
+size), at the image&#39;s own resolution. Use imagery close to the resolution the model was trained on.
+Values are divided by 255 for 8-bit images and by 10,000 for 16-bit ones; per-band <code>mean</code>/<code>std</code>,
+other bands (<code>bands: [4, 3, 2]</code>) and other scaling can be set per model or per run. Detection tiles
+overlap by 1/8. Overlapping boxes of a class are merged (non-maximum suppression, IoU 0.45), and boxes
+scoring below 0.25 are dropped. The model is data, not code: GeoSpaX evaluates it with
+<a href="https://github.com/sonos/tract" rel="noopener" target="_blank">tract</a> (pure Rust), so nothing in the file runs, and there is no
+Python or runtime to install. On a laptop CPU a small YOLO model takes roughly 0.1–0.5 s per 640 px
+tile.</p>
+<p>In recipes the step is <code>ai.detect</code> (<a href="/docs/automation">AUTOMATION.md</a>). The models API is
+<code>GET /api/models</code>, <code>POST /api/models?name=FILE.onnx</code>, <code>PUT /api/models/NAME</code>
+(<code>labels</code>, <code>licence</code>, <code>source</code>, <code>task</code>, <code>bands</code>, <code>scale</code>, <code>mean</code>, <code>std</code>) and <code>DELETE /api/models/NAME</code>.</p>
+<h2 id="5-safety"><a class="anchor" href="#5-safety">#</a>5. Safety</h2>
+<ul>
+<li>Every tool is a call to GeoSpaX&#39;s own API. The assistant can do nothing that you could not do in the
+app, and nothing that runs code.</li>
+<li>Field values can contain text that tries to steer the assistant. That text can at most make it call
+the same read-only tools or start a non-code recipe, whose results go only into the runs folder.</li>
+<li>Beyond <code>localhost</code>, the web edition&#39;s API needs its access token (README › Security), so another
+device cannot use your key.</li>
+</ul>
+</article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#1-ask">1. Ask</a><a href="#2-mcp-server">2. MCP server</a><a href="#3-satellite-embeddings">3. Satellite embeddings</a><a href="#4-your-own-model-object-detection-and-segmentation">4. Your own model: object detection and segmentation</a><a href="#5-safety">5. Safety</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/AI.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>

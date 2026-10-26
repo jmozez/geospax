@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Features · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX features: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features" aria-current="page">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="what-geospax-borrows-and-how-it-makes-each-feature-lazy"><a class="anchor" href="#what-geospax-borrows-and-how-it-makes-each-feature-lazy">#</a>What GeoSpaX borrows, and how it makes each feature lazy</h1>
+<p>GeoSpaX borrows proven features from commercial and open-source GIS, remote-sensing and data-science tools. It then
+<strong>automates</strong> them: smart defaults, auto-chosen methods, recipes and triggers (<a href="https://github.com/jmozez/geospax/blob/main/VISION.md" rel="noopener" target="_blank">VISION.md</a>, <a href="/docs/automation">AUTOMATION.md</a>).</p>
+<p><strong>Rules for borrowing</strong></p>
+<ul>
+<li>From <strong>commercial products</strong> we borrow <em>ideas and workflows</em> only, through clean-room specs written from public docs. No decompiled code, copied UI assets or doc text (TECH_STACK §1).</li>
+<li>From <strong>open-source tools</strong> we reuse code where the license allows. GPL/AGPL engines (GRASS, SAGA, SNAP, R, OpenDroneMap) run as <strong>separate processes</strong> (&quot;providers&quot;), so the GeoSpaX core stays Apache-2.0 OR MIT.</li>
+</ul>
+<p><strong>How each feature is built:</strong> <code>N</code> native Rust engine · <code>G</code> GDAL/PDAL/PROJ in-process · <code>P</code> provider process · <code>R</code> R step · <code>Py</code> Python step · <code>W</code> WASM in the web edition · <code>AI</code> optional LLM.
+<strong>Phase</strong> (see TECH_STACK §8): P1 Viewer · P2 Autopilot · P3 Field &amp; sensors · P4 Remote-sensing &amp; geostats autopilot · P5 Cartographer &amp; publisher · P6 Platform. ✅ built · 🚧 started.</p>
+<p><strong>Plugins (1.8):</strong> one tool model that reads the manifests of five ecosystems — GeoSpaX <code>plugin.yaml</code>,
+RustGIS <code>.rgplugin</code> (Apache-2.0), GeoLibre <code>plugin.json</code> + WASI tool bundles (MIT), QGIS <code>metadata.txt</code>
+(algorithms through <code>qgis_process</code>) and ArcGIS Pro <code>Config.daml</code> + <code>.pyt</code> (ribbon imported, Python
+toolbox tools run through arcpy; the .NET assembly cannot). Runtimes: recipe, process, python, r, wasm.
+Each plugin reports honestly what it needs when a runtime is missing, and installing one makes it
+removable again (uninstall never touches a <code>--plugins</code> dev folder) (<a href="/docs/plugins">PLUGINS.md</a>).</p>
+<p><strong>Desktop workbench (1.7):</strong> ribbon with 40 commands, dockable panes (Contents/Explorer/Project · Symbology/**
+Attributes**/Rasters/Devices · Automate/History/Log), command palette (<code>Ctrl+K</code>), paged attribute table with
+zoom-to-row and charts, run history, status bar, resizable and collapsible docks, Identify popups. Structure modelled
+on <strong>RustGIS</strong> (Apache-2.0: &quot;everything is a command&quot;, ribbon/pane vocabulary) and <strong>GeoLibre</strong> (MIT: pane set,
+attribute table as a peer of the map) — patterns re-implemented in TypeScript, no source copied
+(<a href="https://github.com/jmozez/geospax/blob/main/THIRD_PARTY_NOTICES.md" rel="noopener" target="_blank">THIRD_PARTY_NOTICES.md</a>).</p>
+<p><strong>Built so far (automation engine v0 + Phase 2 slice 2 + sensor hub v1, October 2026):</strong></p>
+<ul>
+<li>AutoMap rules that explain themselves, automatic page layouts with collision-free point labels, finished PNG/SVG/<strong>PDF</strong> maps and an HTML report;</li>
+<li><strong>raster maps</strong> with relief shading, ramp and class legends;</li>
+<li>recipes with device / folder / schedule / after / <strong>stac / webhook / sensor</strong> triggers (threshold, geofence);</li>
+<li>SQL, buffer, hexbin and cross-validated IDW;</li>
+<li><strong>spatial statistics (1.6)</strong>: Gi* hot spots with automatic scale and FDR, global Moran&#39;s I, automatic kriging with standard-error maps, native and checked against R spdep/gstat;</li>
+<li><strong>terrain</strong> (Copernicus DEM for any area, hillshade, slope, aspect, TRI/TPI, contours);</li>
+<li><strong>remote sensing</strong> (STAC search, NDVI and other indices from the newest pass that is clear over the area, true colour);</li>
+<li>raster classification with areas, raster values at points;</li>
+<li><strong>GRASS and SAGA providers</strong>;</li>
+<li>R steps (gstat kriging) and Python steps (point-pattern statistics);</li>
+<li>the device and <strong>sensor</strong> hub: sensor-logger CSV/JSON and FIT readings, live sensors over HTTP and MQTT (OwnTracks phones too), WHO air-quality guideline checks and classes;</li>
+<li><strong>LiDAR</strong> (1.4: LAS/LAZ → DTM, DSM, canopy, buildings, tree tops) and <strong>3D scenes</strong> (1.5: terrain block diagrams, extruded buildings, trees and point clouds → glTF, an offline viewer and a rendered picture, made by the recipes themselves).</li>
+</ul>
+<p>These are marked ✅ / 🚧 in the tables below; details are in <a href="/docs/automation">AUTOMATION.md</a>, <a href="/docs/devices">DEVICES.md</a>, <a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md#11-automation-engine-v0" rel="noopener" target="_blank">RESULTS §11</a>, <a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md#12-rasters-terrain-remote-sensing-and-providers" rel="noopener" target="_blank">§12</a> and <a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md#13-sensors-loggers-watches-live-feeds-and-sensor-triggers" rel="noopener" target="_blank">§13</a>.</p>
+<hr>
+<h2 id="desktop-gis"><a class="anchor" href="#desktop-gis">#</a>Desktop GIS</h2>
+<h3 id="arcgis-pro-esri-commercial"><a class="anchor" href="#arcgis-pro-esri-commercial">#</a>ArcGIS Pro (Esri, commercial)</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>Smart mapping style suggestions</td>
+<td><strong>AutoMap</strong>: profiles every layer and picks symbology, classification, ramp and labels, with a <em>why</em> line and 3 alternatives</td>
+<td>N</td>
+<td>P2 (✅ v0: field choice, method from skewness, ramp by meaning, labels, map-level rules, <em>why</em> lines; 3 alternatives next)</td>
+</tr>
+<tr>
+<td>ModelBuilder, iterators, Tasks</td>
+<td>Recipe graph view; <code>for_each</code> over files, features, dates or devices; guided recipes for first-timers</td>
+<td>N</td>
+<td>P2 (🚧 recipes + runner + 13 gallery recipes ✅; graph view, <code>for_each</code> next)</td>
+</tr>
+<tr>
+<td>Geoprocessing history</td>
+<td>Every action is logged as a command; <strong>&quot;Save as recipe&quot;</strong> turns the session into a workflow</td>
+<td>N</td>
+<td>P2 (🚧 &quot;Save this map as a recipe&quot; ✅; session log next)</td>
+</tr>
+<tr>
+<td>Geostatistical Analyst (kriging wizard, EBK, cross-validation)</td>
+<td><strong>Auto-kriging</strong>: three variogram models fitted, ordinary kriging cross-validated against IDW (lower error wins), prediction + standard-error maps, variogram chart, plain-language report</td>
+<td>N (<code>interpolate.auto</code>); R (gstat, automap) / Py (PyKrige, GSTools) for more</td>
+<td>P4 (✅ v1.6 native <code>interpolate.auto</code>, equal to gstat <code>krige</code>/<code>krige.cv</code>; <code>r-kriging</code> recipe ✅; EBK, anisotropy, trends next)</td>
+</tr>
+<tr>
+<td>Image Analyst, deep-learning classify pixels/objects</td>
+<td>Pretrained land-cover and object models run as recipe steps; training samples suggested</td>
+<td>Py (TorchGeo, SAM) / N (ONNX)</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Layouts, map series, dynamic text</td>
+<td>Auto layout (title, legend, scale bar, north arrow, credits) and auto atlas per feature or region</td>
+<td>N (Typst/SVG)</td>
+<td>P5 (🚧 auto layout → PNG/SVG/PDF ✅ in <code>export.map</code>, rasters with relief shading ✅; atlas next)</td>
+</tr>
+<tr>
+<td>Local scenes: elevation surfaces, vertical exaggeration, extrusion, LAS dataset layers, Export to glTF / 3D Object</td>
+<td><strong>3D scene in every LiDAR and terrain recipe</strong>: block diagram draped with map colours, relief shading, imagery or contours; buildings extruded to their heights, trees, point cloud; exaggeration chosen from the relief; glTF + offline viewer + picture in the report (<a href="/docs/automation#6d-3d-scenes-built">AUTOMATION §6d</a>)</td>
+<td>N (own mesher, glTF writer, CPU renderer, WebGL viewer)</td>
+<td>✅ v1.5; LOD2 roofs, I3S/3D Tiles next</td>
+</tr>
+<tr>
+<td>Network Analyst (routes, service areas)</td>
+<td>&quot;What can I reach in 15 min?&quot; as one step (isochrones, OD matrices)</td>
+<td>P (Valhalla/OSRM) / Py (osmnx)</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Contents pane (drawing order, group layers, expandable legends), contextual tabs</td>
+<td><strong>Pro mode</strong>: a layer tree with Map node, group layers, twisties, drag into groups and a group switch; a contextual <strong>Layer</strong> tab for the selected layer. <strong>Lazy mode</strong> turns the same layers into cards that explain themselves</td>
+<td>N</td>
+<td>✅ next</td>
+</tr>
+<tr>
+<td>Geoprocessing pane (search tools, favourites, history)</td>
+<td><strong>Toolbox</strong>: recipes, building blocks and every plugin&#39;s tools in one ranked search; each building block lists the ArcGIS Pro / QGIS tools it stands in for, so their names find it; recently used on top</td>
+<td>N</td>
+<td>✅ next</td>
+</tr>
+<tr>
+<td>Pro assistant (help, SQL, ArcPy code) [1]</td>
+<td><strong>Ask</strong> pane: questions about the data answered through GeoSpaX&#39;s own tools (queries, statistics, selections, recipes without code), every tool call listed; local (Ollama, OpenAI-compatible) or Claude with your key; the same tools as an <strong>MCP server</strong>. Natural language → recipe: P2</td>
+<td>AI</td>
+<td>✅ Ask + MCP next; recipe writer P2</td>
+</tr>
+</tbody></table></div><h3 id="qgis-4-gpl"><a class="anchor" href="#qgis-4-gpl">#</a>QGIS 4 (GPL)</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>Processing toolbox with GDAL/GRASS/SAGA providers</td>
+<td><strong>Provider federation</strong>: one step vocabulary, and the best installed engine is picked automatically (and recorded)</td>
+<td>N + P</td>
+<td>P2 (🚧 GDAL in-process ✅, <code>grass</code> and <code>saga</code> steps ✅; automatic engine choice next)</td>
+</tr>
+<tr>
+<td>Processing toolbox search across providers</td>
+<td>The <strong>Toolbox</strong> searches GeoSpaX, GeoLibre (1,062 tools), QGIS (<code>qgis_process</code>), ArcGIS Pro (<code>.pyt</code>) and RustGIS tools at once, with a badge per source</td>
+<td>N</td>
+<td>✅ next</td>
+</tr>
+<tr>
+<td>Graphical modeler, batch processing</td>
+<td>Recipes, batch over folders and devices, triggers</td>
+<td>N</td>
+<td>P2 (🚧 recipes + device/folder/schedule/after/stac/webhook/sensor triggers ✅)</td>
+</tr>
+<tr>
+<td>Expressions, data-defined overrides</td>
+<td>DuckDB/SQL expressions in recipes and styles</td>
+<td>N</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>Print layouts, atlas, layout charts and legend sync modes (new in 4.0) [2]</td>
+<td>Auto layouts with charts; legend synced to visible layers by default</td>
+<td>N</td>
+<td>P5 (🚧 legend from styles with class counts ✅; charts next)</td>
+</tr>
+<tr>
+<td>Labeling engine (collision, priorities)</td>
+<td>Auto-labels: label field guessed (name/title/label), collision-free, priority by size or rank</td>
+<td>N</td>
+<td>P5 (🚧 points ✅: field guessed, 4-position collision avoidance; lines/polygons next)</td>
+</tr>
+<tr>
+<td>GPS panel, QField companion</td>
+<td><strong>Device hub</strong>: live GNSS, phone streaming, OwnTracks over MQTT, auto-import, geofence triggers (<a href="/docs/devices">DEVICES.md</a>)</td>
+<td>N</td>
+<td>✅ v1 (Linux mounts, NMEA, gpsd, phone page, MQTT); Windows/macOS MTP, BLE in P3</td>
+</tr>
+<tr>
+<td>Point-cloud algorithms (Height Above Ground, SMRF ground, virtual point clouds; new in 4.0) [2]</td>
+<td>LiDAR autopilot: ground → DTM/DSM/CHM → building/tree extraction, started by dropping the files (<a href="/docs/automation#6c-lidar-point-clouds-built">AUTOMATION §6c</a>)</td>
+<td>N (<code>las</code>/<code>laz-rs</code>, own SMRF)</td>
+<td>✅ v1.4 (LAS/LAZ, vendor classes or SMRF, buildings, tree tops); colourised point cloud in 3D ✅ v1.5; E57/PLY next</td>
+</tr>
+<tr>
+<td>3D map view, Qgis2threejs export</td>
+<td>The 3D scene opens from the run card (🧊 3D) and travels as one <code>scene.html</code> that works offline in any browser; <code>scene.glb</code> for other 3D tools</td>
+<td>N</td>
+<td>✅ v1.5; 3D inside the main map next</td>
+</tr>
+<tr>
+<td>Geometry checker, fix geometries</td>
+<td>Auto-clean on import (validity, duplicates, encoding, empty geometries), with a report</td>
+<td>G/N</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>Georeferencer</td>
+<td>Assisted georeferencing (control points suggested from a reference layer)</td>
+<td>N</td>
+<td>P5</td>
+</tr>
+</tbody></table></div><h3 id="mapinfo-pro-precisely-commercial"><a class="anchor" href="#mapinfo-pro-precisely-commercial">#</a>MapInfo Pro (Precisely, commercial)</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>Thematic map wizards, heat maps, temporal mapping [3]</td>
+<td>Covered by AutoMap; time fields detected, so an animation is offered automatically</td>
+<td>N</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>Spatial services: Search Nearby, Overlap, Summarize (v23.2) [3]</td>
+<td>One-click &quot;what&#39;s near / what overlaps / summarize by area&quot; steps</td>
+<td>N</td>
+<td>P2 (🚧 buffer + hexbin summarise ✅)</td>
+</tr>
+<tr>
+<td>SQL Select, saved queries, MapBasic</td>
+<td>Plain-language filter → SQL; recipes + R/Python instead of a proprietary language</td>
+<td>N / AI</td>
+<td>P2 (🚧 <code>vector.sql</code> ✅, R/Python steps ✅)</td>
+</tr>
+<tr>
+<td>Redistricting / territory balancing</td>
+<td>&quot;Balance territories by X&quot; recipe (regionalization with constraints)</td>
+<td>Py (PySAL max-p)</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Drone data add-in [3]</td>
+<td>Drone autopilot (device hub + OpenDroneMap)</td>
+<td>P</td>
+<td>P3</td>
+</tr>
+<tr>
+<td>3DMap window (Vertical Mapper surfaces in 3D)</td>
+<td>Any elevation raster → <code>scene.3d</code> (one step after <code>dem.fetch</code>, <code>interpolate.idw</code>, a GRASS/SAGA surface)</td>
+<td>N</td>
+<td>✅ v1.5</td>
+</tr>
+</tbody></table></div><h3 id="geolibre-mit-and-rustgis-apache-20"><a class="anchor" href="#geolibre-mit-and-rustgis-apache-20">#</a>GeoLibre (MIT) and RustGIS (Apache-2.0)</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>1,000+ WebAssembly geoprocessing tools (GeoLibre, geolibre-wasm / whitebox_next_gen)</td>
+<td><strong>Bundled</strong>: all 1,062 tools as the <code>geolibre-tools</code> plugin, run locally under Node&#39;s WASI; layers resolve to their files and results join the map (<a href="/docs/plugins#1a-geolibre-tools-bundled">PLUGINS §1a</a>)</td>
+<td>P (WASI)</td>
+<td>✅ next</td>
+</tr>
+<tr>
+<td>DuckDB Spatial SQL workspace (GeoLibre)</td>
+<td>SQL steps inside recipes, in the native engine (larger-than-memory)</td>
+<td>N</td>
+<td>P2 (🚧 SQLite/SpatiaLite ✅; DuckDB next)</td>
+</tr>
+<tr>
+<td>Batch runner, model/pipeline chaining (GeoLibre) [4]</td>
+<td>Recipes with triggers, caching and provenance</td>
+<td>N</td>
+<td>P2 (🚧 triggers, <code>after</code> chains, provenance ✅; cache next)</td>
+</tr>
+<tr>
+<td>Auditable, undoable assistant operations (GeoLibre) [4]</td>
+<td>The AI only emits recipe steps, so everything stays auditable, undoable and re-runnable</td>
+<td>AI</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>SamGeo / SAM segmentation (GeoLibre) [4]</td>
+<td>Segment-anything step in the RS autopilot</td>
+<td>Py</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Story maps, offline region download, Android (GeoLibre) [4]</td>
+<td>Story generated from a recipe run (one step per slide); offline packs built automatically before field trips</td>
+<td>N</td>
+<td>P3/P5</td>
+</tr>
+<tr>
+<td>Command registry, undo, transaction log, CLI, sandboxed WASM plugins (RustGIS) [5]</td>
+<td>Command log → recipes; <code>geospax run</code> CLI; WASM recipe steps and plugins</td>
+<td>N / W</td>
+<td>P2/P6 (🚧 <code>geospax run/check/watch</code> ✅)</td>
+</tr>
+</tbody></table></div><h3 id="global-mapper-blue-marble-commercial-known-for-ease-of-use"><a class="anchor" href="#global-mapper-blue-marble-commercial-known-for-ease-of-use">#</a>Global Mapper (Blue Marble, commercial; known for ease of use)</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>&quot;Open anything&quot; format breadth, instant display</td>
+<td>GDAL/PDAL breadth with auto-open, auto-CRS, auto-overviews</td>
+<td>G</td>
+<td>P1 ✅ / P2</td>
+</tr>
+<tr>
+<td>Terrain tools: volumes, contours, profiles</td>
+<td>&quot;Terrain report&quot; recipe from any DEM</td>
+<td>N / P</td>
+<td>P4 (✅ <code>terrain-report</code>: Copernicus DEM, relief, slope classes with ha, contours, PDF; volumes and profiles next)</td>
+</tr>
+</tbody></table></div><h2 id="open-source-analysis-engines-called-as-providers"><a class="anchor" href="#open-source-analysis-engines-called-as-providers">#</a>Open-source analysis engines (called as providers)</h2>
+<h3 id="grass-85-gpl"><a class="anchor" href="#grass-85-gpl">#</a>GRASS 8.5 (GPL)</h3>
+<p>New in 8.5: a <code>grass.tools</code> Python API that calls tools as functions with NumPy I/O, wider parallelization, and JSON outputs [6]. We use it as a provider.</p>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td><code>r.watershed</code>, <code>r.stream.*</code>, <code>r.fill.dir</code></td>
+<td>&quot;Watersheds &amp; streams&quot; from a DEM (fetched automatically for the area if missing)</td>
+<td>P</td>
+<td>P4</td>
+</tr>
+<tr>
+<td><code>r.sun</code>, <code>r.viewshed</code>, <code>r.cost</code>, <code>r.walk</code></td>
+<td>Solar potential, visibility and cost-distance as one-click recipes</td>
+<td>P</td>
+<td>P4</td>
+</tr>
+<tr>
+<td><code>i.segment</code>, <code>i.maxlik</code>, <code>i.cluster</code></td>
+<td>Segmentation and classification steps in the RS autopilot</td>
+<td>P</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Temporal framework (<code>t.*</code>)</td>
+<td>Time-series recipes (monthly NDVI trends, anomalies)</td>
+<td>P</td>
+<td>P4</td>
+</tr>
+<tr>
+<td><code>r.geomorphon</code> and any other module</td>
+<td>Landforms in plain words (flat, peak, ridge, …) with GRASS&#39;s colours; any GRASS script as a recipe step</td>
+<td>P (<code>grass --tmp-project --exec</code>)</td>
+<td>P2 (✅ <code>grass</code> step, <code>landforms-grass</code>)</td>
+</tr>
+<tr>
+<td>NVIZ / <code>m.nviz.image</code> (3D surfaces with draped rasters and vectors)</td>
+<td><code>scene.3d</code> drapes any raster (<code>drape:</code>) and paints vector layers on (<code>overlay:</code>), with no camera to set: the view and exaggeration are chosen and explained</td>
+<td>N</td>
+<td>✅ v1.5</td>
+</tr>
+</tbody></table></div><h3 id="saga-gpl--whitebox-mit-open-core--orfeo-toolbox-apache-20"><a class="anchor" href="#saga-gpl--whitebox-mit-open-core--orfeo-toolbox-apache-20">#</a>SAGA (GPL) · Whitebox (MIT open core) · Orfeo ToolBox (Apache-2.0)</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>SAGA terrain analysis (TWI, LS-factor, channel network, TPI, landforms), kriging</td>
+<td>Part of the terrain report; landform classes labelled in plain words</td>
+<td>P (<code>saga_cmd</code>)</td>
+<td>P4 (✅ <code>saga</code> step, <code>wetness-saga</code>)</td>
+</tr>
+<tr>
+<td>GDAL DEM tools (hillshade, slope, aspect, TRI, TPI, roughness, contours)</td>
+<td>Built-in terrain steps with automatic z-factor, contour interval and smoothing</td>
+<td>N (GDAL in-process)</td>
+<td>P2 (✅ <code>terrain.derive</code>, <code>terrain.contours</code>)</td>
+</tr>
+<tr>
+<td>Whitebox hydrology, LiDAR and terrain tools (500+)</td>
+<td>Default native provider for terrain/hydrology steps</td>
+<td>N/P</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>OTB streaming apps (pan-sharpening, LSMS segmentation, SVM/RF classification, SAR)</td>
+<td>Large-image steps with automatic tiling and streaming</td>
+<td>P (<code>otbcli</code>)</td>
+<td>P4</td>
+</tr>
+</tbody></table></div><h2 id="remote-sensing-and-photogrammetry"><a class="anchor" href="#remote-sensing-and-photogrammetry">#</a>Remote sensing and photogrammetry</h2>
+<h3 id="erdas-imagine--octave-imagine-hexagon-commercial"><a class="anchor" href="#erdas-imagine--octave-imagine-hexagon-commercial">#</a>ERDAS IMAGINE / Octave Imagine (Hexagon, commercial)</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>Spatial Modeler, &quot;no-code workflows with AI and automation&quot; [7]</td>
+<td>Recipes (graph view + YAML)</td>
+<td>N</td>
+<td>P2 (🚧 YAML ✅; graph view next)</td>
+</tr>
+<tr>
+<td>Indices, band math, Recode, Subset</td>
+<td><code>rs.index</code> (NDVI, NDWI, NBR, NDMI, SAVI, EVI, cloud-masked), <code>raster.classify</code> with areas, <code>rs.fetch</code> for the area only</td>
+<td>N</td>
+<td>P2 (✅)</td>
+</tr>
+<tr>
+<td>Supervised/unsupervised classification (ISODATA, max likelihood), accuracy assessment</td>
+<td>Auto-classification: training samples suggested, accuracy report written automatically</td>
+<td>P (OTB/GRASS) / Py</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Orthorectification, mosaicking, pan-sharpening, ATCOR atmospheric correction [7]</td>
+<td>Auto-ortho, mosaic, pan-sharpen; surface reflectance via open processors (Sen2Cor/6S-style)</td>
+<td>P</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Change detection (DeltaCue, zonal change)</td>
+<td><strong>&quot;What changed?&quot;</strong>: two dates → change map + area table + report</td>
+<td>N / P</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Photogrammetry (semi-global matching dense clouds) [7]</td>
+<td>Drone autopilot via OpenDroneMap (AGPL, separate process)</td>
+<td>P</td>
+<td>P3/P4</td>
+</tr>
+<tr>
+<td>VirtualGIS / 3D viewing of imagery on terrain</td>
+<td>Imagery fetched in the run (<code>rs.fetch</code>) is draped on the terrain automatically</td>
+<td>N</td>
+<td>✅ v1.5</td>
+</tr>
+</tbody></table></div><h3 id="envi-nv5-geospatial--ecognition-trimble--terrset-clark-labs-all-commercial"><a class="anchor" href="#envi-nv5-geospatial--ecognition-trimble--terrset-clark-labs-all-commercial">#</a>ENVI (NV5 Geospatial) · eCognition (Trimble) · TerrSet (Clark Labs), all commercial</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>ENVI spectral tools: SAM, MNF, PPI, spectral libraries, band math</td>
+<td>Index library picked automatically from sensor metadata (NDVI, NDWI, NBR, …); SAM against open spectral libraries</td>
+<td>N / Py</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>ENVI Modeler</td>
+<td>Recipes</td>
+<td>N</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>eCognition object-based image analysis (multiresolution segmentation + rule sets)</td>
+<td>OBIA recipes (segmentation → features → classifier), with rules suggested from samples</td>
+<td>P / Py</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>TerrSet Land Change Modeler, Earth Trends Modeler</td>
+<td>Land-change projection and trend/seasonality recipes</td>
+<td>Py / R</td>
+<td>P4</td>
+</tr>
+</tbody></table></div><h3 id="esa-snap-gpl--google-earth-engine-cloud-proprietary"><a class="anchor" href="#esa-snap-gpl--google-earth-engine-cloud-proprietary">#</a>ESA SNAP (GPL) · Google Earth Engine (cloud, proprietary)</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>SNAP Sentinel-1/2/3 toolboxes, Graph Builder, <code>gpt</code> batch</td>
+<td>SAR autopilot: orbit → calibration → speckle → terrain correction → <strong>flood map</strong></td>
+<td>P (<code>gpt</code>)</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Earth Engine catalog, reducers, cloud-free composites, time series</td>
+<td>STAC-based &quot;virtual catalog&quot;: search, cloud mask, median composite and zonal stats for your area, locally or through openEO backends</td>
+<td>N / Py</td>
+<td>P4 (🚧 STAC search, per-area cloud check, masked indices ✅ (<code>rs.*</code>, <code>latest-ndvi</code>, <code>stac</code> trigger); composites, zonal stats next)</td>
+</tr>
+<tr>
+<td>Copernicus DEM / SRTM access</td>
+<td>The DEM for any area, fetched as COG windows and reprojected to UTM</td>
+<td>N</td>
+<td>P2 (✅ <code>dem.fetch</code>)</td>
+</tr>
+<tr>
+<td>Earth Engine code editor</td>
+<td>Recipes + notebooks; an optional connector uses your own Earth Engine/openEO credentials</td>
+<td>Py</td>
+<td>P4</td>
+</tr>
+</tbody></table></div><h3 id="lidar-and-drones-pdal-lastools-opendronemap-pix4dmetashape"><a class="anchor" href="#lidar-and-drones-pdal-lastools-opendronemap-pix4dmetashape">#</a>LiDAR and drones (PDAL, LAStools, OpenDroneMap, Pix4D/Metashape)</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>PDAL pipelines, LAStools-style ground/height/classify (<code>lasground</code>, <code>lasheight</code>, <code>las2dem</code>), lidR <code>rasterize_terrain</code>/<code>locate_trees</code>, ArcGIS LAS Dataset to Raster + Classify LAS Ground + Extract Buildings</td>
+<td><code>lidar-to-terrain</code>: one drop → DTM (vendor classes or SMRF), DSM, canopy height, building outlines with roof heights, tree tops with heights, maps + report; 2 cm terrain error and 40/40 trees on the test scene</td>
+<td>N</td>
+<td>✅ v1.4</td>
+</tr>
+<tr>
+<td>Pix4D / Metashape / ODM processing</td>
+<td>Plug in the SD card: orthomosaic, DSM, and NDVI if multispectral, then map + report</td>
+<td>P (ODM)</td>
+<td>P3/P4</td>
+</tr>
+<tr>
+<td>CloudCompare / Potree point-cloud viewing</td>
+<td>The run&#39;s point cloud in the 3D scene (about 250,000 points in the file&#39;s own colours, else by class or elevation), next to the modelled terrain, buildings and trees</td>
+<td>N</td>
+<td>✅ v1.5; full-density streaming (COPC/Potree-style) next</td>
+</tr>
+</tbody></table></div><h2 id="spatial-statistics-geostatistics-data-science"><a class="anchor" href="#spatial-statistics-geostatistics-data-science">#</a>Spatial statistics, geostatistics, data science</h2>
+<h3 id="geoda--pysal--r--python"><a class="anchor" href="#geoda--pysal--r--python">#</a>GeoDa / PySAL · R · Python</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>GeoDa ESDA: Moran&#39;s I, LISA clusters, spatial regression, regionalization (SKATER, max-p)</td>
+<td><strong>&quot;Find hotspots / clusters&quot;</strong>: weights chosen automatically, significance explained, map + table</td>
+<td>N (<code>stats.hotspots</code>); Py (PySAL esda/spreg) / R (spdep) for more</td>
+<td>P4 (✅ v1.6 global Moran&#39;s I + Gi* hot spots, equal to spdep; LISA clusters, regression, regionalization next)</td>
+</tr>
+<tr>
+<td>ArcGIS Optimized Hot Spot Analysis + Incremental Spatial Autocorrelation</td>
+<td><strong><code>points-to-hotspots</code> recipe</strong>: incidents counted in auto-sized hexagons, distance band from the first clustering peak, Gi* with FDR, hot/cold map at 90/95/99 % and the reasons in the report</td>
+<td>N</td>
+<td>P4 (✅ v1.6: 1,120 incidents in 0.04 s, 1 M points in 2.2 s)</td>
+</tr>
+<tr>
+<td>ArcGIS Spatial Statistics: Mean Center, Standard Distance, Directional Distribution, Average Nearest Neighbor</td>
+<td><strong><code>python-spatial-stats</code> recipe</strong>: centre, spread, deviational ellipse and the Clark–Evans index (clustered / random / dispersed) in plain words, on the map</td>
+<td>Py</td>
+<td>P2 (✅ gallery recipe, plain Python)</td>
+</tr>
+<tr>
+<td>ArcGIS Generate Tessellation + Summarize Within; QGIS Count points in polygon</td>
+<td><strong><code>points-to-hexbins</code> recipe</strong>: auto-sized hexagons with counts (or sum/mean), classes chosen from the distribution</td>
+<td>N</td>
+<td>P2 (✅ <code>aggregate.hexbin</code>, 1M points in 0.5 s)</td>
+</tr>
+<tr>
+<td>R <code>sf</code>, <code>terra</code>, <code>stars</code></td>
+<td>R steps receive layers as <code>sf</code>/<code>terra</code> objects (GeoParquet/COG exchange)</td>
+<td>R</td>
+<td>P2 (✅ v1: <code>sf</code> in/out via GeoJSON/GPKG; GeoParquet/COG next)</td>
+</tr>
+<tr>
+<td>R <code>gstat</code> + <code>automap::autoKrige</code></td>
+<td>The auto-kriging engine, fittingly an &quot;automap&quot; for lazy users</td>
+<td>R</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>R <code>spatstat</code>, <code>mgcv</code>, <code>INLA</code></td>
+<td>Point-pattern analysis and spatial models as advanced recipe steps</td>
+<td>R</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>R <code>tmap</code>, <code>mapsf</code>, <code>ggplot2</code></td>
+<td>&quot;Show me the R code&quot; for any AutoMap; publication maps</td>
+<td>R</td>
+<td>P2/P5</td>
+</tr>
+<tr>
+<td>Python <code>geopandas</code>, <code>shapely</code>, <code>rasterio</code>, <code>xarray</code>, <code>dask</code></td>
+<td>Python steps with Arrow/GeoParquet exchange; notebooks beside the map</td>
+<td>Py</td>
+<td>P2 (✅ v1: GeoDataFrame or GeoJSON in, layers + numbers out)</td>
+</tr>
+<tr>
+<td>Python <code>scikit-learn</code>, <code>PyKrige</code>, <code>GSTools</code>, <code>mgwr</code></td>
+<td>ML regression/classification, kriging, geographically weighted regression</td>
+<td>Py</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>Python <code>pystac-client</code>, <code>stackstac</code>/<code>odc-stac</code>, <code>TorchGeo</code>, <code>segment-geospatial</code></td>
+<td>RS autopilot building blocks</td>
+<td>Py</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>webR, Pyodide</td>
+<td>Light R/Python steps in the browser edition, with no server-side install</td>
+<td>W</td>
+<td>P4</td>
+</tr>
+</tbody></table></div><h2 id="automation-and-lazy-web-mapping"><a class="anchor" href="#automation-and-lazy-web-mapping">#</a>Automation and lazy web mapping</h2>
+<h3 id="fme-safe-software--carto-workflows--felt--keplergl--datawrapper"><a class="anchor" href="#fme-safe-software--carto-workflows--felt--keplergl--datawrapper">#</a>FME (Safe Software) · CARTO Workflows · Felt / kepler.gl / Datawrapper</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>FME transformers, automations (triggers, schedules, webhooks), validation</td>
+<td>Recipe triggers, connectors, data-quality checks</td>
+<td>N</td>
+<td>P2 (✅ device / folder / schedule / after / stac / webhook / sensor triggers)</td>
+</tr>
+<tr>
+<td>CARTO no-code workflows in data warehouses</td>
+<td>Recipe steps against DuckDB, PostGIS and cloud warehouses</td>
+<td>N</td>
+<td>P6</td>
+</tr>
+<tr>
+<td>Felt: instant good-looking defaults, share links, natural language → map + style [8]</td>
+<td>AutoMap + one-click publish to a static web map (PMTiles + MapLibre, no server needed)</td>
+<td>N</td>
+<td>P2/P5 (🚧 AutoMap + finished PNG/SVG map + report ✅; web-map publish next)</td>
+</tr>
+<tr>
+<td>kepler.gl / Datawrapper: beautiful defaults with no setup</td>
+<td>Colour-blind-safe palettes and typographic defaults out of the box</td>
+<td>N</td>
+<td>P2</td>
+</tr>
+</tbody></table></div><h2 id="field-data-capture"><a class="anchor" href="#field-data-capture">#</a>Field data capture</h2>
+<h3 id="esri-field-maps--survey123--qfield--mergin-maps--odk--kobotoolbox"><a class="anchor" href="#esri-field-maps--survey123--qfield--mergin-maps--odk--kobotoolbox">#</a>Esri Field Maps / Survey123 · QField / Mergin Maps · ODK / KoboToolbox</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>Form-based capture (XLSForm)</td>
+<td>Import XLSForm/ODK/Kobo submissions; a recipe builds the map + summary</td>
+<td>N</td>
+<td>P3</td>
+</tr>
+<tr>
+<td>Offline field maps, sync</td>
+<td>Offline packs made automatically; device-hub sync when the phone is plugged in or on Wi-Fi</td>
+<td>N</td>
+<td>P3</td>
+</tr>
+<tr>
+<td>Live location sharing</td>
+<td>Phone browser streaming, OwnTracks over MQTT and GNSS feeds into the live layer; a phone entering an area starts a recipe</td>
+<td>N</td>
+<td>✅ (phone page, NMEA, gpsd, MQTT; geofence trigger)</td>
+</tr>
+</tbody></table></div><h2 id="real-time-feeds-and-sensors"><a class="anchor" href="#real-time-feeds-and-sensors">#</a>Real-time feeds and sensors</h2>
+<h3 id="arcgis-velocity--geoevent-server--garmin-connect--strava--openaq--purpleair--sensorcommunity--r-openair--ogc-sensorthings"><a class="anchor" href="#arcgis-velocity--geoevent-server--garmin-connect--strava--openaq--purpleair--sensorcommunity--r-openair--ogc-sensorthings">#</a>ArcGIS Velocity / GeoEvent Server · Garmin Connect / Strava · OpenAQ / PurpleAir / Sensor.Community · R <code>openair</code> · OGC SensorThings</h3>
+<div class="table"><table><thead><tr>
+<th>Borrow</th>
+<th>GeoSpaX lazy version</th>
+<th>How</th>
+<th>Phase</th>
+</tr>
+</thead><tbody><tr>
+<td>Velocity / GeoEvent: real-time feeds (MQTT, HTTP), geofencing, incident detection, alerts [9]</td>
+<td><strong><code>sensor</code> trigger</strong>: threshold (<code>above</code>/<code>below</code>), geofence (<code>inside: &lt;polygon layer&gt;</code>), cooldown per device, on HTTP pushes, MQTT messages and GNSS fixes; the alert is a finished map + report (<code>air-quality-alert</code>)</td>
+<td>N</td>
+<td>✅ v1</td>
+</tr>
+<tr>
+<td>MQTT ingestion (IoT platforms, Home Assistant, Node-RED) [10]</td>
+<td>Built-in MQTT 3.1.1 subscriber (<code>--mqtt mqtt://host/topic/#</code>): generic sensor JSON, flat numeric payloads, device id from payload or topic</td>
+<td>N</td>
+<td>✅ (<code>mqtts://</code> and LoRaWAN payload mappings in P3)</td>
+</tr>
+<tr>
+<td>OwnTracks phone tracking [11]</td>
+<td>OwnTracks location messages become live phones (no GeoSpaX app on the phone)</td>
+<td>N</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Garmin Connect / Strava activity import (FIT) [12]</td>
+<td>Watches, bike computers and fitness sensors plug in like any device: track + per-second heart rate, cadence, power, temperature as a readings layer</td>
+<td>N (<code>fitparser</code>)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>OpenAQ / PurpleAir / Sensor.Community air-quality maps</td>
+<td>Logger CSV/JSON with coordinates → readings → PM classes at the <strong>WHO 2021 guideline and interim targets</strong> [13], share of readings above, hotspot map, report</td>
+<td>N</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>R <code>openair</code> (pollution summaries, polar plots)</td>
+<td><code>sensor.summary</code> (count, mean, p95, max, WHO exceedance); <code>openair</code> plots through the R step</td>
+<td>N / R</td>
+<td>✅ summary · polar plots P4</td>
+</tr>
+<tr>
+<td>OGC SensorThings API clients (FROST, OSGeo istSOS)</td>
+<td>Poll Things/Datastreams/Observations into the live store, same triggers</td>
+<td>N</td>
+<td>P3 (next)</td>
+</tr>
+<tr>
+<td>Phone sensor apps (SensorLog, phyphox exports)</td>
+<td>Their CSV exports (<code>locationLatitude(WGS84)</code> …) are sensor logs without configuration</td>
+<td>N</td>
+<td>✅ (CSV)</td>
+</tr>
+</tbody></table></div><hr>
+<h2 id="sources"><a class="anchor" href="#sources">#</a>Sources</h2>
+<ol>
+<li>Esri, ArcGIS Pro assistant 3.6 beta (Jan 2026): <a href="https://www.esri.com/arcgis-blog/products/arcgis-pro/announcements/join-the-arcgis-pro-assistant-3-6-beta-help-shape-the-future-of-desktop-gis" rel="noopener" target="_blank">https://www.esri.com/arcgis-blog/products/arcgis-pro/announcements/join-the-arcgis-pro-assistant-3-6-beta-help-shape-the-future-of-desktop-gis</a></li>
+<li>QGIS 4.0 changes: <a href="https://www.reddit.com/r/QGIS/comments/1rodk65/qgis_40_visual_changelog_official_video/" rel="noopener" target="_blank">https://www.reddit.com/r/QGIS/comments/1rodk65/qgis_40_visual_changelog_official_video/</a> · <a href="https://giscarta.com/blog/creating-a-demographic-map-copy" rel="noopener" target="_blank">https://giscarta.com/blog/creating-a-demographic-map-copy</a> · <a href="https://usemaps.com/en/qgis-4-0-whats-changed-webinar-summary/" rel="noopener" target="_blank">https://usemaps.com/en/qgis-4-0-whats-changed-webinar-summary/</a></li>
+<li>MapInfo Pro v23.2 announcement (Nov 2025): <a href="https://groups.google.com/g/mapinfo-l/c/x4nndYq8KxU" rel="noopener" target="_blank">https://groups.google.com/g/mapinfo-l/c/x4nndYq8KxU</a> · feature list: <a href="https://www.pelicangeographics.com/pbmapinfo" rel="noopener" target="_blank">https://www.pelicangeographics.com/pbmapinfo</a></li>
+<li>GeoLibre v1.3.0 and docs: <a href="https://github.com/opengeos/GeoLibre/discussions/385" rel="noopener" target="_blank">https://github.com/opengeos/GeoLibre/discussions/385</a> · <a href="https://github.com/opengeos/geolibre/blob/main/docs/index.md" rel="noopener" target="_blank">https://github.com/opengeos/geolibre/blob/main/docs/index.md</a></li>
+<li>RustGIS README: <a href="https://github.com/opengeos/RustGIS" rel="noopener" target="_blank">https://github.com/opengeos/RustGIS</a></li>
+<li>GRASS 8.5.0 release (May 2026): <a href="https://github.com/OSGeo/grass/releases/tag/8.5.0" rel="noopener" target="_blank">https://github.com/OSGeo/grass/releases/tag/8.5.0</a></li>
+<li>Hexagon, Octave Imagine (formerly ERDAS IMAGINE): <a href="https://hexagon.com/products/erdas-imagine" rel="noopener" target="_blank">https://hexagon.com/products/erdas-imagine</a></li>
+<li>Felt blog (Felt AI, MCP server): <a href="https://felt.com/blog" rel="noopener" target="_blank">https://felt.com/blog</a></li>
+<li>Esri, ArcGIS Velocity overview: <a href="https://www.esri.com/en-us/arcgis/products/arcgis-velocity/overview" rel="noopener" target="_blank">https://www.esri.com/en-us/arcgis/products/arcgis-velocity/overview</a></li>
+<li>OASIS, MQTT Version 3.1.1 (standard): <a href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/mqtt-v3.1.1.html" rel="noopener" target="_blank">https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/mqtt-v3.1.1.html</a></li>
+<li>OwnTracks JSON format: <a href="https://owntracks.org/booklet/tech/json/" rel="noopener" target="_blank">https://owntracks.org/booklet/tech/json/</a></li>
+<li>Garmin, FIT protocol: <a href="https://developer.garmin.com/fit/protocol/" rel="noopener" target="_blank">https://developer.garmin.com/fit/protocol/</a></li>
+<li>WHO global air quality guidelines (2021): <a href="https://www.who.int/publications/i/item/9789240034228" rel="noopener" target="_blank">https://www.who.int/publications/i/item/9789240034228</a></li>
+</ol>
+</article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#desktop-gis">Desktop GIS</a><a href="#open-source-analysis-engines-called-as-providers">Open-source analysis engines (called as providers)</a><a href="#remote-sensing-and-photogrammetry">Remote sensing and photogrammetry</a><a href="#spatial-statistics-geostatistics-data-science">Spatial statistics, geostatistics, data science</a><a href="#automation-and-lazy-web-mapping">Automation and lazy web mapping</a><a href="#field-data-capture">Field data capture</a><a href="#real-time-feeds-and-sensors">Real-time feeds and sensors</a><a href="#sources">Sources</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/FEATURE_MATRIX.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>

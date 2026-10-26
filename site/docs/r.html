@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>R and Python · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX r and python: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r" aria-current="page">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="r-in-geospax"><a class="anchor" href="#r-in-geospax">#</a>R in GeoSpaX</h1>
+<p>GeoSpaX runs R for the analysis and figures R is best at: tmap and ggplot2 maps for publication,
+terra rasters, rayshader relief, species distribution models with biomod2 and MaxEnt, tidymodels,
+dbplyr and Google Earth Engine through rgee. The data stays in GeoSpaX: layers and rasters on the map
+go into R as <code>sf</code> and <code>terra</code> objects, and what R returns comes back to the map and the report.</p>
+<h2 id="the-r-tab"><a class="anchor" href="#the-r-tab">#</a>The R tab</h2>
+<div class="table"><table><thead><tr>
+<th>Group</th>
+<th>Buttons</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Code</strong></td>
+<td><strong>R console</strong> · <strong>R setup</strong></td>
+</tr>
+<tr>
+<td><strong>Maps</strong></td>
+<td><strong>tmap map</strong> · ggplot2 map · Relief (rayshader)</td>
+</tr>
+<tr>
+<td><strong>Rasters</strong></td>
+<td><strong>Terrain</strong> (terra) · Earth Engine (rgee)</td>
+</tr>
+<tr>
+<td><strong>Species models</strong></td>
+<td><strong>biomod2</strong> (ensemble SDM) · MaxEnt (maxnet)</td>
+</tr>
+<tr>
+<td><strong>Machine learning</strong></td>
+<td><strong>tidymodels</strong> (random forest) · dbplyr (SQL in DuckDB)</td>
+</tr>
+</tbody></table></div><p>Every button opens the <strong>R console</strong> on a template. The template is ordinary R that you can read,
+change and copy into your own scripts. Pick the inputs, then press <strong>Run</strong>:</p>
+<ul>
+<li><strong>Layer (sf) → <code>layer</code></strong>: any layer on the map, as an sf object.</li>
+<li><strong>Raster (terra) → <code>raster</code></strong>: any raster on the map, as a terra SpatRaster (all its bands).</li>
+<li><strong>Packages</strong>: checked before the code runs. If one is missing, the console offers to install it.</li>
+</ul>
+<p>What the code returns comes back. Return a named list, or call the helpers:</p>
+<div class="table"><table><thead><tr>
+<th>R object</th>
+<th>Comes back as</th>
+<th>Helper</th>
+</tr>
+</thead><tbody><tr>
+<td>sf</td>
+<td>a layer on the map</td>
+<td><code>save_layer(&quot;name&quot;, x)</code></td>
+</tr>
+<tr>
+<td>terra SpatRaster (or raster)</td>
+<td>a raster on the map</td>
+<td><code>save_layer(&quot;name&quot;, r)</code></td>
+</tr>
+<tr>
+<td>ggplot or tmap</td>
+<td>a figure: PNG at 300 dpi, PDF and SVG</td>
+<td><code>save_figure(&quot;name&quot;, p, width = 180, height = 120, units = &quot;mm&quot;, dpi = 300, formats = c(&quot;png&quot;, &quot;pdf&quot;, &quot;svg&quot;))</code></td>
+</tr>
+<tr>
+<td>a function that draws (base graphics, <code>terra::plot</code>, rayshader <code>plot_map</code>)</td>
+<td>a figure</td>
+<td><code>save_figure(&quot;name&quot;, function() plot(x))</code></td>
+</tr>
+<tr>
+<td>data frame, matrix</td>
+<td>a table (shown, and kept as CSV)</td>
+<td><code>save_table(&quot;name&quot;, df)</code></td>
+</tr>
+<tr>
+<td>numbers or text</td>
+<td>the run log and the report</td>
+<td><code>result(auc = 0.91)</code></td>
+</tr>
+</tbody></table></div><p>Printed output (<code>print</code>, <code>summary</code>, <code>show_query</code>) shows under the results. Figures and tables are
+also in the run&#39;s files and its report. Each console run is kept in the run history (the recipe
+<code>r-console</code>). It is replaced by the next run, so save code you want to keep as a recipe (below).</p>
+<p>Online data (Data › Climate, Species …) feeds straight in. For a species distribution model, get
+occurrences from GBIF and bioclim layers from WorldClim, then open <strong>R &amp; Python › biomod2</strong> or <strong>R &amp; Python › MaxEnt</strong>
+with the occurrences as <code>layer</code> and the climate raster as <code>raster</code>.</p>
+<h2 id="r-setup"><a class="anchor" href="#r-setup">#</a>R setup</h2>
+<p><strong>R setup</strong> checks whether R is installed and which packages are there, and installs what is missing.</p>
+<ul>
+<li><strong>R itself</strong>: if R is missing, <strong>Install R and selected packages</strong> installs the official CRAN build.<ul>
+<li><strong>Windows</strong>: for the current user, without admin rights.</li>
+<li><strong>macOS</strong>: CRAN&#39;s installer; macOS asks for your password.</li>
+<li><strong>Linux</strong>: your package manager (apt, dnf, zypper or pacman); the system asks for your password.</li>
+<li>On a server without a desktop to ask on, R setup gives the command to run instead.</li>
+</ul>
+</li>
+<li><strong>Package kits</strong>: tick the kits you need; <em>Spatial data</em>, <em>Publication maps</em> and <em>Spatial statistics</em>
+are ticked by default.</li>
+</ul>
+<div class="table"><table><thead><tr>
+<th>Kit</th>
+<th>Packages</th>
+</tr>
+</thead><tbody><tr>
+<td>Spatial data</td>
+<td>sf, terra, stars</td>
+</tr>
+<tr>
+<td>Publication maps</td>
+<td>tmap, ggplot2, ggspatial, patchwork, viridisLite</td>
+</tr>
+<tr>
+<td>3D relief</td>
+<td>rayshader</td>
+</tr>
+<tr>
+<td>Species distribution models</td>
+<td>biomod2, maxnet, dismo, predicts</td>
+</tr>
+<tr>
+<td>Machine learning</td>
+<td>tidymodels, ranger</td>
+</tr>
+<tr>
+<td>Data wrangling and databases</td>
+<td>tidyverse, dbplyr, DBI, RSQLite, duckdb</td>
+</tr>
+<tr>
+<td>Spatial statistics</td>
+<td>gstat, spdep, spatstat</td>
+</tr>
+<tr>
+<td>Online data</td>
+<td>geodata, rgbif</td>
+</tr>
+<tr>
+<td>Google Earth Engine</td>
+<td>rgee</td>
+</tr>
+</tbody></table></div><p>Any other CRAN package can be named under <em>Other packages</em>.</p>
+<p><strong>How the packages are installed:</strong></p>
+<ul>
+<li><strong>Where</strong>: into GeoSpaX&#39;s own library (<code>&lt;state&gt;/r-library</code>). Your own R setup and library are not
+changed, and the R console and recipe R steps look there first.</li>
+<li><strong>Ready-built</strong>: the packages are binaries, so nothing is compiled. They come from CRAN on Windows
+and macOS, and from <a href="https://packagemanager.posit.co" rel="noopener" target="_blank">Posit Public Package Manager</a> for your
+distribution on Linux (Ubuntu, Debian, RHEL and relatives, openSUSE).</li>
+<li><strong>Progress and failures</strong>: installation needs internet and shows progress package by package. A
+package that fails is named at the end; the others are still installed.</li>
+</ul>
+<p><strong>rgee</strong> also needs a Google Earth Engine account and Python. Run <code>rgee::ee_install()</code> and
+<code>rgee::ee_Initialize()</code> once in R; after that, the Earth Engine template works.</p>
+<h2 id="r-in-the-web-edition"><a class="anchor" href="#r-in-the-web-edition">#</a>R in the web edition</h2>
+<p>In the web edition, R runs on the server. People using GeoSpaX in a browser get full R with every
+package, and nothing is installed on their computers. R setup installs R and the packages on the
+server, once.</p>
+<p>Running R inside the browser itself (webR) is possible for light work, but it is slower, downloads a
+lot, and rayshader, the heavier biomod2 models and rgee do not run there. It is not part of GeoSpaX yet.</p>
+<h2 id="r-in-recipes"><a class="anchor" href="#r-in-recipes">#</a>R in recipes</h2>
+<p>The console is a one-step recipe; any recipe can have R steps (<code>use: r</code>) between built-in steps.
+The step&#39;s inputs can be layers or rasters, and its outputs go on to the next steps
+(<a href="/docs/automation#6-r-and-python-steps-built">AUTOMATION §6</a>).</p>
+<pre><code class="language-yaml">  - id: sdm
+    use: r
+    with:
+      inputs: { layer: &quot;${occurrences.layer}&quot;, raster: &quot;${climate.raster}&quot; }
+      packages: [maxnet, terra, sf]
+      code: |
+        library(maxnet)
+        ...
+        list(suitability = terra::predict(raster, fit, type = &quot;cloglog&quot;, na.rm = TRUE))
+</code></pre>
+<p>Recipes with R or Python code run code on your computer, so GeoSpaX asks before saving one that
+came from elsewhere (<a href="/docs/automation#8-safety-and-trust">AUTOMATION §8</a>). Code typed in the R
+console is yours, so it runs without that question.</p>
+<h2 id="over-http"><a class="anchor" href="#over-http">#</a>Over HTTP</h2>
+<pre><code class="language-bash">curl localhost:8080/api/r                                  # R, its version, the kits, installed packages
+curl -X POST localhost:8080/api/r/install -d &#39;{&quot;kits&quot;: [&quot;maps&quot;, &quot;sdm&quot;], &quot;packages&quot;: [&quot;lidR&quot;]}&#39;
+curl localhost:8080/api/jobs/1                             # progress of that installation
+</code></pre>
+<h2 id="charts-and-code-style"><a class="anchor" href="#charts-and-code-style">#</a>Charts and code style</h2>
+<p><strong>Charts follow ggplot2.</strong> GeoSpaX sets <code>ggplot2::theme_set()</code> and the discrete colour palette
+before your code runs, from <strong>Settings › Charts</strong> (theme_grey by default; theme_bw, minimal, classic,
+light or dark; the ggplot2 hue palette, viridis, Okabe–Ito, Brewer Set2 or Dark2; the text size). The
+charts GeoSpaX draws itself (report charts, the Attributes chart, raster histograms) use the same look,
+so a report reads as one piece. Add your own <code>+ theme(...)</code> to change one chart.</p>
+<p><strong>Code follows the tidyverse style guide.</strong> The templates (R tab) use the native pipe <code>|&gt;</code>, dplyr and
+purrr verbs, <code>snake_case</code> names, <code>.data[[field]]</code> for a field chosen at run time and one step per
+line; write your own steps the same way (styler::style_text() tidies a script).</p>
+</article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#the-r-tab">The R tab</a><a href="#r-setup">R setup</a><a href="#r-in-the-web-edition">R in the web edition</a><a href="#r-in-recipes">R in recipes</a><a href="#over-http">Over HTTP</a><a href="#charts-and-code-style">Charts and code style</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/R.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>

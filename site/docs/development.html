@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Development · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX development: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development" aria-current="page">Development</a></aside>
+    <article class="prose"><h1 id="developing-geospax"><a class="anchor" href="#developing-geospax">#</a>Developing GeoSpaX</h1>
+<p>Building from source, the test and benchmark scripts, the engine API, and the measurements and findings behind the design. For using GeoSpaX, see the <a href="/docs/guide">user guide</a>.</p>
+<h2 id="status"><a class="anchor" href="#status">#</a>Status</h2>
+<div class="table"><table><thead><tr>
+<th>Pillar</th>
+<th>Built</th>
+<th>Next</th>
+</tr>
+</thead><tbody><tr>
+<td>Packaging</td>
+<td>✅ 1.1: Linux <code>.deb</code> with both editions (dependencies computed from the binaries), lazy <code>~/GeoSpaX</code> folder with a drop-in <strong>Inbox</strong>, container image + compose; <strong>Windows installer + portable ZIP</strong> (cross-built, GDAL/PROJ bundled, Wine-tested), CI (test, package, Wine + native Windows checks, release, GHCR)</td>
+<td>macOS, code signing, AppImage/Flatpak; in-app updates on Windows (Tauri updater, <code>TAURI_SIGNING_PRIVATE_KEY</code> in CI), a new-version notice elsewhere</td>
+</tr>
+<tr>
+<td>Native engine, desktop + web from one code path</td>
+<td>✅ GDAL Arrow reader, MVT tiles, PMTiles overview pyramids, Arrow export, job registry, two-lane dispatch; <strong>raster catalogue</strong> with statistics and server-rendered Web Mercator overlays; GDAL warp/translate/DEM/HTTP in-process</td>
+<td>MLT, raster tiles for very large rasters</td>
+</tr>
+<tr>
+<td>AutoMap (lazy cartography)</td>
+<td>✅ v0: style rules that explain themselves (field choice, method from skewness, colour-blind-safe ramps by meaning, <strong>WHO guideline classes for PM2.5/PM10</strong>, labels, distinct colours, see-through areas); <strong>automatic page layout</strong> (title, legend with counts, scale bar, north arrow, graticule, collision-free labels, credits) → PNG + SVG + <strong>vector PDF</strong>; <strong>raster maps</strong> (hypsometric tint, relief shading multiplied on top, ramp and class legends); HTML report with an auto-written methods section</td>
+<td>Web-map export, line/polygon labels, atlas (Phase 2)</td>
+</tr>
+<tr>
+<td>Interface (Lazy / Pro)</td>
+<td>✅ next: a <strong>start screen</strong> (drop zone, devices, phone, finished maps), <strong>drop files anywhere</strong> (<code>POST /api/upload</code>), <strong>Finish my map</strong> (PNG + PDF + report of what is on screen, with a world underneath); one switch for the ribbon (task bar · full ribbon + contextual Layer tab), layer list (cards with a sentence, legend bar, status and next steps · tree with Map node, group layers, twisties, drag into groups), right pane (Inspector · Symbology) and bottom pane (Activity · Automate/History/Log); a <strong>Toolbox</strong> across recipes, building blocks and plugin tools; self-styling layers, automatic overviews, offline basemap; <strong>light (default), dark and system themes</strong>; <strong>map styling</strong> with a <strong>live preview</strong> (looks, 150–1200 dpi, legend inside or edited class by class and reordered, scale bars, north arrows, overview inset, placed where the data isn&#39;t), <strong>multi-panel pages</strong> (patchwork panels, ggplot2 facets) and <strong>map series</strong> with an index page and one bound PDF, and a keyboard-driven Pro tree; every control click-tested (<code>test-web-controls.mjs</code>)</td>
+<td>Map series from a saved recipe with a trigger (e.g. monthly district atlas)</td>
+</tr>
+<tr>
+<td>Recipes and triggers</td>
+<td>✅ YAML recipes, dependency-ordered runner, 36 steps, <strong>device / folder / schedule / after / stac / webhook / sensor triggers</strong>, Auto switches, <code>geospax run / check / watch</code>, API, Automate panel, &quot;Save this map as a recipe&quot;, 15 gallery recipes</td>
+<td><code>for_each</code>, step cache, AI recipe writer (Phase 2)</td>
+</tr>
+<tr>
+<td>AI</td>
+<td>✅ <strong>Ask</strong> pane: questions in plain words answered through GeoSpaX&#39;s own tools (layers, field statistics, queries, selections, recipes), with every tool call shown; runs on <strong>Ollama</strong> (local), any <strong>OpenAI-compatible</strong> server or <strong>Claude</strong> with your key; <strong><code>geospax-server mcp</code></strong> for Claude Desktop / Claude Code (<a href="/docs/ai">docs/AI.md</a>); <code>test-ai.py</code> checks all three wire formats. <strong>Satellite embeddings</strong> (AlphaEarth Foundations, 2017–2025): similar places, landscape groups, classification from samples, change between years. <strong>Your own ONNX model</strong>: object detection (YOLO) and segmentation over an image, on this computer</td>
+<td>More model types (instance masks, oriented boxes)</td>
+</tr>
+<tr>
+<td>Device and sensor hub</td>
+<td>✅ v1.4: <strong>LiDAR drives and drop folders</strong> (<code>lidar</code> devices: point clouds counted from their headers, footprints as a tile index). v1.3: <strong>sensors anywhere</strong>: MQTT over TLS (own CA, client certificates), <strong>LoRaWAN uplinks</strong> from The Things Stack and ChirpStack, <strong>OGC SensorThings</strong> services; <strong>send from phone over Wi-Fi</strong> (QR code, HTTPS, no app; photos, tracks, logs, geotagged camera photos, live location); photos without GPS placed on a track by time; XMP sidecars; removable/phone mounts and watched folders; EXIF GPS (JPEG/HEIC/TIFF), DJI XMP, GPX/KML, NMEA, DJI SRT; <strong>sensor logs</strong> (CSV/TSV/JSON with coordinates, units from headers) and <strong>FIT</strong> watches (heart rate, cadence, temperature …); one-click or automatic import; live GNSS from phone page, NMEA serial/TCP/file, gpsd; <strong>live sensors over HTTP push and MQTT</strong> (OwnTracks phones too); <code>sensor</code> triggers (threshold, geofence) (<a href="/docs/devices">DEVICES.md</a>)</td>
+<td>Windows/macOS MTP, BLE/RTK, GoPro (Phase 3)</td>
+</tr>
+<tr>
+<td>Analysis + geostatistics</td>
+<td>✅ v1.6: <strong>hot spots</strong> (Getis-Ord Gi*: cell size, distance band from incremental spatial autocorrelation and FDR correction chosen from the data; global Moran&#39;s I) and <strong>automatic kriging</strong> (variogram fitted with three models, ordinary kriging, cross-validated against IDW; prediction + standard-error maps, variogram chart), native and equal to R spdep/gstat. SQL (SpatiaLite), UTM buffer + dissolve, hexbin (1M points in 0.5 s), IDW with cross-validated power, raster classification with areas, raster values at points + correlation</td>
+<td>Local Moran clusters, space-time hot spots, GWR, overlay, zonal statistics (Phase 2–4)</td>
+</tr>
+<tr>
+<td>3D</td>
+<td>✅ v1.5: <strong>3D scenes made automatically</strong>: terrain block diagrams draped with map colours, relief shading, imagery or contours; extruded buildings, modelled trees and point clouds → <strong>glTF 2.0</strong> (<code>scene.glb</code>), a <strong>self-contained offline WebGL viewer</strong> (<code>scene.html</code>, 🧊 3D in the app) and a <strong>CPU-rendered 3D picture</strong> in the report; exaggeration, mesh, texture and camera chosen from the data (0.9 s for the 10.7 M-point Autzen survey; Khronos glTF-Validator: 0 errors)</td>
+<td>Roof shapes (LOD2), I3S / 3D Tiles for big areas, 3D in the main map</td>
+</tr>
+<tr>
+<td>Terrain + remote sensing</td>
+<td>✅ v1.4: <strong>LiDAR point clouds</strong> (LAS/LAZ, COPC) → bare-earth terrain from the vendor classes or the <strong>SMRF</strong> filter, surface, canopy height, <strong>building outlines with roof heights, tree tops with heights</strong> (2 cm terrain error, 40 of 40 trees on the test scene; 10.7 M real points in 12 s). Copernicus GLO-30 DEM for any area (COG windows over HTTP), hillshade/slope/aspect/TRI/TPI/roughness, contours; STAC search (Earth Search), NDVI/NDWI/NBR/NDMI/SAVI/EVI from the newest pass that is <strong>clear over the area</strong>, true-colour imagery</td>
+<td>Cloud-free composites, land-cover classification, change detection, Landsat/Sentinel-1 (Phase 3–4)</td>
+</tr>
+<tr>
+<td>R / Python</td>
+<td>✅ sidecar steps: sf/geopandas in, layers + numbers out, scrubbed env, timeout, cancel; tested with R gstat kriging and a Python point-pattern recipe</td>
+<td>Managed environments (uv/pixi, rig/renv), webR/Pyodide</td>
+</tr>
+<tr>
+<td>Providers (GRASS, SAGA, OTB, SNAP, ODM, Whitebox)</td>
+<td>✅ <strong>GRASS</strong> (temporary project, class labels and colours kept) and <strong>SAGA</strong> (<code>saga_cmd</code>) as recipe steps (<a href="/docs/automation#6b-rasters-remote-sensing-and-providers-built">AUTOMATION §6b</a>)</td>
+<td>Whitebox, OTB, SNAP, ODM (Phase 3–4)</td>
+</tr>
+</tbody></table></div><p>It grew out of a Phase 0 spike that covered the riskiest part of a Rust + Tauri ArcGIS-Pro-class GIS: moving lots of geodata from a <strong>native Rust engine</strong> into a <strong>web-tech UI</strong>, with one code path for the <strong>desktop</strong> and <strong>web</strong> editions.</p>
+<ul>
+<li><strong>Phase 0</strong> built the data plane.</li>
+<li><strong>Phase 1, slice 1</strong> adds:<ul>
+<li>GDAL&#39;s columnar <strong>Arrow reader</strong>;</li>
+<li><strong>overview pyramids</strong> (a background job that writes PMTiles, with density heatmaps at low zoom);</li>
+<li>a <strong>Symbology pane</strong> (single symbol, unique values, graduated colours with natural breaks / quantile / equal interval);</li>
+<li>legends, draw order and a persisted project.</li>
+</ul>
+</li>
+</ul>
+<pre><code>                 ┌──────────── web/ (TypeScript, MapLibre GL JS 6, deck.gl 9.4) ────────────┐
+                 │ Automate (recipes, Auto, runs) · Contents · Symbology · Devices · map    │
+                 │  Backend interface:  HttpBackend  |  TauriBackend (scheme | invoke)      │
+                 └───────────────┬───────────────────────────────────┬──────────────────────┘
+                     HTTP (gzip MVT, raw Arrow)        gis:// custom scheme · invoke → raw bytes
+          ┌──────── crates/server (Axum, 180 lines) ──┐   ┌── apps/desktop (Tauri 2.12, 114 lines) ─┐
+          └──────────────────┬────────────────────────┘   └──────────────────┬──────────────────────┘
+                             └────────────── Engine::handle(ApiRequest) ─────┘
+          ┌──────────────────────── crates/engine (Rust, ~15.7k lines) ─────────────────────────┐
+          │ reader:   GDAL Arrow stream (RFC 86) | per-feature, ignored-fields column pruning   │
+          │ tiles:    WKB → project → Douglas-Peucker → clip → quantise → MVT (hand-rolled pbf) │
+          │ overview: z0–12 pyramid job → PMTiles (+ density points), served transparently      │
+          │ jobs:     background pool, progress, cancel · classify: Jenks/quantile/equal, unique│
+          │ catalog · pooled GDAL handles · LRU · Arrow IPC export · project file · stats       │
+          │ devices:  phones/cameras/drones/GPS → photos, tracks, waypoints · live GNSS          │
+          │ sensors:  logs, FIT, HTTP, MQTT(S), LoRaWAN, SensorThings → readings · triggers      │
+          │ rasters:  DEM/terrain/STAC indices · GRASS/SAGA providers                            │
+          │ automation: recipes · runner · triggers · AutoMap · layout → PNG/SVG · report ·     │
+          │           SQL/buffer/hexbin/IDW · R &amp; Python sidecars · CLI (run/check/watch)        │
+          └──────────────────────────────────────────────────────────────────────────────────────┘
+                  GeoPackage · FlatGeobuf · Shapefile · FileGDB · … (GDAL ≥ 3.6; 3.12+ recommended)
+</code></pre>
+<h2 id="what-it-proves"><a class="anchor" href="#what-it-proves">#</a>What it proves</h2>
+<div class="table"><table><thead><tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead><tbody><tr>
+<td>Can one Rust engine serve both editions through thin adapters?</td>
+<td><strong>Yes.</strong> The Axum and Tauri adapters only translate requests into <code>Engine::handle()</code> calls. Verified: the web edition in Chromium, and the desktop edition in a real Tauri/WebKitGTK window with both transports.</td>
+</tr>
+<tr>
+<td>Is the hand-rolled MVT encoder correct?</td>
+<td><strong>Yes.</strong> GDAL&#39;s independent MVT driver decodes every test tile with matching feature counts and extents. 16 unit tests.</td>
+</tr>
+<tr>
+<td>Is on-the-fly tiling fast enough?</td>
+<td><strong>At z13 and above, yes:</strong> p95 ≤ 63 ms from every format with the Arrow reader, and ≤ 13 ms from FlatGeobuf. <strong>Dense data at z0–12, no</strong>, and that is now solved by overview pyramids (below).</td>
+</tr>
+<tr>
+<td>Does GDAL&#39;s Arrow stream beat per-feature reads?</td>
+<td><strong>For polygons, yes: mean tile time drops 19–44%, with byte-identical output</strong> (108/108 tiles compared). Point tiles change by −21% to +7%, mostly noise. The 1M-point Arrow export drops from 579 to <strong>131 ms</strong>. On GDAL &lt; 3.12 one GeoPackage code path needs a workaround (finding 11).</td>
+</tr>
+<tr>
+<td>Do pre-built overviews fix low zooms?</td>
+<td><strong>Yes.</strong> A z0–12 pyramid of 1M polygons builds in <strong>~29 s</strong> on 2 cores (16.7 MB PMTiles), and serves tiles in <strong>0.2 ms p50 / 2 ms p95</strong>. Live renders take 100–470 ms p95. z0–10 now show a density heatmap instead of nothing.</td>
+</tr>
+<tr>
+<td>Is engine-side classification interactive?</td>
+<td><strong>Yes.</strong> Natural breaks over 1M values: 140–380 ms column scan plus ~15 ms optimal 1-D k-means. Unique values: 200–370 ms.</td>
+</tr>
+<tr>
+<td>Which source format renders fastest?</td>
+<td><strong>FlatGeobuf</strong>: about 2–4× faster than GeoPackage and 3–6× faster than Shapefile on identical data.</td>
+</tr>
+<tr>
+<td>Can maps make themselves?</td>
+<td><strong>Yes (v0).</strong> A plugged-in phone triggers a recipe that imports, styles, lays out and exports a finished map plus report in <strong>0.15 s</strong> (5 s after plug-in, set by the 5 s device poll). Seven gallery recipes run in 0.1–0.7 s natively; R kriging takes 4.2 s. Every automatic choice is written down with its reason.</td>
+</tr>
+<tr>
+<td>Can statistics choose their own settings?</td>
+<td><strong>Yes (1.6).</strong> Hot spots of 1,120 incidents with cell size, distance band and FDR correction chosen from the data in 0.04 s: all three planted clusters found, none invented. Automatic kriging picks the variogram and halves IDW&#39;s error against the true surface. Gi*, Moran&#39;s I, the variogram, kriging and cross-validation equal R&#39;s spdep and gstat to 10⁻⁶ or better (<a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md#20-spatial-statistics" rel="noopener" target="_blank">RESULTS §20</a>).</td>
+</tr>
+<tr>
+<td>Can the lazy loop reach rasters and satellites?</td>
+<td><strong>Yes.</strong> <code>terrain-report</code> (Copernicus DEM → relief, slopes, contours, PDF) takes 6.1 s and <code>latest-ndvi</code> (newest clear Sentinel-2 pass → NDVI, classes, true colour) 5.5 s, each including the HTTP reads. GRASS <code>r.geomorphon</code> and SAGA&#39;s wetness index run as recipe steps in 1.4–1.8 s. A <code>stac</code> trigger fires on a new pass in about 6 s.</td>
+</tr>
+<tr>
+<td>Can sensors drive maps?</td>
+<td><strong>Yes.</strong> A plugged-in air-quality logger (360 readings) becomes a PM2.5 map classed by the WHO guideline, with statistics and a report, in <strong>0.12 s</strong> (5 s after plug-in). A FIT run from a watch maps 400 heart-rate readings in 0.13 s. A live reading over HTTP starts an alert map <strong>0.26 s</strong> later; MQTT messages reach the map within 0.2 s; a phone entering a geofence starts its recipe immediately.</td>
+</tr>
+<tr>
+<td>Arrow → deck.gl for &quot;show me everything&quot;?</td>
+<td><strong>Works.</strong> 1M points arrive in one 16.4 MB payload. The browser parses it in 3.9 ms (zero-copy), and deck.gl&#39;s first render takes 138 ms even with software GL.</td>
+</tr>
+</tbody></table></div><p>Full numbers: <a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md" rel="noopener" target="_blank"><code>bench/RESULTS.md</code></a>. Screenshots: <a href="https://github.com/jmozez/geospax/blob/main/bench/screenshots/" rel="noopener" target="_blank"><code>bench/screenshots/</code></a>.</p>
+<h2 id="findings-that-change-the-plan"><a class="anchor" href="#findings-that-change-the-plan">#</a>Findings that change the plan</h2>
+<ol>
+<li><p><strong>Keep two storage roles.</strong> Use GeoPackage as the <em>editable workspace</em> and FlatGeobuf as the <em>read-optimized render cache</em>. GeoPackage spends about 30% of each tile in GDAL&#39;s per-query setup. FlatGeobuf&#39;s packed Hilbert R-tree spends about 0%.</p>
+</li>
+<li><p><strong>On-the-fly tiling needs an overview pyramid below about z13</strong> for dense layers. <em>Done in Phase 1, see finding 12.</em> Live tiling now serves only z13+ (and, later, edits). The engine still auto-raises the live <code>minzoom</code> when an average tile would exceed 10k features.</p>
+</li>
+<li><p><strong>GDAL reading is the bottleneck, not our code.</strong> Our whole pipeline (WKB parse → projection → simplification → clipping → encoding) costs about <strong>1 µs per feature</strong>. Per-feature GDAL calls were 50–80% of tile time, and 99% of the Arrow export. <em>Phase 1 switched to the Arrow stream (finding 10).</em> With FlatGeobuf, our own processing is now about half of tile time, so it is the next optimization target.</p>
+</li>
+<li><p><strong>Don&#39;t gzip Arrow.</strong> Float64 coordinates barely compress: 13% smaller but 80% slower, as measured. The server now gzips MVT and JSON only.</p>
+</li>
+<li><p><strong>deck.gl 9.4&#39;s interleaved MapLibre integration (<code>MapboxOverlay({interleaved: true})</code>) breaks on MapLibre 6.</strong> It divides by <code>map.transform.height</code>, and v6 removed <code>map.transform</code>. Overlaid mode also touches it when terrain is on. GeoSpaX runs a standalone <code>Deck</code> synced through MapLibre&#39;s public camera API instead (<code>web/src/main.ts</code>). Revisit when deck.gl ships v6 support.</p>
+</li>
+<li><p><strong>The MapLibre 6 worker works with Vite 8</strong> via <code>import workerUrl from &#39;maplibre-gl/dist/maplibre-gl-worker.mjs?worker&amp;url&#39;</code> plus <code>worker.format: &#39;es&#39;</code>.</p>
+</li>
+<li><p><strong>Desktop transports are close.</strong> Custom scheme vs <code>invoke</code> + raw bytes gave 926 vs 793 ms mean settle under software GL, which is within noise. Measure on real GPUs before choosing. Keep both behind the <code>Backend</code> interface.</p>
+</li>
+<li><p><strong>Pool GDAL handles.</strong> Opening a handle ranges from about 20 ms (GeoPackage) to about 0.9 s (Shapefile, which loads its <code>.qix</code> index). The engine opens each handle once per worker and reuses it.</p>
+</li>
+<li><p><strong>Rust and GDAL threading.</strong> <code>gdal::Dataset</code> is <code>Send</code>, but <code>CoordTransform</code> isn&#39;t. The engine therefore uses per-worker pooled handles (dataset + transforms) on a bounded rayon pool, and async adapters never run GDAL on an executor thread.</p>
+</li>
+<li><p><strong>Read through GDAL&#39;s Arrow stream by default</strong> (<code>--reader arrow</code>; <code>features</code> remains as a fallback). GDAL emits batches of 16k rows (<code>OGR_L_GetArrowStream</code>), we tell it which columns to skip (<code>OGR_L_SetIgnoredFields</code>), and arrow-rs reads them zero-copy over the C Data Interface. Mean polygon-tile time drops 19–44% at the same output (108/108 tiles byte-identical); point tiles barely change. The 1M-point Arrow export drops 4.4×.</p>
+</li>
+<li><p><strong>GDAL &lt; 3.12 has a race in the GeoPackage Arrow path that crashes multi-batch bbox reads.</strong> We found it while building overviews: random segfaults inside GDAL&#39;s SQLite worker thread, or in our code reading corrupted batches. In 3.10&#39;s <code>GetNextArrowArrayAsynchronous</code>, the consumer waits for <code>nCountRows == 0 &amp;&amp; !bIsFinished</code>, so it can take a batch the worker thread is still writing. GDAL 3.12.0 replaced this with an explicit <code>bThreadReady</code> handshake (we diffed 3.10.3 / 3.11.3 / 3.12.0). The engine checks the runtime GDAL version. On &lt; 3.12 it routes <em>bbox</em> GPKG reads through GDAL&#39;s generic Arrow implementation (a thread-local <code>OGR_GPKG_STREAM_BASE_IMPL</code>). That path is still 20–30% faster than per-feature reads. Whole-table reads (export, column scans) keep the fast multi-threaded path. Ship desktop builds with GDAL ≥ 3.12 (<code>bundled-gdal</code> or conda-forge); 16-client stress test: 255/255 requests, 0 errors. Related: a spatial filter that covers the whole layer is now dropped, because GDAL then swaps the R-tree for an <code>ST_EnvIntersects()</code> SQL filter that crashed in the same worker.</p>
+</li>
+<li><p><strong>Overview pyramids work best with density points, not feature dropping.</strong> The job renders z0–N with the normal tile pipeline. Features smaller than 2 px are not dropped but <em>counted</em> on a 4 px grid, giving a <code>&lt;layer&gt;:density</code> point layer with a <code>count</code> attribute. Low-zoom tiles stay small (z0–5: 0.1–9 KB) and the map still shows where the data is. The engine serves z ≤ N from the PMTiles file and renders z &gt; N live, so URLs don&#39;t change. Each archive is keyed by a fingerprint of the source (path, size, mtime, feature count), and a stale archive is ignored. Builds run on a separate job pool with progress and cancel. Open issue: the densest z12 tile is 840 KB, because many buildings sit just over 2 px; a stricter threshold or MLT would shrink it.</p>
+</li>
+<li><p><strong>Calibrate density heatmaps from data, not constants.</strong> My hand-tuned weights were 10× off: saturated at first, invisible after one fix. The build job now records, per zoom, the 90th percentile of each tile&#39;s densest cell (z9: 166 features; z12: 4) in a sidecar JSON. The frontend sets weight = <code>sqrt(count / p90[z])</code> per integer zoom (<code>step</code>, because tiles are per zoom), with intensity set from the kernel&#39;s cell overlap.</p>
+</li>
+<li><p><strong>Encode only the attributes the symbology needs.</strong> Tiles carry a small default attribute set; the UI requests more with <code>?fields=height,kind</code> (part of the cache key). Classification runs in the engine on one column (geometry ignored), so the browser never downloads 1M rows to compute breaks. The DP is optimal 1-D k-means (Ckmeans.1d.dp) with divide-and-conquer, which is what &quot;Jenks natural breaks&quot; approximates. It is unit-tested against brute force.</p>
+</li>
+<li><p><strong>Persist the project as one JSON document now; move to CIM later.</strong> <code>GET/PUT /api/project</code> stores layer styles, draw order and the view (atomic write to <code>&lt;data&gt;/.geospax/project.json</code>). The schema is deliberately small; mapping it onto CIM (<code>CIMUniqueValueRenderer</code>, <code>CIMClassBreaksRenderer</code>) is a Phase 2 item.</p>
+</li>
+<li><p><strong>Give control-plane requests their own lane.</strong> <code>scripts/bench-api-stress.py</code> showed that job polling, project saves and stats waited about 500 ms (p50) behind tile renders and column scans, because every request went through the 2-thread tile pool. That would stall a progress bar while the user pans. <code>Engine::dispatch</code> now routes data-plane requests (tiles, Arrow, classify, unique) to the tile pool and everything else to a small control pool: <strong>p50 0.5 ms, p95 ≤ 2 ms</strong> under the same 16-client load. Both adapters (Axum and the Tauri <code>gis://</code> protocol) use the same function.</p>
+</li>
+<li><p><strong>WebKitGTK (the Linux desktop webview) silently drops whole tiles with the default WebGL drawing buffer.</strong> Under software GL (Xvfb + llvmpipe), 25 of 29 desktop sessions lost at least one (source, tile) pair at random positions. This happened on both transports, with or without the heatmap, and with compositing disabled. A probe (<code>?gldebug=1</code>) showed MapLibre holding every tile loaded, renderable and with geometry, and <code>gl.getError()</code> was clean: the draws are lost inside the webview. <code>preserveDrawingBuffer: true</code> or MSAA fixes it (17 / 17 sessions complete). GeoSpaX turns <code>preserveDrawingBuffer</code> on for WebKitGTK only, because it costs a frame copy, more on tile-based GPUs. Override it with <code>?glpdb=0|1</code> or <code>?glaa=1</code>. Still to check: GPU-backed WebKitGTK, and a minimal MapLibre-only reproduction to report upstream. Tauri 3&#39;s CEF runtime is the escape hatch if WebKitGTK stays fragile.</p>
+</li>
+<li><p><strong>Real-world EXIF is often slightly broken, so parse it tolerantly.</strong> Photos written by GDAL (and the HEIC made from them) were rejected wholesale by the strict EXIF parser (&quot;Unexpected next IFD&quot;), although the GPS fields were intact. With <code>continue_on_error</code>, every sample reads: 12/12 phone JPEGs, 15/15 drone JPEGs with DJI XMP gimbal data, a HEIC, and two genuine Nikon photos from <code>exif-samples</code>. Lazy users never learn why a photo &quot;has no location&quot;, so the reader must not be the reason.</p>
+</li>
+<li><p><strong>Runtime layers need a registry, not a fixed list.</strong> Device imports add layers while the app runs. The engine&#39;s layer list became an append-only <code>RwLock</code> registry with stable indexes (the tile cache keys on them). Re-imports replace layers in place and clear the cache; imports persist across restarts.</p>
+</li>
+<li><p><strong>Per-layer style rules are not enough; the map needs map-level rules.</strong> The first automatic maps followed every per-layer rule and still went wrong:</p>
+<ul>
+<li>an orange coverage polygon hid orange photo points;</li>
+<li>red sample dots disappeared into a red ramp;</li>
+<li>a white mesh covered an interpolated surface.</li>
+</ul>
+<p>AutoMap now also decides at map level:</p>
+<ul>
+<li>single colours stay distinct within one map;</li>
+<li>points over a coloured surface turn white with a dark ring;</li>
+<li>one to three areas over other data are see-through;</li>
+<li>dense polygon layers drop outlines;</li>
+<li>the step that made a layer can hint how it should look (IDW: no outlines; hexbins: outlines).</li>
+</ul>
+<p>Each rule adds its reason to the run log.</p>
+</li>
+<li><p><strong>Never call out while holding a lock you might need again.</strong> The first server run with device recipes on Auto froze. The device hook started a run while holding the active-runs lock, and run creation looked up runs under the same lock: a self-deadlock. CLI runs never hit it because they don&#39;t take that lock. Run ids are now unique by their folder alone, and lock order is documented in the code.</p>
+</li>
+<li><p><strong>Write attributes by the field&#39;s real index, not its position.</strong> KML adds <code>Name</code> and <code>Description</code> fields of its own, and Shapefile truncates names to 10 characters. Writing by position therefore shifted values: a timestamp ended up in <code>length_m</code>, and GDAL warned. The writer now records each field&#39;s index after it is created.</p>
+</li>
+<li><p><strong>Validation must list every problem at once.</strong> The test suite caught that a structural error (a dependency cycle) hid per-step errors (an unknown step name, a missing parameter). Lazy users fix everything in one pass, so the validator now collects all of them. Unknown step names suggest the nearest real one.</p>
+</li>
+<li><p><strong>Kriging beat cross-validated IDW by 28 % RMSE on the same samples</strong> (0.106 vs 0.147). Picking the method automatically is worth it; that is the planned <code>interpolate.auto</code>. Almost all of the 4.2 s R step is interpreter start-up and package loading, so a warm R session is the obvious next optimisation. Debian 13 does not package <code>gstat</code>; install it from CRAN on top of Debian&#39;s <code>r-cran-sf</code>.</p>
+</li>
+<li><p><strong>Don&#39;t trust STAC raster metadata blindly.</strong> Earth Search marks Sentinel-2 L2A items <code>earthsearch:boa_offset_applied: true</code> yet still lists <code>offset: -0.1</code> in <code>raster:bands</code>. Applying the offset again pushed red reflectance to about zero and NDVI to a mean of 0.90 with the 98th percentile at 1.00. With the flag honoured, the mean is 0.55 (0.13–0.85), which fits Mt Hagen&#39;s gardens, grassland and forest. The test suite now fails if NDVI sticks near 1.</p>
+</li>
+<li><p><strong>&quot;Clear on average&quot; is not &quot;clear over my field&quot;.</strong> Scene cloud cover is a tile-wide number, so <code>rs.index</code> reads the 20 m scene classification for just the area first (one small COG read). It skips dates that are under 70 % clear there before fetching any bands.</p>
+</li>
+<li><p><strong>Read windows, not scenes.</strong> COG range reads make remote data cheap enough for automation. The 11 × 9 km area needs about 1.3 MB of a 3600 × 3600 Copernicus tile (2.7–3.8 s including reprojection), and a 13 × 13 km Sentinel-2 band window takes 2.1 s, versus 100+ MB per full band.</p>
+</li>
+<li><p><strong>One coordinate helper per meaning.</strong> The composer&#39;s own <code>merc()</code> returns normalised tile space; GDAL wants metres. Using the wrong one rendered every raster for a 0.0002 m box at 0°, 0°: transparent maps with correct legends. Rasters are now warped with an explicitly named metre-based function.</p>
+</li>
+<li><p><strong>Reuse the GIS engines people trust instead of re-implementing them.</strong> GRASS <code>r.geomorphon</code> (ten landforms) and SAGA&#39;s wetness index each took one step of glue. Inputs and outputs move as GeoTIFF, and GRASS&#39;s own category labels and colours become the legend. Wrapping them took less code than re-implementing either algorithm.</p>
+</li>
+<li><p><strong>When a standard exists, classes should carry its meaning.</strong> On the air-quality walk, quantile breaks for PM2.5 came out at 5.5 / 8 / 9 / 10.1 / 15.7 / 61.1 µg/m³. That painted 80 % of a clean walk orange and red and hid the one roadside hotspot. Anchoring classes at the WHO 2021 guideline and interim targets (15 / 25 / 37.5 / 50 / 75) gives a green walk with one hotspot running yellow to red. Maps from different days now compare, and the legend says &quot;guideline met&quot; instead of a number nobody can act on.</p>
+</li>
+<li><p><strong>Sensor files need no format registry; the headers are enough.</strong> Latitude, longitude and time columns are recognised by name, and units are taken from brackets (<code>PM2.5 (µg/m³)</code>). That read every sample without configuration: logger CSV, semicolon CSV with decimal commas, JSON lines with nested locations or GeoJSON geometries, and FIT. Rows logged before the GPS had a fix (empty or 0/0) are counted and skipped instead of being plotted off the coast of Africa.</p>
+</li>
+<li><p><strong>A device&#39;s kind must follow what it sends, not whether it sends numbers.</strong> The first version turned an OwnTracks phone into a &quot;sensor&quot; because the phone reports its battery level; the MQTT test caught it. A minimal MQTT 3.1.1 subscriber on a plain thread is about 200 lines (CONNECT, SUBSCRIBE, PUBLISH, PINGREQ, QoS-1 acks, back-off), so the engine needs no async MQTT stack. It is tested end to end against Mosquitto 2.0.21.</p>
+</li>
+<li><p><strong>The first map export in a fresh process can take 3 s on a cold disk.</strong> fontdb scans every system font before the first render. The same export takes 0.1 s once the OS file cache is warm. Desktop builds should bundle a small font set and load only that, both for speed and for maps that look the same on every machine.</p>
+</li>
+<li><p><strong>TLS fits the thread-per-source MQTT client without going async.</strong> rustls&#39; <code>StreamOwned</code> wraps the same <code>TcpStream</code>, read timeouts stay on the socket underneath, and rustls keeps partial records across a timeout, so the 1-second poll loop did not change. Errors are worth translating: &quot;invalid peer certificate: UnknownIssuer&quot; became &quot;not signed by a CA this computer trusts; for a private broker add ?ca=&quot;, which is the fix. For SensorThings, the poller pushes a station only when its newest observation time moves, because the live store keeps every push as a reading and triggers would otherwise fire on every poll.</p>
+</li>
+<li><p><strong>With LiDAR, the data&#39;s own classes beat any filter, but only the right ones.</strong> The Autzen survey&#39;s stadium stands are left unclassified, so &quot;surface minus ground minus buildings&quot; turned them into 30 m of canopy with tree tops on the seats, and a transmission tower became a 58 m tree. Building the canopy from the vegetation classes (3–5) fixed both. Water returns (class 9) have to count as bare earth or rivers become holes in the DTM. Headers are written before coordinates are rounded to the file&#39;s scale, so a grid sized exactly to them drops edge points. And contours traced on a 50 cm DTM turned centimetre noise into 485 tiny loops; on a 2 m average there are 12 clean lines.</p>
+</li>
+<li><p><strong>A 3D view needs its own framing and colour rules, not the 2D map&#39;s.</strong> The first rendered scenes looked wrong in ways no unit test caught. The point cloud, drawn over the model, speckled the terrain and painted every roof in the building class&#39;s orange. Autzen&#39;s DTM ends in no-data around the irregular survey edge, so the grid-border walls vanished and the terrain floated. White sample dots, the right 2D rule for points over a coloured raster, lay on the 3D terrain like snow. Fitting the camera to the bounding box&#39;s corners left the model filling only 20 % of the window, because those corners are mostly empty air. The fixes: the picture shows points only when there is no model; walls follow the edge of the data; light dots are recoloured for 3D; the camera is fitted to actual vertices and re-centred. Baking the hillshade&#39;s sun into every colour and marking materials unlit kept the scene identical in Blender, the browser and the CPU renderer. The Khronos validator found nothing to fix, because 16-bit indices, 4-byte alignment and min/max bounds were designed in from the start.</p>
+</li>
+<li><p><strong>Matching R digit for digit is not the same as being understood.</strong> GeoSpaX&#39;s Gi*, Moran&#39;s I, variograms and kriging equal R&#39;s spdep and gstat to 10⁻⁶ or better, yet three results would still have misled a lazy reader. The pH variogram&#39;s best fit (gstat&#39;s too) has a 38 km range on a 4 km study area. That is mathematically right, but the samples follow a trend and the variogram never levels off, so the report now says &quot;trend&quot; instead of quoting a range. On a random field, the fitted nugget was a quarter of the true one (gstat&#39;s fit did the same), so the standard errors were twice too small (RMSSE 2.0). The report now flags any RMSSE outside 0.67–1.5 and says how to read the uncertainty map. Hexagon centres put dozens of neighbour pairs exactly at the automatic distance band, where a rounding error would decide whether they count; a one-in-a-billion slack makes the answer deterministic. The cartography needed its own fixes. &quot;Not significant&quot; cells vanished into the land colour. The frame-filling layout that suits DEMs cut the edges off surfaces clipped to the samples&#39; hull.</p>
+</li>
+</ol>
+<h2 id="run-it"><a class="anchor" href="#run-it">#</a>Run it</h2>
+<h3 id="prerequisites"><a class="anchor" href="#prerequisites">#</a>Prerequisites</h3>
+<p>On Debian 12+/Ubuntu 22.04+, <code>scripts/setup-linux.sh [--test-tools] [--r] [--rea] [--windows] [--swap 4G]</code> installs everything below (system packages, Rust, Node 24, and optionally the headless-test tools, R with sf + gstat for the R recipe steps, REA, and the Windows cross-build tools).
+If a copy of the repo lost the executable bits, run <code>chmod +x scripts/*.sh scripts/*.py</code> (or call them through <code>bash</code>/<code>python3</code>).</p>
+<ul>
+<li><strong>Rust</strong> via rustup (tested with 1.99) and <strong>Node.js 22+</strong>.</li>
+<li><strong>GDAL ≥ 3.6 with headers</strong> (Arrow stream API). Use <strong>3.12+</strong> for the fast GeoPackage bbox path (finding 11).<ul>
+<li>Debian/Ubuntu: <code>sudo apt install libgdal-dev gdal-bin pkg-config clang</code></li>
+<li>macOS: <code>brew install gdal pkg-config</code></li>
+<li>Windows: install GDAL (OSGeo4W or conda), then set <code>GDAL_HOME</code> (containing <code>include/</code> and <code>lib/</code>) and <code>GDAL_VERSION</code> (e.g. <code>3.10.3</code>), and put GDAL&#39;s <code>bin</code> on <code>PATH</code>. Alternatively, build GDAL from source with <code>--features geospax-engine/bundled-gdal</code> (needs CMake and a C++ toolchain; the first build is slow).</li>
+<li>Windows binaries from Linux: <code>scripts/setup-linux.sh --windows &amp;&amp; scripts/package-windows.sh</code> (MinGW-w64 + conda-forge GDAL; see <a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md#15-windows-edition" rel="noopener" target="_blank">RESULTS §15</a>).</li>
+</ul>
+</li>
+<li><strong>Tauri 2 prerequisites:</strong><ul>
+<li>Windows: WebView2, already present on 10/11.</li>
+<li>macOS: Xcode Command Line Tools.</li>
+<li>Linux: <code>libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev libxdo-dev libssl-dev</code>.</li>
+</ul>
+</li>
+</ul>
+<h3 id="1-data-800-mb-natural-earth--1m-synthetic-buildings-and-points"><a class="anchor" href="#1-data-800-mb-natural-earth--1m-synthetic-buildings-and-points">#</a>1. Data (≈800 MB: Natural Earth + 1M synthetic buildings and points)</h3>
+<pre><code class="language-bash">scripts/data-fetch-samples.sh data          # bash; on Windows use Git Bash or WSL
+</code></pre>
+<p>Natural Earth is public domain. The &quot;buildings&quot; are <strong>synthetic</strong>: random rectangles clustered around five Papua New Guinea highland towns.</p>
+<h3 id="2-web-edition"><a class="anchor" href="#2-web-edition">#</a>2. Web edition</h3>
+<pre><code class="language-bash">(cd web &amp;&amp; npm install &amp;&amp; npm run build)
+cargo run --release -p geospax-server -- --data data   # → http://localhost:8080 (this computer only; see SECURITY.md)
+</code></pre>
+<p>For frontend development, run <code>npm --prefix web run dev</code> (port 5173, which proxies <code>/api</code> and <code>/tiles</code> to :8080). The developer stats panel (FPS, tile timings, cache) is hidden from 1.0 on: add <code>?hud=1</code> to the URL to show it (benchmark runs show it automatically).</p>
+<p>Server flags:</p>
+<ul>
+<li><code>--reader arrow|features</code></li>
+<li><code>--state-dir DIR</code>: overviews and project; default <code>&lt;data&gt;/.geospax</code>, or <code>GEOSPAX_STATE</code> for desktop</li>
+<li><code>--threads N</code>, <code>--no-cache</code>, <code>--no-gzip</code>, <code>--bench-log FILE</code></li>
+<li>Automation: <code>--recipes DIR</code> (extra recipe folder), <code>--auto id,id|all</code> (triggers on), <code>--no-triggers</code>, <code>--inbox DIR</code> (drop folder: the matching device recipe maps whatever lands there, no Auto switch needed); subcommands <code>run</code>, <code>check</code>, <code>watch</code>, <code>recipes</code>, <code>steps</code></li>
+<li>Installed (<code>.deb</code>, container): without <code>--web</code> the server serves <code>/usr/share/geospax/web</code></li>
+</ul>
+<p>Environment:</p>
+<ul>
+<li><code>GEOSPAX_GPKG_FILTERED=async|base|features</code> overrides the GDAL-version-based choice.</li>
+<li><code>GEOSPAX_VALIDATE_ARROW=1</code> runs <code>validate_full()</code> on every Arrow batch from GDAL (debugging).</li>
+</ul>
+<h3 id="try-the-device-hub-plug-in-get-a-map"><a class="anchor" href="#try-the-device-hub-plug-in-get-a-map">#</a>Try the device hub (plug in, get a map)</h3>
+<pre><code class="language-bash">python3 scripts/data-sample-devices.py /tmp/geospax-devices      # sample phone, drone card, GPS and inbox (synthetic)
+./target/release/geospax-server --data data \
+  --watch /tmp/geospax-devices/TEST-PHONE --watch /tmp/geospax-devices/DJI-SD \
+  --watch /tmp/geospax-devices/GARMIN --watch /tmp/geospax-devices/inbox \
+  --gps &quot;file:///tmp/geospax-devices/live-replay.nmea?rate=1&quot;    # add --auto-import to map new devices automatically
+</code></pre>
+<ul>
+<li>Real devices need no flags. Phones and cards mounted under <code>/media/$USER</code>, <code>/run/media/$USER</code>, gvfs MTP/PTP mounts, <code>/Volumes</code> (macOS), or removable drives and camera/GPS cards on Windows drive letters are found automatically.</li>
+<li>Live GNSS: <code>--gps /dev/ttyUSB0</code>, <code>serial:///dev/ttyACM0?baud=9600</code>, <code>tcp://host:port</code> or <code>gpsd://localhost:2947</code>.</li>
+<li>Desktop edition: the same options through <code>GEOSPAX_WATCH</code>, <code>GEOSPAX_AUTO_IMPORT=1</code> and <code>GEOSPAX_GPS</code>.</li>
+<li>In the UI, <strong>Devices</strong> lists what was found. <strong>Import &amp; map</strong> adds photos, tracks, waypoints and sensor readings as layers, styles them with AutoMap (photo wedges, track casing, readings coloured by the main measurement) and zooms to them; they persist across restarts.</li>
+<li><strong>Send from phone:</strong> add <code>--phone</code> (or press <strong>Devices → Send from phone → Turn on</strong>) and scan the QR code with a phone on the same Wi-Fi: it sends photos, tracks and logs, takes geotagged photos and shares live location, and the map comes back to the phone (<a href="/docs/devices#3a-send-from-phone-phone-link">DEVICES.md §3a</a>).</li>
+<li><strong>Sensor networks:</strong> <code>--mqtt &quot;mqtts://APP@ttn:API-KEY@eu1.cloud.thethings.network/v3/%2B/devices/%2B/up&quot;</code> maps every LoRaWAN sensor of a The Things Stack application; ChirpStack works the same way. <code>--sta https://host/v1.1</code> turns the stations of an OGC SensorThings service (public air-quality and water networks) into live sensors (<a href="/docs/devices#4-sensors-in-detail">DEVICES.md §4</a>).</li>
+</ul>
+<h3 id="try-automation-maps-make-themselves"><a class="anchor" href="#try-automation-maps-make-themselves">#</a>Try automation (maps make themselves)</h3>
+<pre><code class="language-bash">python3 scripts/data-sample-devices.py /tmp/geospax-devices     # sample phone, drone card, GPS, inbox
+python3 scripts/data-sample-field.py data                        # 60 soil samples for the geostatistics recipes
+python3 scripts/data-sample-incidents.py data                    # 1,120 incidents in Lae with 3 planted clusters (hot spots)
+
+# One command, one finished map + report (PNG, SVG, report.html in &lt;state&gt;/runs/&lt;run-id&gt;/)
+./target/release/geospax-server run photos-to-map --data data --input source=/tmp/geospax-devices/TEST-PHONE
+./target/release/geospax-server run points-to-hexbins --data data          # 1M points -&gt; hexagons in ~0.7 s
+./target/release/geospax-server run interpolate-samples --data data        # IDW, power chosen by cross-validation
+./target/release/geospax-server check recipes/drone-flight-report.yaml     # validate + show the plan
+./target/release/geospax-server recipes | steps                            # what is installed / available
+
+# Plug in and forget: device recipes on Auto (a phone -&gt; photos-to-map, a drone card -&gt; drone-flight-report, …)
+./target/release/geospax-server --data data --watch /tmp/geospax-devices/DJI-SD --watch /tmp/geospax-devices/GARMIN \
+  --auto photos-to-map,track-to-map,drone-flight-report
+</code></pre>
+<ul>
+<li><p><strong>UI:</strong> the <strong>Automate</strong> pane (bottom dock).</p>
+<ul>
+<li><strong>Run</strong> a recipe and watch its steps.</li>
+<li>Open the finished <strong>Map</strong> and <strong>Report</strong>.</li>
+<li>Switch on <strong>Auto</strong> to let triggers run it.</li>
+<li><strong>Save this map as a recipe</strong> to turn the current map into a re-runnable recipe.</li>
+</ul>
+</li>
+<li><p><strong>Desktop:</strong> the desktop binary takes the same commands (<code>geospax run …</code>, <code>geospax watch</code>). Environment variables: <code>GEOSPAX_AUTO=id,id|all</code>, <code>GEOSPAX_RECIPES=dir</code>.</p>
+</li>
+<li><p><strong>R and Python steps</strong> need <code>Rscript</code> (with <code>sf</code> + <code>gstat</code> for <code>r-kriging</code>) or <code>python3</code> on PATH, or <code>GEOSPAX_RSCRIPT</code> / <code>GEOSPAX_PYTHON</code>. On Debian/Ubuntu:</p>
+<pre><code class="language-bash">apt install r-base-core r-base-dev r-cran-sf r-cran-sp r-cran-zoo r-cran-fnn r-cran-spacetime r-cran-sftime
+Rscript -e &#39;install.packages(&quot;gstat&quot;)&#39;      # or simply: scripts/setup-linux.sh --r
+</code></pre>
+</li>
+<li><p><strong>Your own recipes:</strong> put them in <code>&lt;state&gt;/recipes/</code> or a <code>--recipes DIR</code> folder (format: <a href="/docs/automation#2-recipe-format-v1-as-implemented">AUTOMATION §2</a>).</p>
+</li>
+</ul>
+<h3 id="try-sensors-loggers-watches-live-feeds"><a class="anchor" href="#try-sensors-loggers-watches-live-feeds">#</a>Try sensors (loggers, watches, live feeds)</h3>
+<pre><code class="language-bash">python3 scripts/data-sample-devices.py /tmp/geospax-devices     # includes AQ-LOGGER/ (air-quality CSV) and WATCH/ (FIT run)
+./target/release/geospax-server run sensor-log-to-map --data data --input source=/tmp/geospax-devices/AQ-LOGGER
+./target/release/geospax-server run track-to-map --data data --input source=/tmp/geospax-devices/WATCH   # + heart rate
+
+# Live sensors + an alert recipe: an MQTT broker (apt install mosquitto), the server subscribed, a simulated feed
+mosquitto -p 1883 &amp;
+./target/release/geospax-server --data data --web web/dist --mqtt &quot;mqtt://127.0.0.1:1883/sensors/#&quot; --auto air-quality-alert &amp;
+python3 scripts/demo-sensor-feed.py --mqtt 127.0.0.1:1883        # or --url http://127.0.0.1:8080 to push over HTTP
+curl -X POST localhost:8080/api/devices/live -d &#39;{&quot;id&quot;:&quot;aq-01&quot;,&quot;lat&quot;:-5.86,&quot;lon&quot;:144.23,&quot;values&quot;:{&quot;pm2_5&quot;:48}}&#39;
+
+# Sensor networks: a broker over TLS with your own CA, LoRaWAN from The Things Stack, an OGC SensorThings service
+./target/release/geospax-server --data data --web web/dist --auto air-quality-alert \
+  --mqtt &quot;mqtts://broker.example.org/sensors/%23?ca=/etc/geospax/ca.pem&quot; \
+  --mqtt &quot;mqtts://my-app@ttn:NNSXS.KEY@eu1.cloud.thethings.network/v3/%2B/devices/%2B/up&quot; \
+  --sta &quot;https://sensorthings.example.org/FROST-Server/v1.1?every=300&quot;
+</code></pre>
+<ul>
+<li><strong>Plug in a logger.</strong> Any folder or card whose CSV/TSV/JSON files have latitude/longitude columns is a sensor device. Turn on <code>sensor-log-to-map</code> Auto and plugging it in gives the map. Phone sensor-app exports work the same way.</li>
+<li><strong>Phones without an app.</strong> OwnTracks publishing to your broker shows up as a live phone.</li>
+<li><strong>Sensor networks.</strong> LoRaWAN uplinks (The Things Stack, ChirpStack) and OGC SensorThings stations are live sensors too, so <code>air-quality-alert</code> fires when any of them reports PM2.5 above 35.</li>
+<li><strong>Alerts.</strong> <code>air-quality-alert</code> fires when any live sensor reports PM2.5 above 35 µg/m³, at most every 30 minutes per sensor. Copy it to watch another field or level. <code>sensor: { inside: &lt;polygon layer&gt; }</code> fires when a phone or sensor enters an area (<a href="/docs/devices#4-sensors-in-detail">DEVICES §4</a>).</li>
+</ul>
+<h3 id="try-terrain-satellite-and-grasssaga-recipes-needs-internet"><a class="anchor" href="#try-terrain-satellite-and-grasssaga-recipes-needs-internet">#</a>Try terrain, satellite and GRASS/SAGA recipes (needs internet)</h3>
+<pre><code class="language-bash">./target/release/geospax-server run terrain-report --data data          # Copernicus DEM -&gt; relief + contours (PNG/SVG/PDF), slope classes
+./target/release/geospax-server run latest-ndvi --data data             # newest clear Sentinel-2 pass -&gt; NDVI, classes, true colour
+./target/release/geospax-server run landforms-grass --data data         # GRASS r.geomorphon (apt install grass-core)
+./target/release/geospax-server run wetness-saga --data data            # SAGA wetness index (apt install saga)
+./target/release/geospax-server run terrain-report --data data --input area=my_parcels   # any layer as the area
+</code></pre>
+<ul>
+<li>The area is any layer (the default is the most sample-like one). Only that window of the DEM or imagery is read. Rasters appear in the <strong>Rasters</strong> panel and the maps.</li>
+<li><code>latest-ndvi</code> carries a <code>stac</code> trigger: switch on <strong>Auto</strong> and it re-runs when a newer clear pass appears over the area.</li>
+<li>Add <code>- webhook: { token: &lt;16+ chars&gt; }</code> to any recipe to start it with <code>POST /api/hooks/&lt;token&gt;</code>. The JSON body becomes its inputs.</li>
+</ul>
+<h3 id="try-lidar-point-clouds--terrain-canopy-trees-buildings"><a class="anchor" href="#try-lidar-point-clouds--terrain-canopy-trees-buildings">#</a>Try LiDAR (point clouds → terrain, canopy, trees, buildings)</h3>
+<pre><code class="language-bash">python3 scripts/data-sample-lidar.py /tmp/scene.las                      # synthetic survey near Lae with known truth (add --classified)
+./target/release/geospax-server run lidar-to-terrain --input source=/tmp/scene.las
+./target/release/geospax-server run lidar-to-terrain --input source=/path/to/tiles --input resolution=0.5
+./target/release/geospax-server run lidar-to-terrain --input source=file.laz --input epsg=32755   # file without a coordinate system
+</code></pre>
+<ul>
+<li>Ground comes from the file&#39;s classes when it has them, else the SMRF filter finds it. Outputs: <code>dtm</code>, <code>dsm</code> and <code>chm</code> GeoTIFFs, <code>trees</code> and <code>buildings</code> layers, a terrain map, a canopy map and a report.</li>
+<li>With the web edition started with <code>--inbox DIR</code> (or the desktop&#39;s <code>~/GeoSpaX/Inbox</code>), dropping a folder of LAS/LAZ files there runs it by itself; a drive with point clouds shows up as a <code>lidar</code> device.</li>
+</ul>
+<h3 id="try-3d-scenes-terrain-buildings-trees-point-clouds"><a class="anchor" href="#try-3d-scenes-terrain-buildings-trees-point-clouds">#</a>Try 3D scenes (terrain, buildings, trees, point clouds)</h3>
+<pre><code class="language-bash">./target/release/geospax-server run lidar-to-terrain --input source=/tmp/scene.las   # → scene.glb, scene.html, scene.png in the run folder
+./target/release/geospax-server run terrain-report --data data                      # terrain block diagram with contours (needs internet)
+xdg-open &quot;$(ls -d data/.geospax/runs/*terrain-report | tail -1)/scene.html&quot;           # the offline viewer
+</code></pre>
+<ul>
+<li><code>scene.glb</code> is glTF 2.0 (Blender, Windows 3D Viewer, ArcGIS Pro, CesiumJS); <code>scene.html</code> is a self-contained WebGL viewer with the model inside; the report shows the rendered 3D picture. In the app, the run card&#39;s <strong>🧊 3D</strong> button opens it.</li>
+<li>Any recipe can add <code>- { id: scene, use: scene.3d, with: { dem: dem } }</code> after a DEM (<a href="/docs/automation#6d-3d-scenes-built">AUTOMATION §6d</a>).</li>
+</ul>
+<h3 id="try-the-phase-1-features"><a class="anchor" href="#try-the-phase-1-features">#</a>Try the Phase 1 features</h3>
+<ol>
+<li>Open <strong>⚙</strong> (or the layer name) on <code>synthetic.buildings</code>. Choose <strong>Graduated colors</strong> → field <code>height</code> → <strong>Natural breaks</strong> (or Quantile / Equal interval) → 3–10 classes → a colour ramp. Or choose <strong>Unique values</strong> → <code>kind</code>. Class colours are editable; the legend appears under the layer in Contents.</li>
+<li>In the same pane, click <strong>Build overviews (z0–12)</strong> and watch the progress bar (about 30 s). Then zoom out to z9: a density heatmap. Polygons take over from z13.</li>
+<li>Reorder layers with ▲▼, and change opacity or visible zoom range. Everything persists across reloads (<code>?fresh</code> ignores the saved project).</li>
+</ol>
+<h3 id="3-desktop-edition"><a class="anchor" href="#3-desktop-edition">#</a>3. Desktop edition</h3>
+<pre><code class="language-bash">(cd apps/desktop &amp;&amp; npm install)
+GEOSPAX_DATA=&quot;$PWD/data&quot; npm --prefix apps/desktop run dev                       # dev: Vite + Tauri
+cargo build --release -p geospax --features geospax/custom-protocol &amp;&amp; ./target/release/geospax data
+(cd apps/desktop &amp;&amp; npx tauri build)                                             # installers (MSI/NSIS, DMG, deb/rpm/AppImage)
+</code></pre>
+<p>On Linux with NVIDIA, if the window is blank, set <code>WEBKIT_DISABLE_DMABUF_RENDERER=1</code> (see Tauri&#39;s Linux graphics notes).
+On Linux the app enables WebGL <code>preserveDrawingBuffer</code> automatically, to work around WebKitGTK dropping tiles (finding 17).</p>
+<h3 id="4-measure-on-your-machines-the-phase-0-exit-criterion"><a class="anchor" href="#4-measure-on-your-machines-the-phase-0-exit-criterion">#</a>4. Measure on your machines (the Phase 0 exit criterion)</h3>
+<pre><code class="language-bash"># Engine latency, headless, per format and zoom:
+cargo run --release -p geospax-engine --bin geospax-bench -- --data data \
+  --layer synthetic.buildings --layer synthetic_buildings.fgb --zooms 11,12,13,14 --arrow synthetic.points \
+  --reader arrow            # or: --reader features
+# Overview pyramid build time, size and serving latency (writes to --state-dir):
+cargo run --release -p geospax-engine --bin geospax-bench -- --data data --overview synthetic.buildings --state-dir /tmp/ov
+</code></pre>
+<p>In the app, click <strong>Run benchmark</strong> (a 9-stop camera tour recording FPS and settle time), then <strong>Download JSON</strong>. Do this on:</p>
+<div class="table"><table><thead><tr>
+<th>Machine</th>
+<th>Web edition</th>
+<th>Desktop · scheme</th>
+<th>Desktop · invoke</th>
+</tr>
+</thead><tbody><tr>
+<td>Windows (WebView2)</td>
+<td>☐</td>
+<td>☐</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>macOS (WKWebView)</td>
+<td>☐</td>
+<td>☐</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Linux (WebKitGTK)</td>
+<td>☐</td>
+<td>☐</td>
+<td>☐</td>
+</tr>
+</tbody></table></div><p>On Windows, the quickest way to fill the first row is the Windows installer (<code>scripts/package-windows.sh</code>). Install it, start GeoSpaX and click <strong>Run benchmark</strong>.</p>
+<h3 id="scripts"><a class="anchor" href="#scripts">#</a>Scripts</h3>
+<p>Names follow <code>setup-*</code>, <code>data-*</code>, <code>demo-*</code>, <code>test-*</code>, <code>bench-*</code> (<code>test-web-*</code> for browser tests). <strong><code>scripts/test-all.sh DATA [OUT]</code> runs everything with one command</strong> and prints a pass/fail summary. Headless runs (CI, or a server without a GPU) exercise the same paths, but their FPS numbers are meaningless.</p>
+<div class="table"><table><thead><tr>
+<th>Script</th>
+<th>Was</th>
+<th>Does</th>
+</tr>
+</thead><tbody><tr>
+<td><code>package-linux.sh [--no-build] [OUT]</code></td>
+<td>new</td>
+<td>Builds the <code>.deb</code> (desktop + web edition, menu entry, icons, docs) with <code>dpkg-deb</code>; dependencies come from the binaries&#39; linked libraries</td>
+</tr>
+<tr>
+<td><code>package-windows.sh [--no-build]</code></td>
+<td>new</td>
+<td>Cross-builds the Windows edition on Linux (MinGW-w64): <code>releases/GeoSpaX_&lt;v&gt;_x64-setup.exe</code> (Tauri NSIS bundler) and a portable ZIP in <code>target/windows/</code>, with the GDAL/PROJ DLLs the binaries import, GDAL/PROJ data, fonts, web UI and licenses. Needs <code>setup-linux.sh --windows</code></td>
+</tr>
+<tr>
+<td><code>test-package-windows.sh SETUP [OUT]</code></td>
+<td>new</td>
+<td>Installs the Windows installer under Wine and runs 20 checks: silent install, Start menu, every DLL import resolves, two recipes, LiDAR (LAS survey, LAZ) and its 3D scene, the Windows server serving UI and reprojected tiles, a camera card on E:, the phone link over HTTPS, MQTT over TLS with a LoRaWAN uplink, silent uninstall</td>
+</tr>
+<tr>
+<td><code>test-package-linux.sh [DEB] [OUT]</code></td>
+<td>new</td>
+<td>Install test for the <code>.deb</code>: apt resolves dependencies, menu entry validates, the installed CLI makes LiDAR maps and the 3D scene, the installed server serves the UI, and a fresh-HOME desktop start creates <code>~/GeoSpaX</code>, maps a GPX dropped into Inbox and does not redo it after a restart; with the phone link on, a photo sent over HTTPS lands in <code>~/GeoSpaX/Inbox</code> and is mapped (15 checks)</td>
+</tr>
+<tr>
+<td><code>test-docs-links.py [FILES]</code></td>
+<td>new</td>
+<td>Every relative link and <code>#anchor</code> in the Markdown docs (GitHub anchor rules)</td>
+</tr>
+<tr>
+<td><code>setup-linux.sh [--test-tools] [--r] [--providers] [--rea] [--windows] [--swap 4G]</code></td>
+<td>–</td>
+<td>Installs system packages, Rust, Node 24, and optionally test tools, R + sf + gstat (<code>--r</code>), GRASS + SAGA (<code>--providers</code>), REA, and the Windows cross-build kit (<code>--windows</code>: MinGW-w64, NSIS, Wine, GDAL for Windows from conda-forge with a license check)</td>
+</tr>
+<tr>
+<td><code>data-fetch-samples.sh DIR [N]</code></td>
+<td><code>prepare-data.sh</code></td>
+<td>Natural Earth + N synthetic buildings/points in GPKG, FlatGeobuf, Shapefile</td>
+</tr>
+<tr>
+<td><code>data-gen-synthetic.py</code></td>
+<td><code>gen_synthetic.py</code></td>
+<td>The synthetic generator used by the script above</td>
+</tr>
+<tr>
+<td><code>data-sample-devices.py [DIR]</code></td>
+<td>new</td>
+<td>Sample phone, drone card, Garmin GPS, NMEA inbox, air-quality logger (CSV), sports watch (FIT) and live-replay file</td>
+</tr>
+<tr>
+<td><code>demo-sensor-networks.py [--mqtt HOST:PORT] [--sta-port N]</code></td>
+<td>new</td>
+<td>A mock OGC SensorThings service with stations in Port Moresby plus TTN and ChirpStack uplinks published to a local broker, to try the sensor networks without hardware</td>
+</tr>
+<tr>
+<td><code>demo-sensor-feed.py [--url URL | --mqtt HOST:PORT]</code></td>
+<td>new</td>
+<td>Two simulated walking air-quality sensors (HTTP push or MQTT) with a smoky-roadside spike every few minutes</td>
+</tr>
+<tr>
+<td><code>data-sample-field.py DIR [--count N]</code></td>
+<td>new</td>
+<td>60 synthetic soil samples (pH, moisture, land use) for the geostatistics recipes</td>
+</tr>
+<tr>
+<td><code>data-sample-lidar.py OUT.las [--classified]</code></td>
+<td>new</td>
+<td>A synthetic LiDAR survey near Lae (LAS 1.2, EPSG:32755): ground with a hill, three buildings, 40 trees, birds and below-ground noise; a <code>.truth.json</code> beside it for the tests</td>
+</tr>
+<tr>
+<td><code>test-all.sh DATA [OUT]</code></td>
+<td>new</td>
+<td>The whole suite (12 parts), with sample devices (incl. the sensor logger and watch) and isolated state dirs</td>
+</tr>
+<tr>
+<td><code>test-sensor-networks.py [--bin B] [--data DIR] [--port N]</code></td>
+<td>new</td>
+<td>MQTT over TLS against Mosquitto (private CA, client certificates, wrong CA, missing client certificate), LoRaWAN uplinks (TTN, ChirpStack v4/v3, TTN webhook), a mock OGC SensorThings service (paging, no duplicates), <code>air-quality-alert</code> from both (24 checks)</td>
+</tr>
+<tr>
+<td><code>test-lidar.py [--bin B] [--cache DIR] [--offline | --quick] [--pw PLAYWRIGHT]</code></td>
+<td>new</td>
+<td>LiDAR against known truth (terrain RMSE, trees found and their heights, buildings, noise, contours, maps, report) for classified and unclassified scenes; real files (LAZ without a CRS, Oregon feet → UTM, 10.7 M points); the drop-folder trigger; the 3D scene of every run (GLB, validator, picture, viewer, report)</td>
+</tr>
+<tr>
+<td><code>test-plugins.py [BASE]</code></td>
+<td>new</td>
+<td>Plugins: shipped plugins load, a python tool round-trips JSON, a recipe tool runs to artifacts, RustGIS/QGIS/ArcGIS manifests import with honest <code>needs</code>, packages install, CLI list/check</td>
+</tr>
+<tr>
+<td><code>test-web-start.mjs BASE FILE [OUT]</code></td>
+<td>new</td>
+<td>The lazy path on an empty server: start screen → choose a file → layer card → Finish my map → PNG, PDF and report → listed on the start screen</td>
+</tr>
+<tr>
+<td><code>test-web-series.mjs BASE</code></td>
+<td>new</td>
+<td>Pro tree keyboard navigation; a 2 × 1 map series makes an index page, two pages and one 3-page PDF; side by side, facets and panels each make one page; the Journal look makes a 300 dpi PNG with inset and edited legend; the live preview follows changes; a renamed class and a reordered legend reach the map; Lazy shows the layouts and looks; a too-large page layer is refused with a reason</td>
+</tr>
+<tr>
+<td><code>test-gsx.mjs BASE</code></td>
+<td>new</td>
+<td>Every GSX tool through the engine (<code>POST /api/plugins/gsx/tools/…/run</code>) on the sample layers: answers and adds its layers</td>
+</tr>
+<tr>
+<td><code>test-domain-plugins.py BIN</code></td>
+<td>new</td>
+<td>The twelve default domain plugins: every tool of each, run through the plugin, against a synthetic landscape with known answers (110 checks)</td>
+</tr>
+<tr>
+<td><code>test-plan-b.py BIN</code></td>
+<td>new</td>
+<td>GEBCO, Hansen forest change, ecoregions and WoRMS through local mirrors with known answers: cell-for-cell cuts, tile mosaics, loss years, geodesic areas, verdicts per name, the cache (31 checks)</td>
+</tr>
+<tr>
+<td><code>test-symbology-options.mjs [BIN] [OUT]</code></td>
+<td>new</td>
+<td>Symbology end to end on its own server: point shapes, sizes by a field, line dashes and casings, hollow polygons, labels with placement on the map (glyphs found) and in the export SVG; the raster editor (ramp, full-range preset, invert, clear below, resampling, opacity, saved across restarts, reset to automatic); the About card (38 checks)</td>
+</tr>
+<tr>
+<td><code>test-equal-earth.py BIN</code></td>
+<td>new</td>
+<td>Exported maps in Equal Earth: a world map picks it by itself (raster warped, outline, no scale bar, landscape page, named in the methods), a small map stays in Web Mercator, an unknown projection is refused (9 checks)</td>
+</tr>
+<tr>
+<td><code>test-prefill.mjs</code></td>
+<td>new</td>
+<td>Tool dialogs pre-select fitting inputs: on the known-answer landscape every GSX tool chooses what a person would (28 checks)</td>
+</tr>
+<tr>
+<td><code>test-plugin-dialogs.mjs BASE</code></td>
+<td>new</td>
+<td>Every tool of the twelve domain plugins opened from the Plugins tab on the PNG samples and run as it opens: runs or asks for its input in plain words, never takes an earlier result</td>
+</tr>
+<tr>
+<td><code>test-web-online.mjs BASE</code></td>
+<td>new</td>
+<td>The 3.0 ribbon tabs; every Online data form saves the right <code>data.fetch</code> recipe (request intercepted, no internet); Lazy&#39;s Online data chooser</td>
+</tr>
+<tr>
+<td><code>test-web-controls.mjs [BASE] [OUT]</code></td>
+<td>new</td>
+<td>Every control in both modes: every ribbon command on every tab, the contextual Layer tab, the layer tree (groups, group switch, twisties, filter, basemap), every dock tab, the Toolbox, the task bar, Inspector chips, card buttons, and one analysis from a card to its report; fails on any page error, console error or 5xx</td>
+</tr>
+<tr>
+<td><code>test-edit.py [BASE]</code></td>
+<td>new</td>
+<td>Editing and queries on GeoJSON, Shapefile and a projected GeoPackage (<code>test-edit-data.py</code> makes the data): sorted and searched table pages, select by attributes and location, definition queries, add/move/delete features in the layer&#39;s CRS, typed attributes, fields, SQL and geodesic calculations, feature ids kept by the edit copy, export, revert (44 checks, in CI)</td>
+</tr>
+<tr>
+<td><code>test-clean-start.mjs [BIN] [SHOTS]</code></td>
+<td>new</td>
+<td>Clean start on the globe, ribbon fits at 1400/1024 px, tab order, no duplicate icons, GSX only on Plugins, session-only samples, remove from map (✕, Delete) persists, Settings, help page and FAQ; 24 checks</td>
+</tr>
+<tr>
+<td><code>test-web-workbench.mjs [BASE] [OUT]</code></td>
+<td>new</td>
+<td>The 1.7 workbench: ribbon tabs and buttons, dock tabs, attribute table (rows/fields/chart), command palette, splitter drag and reset, pane collapse, layout persistence across a reload; 29 checks, screenshots</td>
+</tr>
+<tr>
+<td><code>test-web-scene.mjs OUT NAME=scene.html…</code></td>
+<td>new</td>
+<td>The 3D viewer in Playwright Chromium with the network blocked: ready, framing, turn, zoom, pan, compass, reset, layer switches; screenshots</td>
+</tr>
+<tr>
+<td><code>validate-gltf.mjs FILE.glb…</code></td>
+<td>new</td>
+<td>The Khronos glTF-Validator (npm <code>gltf-validator</code>, installed by <code>setup-linux.sh --test-tools</code>); exits 1 on any error</td>
+</tr>
+<tr>
+<td><code>test-automation.py [--data DIR]</code></td>
+<td>new</td>
+<td>Every gallery recipe from the CLI (files checked; DEM/Sentinel-2/GRASS/SAGA ones skipped offline or when not installed), FIT watch, live device/folder/schedule/after/webhook/stac triggers, live sensors over HTTP and MQTT (Mosquitto), sensor threshold + cooldown, geofence, raster API, API, safety, the 3D scene files (218 checks)</td>
+</tr>
+<tr>
+<td><code>test-web-automation.mjs URL OUT</code></td>
+<td>new</td>
+<td>Automate panel: Run → layers + styles on the map → map and report viewer → Auto switch → Save as recipe → run it → <code>terrain-report</code> puts shaded relief on the map and fills the Rasters panel → its 🧊 3D button opens the scene (sandboxed WebGL)</td>
+</tr>
+<tr>
+<td><code>test-tiles-gdal.py URL</code></td>
+<td><code>validate-tiles.py</code></td>
+<td>Decodes tiles with GDAL&#39;s MVT driver; checks feature counts and extents</td>
+</tr>
+<tr>
+<td><code>test-web-viewer.mjs URL OUT</code></td>
+<td><code>smoke.mjs</code></td>
+<td>Phase 0 viewer paths in Playwright Chromium (tiles, Arrow → deck.gl, camera tour)</td>
+</tr>
+<tr>
+<td><code>test-web-symbology.mjs URL OUT</code></td>
+<td><code>smoke-phase1.mjs</code></td>
+<td>Symbology pane, overview job, reordering, project reload</td>
+</tr>
+<tr>
+<td><code>test-phone-link.mjs [BIN] [SAMPLES] [OUT]</code></td>
+<td>new</td>
+<td>Phone link end to end with its own server: Turn on → QR → a mobile browser pairs over HTTPS, shares live location, sends a geotagged and an unlocated photo (placed on the live track by time) and a camera photo (phone position) → the map comes back to the phone; wrong code refused, http:// redirected, Turn off closes the port, the pairing code survives a restart (10 checks)</td>
+</tr>
+<tr>
+<td><code>test-web-devices.mjs URL OUT</code></td>
+<td><code>test-devices.mjs</code></td>
+<td>Devices pane → Import &amp; map → phone page (mocked GPS) → live device on the map → sensor logger listed → live sensor values → readings mapped</td>
+</tr>
+<tr>
+<td><code>test-desktop.sh DATA OUT QUERY [SECONDS]</code></td>
+<td><code>desktop-smoke.sh</code></td>
+<td>Desktop edition under Xvfb. With <code>gldebug=1</code> it screenshots once the map is idle; <code>COVERAGE_MAX=5</code> fails on dropped tiles</td>
+</tr>
+<tr>
+<td><code>test-tile-coverage.py PNG… [--max-empty 5]</code></td>
+<td>new</td>
+<td>Dropped-tile detector (regression test for finding 17)</td>
+</tr>
+<tr>
+<td><code>bench-api-stress.py URL [--clients 16 --requests 256]</code></td>
+<td><code>stress.py</code></td>
+<td>Mixed concurrent API load with density-weighted tiles; exits non-zero on any error</td>
+</tr>
+</tbody></table></div><h2 id="layout"><a class="anchor" href="#layout">#</a>Layout</h2>
+<pre><code>docs/            USER_GUIDE.md · VISION.md · FEATURE_MATRIX.md · AUTOMATION.md · DEVICES.md
+CHANGELOG.md · LICENSE (MIT)
+Dockerfile · docker-compose.yml    web edition image (+ MQTT broker); .github/workflows/ci.yml: CI and releases
+releases/        packages built by scripts/package-linux.sh (.deb) and scripts/package-windows.sh (setup.exe)
+packaging/windows/  Tauri NSIS overlay, installer hooks, geospax-web.cmd, README.txt for the install folder
+recipes/         gallery recipes (YAML), embedded in the binaries: photos-to-map · track-to-map ·
+                 drone-flight-report · points-to-hexbins · points-to-hotspots · interpolate-samples · python-spatial-stats · r-kriging ·
+                 terrain-report · lidar-to-terrain · latest-ndvi · landforms-grass · wetness-saga · sensor-log-to-map ·
+                 air-quality-alert
+crates/engine/   reader.rs (Arrow | features) · catalog.rs · wkb.rs · tile.rs · mvt.rs (+ density grid)
+                 overview.rs · pmtiles_io.rs (sync PMTiles v3 reader) · jobs.rs · classify.rs
+                 devices.rs (device hub: discovery, EXIF/XMP + sidecars, GPX/NMEA/SRT, photos placed by time,
+                             import, live store, sensor hook) · phone.rs (phone link: HTTPS, QR, uploads, batches)
+                 sensors.rs (sensor CSV/JSON/FIT readers, live HTTP/MQTT messages, LoRaWAN uplinks (TTN, ChirpStack),
+                             MQTT 3.1.1 client with TLS (rustls, Mozilla roots, own CA, client certificates), WHO levels)
+                 sta.rs (OGC SensorThings polling: newest observation per datastream, nextLink paging)
+                 raster.rs (catalogue, stats, auto-style, Web Mercator overlays, GDAL warp/translate/DEM/HTTP)
+                 lidar.rs (LAS/LAZ headers and streaming, grids, SMRF ground, DSM, canopy, buildings, tree tops)
+                 geostats.rs (neighbour index, Moran&#39;s I, Gi*, FDR, distance search, variograms, kriging, CV)
+                 automation/ recipe.rs (parse, validate, ${…}) · mod.rs (registry, runner, runs) · steps.rs
+                             automap.rs · cartography.rs (layout → SVG, resvg PNG, krilla PDF) · report.rs · features.rs
+                             raster_steps.rs (DEM, terrain, contours, classify, sample, STAC + indices)
+                             lidar_steps.rs (lidar.grid: rasters, tree and building layers, report story)
+                             providers.rs (GRASS, SAGA) · sidecar.rs (R/Python)
+                             triggers.rs (folder, schedule, stac) · cli.rs (run/check/watch)
+                 router.rs · arrow_export.rs · bin/geospax-bench.rs
+crates/server/   Axum adapter, binary `geospax-server` (static files + /api + /tiles; gzip except Arrow)
+apps/desktop/    Tauri 2 adapter (gis:// scheme, `tile` command, GEOSPAX_* env hooks); binary `geospax`
+web/             MapLibre 6 + deck.gl frontend shared by both editions
+                 main.ts · automate.ts (Automate panel) · rasters.ts (Rasters panel) · symbology.ts · panel.ts
+                 devices.ts · phone.ts (Send from phone card) · backend.ts · public/phone.html (phone page)
+scripts/         setup-* · data-* · demo-* · test-* · bench-*  (see Scripts)
+bench/           RESULTS.md · engine-*.json · reader-*.json · overviews.json · classify.json · stress.json
+                 desktop-tile-drops.json · ui-*-headless.json · screenshots/
+</code></pre>
+<h2 id="api-identical-over-http-and-gis"><a class="anchor" href="#api-identical-over-http-and-gis">#</a>API (identical over HTTP and <code>gis://</code>)</h2>
+<div class="table"><table><thead><tr>
+<th>Route</th>
+<th>Returns</th>
+</tr>
+</thead><tbody><tr>
+<td><code>GET /api/health</code></td>
+<td><code>{&quot;ok&quot;: true, &quot;version&quot;: &quot;1.0.0&quot;}</code>: liveness (Docker health check) and the version shown in the header</td>
+</tr>
+<tr>
+<td><code>GET /api/recipes</code> · <code>GET /api/recipes/{id}</code> · <code>GET /api/steps</code></td>
+<td>Recipes (triggers, inputs, steps, Auto state, last run) · one recipe with its YAML and plan · the step catalogue</td>
+</tr>
+<tr>
+<td><code>POST /api/recipes[?approve=code]</code> · <code>POST /api/recipes/validate</code> · <code>DELETE /api/recipes/{id}</code></td>
+<td>Save a recipe (YAML body; code steps need approval) · validate (every problem + plan) · delete a user recipe</td>
+</tr>
+<tr>
+<td><code>POST /api/recipes/{id}/run</code> · <code>PUT /api/recipes/{id}/auto</code></td>
+<td>Start a run (<code>{&quot;inputs&quot;: {…}}</code>; 202, 409 if it is running) · switch its triggers on/off</td>
+</tr>
+<tr>
+<td><code>GET /api/runs</code> · <code>GET /api/runs/{id}</code> · <code>POST /api/runs/{id}/cancel</code> · <code>GET /api/runs/{id}/files/{name}</code></td>
+<td>Run history · steps, status, why lines, outputs, styles, extent · cancel · artifacts (map.png, map.svg, report.html, exports)</td>
+</tr>
+<tr>
+<td><code>GET /api/rasters</code> · <code>GET /api/rasters/{id}</code> · <code>GET /api/rasters/{id}/overlay.png?max=</code> · <code>PUT /api/rasters/{id}/style</code></td>
+<td>Rasters (kind, bounds, stats, style + reason, legend, overlay URL + corners) · one raster · Web Mercator PNG for the map · change the style</td>
+</tr>
+<tr>
+<td><code>POST /api/hooks/{token}</code> · <code>GET /api/providers</code></td>
+<td>Start the recipe with that webhook token (JSON body → inputs; 404 unknown, 409 switched off) · GRASS / SAGA / Whitebox availability and versions</td>
+</tr>
+<tr>
+<td><code>GET /api/devices</code> · <code>POST /api/devices/rescan</code></td>
+<td>Detected devices (kind, geotagged photos, tracks, waypoints, sensor readings + fields, bounds, import state), live devices with latest values and source, MQTT subscriptions, SensorThings services, watched roots</td>
+</tr>
+<tr>
+<td><code>POST /api/devices/{id}/import</code></td>
+<td>Import a device as layers (job; 202). Re-import replaces the layers in place</td>
+</tr>
+<tr>
+<td><code>GET /api/devices/live</code> · <code>POST /api/devices/live</code></td>
+<td>Live positions + recent tracks (GeoJSON, with latest sensor values) · push a fix or a sensor reading (<code>{&quot;id&quot;,&quot;lat&quot;,&quot;lon&quot;,&quot;values&quot;:{…}}</code>)</td>
+</tr>
+<tr>
+<td><code>GET /api/devices/readings?minutes=60&amp;device=aq-*</code></td>
+<td>Live sensor readings as GeoJSON points</td>
+</tr>
+<tr>
+<td><code>GET /api/layers</code></td>
+<td>Layer metadata: geometry, count, bounds, CRS, fields, effective/live zoom range, overview state</td>
+</tr>
+<tr>
+<td><code>GET /tiles/{layer}/{z}/{x}/{y}.mvt[?fields=a,b]</code></td>
+<td>MVT from the pyramid (z ≤ its max) or rendered live. Headers: <code>X-Tile-Source</code>, plus <code>Server-Timing</code> (setup / read / proc / enc / teardown)</td>
+</tr>
+<tr>
+<td><code>GET /api/layers/{layer}/classify?field=&amp;method=jenks|quantile|equal|guideline&amp;classes=5</code></td>
+<td>Breaks (class upper bounds), per-class counts, min/max/mean/σ/median, timings; <code>guideline</code> = WHO classes with colours and names for PM2.5/PM10</td>
+</tr>
+<tr>
+<td><code>GET /api/layers/{layer}/unique?field=&amp;limit=50</code></td>
+<td>Most frequent values with counts, distinct count, &quot;others&quot;</td>
+</tr>
+<tr>
+<td><code>GET /api/layers/{layer}/autostyle</code></td>
+<td>AutoMap&#39;s style for the layer with its reason (what recipes use); the UI applies it after <strong>Import &amp; map</strong></td>
+</tr>
+<tr>
+<td><code>POST /api/layers/{layer}/overviews[?maxzoom=N]</code> · <code>DELETE …/overviews</code></td>
+<td>Start an overview job (202 + job; 409 if one is already running) · remove the pyramid</td>
+</tr>
+<tr>
+<td><code>GET /api/jobs</code> · <code>GET /api/jobs/{id}</code> · <code>POST /api/jobs/{id}/cancel</code></td>
+<td>Background jobs: status, done/total, message, result</td>
+</tr>
+<tr>
+<td><code>GET /api/project</code> · <code>PUT /api/project</code></td>
+<td>The project document (styles with AutoMap&#39;s reason, draw order, group layers, view, basemap)</td>
+</tr>
+<tr>
+<td><code>POST /api/upload?name=FILE</code></td>
+<td>Body = the file. Saved in <code>Uploads/</code> of the data folder (unique name), zips unpacked safely, vector layers and GeoTIFF rasters added to the map: <code>{&quot;layers&quot;, &quot;rasters&quot;, &quot;point_clouds&quot;, &quot;skipped&quot;, &quot;saved&quot;}</code> (201); unsupported types → 400 with the accepted list</td>
+</tr>
+<tr>
+<td><code>GET/PUT /api/ai/settings</code>, <code>GET /api/ai/models</code></td>
+<td>The assistant&#39;s model: Ollama, OpenAI-compatible or Claude (the key is never returned); see <a href="/docs/ai">docs/AI.md</a></td>
+</tr>
+<tr>
+<td><code>POST /api/ask</code></td>
+<td><code>{question, history}</code> → <code>{answer, steps, actions}</code>: an answer from the chosen model, using GeoSpaX&#39;s tools</td>
+</tr>
+<tr>
+<td><code>GET /api/browse/inside?path=</code> · <code>GET /api/browse/preview?path=[&amp;layer=]</code></td>
+<td>The layers of a GeoPackage or the map files in a zip (<code>/vsizip/…</code> paths); a preview (count, CRS, bounds, fields, 5 rows) without adding</td>
+</tr>
+<tr>
+<td><code>GET /api/services</code> · <code>POST /api/services?kind=&amp;url=[&amp;title=]</code> · <code>DELETE /api/services/{id}</code> · <code>GET /api/services/{id}/layers</code> · <code>GET /api/services/{id}/tile/{z}/{x}/{y}?layer=</code> · <code>POST /api/services/{id}/fetch?layer=&amp;bbox=w,s,e,n</code></td>
+<td>Web services: connections (kept in <code>&lt;state&gt;/services.json</code>), their layers, map tiles relayed by the engine, features downloaded for an area to <code>&lt;state&gt;/services/&lt;id&gt;/&lt;layer&gt;.fgb</code></td>
+</tr>
+<tr>
+<td><code>GET /api/folders/pick[?path=DIR]</code> · <code>POST /api/folders?path=DIR</code> · <code>DELETE /api/folders?path=DIR</code></td>
+<td>Folder connections for the Explorer: the folder chooser (any folder of this computer, with the places to start from), connect one (kept in <code>&lt;state&gt;/folders.json</code>), remove one. Refused (403) when the server answers other devices</td>
+</tr>
+<tr>
+<td><code>GET /api/browse[?path=DIR]</code></td>
+<td>The Explorer&#39;s browser: without <code>path</code> the roots (data folders, <code>Edits</code>, <code>Uploads</code>); with it that folder&#39;s sub-folders and map files <code>{name, path, kind, size, on_map}</code>. Folders outside the roots → 403</td>
+</tr>
+<tr>
+<td><code>POST /api/browse/add?path=FILE</code></td>
+<td>Put a file from a data folder on the map: <code>{&quot;layers&quot;, &quot;rasters&quot;}</code>, or <code>&quot;already&quot;: true</code> when it is on the map; outside the roots → 400</td>
+</tr>
+<tr>
+<td><code>GET /api/project/info</code></td>
+<td>Where the project is saved: <code>{&quot;path&quot;, &quot;exists&quot;}</code></td>
+</tr>
+<tr>
+<td><code>GET /api/plugins</code> · <code>POST /api/plugins/{id}/tools/{tool}/run</code></td>
+<td>Plugins (source, kind, runnable, tools with forms) · run a tool (<code>{&quot;params&quot;: {…}}</code>); the reply lists the layers and rasters its <code>outputs</code> added (<code>&quot;added&quot;</code>)</td>
+</tr>
+<tr>
+<td><code>POST /api/layers/{layer}/table</code> · <code>…/select</code></td>
+<td>Attribute table page (<code>offset</code>, <code>limit</code>, <code>sort</code>, <code>desc</code>, <code>where</code>, <code>fids</code>) · select by attributes (<code>where</code>) and/or location (<code>location: {layer, relation, distance_m, fids}</code>) → <code>fids</code></td>
+</tr>
+<tr>
+<td><code>GET/POST/PUT/DELETE /api/layers/{layer}/features[/{fid}]</code> · <code>POST …/features/delete</code></td>
+<td>One feature as GeoJSON · add · change geometry and/or properties · delete (edits go to the layer&#39;s GeoPackage copy; <code>POST …/edit</code> makes it, <code>POST …/revert</code> drops it)</td>
+</tr>
+<tr>
+<td><code>POST /api/layers/{layer}/fields</code> · <code>DELETE …/fields/{name}</code> · <code>POST …/calculate</code> · <code>PUT …/filter</code> · <code>POST …/export</code> · <code>POST /api/layers/new</code></td>
+<td>Add/delete a field · field calculator (<code>expression</code> in SQL, or <code>geometry</code>: area_ha, length_m, x …) · definition query (<code>where</code>) · selection to a new layer · new empty layer</td>
+</tr>
+<tr>
+<td><code>GET /api/layers/{layer}/arrow[?bbox=w,s,e,n&amp;limit=n]</code></td>
+<td>Arrow IPC stream (<code>geoarrow.point</code>)</td>
+</tr>
+<tr>
+<td><code>GET /api/stats</code> · <code>POST /api/cache/clear</code> · <code>POST/GET /api/bench</code></td>
+<td>Engine stats (reader, GDAL, live vs pyramid tiles) · clear the LRU tile cache · benchmark reports</td>
+</tr>
+</tbody></table></div><h2 id="not-in-scope-yet"><a class="anchor" href="#not-in-scope-yet">#</a>Not in scope (yet)</h2>
+<ul>
+<li><strong>MLT encoding.</strong> Martin can transcode MVT to MLT. It would shrink the dense z12 pyramid tiles.</li>
+<li><strong>Bottom-up pyramid builds.</strong> The builder re-reads the source at every zoom; z6–12 take 3–4.5 s each. Aggregating density counts from the zoom below would cut build time for point-like data.</li>
+<li><strong>Symbol editing beyond colour, CIM import/export.</strong> (Automatic point labels exist in exported maps; interactive labels don&#39;t yet.)</li>
+<li><strong>Raster tiles</strong> (rasters are served as one overlay image each; tiles matter for very large rasters).</li>
+<li><strong>CEF on Linux.</strong> Waiting for Tauri 3 to stabilize.</li>
+<li><strong>Web-map export, <code>for_each</code>, the step cache, OGC SensorThings, cloud-free composites, land-cover classification, more providers (Whitebox, OTB, SNAP, ODM), the optional AI recipe writer.</strong> Specified in <a href="/docs/automation">docs/AUTOMATION.md</a>; Phase 2 onwards.</li>
+</ul>
+</article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#status">Status</a><a href="#what-it-proves">What it proves</a><a href="#findings-that-change-the-plan">Findings that change the plan</a><a href="#run-it">Run it</a><a href="#layout">Layout</a><a href="#api-identical-over-http-and-gis">API (identical over HTTP and gis://)</a><a href="#not-in-scope-yet">Not in scope (yet)</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/DEVELOPMENT.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>

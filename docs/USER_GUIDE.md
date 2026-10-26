@@ -22,15 +22,13 @@ This guide gets you from zero to a finished map in a few minutes.
 |---|---|
 | **Windows 10 or 11** (64-bit) | Run `GeoSpaX_3.0.3_x64-setup.exe`. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start **GeoSpaX** from the Start menu. **GeoSpaX Web Server** in the same menu opens the web edition in your browser. The installer isn't code-signed yet, so Windows may say "Windows protected your PC": click *More info → Run anyway*. Prefer no installer? Unzip `GeoSpaX-3.0.3-windows-x64.zip` anywhere and run `geospax.exe`. |
 | **Any Linux** (AppImage) | Download `GeoSpaX-3.0.3-x86_64.AppImage`, make it executable (right-click › *Properties › Allow executing as program*, or `chmod +x GeoSpaX-*.AppImage`) and double-click it. Nothing is installed and no admin password is needed; it updates itself from inside the app. Works on distributions from 2024 onwards (Ubuntu 24.04, Fedora 40, Debian 13, Arch, openSUSE Tumbleweed …). |
-| **Debian 13** (desktop) | Download `geospax_3.0.3_amd64.deb`, then `sudo apt install ./geospax_3.0.3_amd64.deb`. Start **GeoSpaX** from the applications menu. |
-| **Fedora 43 / 44** (desktop) | Download the package for your release (`rpm -E %fedora`): `geospax-<version>-1.fc43.x86_64.rpm` or `…fc44…`, then `sudo dnf install ./geospax-<version>-1.fc4N.x86_64.rpm`. Start **GeoSpaX** from the applications menu. Another Fedora release: build a matching one with `scripts/setup-fedora.sh && scripts/package-rpm.sh`. |
-| **RHEL, Rocky Linux, AlmaLinux 10** | Enable EPEL (`sudo dnf install epel-release`; on RHEL also `sudo subscription-manager repos --enable codeready-builder-for-rhel-10-x86_64-rpms`), then `sudo dnf install ./geospax-3.0.3-1.el10.x86_64.rpm`. The Fedora package does not install there: each is built against its own system's GDAL. |
-| Another Debian/Ubuntu release | The `.deb` above is built against GDAL 3.10 (`libgdal36`). Build a matching one: `scripts/setup-linux.sh && scripts/package-linux.sh` (it works out the right dependencies for your system), or use the web edition in a container. |
+| **Linux via Flathub** | `flatpak install flathub io.github.jmozez.GeoSpaX`, or install GeoSpaX from GNOME Software or KDE Discover. Updates arrive with the rest of your system. |
+| **Android** (field app) | Download `GeoSpaX-Field-<version>.apk` from the [download page](https://geospax.in4metrix.dev/#download), allow "install unknown apps" once and open it. Android 8 or newer. |
 | **Docker** (any OS, web edition) | `mkdir -p data inbox && docker compose up -d`, then open the `http://localhost:8080/?token=…` link printed by `docker compose logs geospax` (set `GEOSPAX_TOKEN` to keep a fixed token). The compose file also starts an MQTT broker for live sensors. *The image is built by CI on version tags; it has not been built in our own test sandbox yet.* |
 | macOS | Not packaged yet (it needs a Mac to build). Use the Docker web edition for now. |
 | The source code | `scripts/setup-linux.sh`, then `cd web && npm ci && npx vite build`, then `cargo build --release -p geospax-server` and `./target/release/geospax-server --data data`. See the [README](../README.md). |
 
-The `.deb`, the `.rpm` and the Windows installer all contain both editions (on Windows: `geospax.exe`, `geospax-server.exe`, and `geospax-web.cmd`, which starts the server on your `GeoSpaX` folders and opens the browser):
+The AppImage, the Flatpak and the Windows installer all contain both editions (on Windows: `geospax.exe`, `geospax-server.exe`, and `geospax-web.cmd`, which starts the server on your `GeoSpaX` folders and opens the browser):
 
 | Program | What it is |
 |---|---|
