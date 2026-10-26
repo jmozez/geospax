@@ -28,9 +28,11 @@
       <div id="shell">
         <aside id="dock-left" class="dock" data-dock="left" aria-label="Contents and catalog">
           <div class="dock-tabs" data-dock="left">
-            <button data-tab="contents">Contents</button>
-            <button data-tab="catalog">Explorer</button>
+            <!-- the order work follows: the project, then where data comes from, then what is on the map
+                 (Contents is still the tab that opens by default) -->
             <button data-tab="project">Project</button>
+            <button data-tab="catalog">Explorer</button>
+            <button data-tab="contents">Contents</button>
           </div>
           <div class="dock-body">
             <section data-tab="contents">
