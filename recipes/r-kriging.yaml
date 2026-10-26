@@ -1,5 +1,5 @@
 # R step: ordinary kriging with gstat, variogram model fitted automatically, cross-validated.
-# Needs R with the sf and gstat packages (Debian/Ubuntu: apt install r-cran-sf r-cran-gstat).
+# Needs R with the sf, gstat and dplyr packages (R setup › Spatial statistics, or apt install r-cran-sf r-cran-gstat r-cran-dplyr).
 recipe: r-kriging
 version: 1
 title: R kriging (gstat) → prediction and uncertainty
@@ -19,42 +19,74 @@ steps:
     with:
       inputs: { samples: "${samples.layer}" }
       params: { field: "${inputs.field}" }
-      packages: [sf, gstat]
+      packages: [sf, gstat, dplyr]
       code: |
         library(sf)
         library(gstat)
-        fld <- params$field
-        if (is.null(fld) || identical(fld, "auto")) {
-          num <- names(Filter(is.numeric, st_drop_geometry(samples)))
-          fld <- setdiff(num, c("id", "fid", "ogc_fid"))[1]
+        library(dplyr)
+
+        # the field to krige: the one asked for, else the first numeric field that is not an id
+        field <- params$field
+        if (is.null(field) || identical(field, "auto")) {
+          field <- samples |>
+            st_drop_geometry() |>
+            select(where(is.numeric), -any_of(c("id", "fid", "ogc_fid"))) |>
+            names() |>
+            first()
         }
-        xy <- st_coordinates(samples)
-        zone <- floor((mean(xy[, 1]) + 180) / 6) + 1
-        epsg <- if (mean(xy[, 2]) < 0) 32700 + zone else 32600 + zone
-        pts <- st_transform(samples, epsg)
-        pts <- pts[!is.na(pts[[fld]]), ]
-        f <- as.formula(paste(fld, "~ 1"))
-        v <- variogram(f, pts)
-        model <- fit.variogram(v, vgm(c("Sph", "Exp", "Gau")))
-        grid <- st_sf(geometry = st_make_grid(pts, n = c(60, 45)))
+
+        # work in metres: the UTM zone of the samples' centre
+        centre <- samples |>
+          st_coordinates() |>
+          colMeans()
+        zone <- floor((centre[["X"]] + 180) / 6) + 1
+        epsg <- if (centre[["Y"]] < 0) 32700 + zone else 32600 + zone
+        points <- samples |>
+          st_transform(epsg) |>
+          filter(!is.na(.data[[field]]))
+
+        model_formula <- reformulate("1", response = field)
+        variogram_model <- points |>
+          variogram(model_formula, data = _) |>
+          fit.variogram(vgm(c("Sph", "Exp", "Gau")))
+
+        # prediction grid: cell centres inside the samples' hull (plus 50 m)
+        hull <- points |>
+          st_union() |>
+          st_convex_hull() |>
+          st_buffer(50)
+        grid <- st_sf(geometry = st_make_grid(points, n = c(60, 45)))
         centres <- suppressWarnings(st_centroid(grid))
-        hull <- st_buffer(st_convex_hull(st_union(pts)), 50)
-        keep <- st_intersects(centres, hull, sparse = FALSE)[, 1]
-        grid <- grid[keep, ]
+        inside <- st_intersects(centres, hull, sparse = FALSE)[, 1]
+
         # local kriging (the nearest 32 samples) once there are many samples: same as global for
         # small sets, and seconds instead of minutes for large ones
-        nmax <- if (nrow(pts) > 200) 32 else Inf
-        k <- krige(f, pts, centres[keep, ], model = model, nmax = nmax, debug.level = 0)
-        grid$prediction <- round(k$var1.pred, 4)
-        grid$std_error <- round(sqrt(pmax(k$var1.var, 0)), 4)
+        many <- nrow(points) > 200
+        n_max <- if (many) 32 else Inf
+        kriged <- krige(model_formula, points, centres[inside, ], model = variogram_model, nmax = n_max, debug.level = 0)
+        prediction <- grid[inside, ] |>
+          mutate(
+            prediction = round(kriged$var1.pred, 4),
+            std_error = round(sqrt(pmax(kriged$var1.var, 0)), 4)
+          )
+
         # leave-one-out for small sets; 10-fold above 200 samples (LOO with a neighbourhood is slow)
-        nfold <- if (nrow(pts) > 200) 10 else nrow(pts)
+        n_fold <- if (many) 10 else nrow(points)
         set.seed(1)
-        cv <- krige.cv(f, pts, model = model, nmax = nmax, nfold = nfold, verbose = FALSE)
-        last <- nrow(model)
-        result(field = fld, model = as.character(model$model[last]), range_m = round(model$range[last]), neighbours = if (is.finite(nmax)) nmax else nrow(pts),
-               cv_rmse = round(sqrt(mean(cv$residual^2)), 4), cv = if (nfold == nrow(pts)) "leave-one-out" else "10-fold", samples = nrow(pts), epsg = epsg)
-        list(prediction = st_transform(grid, 4326))
+        cv <- krige.cv(model_formula, points, model = variogram_model, nmax = n_max, nfold = n_fold, verbose = FALSE)
+        fitted_model <- slice_tail(as.data.frame(variogram_model), n = 1)
+
+        result(
+          field = field,
+          model = as.character(fitted_model$model),
+          range_m = round(fitted_model$range),
+          neighbours = if (is.finite(n_max)) n_max else nrow(points),
+          cv_rmse = round(sqrt(mean(cv$residual^2)), 4),
+          cv = if (many) "10-fold" else "leave-one-out",
+          samples = nrow(points),
+          epsg = epsg
+        )
+        list(prediction = st_transform(prediction, 4326))
   - id: style
     use: automap.style
     with: { layers: ["${krige.layers.prediction}"], field: prediction }

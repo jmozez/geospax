@@ -1198,6 +1198,7 @@ export const COMMANDS: Command[] = [
   rCmd('r.console', 'R', 'R console', 'rlogo', 'blank', 'Run R code on a layer (sf) and a raster (terra); results come back to the map', true),
   rCmd('r.setup', 'R', 'R setup', 'pkgDown', 'setup', 'Find or install R and package kits (sf, terra, tmap, biomod2 …)'),
   rCmd('r.tmap', 'R maps', 'tmap map', 'layout', 'tmap', 'A thematic map with tmap, saved at print size', true),
+  rCmd('r.chart', 'R maps', 'ggplot2 chart', 'chart', 'chart', 'A ggplot2 chart of a field, in the chart theme chosen in Settings (PNG, PDF, SVG)'),
   rCmd('r.ggplot', 'R maps', 'ggplot2 map', 'lineChart', 'ggplot', 'A ggplot2 map (geom_sf) with scale bar and north arrow'),
   rCmd('r.rayshader', 'R maps', 'Relief', 'cubeScan', 'rayshader', 'Shaded relief from a DEM with rayshader'),
   rCmd('r.terrain', 'R rasters', 'Terrain', 'elevRise', 'terrain', 'Slope, aspect, hillshade and ruggedness with terra', true),

@@ -258,11 +258,14 @@ if (requireNamespace("ggplot2", quietly = TRUE)) local({{
 figure_path <- function(name, ext = "png") file.path(outputs_dir, paste0(name, ".", ext))
 # A figure at print size: a ggplot, a tmap, or a function that draws (base graphics, terra::plot …).
 # rayshader: rayshader::render_snapshot(figure_path("relief")) or save_figure("relief", function() plot_map(hillshade)).
-save_figure <- function(name, plot, width = 180, height = 120, units = "mm", dpi = 300, formats = c("png", "pdf")) {{
+# PNG (at dpi), PDF and SVG by default, so every chart can be downloaded at print quality and as vectors.
+save_figure <- function(name, plot, width = 180, height = 120, units = "mm", dpi = 300, formats = c("png", "pdf", "svg")) {{
   inch <- c(mm = 1 / 25.4, cm = 1 / 2.54, `in` = 1)[[units]]
   for (.f in formats) {{
     path <- figure_path(name, .f)
-    if (inherits(plot, "ggplot")) ggplot2::ggsave(path, plot, width = width, height = height, units = units, dpi = dpi)
+    # ggsave writes SVG through svglite when installed, else with R's own svg device
+    svg_device <- if (.f == "svg" && !requireNamespace("svglite", quietly = TRUE)) grDevices::svg else NULL
+    if (inherits(plot, "ggplot")) ggplot2::ggsave(path, plot, width = width, height = height, units = units, dpi = dpi, device = svg_device)
     else if (inherits(plot, "tmap")) tmap::tmap_save(plot, path, width = width, height = height, units = units, dpi = dpi)
     else if (is.function(plot)) {{
       if (.f == "pdf") grDevices::pdf(path, width = width * inch, height = height * inch)

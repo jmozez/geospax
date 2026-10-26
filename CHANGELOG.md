@@ -26,6 +26,18 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - R setup shows a coloured, moving progress bar with the size downloaded (of the expected total),
   the speed, packages done (with their dependencies) and the time left; green when done, red on failure.
 
+### Changed — charts in ggplot2 style, customisable and downloadable
+- Every chart (report charts, the Attributes chart, raster histograms, R steps) follows ggplot2: one
+  look chosen in **Settings › Charts**: theme (theme_grey by default, bw, minimal, classic, light,
+  dark), palette (ggplot2 hue, matching R exactly; viridis, Okabe–Ito, Set2, Dark2) and text size.
+- Each chart in the app has **Customise** (title, axis labels, theme, palette, colour, text size) and
+  **Download** (PNG or SVG; 72, 150, 300 or 600 dpi; 4:3, 16:9, 1:1, 3:2, journal one or two
+  columns, A4 landscape, or a custom size in mm). Report charts are saved next to the report as SVG and
+  300 dpi PNG, linked in the report and placed in the Word document.
+- R: the prelude sets the ggplot2 theme and palette from Settings; `save_figure` writes PNG, PDF and
+  SVG by default. The R templates and the R kriging recipe follow the tidyverse style guide (|>,
+  dplyr / purrr verbs, snake_case, .data pronoun); a new **ggplot2 chart** template.
+
 ### Added — package updates and suggestions (R and Python)
 - R setup: **Check for updates** lists newer versions of the packages in GeoSpaX's R library and
   updates the ones you tick, with the same gauge. The package box suggests CRAN names as you type.

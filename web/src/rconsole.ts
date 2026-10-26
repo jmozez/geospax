@@ -30,50 +30,99 @@ interface Template {
 }
 
 export const TEMPLATES: Record<string, Template> = {
+  // Every template follows the tidyverse style guide: the native pipe |>, dplyr / purrr verbs,
+  // snake_case names, .data[[...]] for a field chosen at run time, one step per line, ggplot2 for
+  // charts (the theme and palette chosen in Settings are already set by GeoSpaX, see sidecar.rs).
   blank: {
     title: 'R console',
     lead: 'Any R code. `layer` is the chosen layer (sf), `raster` the chosen raster (terra). Return a named list: sf → layers, SpatRaster → rasters, ggplot/tmap → figures, data frames → tables.',
     needs: [],
     packages: [],
     code: `# layer (sf) and raster (terra) are the inputs chosen above
-# save_figure("name", plot_or_function), save_table("name", df), result(key = value)
-summary(layer)
+# save_figure("name", plot), save_table("name", df), result(key = value)
+layer |>
+  sf::st_drop_geometry() |>
+  dplyr::glimpse()
+`,
+  },
+  chart: {
+    title: 'ggplot2 chart',
+    lead: 'A chart of a field with ggplot2 (histogram for numbers, bar chart for categories) in the theme and palette chosen in Settings, saved as PNG, PDF and SVG.',
+    needs: ['layer'],
+    packages: ['ggplot2', 'dplyr', 'sf'],
+    code: `library(ggplot2)
+library(dplyr)
+
+attributes <- sf::st_drop_geometry(layer)
+field <- attributes |>
+  select(where(is.numeric)) |>
+  names() |>
+  dplyr::first()                                  # or e.g. "elevation"
+
+chart <- attributes |>
+  filter(!is.na(.data[[field]])) |>
+  ggplot(aes(x = .data[[field]])) +
+  geom_histogram(bins = 30) +
+  labs(title = paste("Distribution of", field), x = field, y = "count")
+
+save_figure("chart", chart, width = 160, height = 120, dpi = 300, formats = c("png", "pdf", "svg"))
 `,
   },
   tmap: {
     title: 'tmap map',
     lead: 'A thematic map of a layer with tmap: classed fill, legend, north arrow and scale bar, saved at print size (PNG and PDF).',
     needs: ['layer'],
-    packages: ['tmap', 'sf'],
+    packages: ['tmap', 'sf', 'dplyr'],
     code: `library(tmap)
-field <- names(Filter(is.numeric, sf::st_drop_geometry(layer)))[1]   # or e.g. "population"
-geom <- as.character(sf::st_geometry_type(layer, by_geometry = FALSE))
-shape <- tm_shape(layer)
-m <- if (grepl("POINT", geom)) {
-  shape + tm_dots(fill = field, size = 0.4, fill.scale = tm_scale_intervals(style = "jenks", values = "viridis"))
-} else {
-  shape + tm_polygons(fill = field, fill.scale = tm_scale_intervals(style = "jenks", values = "viridis"),
-                      fill.legend = tm_legend(title = field))
-}
-m <- m + tm_compass(position = c("right", "top")) + tm_scalebar(position = c("left", "bottom")) +
+library(dplyr)
+
+field <- layer |>
+  sf::st_drop_geometry() |>
+  select(where(is.numeric)) |>
+  names() |>
+  first()                                         # or e.g. "population"
+is_point <- layer |>
+  sf::st_geometry_type(by_geometry = FALSE) |>
+  as.character() |>
+  grepl(pattern = "POINT")
+fill_scale <- tm_scale_intervals(style = "jenks", values = "viridis")
+
+map <- tm_shape(layer) +
+  (if (is_point) {
+    tm_dots(fill = field, size = 0.4, fill.scale = fill_scale)
+  } else {
+    tm_polygons(fill = field, fill.scale = fill_scale, fill.legend = tm_legend(title = field))
+  }) +
+  tm_compass(position = c("right", "top")) +
+  tm_scalebar(position = c("left", "bottom")) +
   tm_layout(frame = FALSE, legend.outside = TRUE)
-save_figure("tmap_map", m, width = 180, height = 140, dpi = 300)
+
+save_figure("tmap_map", map, width = 180, height = 140, dpi = 300)
 `,
   },
   ggplot: {
     title: 'ggplot2 map',
-    lead: 'A ggplot2 map (geom_sf) with a scale bar and north arrow from ggspatial, saved at print size.',
+    lead: 'A ggplot2 map (geom_sf) with a scale bar and north arrow from ggspatial, in the theme chosen in Settings, saved at print size.',
     needs: ['layer'],
-    packages: ['ggplot2', 'ggspatial', 'sf'],
+    packages: ['ggplot2', 'ggspatial', 'sf', 'dplyr'],
     code: `library(ggplot2)
-field <- names(Filter(is.numeric, sf::st_drop_geometry(layer)))[1]
-p <- ggplot(layer) +
+library(dplyr)
+
+field <- layer |>
+  sf::st_drop_geometry() |>
+  select(where(is.numeric)) |>
+  names() |>
+  first()
+
+map <- layer |>
+  ggplot() +
   geom_sf(aes(fill = .data[[field]], colour = .data[[field]]), linewidth = 0.2) +
-  scale_fill_viridis_c(guide = "none") + scale_colour_viridis_c(name = field) +
+  scale_fill_viridis_c(guide = "none") +
+  scale_colour_viridis_c(name = field) +
   ggspatial::annotation_scale(location = "bl") +
-  ggspatial::annotation_north_arrow(location = "tr", style = ggspatial::north_arrow_minimal()) +
-  theme_minimal(base_size = 10) + theme(panel.grid = element_line(colour = "grey90"))
-save_figure("ggplot_map", p, width = 180, height = 140, dpi = 300)
+  ggspatial::annotation_north_arrow(location = "tr", style = ggspatial::north_arrow_minimal())
+
+save_figure("ggplot_map", map, width = 180, height = 140, dpi = 300)
 `,
   },
   rayshader: {
@@ -82,14 +131,18 @@ save_figure("ggplot_map", p, width = 180, height = 140, dpi = 300)
     needs: ['raster'],
     packages: ['rayshader', 'terra'],
     code: `library(rayshader)
+
 dem <- raster[[1]]
-m <- raster_to_matrix(dem)
-z <- max(1, mean(terra::res(dem)) * if (terra::is.lonlat(dem)) 111320 else 1) / 10   # vertical exaggeration
+elevation <- raster_to_matrix(dem)
+# vertical exaggeration: cell size in metres / 10
+metres_per_unit <- if (terra::is.lonlat(dem)) 111320 else 1
+z_scale <- max(1, mean(terra::res(dem)) * metres_per_unit) / 10
+
 save_figure("relief", function() {
-  m |>
+  elevation |>
     sphere_shade(texture = "imhof1") |>
-    add_shadow(ray_shade(m, zscale = z), 0.5) |>
-    add_shadow(ambient_shade(m, zscale = z), 0) |>
+    add_shadow(ray_shade(elevation, zscale = z_scale), 0.5) |>
+    add_shadow(ambient_shade(elevation, zscale = z_scale), 0) |>
     plot_map()
 }, width = 180, height = 140, formats = "png")
 # 3D: plot_3d(...) then render_snapshot(figure_path("relief_3d")) (needs OpenGL)
@@ -97,48 +150,96 @@ save_figure("relief", function() {
   },
   terrain: {
     title: 'terra terrain',
-    lead: 'Slope, aspect, hillshade and terrain ruggedness from an elevation raster with terra.',
+    lead: 'Slope, aspect, hillshade and terrain ruggedness from an elevation raster with terra, with a summary table.',
     needs: ['raster'],
-    packages: ['terra'],
-    code: `dem <- raster[[1]]
-t <- terra::terrain(dem, v = c("slope", "aspect", "TRI"), unit = "degrees")
-shade <- terra::shade(terra::terrain(dem, "slope", unit = "radians"), terra::terrain(dem, "aspect", unit = "radians"))
-stats <- data.frame(layer = names(t), mean = terra::global(t, "mean", na.rm = TRUE)[[1]],
-                    max = terra::global(t, "max", na.rm = TRUE)[[1]])
-list(slope = t[["slope"]], aspect = t[["aspect"]], ruggedness = t[["TRI"]], hillshade = shade, terrain_stats = stats)
+    packages: ['terra', 'dplyr', 'tibble'],
+    code: `library(dplyr)
+
+dem <- raster[[1]]
+derived <- terra::terrain(dem, v = c("slope", "aspect", "TRI"), unit = "degrees")
+hillshade <- terra::shade(
+  slope = terra::terrain(dem, "slope", unit = "radians"),
+  aspect = terra::terrain(dem, "aspect", unit = "radians")
+)
+
+terrain_stats <- tibble::tibble(
+  layer = names(derived),
+  mean = terra::global(derived, "mean", na.rm = TRUE)[[1]],
+  max = terra::global(derived, "max", na.rm = TRUE)[[1]]
+) |>
+  mutate(across(c(mean, max), \\(x) round(x, 2)))
+
+list(
+  slope = derived[["slope"]],
+  aspect = derived[["aspect"]],
+  ruggedness = derived[["TRI"]],
+  hillshade = hillshade,
+  terrain_stats = terrain_stats
+)
 `,
   },
   biomod2: {
     title: 'biomod2 ensemble SDM',
     lead: 'An ensemble species distribution model with biomod2: occurrence points + environmental rasters (e.g. WorldClim from Data › Climate), pseudo-absences, GLM + random forest + MaxNet, TSS-weighted ensemble.',
     needs: ['layer', 'raster'],
-    packages: ['biomod2', 'terra', 'sf'],
+    packages: ['biomod2', 'terra', 'sf', 'dplyr'],
     code: `library(biomod2)
-xy <- sf::st_coordinates(sf::st_transform(layer, terra::crs(raster)))
-data <- BIOMOD_FormatingData(resp.var = rep(1, nrow(xy)), expl.var = raster, resp.xy = xy,
-  resp.name = "species", PA.nb.rep = 1, PA.nb.absences = 1000, PA.strategy = "random")
-mods <- BIOMOD_Modeling(data, models = c("GLM", "RF", "MAXNET"), CV.strategy = "random",
-  CV.nb.rep = 2, CV.perc = 0.8, metric.eval = c("TSS", "ROC"), var.import = 2)
-ens <- BIOMOD_EnsembleModeling(mods, em.by = "all", em.algo = "EMwmean",
-  metric.select = "TSS", metric.select.thresh = 0.5, metric.eval = c("TSS", "ROC"))
-proj <- BIOMOD_EnsembleForecasting(ens, proj.name = "current", new.env = raster)
-suitability <- terra::rast(get_predictions(proj))[[1]] / 1000
-list(suitability = suitability, evaluation = get_evaluations(mods), importance = get_variables_importance(mods))
+library(dplyr)
+
+presence_xy <- layer |>
+  sf::st_transform(terra::crs(raster)) |>
+  sf::st_coordinates()
+
+model_data <- BIOMOD_FormatingData(
+  resp.var = rep(1, nrow(presence_xy)), expl.var = raster, resp.xy = presence_xy,
+  resp.name = "species", PA.nb.rep = 1, PA.nb.absences = 1000, PA.strategy = "random"
+)
+models <- BIOMOD_Modeling(
+  model_data, models = c("GLM", "RF", "MAXNET"), CV.strategy = "random",
+  CV.nb.rep = 2, CV.perc = 0.8, metric.eval = c("TSS", "ROC"), var.import = 2
+)
+ensemble <- BIOMOD_EnsembleModeling(
+  models, em.by = "all", em.algo = "EMwmean",
+  metric.select = "TSS", metric.select.thresh = 0.5, metric.eval = c("TSS", "ROC")
+)
+projection <- BIOMOD_EnsembleForecasting(ensemble, proj.name = "current", new.env = raster)
+
+suitability <- terra::rast(get_predictions(projection))[[1]] / 1000
+evaluation <- get_evaluations(models) |>
+  as_tibble()
+importance <- get_variables_importance(models) |>
+  as_tibble() |>
+  group_by(expl.var) |>
+  summarise(importance = mean(var.imp), .groups = "drop") |>
+  arrange(desc(importance))
+
+list(suitability = suitability, evaluation = evaluation, importance = importance)
 `,
   },
   maxent: {
     title: 'MaxEnt (maxnet)',
     lead: 'MaxEnt with maxnet: presences from a point layer, 5,000 background points from the rasters, cloglog suitability.',
     needs: ['layer', 'raster'],
-    packages: ['maxnet', 'terra', 'sf'],
+    packages: ['maxnet', 'terra', 'sf', 'dplyr'],
     code: `library(maxnet)
-pts <- terra::vect(sf::st_transform(layer, terra::crs(raster)))
-pres <- terra::extract(raster, pts, ID = FALSE)
-bg <- terra::spatSample(raster, 5000, "random", na.rm = TRUE, values = TRUE)
-d <- na.omit(rbind(data.frame(p = 1, pres), data.frame(p = 0, bg)))
-fit <- maxnet(d$p, d[, -1, drop = FALSE], maxnet.formula(d$p, d[, -1, drop = FALSE], classes = "lqh"))
+library(dplyr)
+
+presence <- layer |>
+  sf::st_transform(terra::crs(raster)) |>
+  terra::vect() |>
+  terra::extract(x = raster, ID = FALSE) |>
+  mutate(presence = 1)
+background <- raster |>
+  terra::spatSample(5000, "random", na.rm = TRUE, values = TRUE) |>
+  mutate(presence = 0)
+training <- bind_rows(presence, background) |>
+  tidyr::drop_na()
+
+predictors <- select(training, -presence)
+fit <- maxnet(training$presence, predictors, maxnet.formula(training$presence, predictors, classes = "lqh"))
 suitability <- terra::predict(raster, fit, type = "cloglog", na.rm = TRUE)
-result(presences = sum(d$p == 1), background = sum(d$p == 0))
+
+result(presences = sum(training$presence == 1), background = sum(training$presence == 0))
 list(suitability = suitability)
 `,
   },
@@ -148,18 +249,36 @@ list(suitability = suitability)
     needs: ['layer'],
     packages: ['tidymodels', 'ranger', 'sf'],
     code: `library(tidymodels)
-d <- sf::st_drop_geometry(layer) |> dplyr::select(where(is.numeric))
-target <- names(d)[1]                       # the field to predict
-ok <- stats::complete.cases(d)
-f <- stats::as.formula(paste(target, "~ ."))
-wf <- workflow() |> add_formula(f) |> add_model(rand_forest(trees = 500) |> set_engine("ranger") |> set_mode("regression"))
+
+numeric_fields <- layer |>
+  sf::st_drop_geometry() |>
+  select(where(is.numeric))
+target <- names(numeric_fields)[1]               # the field to predict
+complete <- stats::complete.cases(numeric_fields)
+training <- filter(numeric_fields, complete)
+
+forest_wf <- workflow() |>
+  add_formula(stats::reformulate(".", response = target)) |>
+  add_model(
+    rand_forest(trees = 500) |>
+      set_engine("ranger") |>
+      set_mode("regression")
+  )
+
 set.seed(1)
-cv <- fit_resamples(wf, vfold_cv(d[ok, ], v = 5), metrics = metric_set(rmse, rsq))
-fitted <- fit(wf, d[ok, ])
-out <- layer[ok, ]
-out$predicted <- predict(fitted, d[ok, ])$.pred
-out$residual <- out[[target]] - out$predicted
-list(predictions = out, cv_metrics = collect_metrics(cv))
+cv_metrics <- forest_wf |>
+  fit_resamples(vfold_cv(training, v = 5), metrics = metric_set(rmse, rsq)) |>
+  collect_metrics()
+fitted <- fit(forest_wf, training)
+
+predictions <- layer |>
+  filter(complete) |>
+  mutate(
+    predicted = predict(fitted, training)$.pred,
+    residual = .data[[target]] - predicted
+  )
+
+list(predictions = predictions, cv_metrics = cv_metrics)
 `,
   },
   dbplyr: {
@@ -168,13 +287,26 @@ list(predictions = out, cv_metrics = collect_metrics(cv))
     needs: ['layer'],
     packages: ['dplyr', 'dbplyr', 'duckdb', 'sf'],
     code: `library(dplyr)
+
 con <- DBI::dbConnect(duckdb::duckdb())
 on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
-DBI::dbWriteTable(con, "layer", sf::st_drop_geometry(layer))
-num <- names(Filter(is.numeric, sf::st_drop_geometry(layer)))[1]
-q <- tbl(con, "layer") |> summarise(n = n(), mean = mean(.data[[num]], na.rm = TRUE), max = max(.data[[num]], na.rm = TRUE))
-show_query(q)
-list(summary = collect(q))
+
+attributes <- sf::st_drop_geometry(layer)
+DBI::dbWriteTable(con, "layer", attributes)
+field <- attributes |>
+  select(where(is.numeric)) |>
+  names() |>
+  first()
+
+query <- tbl(con, "layer") |>
+  summarise(
+    n = n(),
+    mean = mean(.data[[field]], na.rm = TRUE),
+    max = max(.data[[field]], na.rm = TRUE)
+  )
+
+show_query(query)
+list(summary = collect(query))
 `,
   },
   gee: {
@@ -183,13 +315,23 @@ list(summary = collect(q))
     needs: ['layer'],
     packages: ['rgee', 'sf', 'terra'],
     code: `library(rgee)
+
 ee_Initialize(quiet = TRUE)
-aoi <- sf_as_ee(sf::st_as_sfc(sf::st_bbox(sf::st_transform(layer, 4326))))
+area <- layer |>
+  sf::st_transform(4326) |>
+  sf::st_bbox() |>
+  sf::st_as_sfc() |>
+  sf_as_ee()
+
+# Earth Engine objects chain with $ (its own API), not with |>
 ndvi <- ee$ImageCollection("COPERNICUS/S2_SR_HARMONIZED")$
-  filterBounds(aoi)$filterDate("2024-01-01", "2024-12-31")$
+  filterBounds(area)$
+  filterDate("2024-01-01", "2024-12-31")$
   filter(ee$Filter$lt("CLOUDY_PIXEL_PERCENTAGE", 20))$
-  median()$normalizedDifference(c("B8", "B4"))
-list(ndvi = ee_as_rast(ndvi, region = aoi, scale = 30))
+  median()$
+  normalizedDifference(c("B8", "B4"))
+
+list(ndvi = ee_as_rast(ndvi, region = area, scale = 30))
 `,
   },
 };

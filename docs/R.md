@@ -28,7 +28,7 @@ What the code returns comes back. Return a named list, or call the helpers:
 | --- | --- | --- |
 | sf | a layer on the map | `save_layer("name", x)` |
 | terra SpatRaster (or raster) | a raster on the map | `save_layer("name", r)` |
-| ggplot or tmap | a figure: PNG at 300 dpi and PDF | `save_figure("name", p, width = 180, height = 120, units = "mm", dpi = 300, formats = c("png", "pdf"))` |
+| ggplot or tmap | a figure: PNG at 300 dpi, PDF and SVG | `save_figure("name", p, width = 180, height = 120, units = "mm", dpi = 300, formats = c("png", "pdf", "svg"))` |
 | a function that draws (base graphics, `terra::plot`, rayshader `plot_map`) | a figure | `save_figure("name", function() plot(x))` |
 | data frame, matrix | a table (shown, and kept as CSV) | `save_table("name", df)` |
 | numbers or text | the run log and the report | `result(auc = 0.91)` |
@@ -117,3 +117,15 @@ curl localhost:8080/api/r                                  # R, its version, the
 curl -X POST localhost:8080/api/r/install -d '{"kits": ["maps", "sdm"], "packages": ["lidR"]}'
 curl localhost:8080/api/jobs/1                             # progress of that installation
 ```
+
+## Charts and code style
+
+**Charts follow ggplot2.** GeoSpaX sets `ggplot2::theme_set()` and the discrete colour palette
+before your code runs, from **Settings › Charts** (theme_grey by default; theme_bw, minimal, classic,
+light or dark; the ggplot2 hue palette, viridis, Okabe–Ito, Brewer Set2 or Dark2; the text size). The
+charts GeoSpaX draws itself (report charts, the Attributes chart, raster histograms) use the same look,
+so a report reads as one piece. Add your own `+ theme(...)` to change one chart.
+
+**Code follows the tidyverse style guide.** The templates (R tab) use the native pipe `|>`, dplyr and
+purrr verbs, `snake_case` names, `.data[[field]]` for a field chosen at run time and one step per
+line; write your own steps the same way (styler::style_text() tidies a script).
