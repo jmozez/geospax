@@ -1,4 +1,4 @@
-//! Opening projects from earlier GeoSpaX versions: a 1.4.2 project (`.gspx`, JSON with
+//! Opening projects from earlier GeoSpaX versions: a `.gspx` project (JSON with
 //! `"format": "geospax-project"`, every vector layer embedded as GeoJSON) and a 2.0 / GeoLibre project
 //! (`.geolibre.json`, layers whose `source.data` holds an inline FeatureCollection). Their embedded
 //! layers are written as GeoJSON files to a cache folder and opened like any other layer, named
@@ -8,7 +8,7 @@
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
-/// True when `path` looks like a 1.4.2 or 2.0 project (by name, then by its first bytes).
+/// True when `path` looks like an earlier GeoSpaX project (by name, then by its first bytes).
 pub fn is_project(path: &Path) -> bool {
     let name = path.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     if name.ends_with(".gspx") || name.ends_with(".geolibre.json") {
@@ -41,7 +41,7 @@ pub fn extract(path: &Path) -> Result<(Vec<PathBuf>, Vec<String>), String> {
     let mut used = std::collections::HashSet::new();
     for (i, l) in layers.iter().enumerate() {
         let name = l.get("name").and_then(|n| n.as_str()).unwrap_or("layer").to_string();
-        // 1.4.2: layer.geojson; 2.0 / GeoLibre: layer.source.data (inline FeatureCollection)
+        // .gspx: layer.geojson; .geolibre.json: layer.source.data (inline FeatureCollection)
         let fc = l.get("geojson").filter(|g| g.get("features").is_some()).or_else(|| l.get("source").and_then(|s| s.get("data")).filter(|d| d.get("features").is_some()));
         let Some(fc) = fc else {
             let why = if l.get("isRaster").and_then(|b| b.as_bool()).unwrap_or(false) { "raster, not embedded" } else { "not embedded in the project" };

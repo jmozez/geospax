@@ -4,7 +4,7 @@ plugin: geospax-conservation
 version: 3.0.1
 title: "Conservation"
 description: "Overlay, hot spots, clusters, priority sites, minimum-cost representation, species distribution, suitability, protection gaps, fragmentation, connectivity and change."
-author: in4metrix (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
+author: in4metrix
 license: MIT
 homepage: https://github.com/jmozez/geospax
 kind: process

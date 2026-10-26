@@ -4,7 +4,7 @@ plugin: geospax-disaster
 version: 3.0.1
 title: "Disaster"
 description: "Multi-hazard susceptibility, slope triggers, hazard footprints, response access, priorities, impact change and hot spots."
-author: in4metrix (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
+author: in4metrix
 license: MIT
 homepage: https://github.com/jmozez/geospax
 kind: process

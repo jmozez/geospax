@@ -4,7 +4,7 @@ plugin: geospax-hydrology
 version: 3.0.1
 title: "Hydrology"
 description: "Open water and wetness, runoff terrain, catchment characteristics, riparian distance decay, overlays, water-extent change and profiles."
-author: in4metrix (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
+author: in4metrix
 license: MIT
 homepage: https://github.com/jmozez/geospax
 kind: process

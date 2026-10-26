@@ -167,7 +167,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [3.0.0] — 2026-10-22
 
-GeoSpaX 3.0: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this design. Installers
+GeoSpaX 3.0. Installers
 for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attached to the GitHub release.
 
 ### Added — Equal Earth for exported maps
@@ -218,10 +218,10 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
 - `test-plan-b.py` (31 checks, offline mirrors with known answers, in CI); the online-data UI test covers the
   new forms.
 
-### Changed — the twelve domain plugins of 2.0 are default plugins
-- The GSX tools reach the app as GeoSpaX 2.0's twelve domain plugins (Conservation, Agriculture,
+### Changed — the twelve domain plugins are default plugins
+- The GSX tools reach the app as twelve domain plugins (Conservation, Agriculture,
   Biodiversity, Environment, Forestry, Marine, Climate, Disaster, Geoscience, Hydrology, Land use and
-  land cover, Soil), shipped and listed as **default plugins**, each with its 2.0 tools, on the Plugins
+  land cover, Soil), shipped and listed as **default plugins**, each with its tools, on the Plugins
   tab and in the Toolbox under *Plugins*. They are no longer on the Analysis, Imagery and Modelling tabs.
 - They share one library (`plugins/gsx`, `library: true`), so recipes and scripts calling `gsx/<tool>`
   keep working. New manifest keys `library` and `default` ([PLUGINS.md](docs/PLUGINS.md)).
@@ -296,7 +296,7 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
   or right-click adds a file. Only the data folders can be listed (`GET /api/browse`,
   `POST /api/browse/add`); paths outside them, `..` included, are refused.
 - **Project** pane: where the project is saved, what it holds (layers, basemap, projection, view),
-  **Save a copy…**, **Open…** (3.0 copies, 1.4.2 `.gspx`, 2.0 `.geolibre.json`), **New**, and named
+  **Save a copy…**, **Open…** (3.0 copies, `.gspx`, `.geolibre.json`), **New**, and named
   **bookmarks** (also *View › Bookmarks* and *Bookmark view*). The developer controls moved under
   *Diagnostics* (*Help › Engine diagnostics*).
 
@@ -327,10 +327,10 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
 - **Basemap gallery** (View): OpenStreetMap, OpenTopoMap, Esri Topographic and World Imagery,
   Sentinel-2 cloudless 2016, CARTO light and dark, or your own XYZ tiles; each with its licence or terms.
 - **Local Moran's I (LISA)** with the global Moran's I and the Moran scatterplot, and **elevation
-  profiles** (lines over a DEM, or points with an elevation field per transect) — from 1.4.2; tool
+  profiles** (lines over a DEM, or points with an elevation field per transect); tool
   results can carry charts.
-- **Sample data** (Data): the 1.4.2 Papua New Guinea survey and teaching layers with WorldClim and tree
-  cover rasters (`samples/png`, credits in its README); **1.4.2 `.gspx` and 2.0 `.geolibre.json`
+- **Sample data** (Data): the Papua New Guinea survey and teaching layers with WorldClim and tree
+  cover rasters (`samples/png`, credits in its README); **`.gspx` and `.geolibre.json`
   projects** open like any file (their embedded layers).
 - **View › Projection: Globe** (MapLibre's globe at small scales) besides Web Mercator.
 - Engine API for all of it (`crates/engine/src/edit.rs`); `scripts/test-edit.py` (44 checks on
@@ -360,7 +360,7 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
   grid on exported maps, so its classes and any class renamed in the legend editor disappeared; it now
   keeps its classes (an even sample of points is drawn, the legend says so).
 
-### Added — rasters and species distribution models (from GeoSpaX 2.0)
+### Added — rasters and species distribution models 
 - **Spectral index and extent** (NDVI, NDWI, NDBI, NBR, any band pair) with an automatic Otsu
   threshold; **raster change** between two dates with loss and gain thresholds; **slope zones**.
 - **Species distribution model**: BIOCLIM, Mahalanobis or presence-background logistic from
@@ -421,14 +421,14 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
   2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries and the Copernicus DEM for
   the area on the map, no API keys, each with its citation. New recipe step **`data.fetch`**.
 
-### Added — GSX tools (from GeoSpaX 2.0), phase A
+### Added — GSX tools , phase A
 - **`plugins/gsx`**: 13 tools in the Toolbox: polygon overlay, weighted suitability (WLC), distance
   decay, unprotected priority sites, protection gap, minimum-cost representation (SCP), weighted
   hotspot grid, fragmentation metrics, patch connectivity, two-date change, DBSCAN, Clark–Evans and
-  richness/diversity. GeoSpaX 2.0's analysis code and its 103 tests, unchanged, on Node; offline.
+  richness/diversity. The analysis code and its 103 tests, unchanged, on Node; offline.
 - Plugins can ask for **layers as GeoJSON** (`geojson: true`) and return a **results table and notes**
   that the tool dialog shows.
-- The **GeoSpaX 2.0 logo**: title bar, favicon, desktop icons and README.
+- The **GeoSpaX logo**: title bar, favicon, desktop icons and README.
 
 
 ### Added — preview and legend editor

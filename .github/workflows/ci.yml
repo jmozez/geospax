@@ -46,7 +46,7 @@ jobs:
       - name: Web UI (type check + build)
         working-directory: web
         run: npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
-      - name: GSX plugin (GeoSpaX 2.0 analysis tests; bundle and manifest match the source)
+      - name: GSX plugin (analysis tests; bundle and manifest match the source)
         working-directory: plugins/gsx
         run: sha256sum run.mjs plugin.yaml ../geospax-*/plugin.yaml > /tmp/gsx.sha && npm ci --no-audit --no-fund && npx tsc -p . && npm test && npm run build && node gen-manifest.mjs && sha256sum -c /tmp/gsx.sha
       - name: Tool dialogs pre-select fitting inputs (every GSX tool)

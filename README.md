@@ -210,8 +210,7 @@ Security problems: see [SECURITY.md](SECURITY.md).
 
 ## Licence and credits
 
-GeoSpaX is released under the [MIT licence](LICENSE). It brings together GeoSpaX 1.4.2
-([map-kit](https://github.com/jm0535/map-kit)) and 2.0 ([GeoSpaX](https://github.com/jm0535/GeoSpaX)), and
+GeoSpaX is released under the [MIT licence](LICENSE). It
 learns from ArcGIS Pro, QGIS, [GeoLibre](https://github.com/opengeos/geolibre) and
 [RustGIS](https://github.com/opengeos/RustGIS). Third-party components and data are credited in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

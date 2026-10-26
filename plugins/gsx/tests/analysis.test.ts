@@ -1,5 +1,5 @@
 // Golden-value tests for @geospax/analysis - the TypeScript port of GeoSpaX
-// v1's audit-fixed conservation algorithms (jm0535/map-kit). Values are
+// v1's audit-fixed conservation algorithms. Values are
 // derived analytically (spherical excess, haversine perimeters, exact 50%
 // overlay splits) so regressions in the port fail loudly.
 

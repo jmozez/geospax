@@ -141,8 +141,7 @@ attributions in sections 2–4 intact.
 
 ## GSX tools (plugins/gsx)
 
-The analysis code and tests come from **GeoSpaX 2.0** (`@geospax/analysis`, https://github.com/jm0535/GeoSpaX)
-and **GeoSpaX 1.4.2** (https://github.com/jm0535/map-kit), © in4metrix, MIT License. The built
+The analysis code and tests are © in4metrix, MIT License. The built
 `plugins/gsx/run.mjs` bundles **Turf** (© Morgan Herlocker and contributors, MIT) and **proj4js**
 (© Mike Adair, Richard Greenwood, Didier Richard, Stephen Irons, Olivier Terral, Calvin Metcalf and contributors, MIT).
-The GeoSpaX logo is the GeoSpaX 2.0 logo.
+The GeoSpaX logo is © in4metrix.

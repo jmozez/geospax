@@ -1,6 +1,6 @@
 {
   "id": "png",
-  "title": "Papua New Guinea (GeoSpaX 1.4.2 samples)",
+  "title": "Papua New Guinea (GeoSpaX samples)",
   "description": "Survey transects, birdwing butterflies and their host vines, forest patches, a habitat grid and streams, with WorldClim temperature and rainfall and tree cover: everything the 1.4.2 exercises use (hot spots, LISA, kriging, SDM, fragmentation, suitability).",
-  "credits": "Survey and teaching layers: in4metrix, GeoSpaX 1.4.2 (MIT); several are fictional or simulated, see README.md. WorldClim 2.1 (Fick & Hijmans 2017), CC BY 4.0. Tree cover from ESA WorldCover 10 m 2021 v200 (Zanaga et al. 2022), CC BY 4.0."
+  "credits": "Survey and teaching layers: in4metrix (MIT); several are fictional or simulated, see README.md. WorldClim 2.1 (Fick & Hijmans 2017), CC BY 4.0. Tree cover from ESA WorldCover 10 m 2021 v200 (Zanaga et al. 2022), CC BY 4.0."
 }
