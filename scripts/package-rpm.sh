@@ -68,6 +68,7 @@ Release:        1%{?dist}
 Summary:        Open-source GIS where every map is a re-runnable recipe
 License:        MIT
 URL:            https://github.com/jmozez/geospax
+Vendor:         in4metrix (https://www.in4metrix.dev)
 Requires:       dejavu-sans-fonts
 Recommends:     python3, nodejs
 Suggests:       R-core, grass, saga, mosquitto, gdal

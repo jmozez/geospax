@@ -18,7 +18,7 @@ for a in "$@"; do case "$a" in --no-build) BUILD=0 ;; -h|--help) sed -n 2,13p "$
 [ -f /opt/rust-env.sh ] && . /opt/rust-env.sh
 VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 ARCH=$(dpkg --print-architecture)
-MAINTAINER="${MAINTAINER:-GeoSpaX contributors <maintainers@geospax.invalid>}"
+MAINTAINER="${MAINTAINER:-J. Moses, in4metrix <https://www.in4metrix.dev>}"
 
 if [ "$BUILD" = 1 ]; then
   echo "== web + release build"

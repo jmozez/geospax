@@ -32,7 +32,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "in4metrix",
+    "copyright": "© in4metrix (www.in4metrix.dev) · developed by J. Moses · MIT"
   },
   "plugins": {
     "updater": {
