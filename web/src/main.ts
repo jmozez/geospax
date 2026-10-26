@@ -1822,12 +1822,14 @@ async function main() {
   const about = await backend.json<{ guest?: boolean }>('api/about').catch(() => null);
   if (about?.guest && backend.edition === 'web') {
     guestMode = true;
+    // crypto.randomUUID needs HTTPS; getRandomValues works everywhere
+    const newId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
     let ws = '';
     try {
       ws = localStorage.getItem('geospax.ws') ?? '';
-      if (!/^[a-z0-9-]{8,64}$/.test(ws)) localStorage.setItem('geospax.ws', (ws = crypto.randomUUID()));
+      if (!/^[a-z0-9-]{8,64}$/.test(ws)) localStorage.setItem('geospax.ws', (ws = newId()));
     } catch {
-      ws = crypto.randomUUID(); // private window: a workspace for this visit only
+      ws = newId(); // private window: a workspace for this visit only
     }
     backend.ws = ws;
     document.body.dataset.guest = '1';
