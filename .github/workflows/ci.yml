@@ -150,7 +150,7 @@ jobs:
           - distro: archlinux:latest
             desktop: pacman -Sy --noconfirm -q mesa fontconfig harfbuzz fribidi libx11 libxcb wayland libdrm
           - distro: opensuse/tumbleweed:latest
-            desktop: zypper -n -q install Mesa-libEGL1 Mesa-libGL1 libgbm1 libdrm2 fontconfig libharfbuzz0 libfribidi0 libX11-6 libX11-xcb1 libxcb1 libwayland-client0 libcom_err2 libgpg-error0 findutils
+            desktop: for i in 1 2 3; do zypper -n -q --gpg-auto-import-keys refresh && zypper -n -q install Mesa-libEGL1 Mesa-libGL1 libgbm1 libdrm2 fontconfig libharfbuzz0 libfribidi0 libX11-6 libX11-xcb1 libxcb1 libwayland-client0 libcom_err2 libgpg-error0 findutils && break; sleep 30; done
           - distro: debian:13
             desktop: apt-get update -q && apt-get install -y -q --no-install-recommends libegl1 libgl1 libgbm1 libdrm2 libfontconfig1 libharfbuzz0b libfribidi0 libx11-6 libx11-xcb1 libxcb1 libwayland-client0 libgpg-error0 libcom-err2
     steps:
