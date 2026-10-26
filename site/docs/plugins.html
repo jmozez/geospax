@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Domain plugins · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX domain plugins: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins" aria-current="page">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="plugins"><a class="anchor" href="#plugins">#</a>Plugins</h1>
+<p>A GeoSpaX <strong>plugin</strong> is a folder with a <strong>manifest</strong> and one or more <strong>tools</strong>. Tools land in the
+<strong>Toolbox</strong> (right pane, searchable, both modes), on the ribbon and in the <strong>Plugins</strong> pane (bottom
+dock, Pro); commands land on the ribbon and in the command palette (<code>Ctrl+K</code>). A plugin with more than
+40 tools gets one ribbon button that opens the Toolbox on it.</p>
+<p><strong>Bundled:</strong> <code>plugins/geolibre-tools</code> brings <strong>1,062 GeoLibre tools</strong> (raster 544, vector 342, LiDAR 68,
+conversion 53, hydrology 32, terrain 19, other 4), see <a href="#1a-geolibre-tools-bundled">§1a</a>.</p>
+<p>The point of the design: GeoSpaX reads the manifest formats of the four ecosystems people already
+write for, so the same tool works whether it was authored for GeoSpaX, <strong>RustGIS</strong>, <strong>GeoLibre</strong>,
+<strong>QGIS</strong> or <strong>ArcGIS Pro</strong>. Where a tool cannot run here, GeoSpaX says so instead of pretending.</p>
+<hr>
+<h2 id="1-what-is-compatible-with-what"><a class="anchor" href="#1-what-is-compatible-with-what">#</a>1. What is compatible with what</h2>
+<div class="table"><table><thead><tr>
+<th>Ecosystem</th>
+<th>What it is</th>
+<th>Manifest GeoSpaX reads</th>
+<th>Runs?</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>GeoSpaX</strong></td>
+<td>folder with <code>plugin.yaml</code></td>
+<td><code>plugin.yaml</code> / <code>plugin.yml</code></td>
+<td>✅ fully — <code>process</code>, <code>python</code>, <code>r</code>, <code>wasm</code>, <code>recipe</code></td>
+</tr>
+<tr>
+<td><strong>RustGIS</strong> (<a href="https://github.com/opengeos/RustGIS" rel="noopener" target="_blank">opengeos/RustGIS</a>, Apache-2.0)</td>
+<td><code>.rgplugin</code> = zip of <code>plugin.json</code> + <code>plugin.wasm</code></td>
+<td><code>plugin.json</code> (<code>commands</code>, <code>tools</code>, <code>params</code>, <code>permissions</code>)</td>
+<td>✅ the WASM module, through a WASI runner (<code>wasmtime</code>/<code>wasm3</code>/<code>deno</code>)</td>
+</tr>
+<tr>
+<td><strong>GeoLibre</strong> (<a href="https://github.com/opengeos/GeoLibre" rel="noopener" target="_blank">opengeos/GeoLibre</a>, MIT)</td>
+<td>TS/React plugin (<code>plugin.json</code>) + WASM tool bundles (<a href="https://github.com/opengeos/geolibre-rust" rel="noopener" target="_blank">geolibre-rust</a>, WASI over <code>/work</code>)</td>
+<td><code>plugin.json</code>, <code>tools.mjs</code>; the whole tool runner through the bundled <code>geolibre-tools</code> plugin</td>
+<td>✅ its <strong>1,062 tools</strong>, bundled (§1a); ❌ its UI (React components)</td>
+</tr>
+<tr>
+<td><strong>QGIS</strong></td>
+<td>Python plugin; <code>metadata.txt</code> + <code>__init__.py</code></td>
+<td><code>metadata.txt</code> (<code>hasProcessingProvider=yes</code>)</td>
+<td>✅ its <strong>processing algorithms</strong>, through <code>qgis_process list/help/run --json</code>; ❌ its PyQt UI</td>
+</tr>
+<tr>
+<td><strong>ArcGIS Pro</strong></td>
+<td><code>.esriAddInX</code> = zip of <code>Config.daml</code> + .NET assembly (+ <code>Toolboxes/*.pyt</code>)</td>
+<td><code>Config.daml</code>, <code>*.pyt</code></td>
+<td>✅ <strong>Python toolbox (<code>.pyt</code>) tools</strong> through <code>python3</code> + arcpy; ❌ the .NET assembly (no CLR)</td>
+</tr>
+</tbody></table></div><p><strong>Honest limits</strong></p>
+<ul>
+<li>A QGIS <em>UI</em> plugin drives the QGIS GUI through PyQt — there is no way to host it. Its
+<strong>processing algorithms</strong> are a clean CLI contract (<code>qgis_process</code>), and those we run.</li>
+<li>An ArcGIS Pro add-in&#39;s buttons are .NET (<code>ProAppModule.dll</code>). We import the <strong>ribbon declaration</strong>
+(tabs, groups, buttons from <code>Config.daml</code>) and can execute <strong>Python toolbox</strong> tools; the compiled
+tool bodies have to be ported. GeoSpaX labels them <code>needs arcpy</code> / &quot;the .NET assembly cannot run&quot;
+rather than silently dropping them.</li>
+<li>RustGIS plugins are WASM and sandboxed; GeoSpaX runs the same module with the same JSON contract,
+so a <code>.rgplugin</code> is portable between the two apps. Its <code>permissions</code> are respected: <code>edit</code> is
+required before a plugin may change the project, <code>files</code> before it may name a file.</li>
+</ul>
+<hr>
+<h2 id="1a-geolibre-tools-bundled"><a class="anchor" href="#1a-geolibre-tools-bundled">#</a>1a. GeoLibre tools (bundled)</h2>
+<p><code>plugins/geolibre-tools</code> wraps GeoLibre&#39;s tool runner, <code>geolibre-cli.wasm</code> from the npm package
+<strong>geolibre-wasm</strong> (MIT; <a href="https://github.com/opengeos/geolibre-rust" rel="noopener" target="_blank">opengeos/geolibre-rust</a>, built on
+John Lindsay&#39;s whitebox_next_gen), as an ordinary GeoSpaX <code>process</code> plugin:</p>
+<ul>
+<li><strong><code>plugin.yaml</code></strong> and <strong><code>tools.json</code></strong> are generated by <code>gen.mjs</code> from the runner&#39;s own manifests
+(<code>geolibre-cli manifests</code>): names, summaries, categories, and a form per tool. Vector inputs become
+layer pickers; raster, LiDAR and table inputs take a path; enums become choices; outputs are not
+asked for.</li>
+<li><strong><code>run.mjs</code></strong> runs the tool under Node&#39;s WASI (Node.js 18+): the directories of the input files are
+mounted read-only-by-convention as <code>/in0</code>, <code>/in1</code>…, outputs go to <code>/out</code> = <code>&lt;state&gt;/plugin-results/ geolibre-tools/</code>, and the files written are returned in <code>&quot;outputs&quot;</code>, so they join the map.</li>
+<li><strong>The runner is not redistributed.</strong> On first use <code>runtime.mjs</code> downloads the pinned package
+(1.7.1) from the npm registry, checks its SHA-512 against the registry&#39;s published integrity,
+and caches <code>geolibre-cli.wasm</code> in <code>~/.cache/geospax/</code>. Offline: <code>node run.mjs --fetch</code> where there
+is internet, <code>geolibre-cli.wasm</code> next to the plugin, or <code>GEOSPAX_GEOLIBRE_WASM=/path/to/it</code>.</li>
+<li><strong>Upgrading:</strong> change <code>VERSION</code> and <code>INTEGRITY</code> in <code>runtime.mjs</code>, then <code>node gen.mjs</code>.</li>
+</ul>
+<p>Measured here: <em>Buffer Vector</em> on 1,500 points → 1,500 polygons added to the map in 0.35 s through
+the API; the first-use download verified and byte-identical to the npm package.</p>
+<hr>
+<h2 id="1b-conservation-raster-and-species-tools-bundled"><a class="anchor" href="#1b-conservation-raster-and-species-tools-bundled">#</a>1b. Conservation, raster and species tools (bundled)</h2>
+<p><code>plugins/gsx</code> brings the conservation, biodiversity, raster and species-distribution tools into GeoSpaX 3 as a Node tool library (<code>library: true</code>: its tools run from recipes, the
+API and MCP but are not listed). The app shows them through the <strong>twelve default domain plugins</strong>
+<code>plugins/geospax-&lt;domain&gt;</code> (<code>default: true</code>), whose manifests <code>plugins/gsx/gen-manifest.mjs</code> writes and
+whose <code>run:</code> is the library&#39;s <code>run.mjs</code>. See <a href="/docs/gsx">GSX.md</a>.</p>
+<p>Two manifest keys serve this: <code>library: true</code> (a tool set other plugins run; hidden from the ribbon,
+Toolbox and plugin list) and <code>default: true</code> (honoured only for plugins shipped with GeoSpaX: listed as a
+default plugin, not uninstallable).</p>
+<h2 id="2-plugin-folders"><a class="anchor" href="#2-plugin-folders">#</a>2. Plugin folders</h2>
+<pre><code>bundled plugins               $GEOSPAX_PLUGINS, else ./plugins (source checkout), plugins\ next to the
+                              .exe (Windows) or /usr/share/geospax/plugins (.deb, Docker)
+&lt;state&gt;/.geospax/plugins/     always read (state = the first --data folder); imports go here
+--plugins DIR                 extra folder (repeatable)
+~/GeoSpaX/plugins             the installed desktop app reads this too
+</code></pre>
+<p><code>geospax-server plugins list</code> prints what it found:</p>
+<pre><code>example-python         native     python    2 tool(s)  runnable
+field-recipes          native     recipe    2 tool(s)  runnable
+hello-rustgis          rustgis    wasm      1 tool(s)  needs plugin.wasm next to plugin.json
+save_attributes        qgis       process   0 tool(s)  needs qgis_process
+Field Tools            arcgis     python    1 tool(s)  needs arcpy (for .pyt tools)
+</code></pre>
+<hr>
+<h2 id="3-writing-a-geospax-plugin"><a class="anchor" href="#3-writing-a-geospax-plugin">#</a>3. Writing a GeoSpaX plugin</h2>
+<p><code>plugin.yaml</code>:</p>
+<pre><code class="language-yaml">plugin: example-python          # id: lowercase, no spaces
+version: 0.1.0
+title: Example Python tools
+description: Two tools that show the contract.
+author: You
+license: MIT
+homepage: https://example.com
+kind: python                    # process | python | r | wasm | recipe
+run: python3 ${plugin}/tools.py ${tool}
+tools:
+  - id: layer-report
+    name: Layer report
+    summary: Row count, field list and a value count for one layer.
+    group: Example               # ribbon group / toolbox name
+    icon: chart                  # any icon name in web/src/commands.ts ICONS
+    params:
+      - { name: layer, label: Layer, kind: layer, required: true }
+      - { name: field, label: Count values of, kind: field }
+  - id: point-grid
+    name: Point grid
+    summary: Hexagon or square grid over a layer&#39;s extent.
+    group: Example
+    icon: grid
+    params:
+      - { name: layer, label: Over, kind: layer, required: true }
+      - { name: size, label: Cell size (m), kind: number, default: 500, required: true }
+      - { name: shape, label: Shape, kind: choice, default: hex, choices: [hex, square] }
+commands:                        # optional ribbon buttons
+  - { id: about, title: About this plugin, icon: check, group: Example }
+</code></pre>
+<p>Parameter <code>kind</code>: <code>number</code> · <code>text</code> · <code>bool</code> · <code>layer</code> · <code>field</code> · <code>file</code> · <code>choice</code>.
+<code>${plugin}</code> expands to the plugin folder, <code>${tool}</code> to the tool id, <code>${workdir}</code> to a scratch dir.</p>
+<h3 id="run-time-contract"><a class="anchor" href="#run-time-contract">#</a>Run-time contract</h3>
+<p>GeoSpaX runs <code>run:</code> with this JSON on <strong>stdin</strong>:</p>
+<pre><code class="language-json">{ &quot;plugin&quot;: &quot;example-python&quot;, &quot;tool&quot;: &quot;layer-report&quot;,
+  &quot;params&quot;: { &quot;layer&quot;: &quot;field_samples.geojson&quot;, &quot;field&quot;: &quot;land_use&quot; },
+  &quot;layers&quot;: [&quot;field_samples.geojson&quot;, &quot;incidents.geojson&quot;],
+  &quot;layer_sources&quot;: { &quot;field_samples.geojson&quot;: &quot;/home/me/GeoSpaX/Data/field_samples.geojson&quot;, &quot;…&quot;: &quot;…&quot; },
+  &quot;workdir&quot;: &quot;/tmp/geospax-plugin-work&quot;,
+  &quot;out_dir&quot;: &quot;/home/me/GeoSpaX/Data/.geospax/plugin-results/example-python&quot; }
+</code></pre>
+<p>and expects <strong>JSON on stdout</strong>:</p>
+<pre><code class="language-json">{ &quot;ok&quot;: true, &quot;message&quot;: &quot;report for field_samples.geojson&quot;, &quot;outputs&quot;: [&quot;…/out.geojson&quot;] }
+</code></pre>
+<p>A tool can name its ribbon tab with <strong><code>tab:</code></strong> (<code>home</code>, <code>data</code>, <code>style</code>, <code>analyze</code>, <code>imagery</code>,
+<code>modelling</code>, <code>automate</code>, <code>view</code>, <code>help</code>); tools that name none appear on the <strong>Plugins</strong> tab, grouped by
+their <code>group</code>.</p>
+<p>A plugin that reads GeoJSON sets <strong><code>geojson: true</code></strong> in <code>plugin.yaml</code>: every layer named by a <code>layer</code>
+parameter is then written to the workdir as GeoJSON, whatever its source format, and passed in
+<strong><code>layer_geojson</code></strong> (<code>{&quot;layer id&quot;: &quot;/tmp/…/gsx-layer.geojson&quot;}</code>).</p>
+<p><strong>Rasters in and out.</strong> A parameter of kind <strong><code>raster</code></strong> (one) or <strong><code>rasters</code></strong> (several) is a raster on
+the map. GeoSpaX hands each one over as a plain float32 grid in <strong><code>raster_grids</code></strong>
+(<code>{&quot;raster id&quot;: &quot;/tmp/…/gsx-climate.grid.json&quot;}</code>): the JSON header has <code>width</code>, <code>height</code>, <code>bands</code>,
+<code>band_names</code>, the GDAL <code>transform</code>, the <code>crs</code> (WKT), <code>title</code>, <code>kind</code>, <code>units</code>, and <code>data</code>, the path of
+the bands as little-endian float32, row-major, north up, band after band, NaN = no data. All rasters of
+one run are resampled onto the first one&#39;s grid (at most 1,500 cells a side), so a tool can stack them
+cell by cell with no GDAL of its own. To return a raster, write the same pair (<code>&lt;name&gt;.grid.json</code> + its
+float32 band) into <code>out_dir</code> and list the <code>.grid.json</code> in <code>outputs</code>; GeoSpaX turns it into a GeoTIFF and
+adds it to the map, using the header&#39;s <code>title</code>, <code>kind</code> (<code>suitability</code>, <code>change</code>, <code>classes</code>, <code>slope</code>,
+<code>ndvi</code> … pick the styling) and <code>classes</code> (<code>[{value, label, color}]</code>).</p>
+<p>The answer may also carry <strong><code>table</code></strong> (<code>[[&quot;label&quot;, value], …]</code>) and <strong><code>notes</code></strong> (strings): the tool&#39;s
+dialog shows them under the form, so a tool can report numbers without making a layer.</p>
+<p>Files listed in <strong><code>outputs</code></strong> are added to the map: GeoTIFFs as rasters, anything GDAL reads as vector
+layers. The reply to <code>POST …/run</code> names them in <code>&quot;added&quot;</code>, and the app styles them (AutoMap) and zooms to
+them. Write results into <code>out_dir</code>. A <code>kind: process</code> plugin whose program (the first word of <code>run:</code>)
+is not on <code>PATH</code> is listed as <em>needs &lt;program&gt;</em>.</p>
+<p>A non-zero exit turns the first line of stderr into the error shown in Plugins › Manage plugins. That is the
+whole ABI, so the same plugin shape works for a Rust binary, an R script
+(<code>run: Rscript ${plugin}/tools.R ${tool}</code>) or a WASI module
+(<code>run: wasmtime run --dir ${workdir} ${plugin}/tools.wasm -- ${tool}</code>).</p>
+<p><code>kind: recipe</code> plugins ship ordinary GeoSpaX recipes in <code>recipes/</code> and their tools run through the
+automation engine — so they get triggers, run history, artifacts and Auto switches for free
+(see <a href="https://github.com/jmozez/geospax/blob/main/plugins/field-recipes" rel="noopener" target="_blank"><code>plugins/field-recipes</code></a>).</p>
+<hr>
+<h2 id="4-installing-plugins"><a class="anchor" href="#4-installing-plugins">#</a>4. Installing plugins</h2>
+<ul>
+<li><strong>UI:</strong> bottom dock › <strong>Plugins</strong> › paste a folder or package path › <strong>Install</strong>.</li>
+<li><strong>CLI:</strong> <code>geospax-server plugins import ./my-plugin [--dir PLUGINDIR]</code>,
+<code>plugins list</code>, <code>plugins check ./my-plugin</code>.</li>
+<li><strong>Removing one:</strong> <strong>Uninstall</strong> on the plugin&#39;s card (it asks twice), <code>DELETE /api/plugins/{id}</code>, or
+<code>geospax-server plugins uninstall ID [--dir PLUGINDIR]</code>. Only plugins that were installed into the
+plugin directory can be removed; one that lives in a folder you pointed at with <code>--plugins</code> is
+refused, with a message saying where it actually lives — GeoSpaX will not delete your working copy
+just because an id matched. Installing is what makes a plugin removable, so dev folders stay safe.</li>
+<li>Packages (<code>.rgplugin</code>, <code>.esriAddInX</code>, <code>.zip</code>) are unpacked into the plugin folder. Members are
+size-limited (64 MB), <code>../</code> and absolute paths are rejected, and the executable bit is preserved.</li>
+<li>Package files that are <em>not</em> installed are still listed (read-only, from inside the zip) so you can
+see what is in them before installing.</li>
+</ul>
+<hr>
+<h2 id="5-http-api"><a class="anchor" href="#5-http-api">#</a>5. HTTP API</h2>
+<div class="table"><table><thead><tr>
+<th>Route</th>
+<th>What</th>
+</tr>
+</thead><tbody><tr>
+<td><code>GET /api/plugins</code></td>
+<td><code>{plugins, runtimes, dirs}</code> — installed plugins and which runtimes this machine has</td>
+</tr>
+<tr>
+<td><code>POST /api/plugins/reload</code></td>
+<td>re-scan the plugin folders</td>
+</tr>
+<tr>
+<td><code>POST /api/plugins/import</code></td>
+<td><code>{&quot;path&quot;: &quot;…&quot;}</code> → install a folder or package</td>
+</tr>
+<tr>
+<td><code>GET /api/plugins/{id}</code></td>
+<td>one plugin</td>
+</tr>
+<tr>
+<td><code>POST /api/plugins/{id}/tools/{tool}/run</code></td>
+<td><code>{&quot;params&quot;: {…}}</code> → run a tool; <code>{&quot;result&quot;, &quot;added&quot;, &quot;stderr&quot;}</code></td>
+</tr>
+</tbody></table></div><hr>
+<h2 id="6-credits"><a class="anchor" href="#6-credits">#</a>6. Credits</h2>
+<p>The plugin model follows <strong>RustGIS</strong> (<code>docs/plugins.md</code>, Apache-2.0): a manifest plus a sandboxed
+WASM module, hash-pinned packages, permissions, and commands that the ribbon, the palette and the
+CLI all call. The WASI &quot;tools over <code>/work</code>&quot; contract follows <strong>GeoLibre</strong>&#39;s <code>geolibre-rust</code> tool
+runner (MIT). QGIS and ArcGIS Pro compatibility uses their public, documented CLI surfaces
+(<code>qgis_process</code>, Python toolboxes). See <a href="https://github.com/jmozez/geospax/blob/main/THIRD_PARTY_NOTICES.md" rel="noopener" target="_blank"><code>THIRD_PARTY_NOTICES.md</code></a>.</p>
+</article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#1-what-is-compatible-with-what">1. What is compatible with what</a><a href="#1a-geolibre-tools-bundled">1a. GeoLibre tools (bundled)</a><a href="#1b-conservation-raster-and-species-tools-bundled">1b. Conservation, raster and species tools (bundled)</a><a href="#2-plugin-folders">2. Plugin folders</a><a href="#3-writing-a-geospax-plugin">3. Writing a GeoSpaX plugin</a><a href="#4-installing-plugins">4. Installing plugins</a><a href="#5-http-api">5. HTTP API</a><a href="#6-credits">6. Credits</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/PLUGINS.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>

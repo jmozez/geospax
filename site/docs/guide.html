@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>User guide · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX user guide: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide" aria-current="page">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="geospax-user-guide"><a class="anchor" href="#geospax-user-guide">#</a>GeoSpaX user guide</h1>
+<p>GeoSpaX makes maps for you. You bring the data (plug something in, drop a file, or name an area) and a
+<strong>recipe</strong> does the rest: import, analysis, styling, layout, legend and export to PNG, PDF and an HTML report.
+This guide gets you from zero to a finished map in a few minutes.</p>
+<ul>
+<li><a href="#1-install">1. Install</a></li>
+<li><a href="#2-your-first-map-four-lazy-ways">2. Your first map: four lazy ways</a></li>
+<li><a href="#3-where-things-go">3. Where things go</a></li>
+<li><a href="#4-recipes-in-the-box">4. Recipes in the box</a></li>
+<li><a href="#5-automation-on-and-off">5. Automation on and off</a></li>
+<li><a href="#5a-edit-and-query-data">5a. Edit and query data</a></li>
+<li><a href="#6-live-sensors-and-phones">6. Live sensors and phones</a></li>
+<li><a href="#7-optional-power-tools-r-python-grass-saga">7. Optional power tools: R, Python, GRASS, SAGA</a></li>
+<li><a href="#8-command-line">8. Command line</a></li>
+<li><a href="#9-privacy">9. Privacy</a></li>
+<li><a href="#10-troubleshooting">10. Troubleshooting</a></li>
+</ul>
+<h2 id="1-install"><a class="anchor" href="#1-install">#</a>1. Install</h2>
+<div class="table"><table><thead><tr>
+<th>You have</th>
+<th>Do this</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Windows 10 or 11</strong> (64-bit)</td>
+<td>Run <code>GeoSpaX_3.0.3_x64-setup.exe</code>. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start <strong>GeoSpaX</strong> from the Start menu. <strong>GeoSpaX Web Server</strong> in the same menu opens the web edition in your browser. The installer isn&#39;t code-signed yet, so Windows may say &quot;Windows protected your PC&quot;: click <em>More info → Run anyway</em>. Prefer no installer? Unzip <code>GeoSpaX-3.0.3-windows-x64.zip</code> anywhere and run <code>geospax.exe</code>.</td>
+</tr>
+<tr>
+<td><strong>Any Linux</strong> (AppImage)</td>
+<td>Download <code>GeoSpaX-3.0.3-x86_64.AppImage</code>, make it executable (right-click › <em>Properties › Allow executing as program</em>, or <code>chmod +x GeoSpaX-*.AppImage</code>) and double-click it. Nothing is installed and no admin password is needed; it updates itself from inside the app. Works on distributions from 2024 onwards (Ubuntu 24.04, Fedora 40, Debian 13, Arch, openSUSE Tumbleweed …).</td>
+</tr>
+<tr>
+<td><strong>Linux via Flathub</strong></td>
+<td><code>flatpak install flathub io.github.jmozez.GeoSpaX</code>, or install GeoSpaX from GNOME Software or KDE Discover. Updates arrive with the rest of your system.</td>
+</tr>
+<tr>
+<td><strong>Android</strong> (field app)</td>
+<td>Download <code>GeoSpaX-Field-&lt;version&gt;.apk</code> from the <a href="https://geospax.in4metrix.dev/#download" rel="noopener" target="_blank">download page</a>, allow &quot;install unknown apps&quot; once and open it. Android 8 or newer.</td>
+</tr>
+<tr>
+<td><strong>Docker</strong> (any OS, web edition)</td>
+<td><code>mkdir -p data inbox &amp;&amp; docker compose up -d</code>, then open the <code>http://localhost:8080/?token=…</code> link printed by <code>docker compose logs geospax</code> (set <code>GEOSPAX_TOKEN</code> to keep a fixed token). The compose file also starts an MQTT broker for live sensors. <em>The image is built by CI on version tags; it has not been built in our own test sandbox yet.</em></td>
+</tr>
+<tr>
+<td>macOS</td>
+<td>Not packaged yet (it needs a Mac to build). Use the Docker web edition for now.</td>
+</tr>
+<tr>
+<td>The source code</td>
+<td><code>scripts/setup-linux.sh</code>, then <code>cd web &amp;&amp; npm ci &amp;&amp; npx vite build</code>, then <code>cargo build --release -p geospax-server</code> and <code>./target/release/geospax-server --data data</code>. See the <a href="https://github.com/jmozez/geospax/blob/main/README.md" rel="noopener" target="_blank">README</a>.</td>
+</tr>
+</tbody></table></div><p>The AppImage, the Flatpak and the Windows installer all contain both editions (on Windows: <code>geospax.exe</code>, <code>geospax-server.exe</code>, and <code>geospax-web.cmd</code>, which starts the server on your <code>GeoSpaX</code> folders and opens the browser):</p>
+<div class="table"><table><thead><tr>
+<th>Program</th>
+<th>What it is</th>
+</tr>
+</thead><tbody><tr>
+<td><code>geospax</code></td>
+<td>The desktop app. It also runs recipes from a terminal, e.g. <code>geospax run track-to-map --input source=~/tracks</code> (a folder or device).</td>
+</tr>
+<tr>
+<td><code>geospax-server</code></td>
+<td>The web edition. Run <code>geospax-server --data ~/GeoSpaX/Data</code>, then open <a href="http://localhost:8080" rel="noopener" target="_blank">http://localhost:8080</a>. Only this computer can connect; to use it from other devices, add <code>--host 0.0.0.0</code> and open the link with the access token it prints (<a href="https://github.com/jmozez/geospax/blob/main/SECURITY.md" rel="noopener" target="_blank">SECURITY.md</a>).</td>
+</tr>
+</tbody></table></div><h2 id="2-your-first-map-four-lazy-ways"><a class="anchor" href="#2-your-first-map-four-lazy-ways">#</a>2. Your first map: four lazy ways</h2>
+<p><strong>The quickest: drop a file, then Finish my map.</strong></p>
+<ol>
+<li><strong>Start screen.</strong> With nothing of your own on the map yet, GeoSpaX opens on <strong>Make a map</strong>: a big drop
+zone, the other ways in (plug in a device, send from your phone, start from an analysis) and <strong>Your
+finished maps</strong>. It comes back any time with <strong>Add data</strong> (Lazy task bar) or <strong>Home → Start</strong> (Pro).</li>
+<li><strong>Drop your data</strong> on the drop zone, or anywhere on the window, in either mode: GeoJSON, GeoPackage,
+a <strong>zipped</strong> shapefile, KML/KMZ, GPX, CSV with coordinates, FlatGeobuf, GeoParquet, GeoTIFF, LAS/LAZ.
+The file is saved in <code>Uploads/</code> in your data folder (never overwriting a file of the same name) and
+appears styled, zoomed to and selected. Point clouds wait for the <em>LiDAR → terrain</em> analysis.</li>
+<li><strong>Finish my map</strong> (Lazy task bar, or <strong>Home → Finish my map</strong> in Pro): give it a title (it suggests
+one) and press <strong>Make the map</strong>. The layers you see, styled as you see them, over the area you see
+(or all the data), are laid out with a title, legend with counts, scale bar, north arrow, graticule,
+a world underneath (Natural Earth land and borders) and credits, as a <strong>PNG</strong>, a print-ready vector
+<strong>PDF</strong> (and <strong>SVG</strong> if you want), with a <strong>one-page report</strong>. The report opens by itself; the files
+are in the run&#39;s folder and under <strong>Your finished maps</strong>. In Lazy mode the dialog asks only for the
+title (<strong>More options</strong>: subtitle, area, page size A4/A3/Letter, files); Pro shows them all.</li>
+</ol>
+<p><strong>Layout</strong> (in both Lazy and Pro) picks how the result is arranged:</p>
+<div class="table"><table><thead><tr>
+<th>Layout</th>
+<th>What you get</th>
+<th>Like</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>One map</strong></td>
+<td>Everything on one map</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Side by side</strong></td>
+<td>One page, each visible layer in its own panel, same area. With one layer: a single tagged figure panel</td>
+<td>R patchwork <code>wrap_plots()</code></td>
+</tr>
+<tr>
+<td><strong>Split by a field</strong></td>
+<td>One panel per value of a field (2–12 values, e.g. <code>kind</code>), same area and classes, one shared legend</td>
+<td>ggplot2 <code>facet_wrap()</code></td>
+</tr>
+<tr>
+<td><strong>Panels</strong></td>
+<td>Several areas on one page (a grid 1 × 1 to 4 × 4, or one per feature of a layer), each showing exactly its area</td>
+<td>R patchwork</td>
+</tr>
+<tr>
+<td><strong>Map series</strong></td>
+<td>An index page with every sheet outlined, then one page per area, each exactly its sheet, bound into one PDF</td>
+<td>ArcGIS Pro map series, QGIS atlas</td>
+</tr>
+</tbody></table></div><p>Panels are tagged (a), (b), … (or A, 1, i, or no tags) with a title each and their own scale bar; one
+north arrow; <strong>Columns</strong> (automatic: a landscape page) and <strong>Legend</strong>: <em>one shared legend</em>
+(patchwork&#39;s <code>guides = &quot;collect&quot;</code>), <em>one per panel</em>, or <em>automatic</em> (shared when every panel shows the
+same layers, otherwise one per panel). Map series pages are files <code>title-01.png</code>, <code>title-02.png</code>, …,
+the index <code>title-00-index</code>, and the bound <code>title-series.pdf</code>.</p>
+<p><strong>Style</strong> sets how the finished map looks. Start from a <strong>look</strong>, then change anything:</p>
+<div class="table"><table><thead><tr>
+<th>Look</th>
+<th>What it sets</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>GeoSpaX</strong> (default)</td>
+<td>Pill scale bar, needle north arrow, legend beside the map, 150 dpi</td>
+</tr>
+<tr>
+<td><strong>Journal</strong></td>
+<td>300 dpi, 4:3 page, legend inside the map, line scale bar, minimal arrow</td>
+</tr>
+<tr>
+<td><strong>Poster</strong></td>
+<td>600 dpi, overview inset, rose, checker scale bar in km and miles</td>
+</tr>
+<tr>
+<td><strong>Classic</strong></td>
+<td>Compass and checker bar, 300 dpi</td>
+</tr>
+<tr>
+<td><strong>Slide</strong></td>
+<td>16:9 page, legend inside, overview inset</td>
+</tr>
+</tbody></table></div><p>Under <em>Page, legend, scale bar, north arrow, inset</em> (open in Pro, one click away in Lazy):</p>
+<ul>
+<li><strong>Page shape</strong>: automatic (fits the area), 1:1, 4:3, 3:2, 16:9, portrait 3:4 or 2:3, A4, A3, Letter.</li>
+<li><strong>Resolution</strong>: 150, 300, 600 or 1200 dpi. The PNG is made at that resolution and carries it, so it
+opens at its print size in Word, InDesign or a journal&#39;s system; the PDF is vector at any size.</li>
+<li><strong>Legend</strong>: beside the map, <strong>inside the map</strong> (on a card) or none, with its heading. <strong>Edit the
+legend</strong> lists every layer with its classes: untick to hide a layer, type a new title, rename any
+class, and drag a row (or ▲▼) to change the order.</li>
+<li><strong>Projection</strong>: Automatic uses <strong>Equal Earth</strong> (equal-area: countries keep their true relative sizes)
+for world and continental maps and <strong>Web Mercator</strong> (as on the web map) for everything smaller; pick
+either yourself. A world map in Equal Earth has no single scale, so it gets no scale bar.</li>
+<li><strong>Scale bar</strong>: pill, checker, line or ruler; km/m, mi/ft or both.</li>
+<li><strong>North arrow</strong>: needle, compass, 8-point rose, minimal or none.</li>
+<li><strong>Overview inset</strong>: a world/region map with your area boxed.</li>
+</ul>
+<p><strong>Live preview.</strong> The dialog shows the first page as it will be made, beside the options, and redraws
+it as you change the layout, look, legend or furniture (a quick low-resolution render; nothing is saved
+until you press <strong>Make the map</strong>).</p>
+<p>On <strong>multi-panel pages</strong> a legend <em>inside the map</em> sits in each panel (one legend per panel) or in the
+first panel (one shared legend); the north arrow and the overview inset go in the first panel.</p>
+<p><strong>Furniture goes where your data isn&#39;t.</strong> GeoSpaX looks at how much of the map&#39;s data falls in each
+corner and puts the inside legend and the inset in the emptiest corners, the north arrow in the
+emptiest top corner and the scale bar in the emptiest bottom corner. Pick a corner to pin any of them.</p>
+<p>Behind the scenes Finish my map is an ordinary recipe, <code>finished-map</code>, replaced each time: it has run
+history and provenance, and you can re-run it or give it a trigger like any other.</p>
+<p><strong>The layout window: the page beside your map.</strong> <strong>Share → Layout window</strong> (or <strong>Open in layout window</strong> in
+Finish my map) opens the map page in a window of its own, like ArcGIS Pro&#39;s layout view or QGIS&#39;s print
+layout. Move it to a second monitor or press <strong>F</strong> for full screen. Scroll to zoom (the page is vector, so it
+stays sharp), drag to move, double-click or <strong>0</strong> to fit, <strong>1</strong> for actual size. While <strong>Live</strong> is on it
+redraws whenever you pan the map, switch a layer on or off or change a style, using the choices last made
+in Finish my map (title, layout, style, furniture). <strong>Make final files</strong> writes the PNG, the vector PDF, the
+SVG and the report, as a web page and as a <strong>Word document (report.docx)</strong> you can edit; the links appear
+under the toolbar and in the report.</p>
+<p><strong>Opening the app is already lazy.</strong> Every layer GeoSpaX sees for the first time is styled by AutoMap,
+the same engine the recipes use: it picks the field that matters (never an ID), the classification and a
+colour-blind-safe colour scheme, and the Symbology pane says why (&quot;✨ Styled automatically …&quot;). Change
+anything and the style is yours; <strong>✨ Style automatically</strong> brings AutoMap back. Layers too dense to draw
+zoomed out get their overview pyramid built in the background, one at a time, without a click. The map
+opens on your data over an offline world basemap (Natural Earth land, lakes and borders); <strong>View →
+Basemap</strong> switches to OpenStreetMap (online) or none. Add <code>?auto=0</code> or <code>?autooverviews=0</code> to the address
+to turn either automation off.</p>
+<p><strong>a) Drop files into <code>~/GeoSpaX/Inbox</code>.</strong> Photos, GPX/KML/NMEA tracks, drone logs and sensor logs dropped here
+are mapped by the matching recipe within about 5 seconds, with no switches to turn on:</p>
+<div class="table"><table><thead><tr>
+<th>Device content</th>
+<th>Recipe that runs</th>
+<th>You get</th>
+</tr>
+</thead><tbody><tr>
+<td>Geotagged photos (phone, camera, folder)</td>
+<td><code>photos-to-map</code></td>
+<td>Photo points and tracks on a laid-out map, plus a report</td>
+</tr>
+<tr>
+<td>GPS tracks or waypoints</td>
+<td><code>track-to-map</code></td>
+<td>Track map, KML and GeoJSON</td>
+</tr>
+<tr>
+<td>Drone card (DJI photos and SRT logs)</td>
+<td><code>drone-flight-report</code></td>
+<td>Coverage map and flight report</td>
+</tr>
+<tr>
+<td>Sensor logger CSV/JSON</td>
+<td><code>sensor-log-to-map</code></td>
+<td>Readings map (air quality is classed by the WHO guideline) and a summary</td>
+</tr>
+</tbody></table></div><p><strong>b) Plug something in.</strong> Connect a phone (file transfer mode), a GPS unit, a camera or drone SD card, a sports
+watch or an air-quality logger. GeoSpaX lists it in the <strong>Devices</strong> section within about 5 seconds. Press
+<strong>Import &amp; map</strong> once. To have it mapped on every plug-in, turn on the matching recipe&#39;s <strong>Auto</strong> switch in
+<strong>Automate</strong>. Devices are never processed without a click or a switch, because photo locations and tracks are
+personal data.</p>
+<p><strong>c) Send from your phone over Wi-Fi.</strong> No cable and no app needed:</p>
+<ol>
+<li>In the <strong>Devices</strong> section, press <strong>Send from phone → Turn on</strong> and scan the QR code with the phone&#39;s camera.</li>
+<li>The phone shows a certificate warning once. That certificate belongs to your own computer: choose <em>Advanced → Continue</em>.</li>
+<li>Then <strong>Choose files</strong> (photos, tracks, sensor logs) or <strong>Take a photo</strong>.</li>
+</ol>
+<p>The map makes itself, on the computer and on the phone. Photos that lost their location on the way are placed on
+the phone&#39;s track by their time, if <strong>Share live location</strong> was on while you took them. Photos taken with <strong>Take a
+photo</strong> always get the phone&#39;s position. Works on Android and iPhone, with Windows, macOS and Linux.</p>
+<p><strong>d) Pick a recipe and press Run.</strong> Open the <strong>Automate</strong> section, choose a recipe (for example <em>Terrain report</em>
+or <em>Latest cloud-free NDVI</em>), answer the one or two questions it asks (usually just the area) and press <strong>Run</strong>.
+The autopilot fills in every other setting and explains its choices in the report.</p>
+<p>Finished maps appear in the <strong>Automate</strong> section under the recipe&#39;s runs. Open one to see the map, the PDF and the
+report.</p>
+<h2 id="2b-the-workbench-ribbon-panes-map"><a class="anchor" href="#2b-the-workbench-ribbon-panes-map">#</a>2b. The workbench: ribbon, panes, map</h2>
+<p>GeoSpaX opens like a desktop GIS: a <strong>ribbon</strong> on top, <strong>panes</strong> docked around the map, and a <strong>status bar</strong>
+underneath. Nothing is hidden behind a menu you have to hunt for — and every button still runs the same engine
+calls the recipes use.</p>
+<p><strong>Lazy or Pro: GeoSpaX fits you.</strong> One switch in the title bar (remembered in your browser; Lazy is the
+default) changes the ribbon and the layer list together:</p>
+<ul>
+<li><p><strong>Lazy: the task bar.</strong> The ribbon becomes one slim row: a <strong>What do you want to do?</strong> box (type anything:
+&quot;hot spots&quot;, &quot;export&quot;, a layer name), tasks in plain words (<strong>Add data</strong>, <strong>Online data</strong>, <strong>Make it look
+good</strong>, <strong>Find patterns</strong>, <strong>All tools</strong>, <strong>Finish my map</strong>) and <strong>Next for <layer></strong>: the analyses that
+fit the layer you selected, one click to run them on it.</p>
+</li>
+<li><p><strong>Pro: the full ribbon</strong>, in the order you work, plus a contextual <strong>Layer</strong> tab while a layer is
+selected (zoom, attribute table, symbology, AutoMap and the same next steps):</p>
+<div class="table"><table><thead><tr>
+<th>Tab</th>
+<th>Groups</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Home</strong></td>
+<td>Project · Navigate (previous/next extent, go to XY, find place, basemap) · Layer (add data, remove) · Selection · Inquiry (measure, identify) · Symbology</td>
+</tr>
+<tr>
+<td><strong>Data</strong></td>
+<td>Add data · <strong>Online data</strong> (climate, future climate, soil, species, boundaries, elevation) · Sources · Sample data</td>
+</tr>
+<tr>
+<td><strong>Analysis</strong></td>
+<td>Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Tools · Spatial statistics · Interpolation · Assistant</td>
+</tr>
+<tr>
+<td><strong>View</strong></td>
+<td>Navigate · Projection · Theme · Basemap · Windows</td>
+</tr>
+<tr>
+<td><strong>Edit</strong></td>
+<td>Editing · Selection · Measure</td>
+</tr>
+<tr>
+<td><strong>Imagery</strong></td>
+<td>Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools</td>
+</tr>
+<tr>
+<td><strong>Share</strong></td>
+<td>Layout (Finish my map) · Export</td>
+</tr>
+<tr>
+<td><strong>R &amp; Python</strong></td>
+<td>R: console · setup · tmap, ggplot2 and rayshader maps · terra terrain · Earth Engine · biomod2 and MaxEnt species models · tidymodels · dbplyr (<a href="/docs/r">R.md</a>) · Python: spatial statistics · your own Python steps (<a href="/docs/automation">AUTOMATION.md</a>)</td>
+</tr>
+<tr>
+<td><strong>Automate</strong></td>
+<td>Recipes · Runs</td>
+</tr>
+<tr>
+<td><strong>Plugins</strong></td>
+<td><strong>Domain plugins (GSX)</strong> (agriculture, biodiversity, climate, conservation …: each lists its tools and kits) · Manage · plugin tools that name no tab</td>
+</tr>
+<tr>
+<td><strong>Help</strong></td>
+<td>Docs (user guide, FAQ, what&#39;s new) · Support · About · Diagnostics</td>
+</tr>
+</tbody></table></div><p>The tabs follow ArcGIS Pro&#39;s order. When the window is too narrow for a tab, its rightmost groups fold
+into <strong>▾</strong> menus instead of being cut off. <strong>Settings</strong> (Home tab, or the ⚙ at the top right) keeps theme,
+mode, units, basemap and automation choices. <strong>Help</strong> opens the guides and the FAQ as a searchable web page
+of its own (a new browser tab, or a window on the desktop).</p>
+<p>Every group has the same height: its main commands are large buttons, the others small buttons stacked
+three to a column, as in ArcGIS Pro. A plugin tool appears on the tab its manifest names
+(<a href="/docs/plugins">PLUGINS.md</a>).</p>
+</li>
+</ul>
+<p><strong>Online data</strong> (Data tab, or the Lazy task) gets free data for the area on the map, with no account:
+WorldClim 2.1 bioclim and monthly climate, WorldClim CMIP6 future climate (12 models, four SSPs, four
+periods), CHELSA 2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries, the
+Copernicus DEM, <strong>ocean depth</strong> (GEBCO 2026: sea depth and land height in one surface, drawn with sea level
+as the coastline, and how each depth was measured), <strong>forest change</strong> (Hansen Global Forest Change v1.13:
+tree cover in 2000 and the year of loss 2001–2025 at 30 m, for areas up to about 220 km a side) and
+<strong>ecoregions</strong> (RESOLVE 2017, the updated WWF terrestrial ecoregions, in their published colours). Only the area is downloaded (climate keeps the provider&#39;s own grid), each result becomes a
+layer, and its citation goes into the run&#39;s methods and report. It is a recipe step, <code>data.fetch</code>, so a
+recipe can fetch data on a schedule too (<a href="/docs/automation">AUTOMATION.md</a>).</p>
+<p><strong>Check species names</strong> (Data tab) matches a layer&#39;s scientific names against the World Register of
+Marine Species (WoRMS). You get a copy of the layer with each name&#39;s AphiaID, its status, the accepted
+name for synonyms (<em>Acropora formosa</em> → <em>Acropora muricata</em>), the classification, the habitat and a
+verdict to review: <em>ok</em>, <em>synonym</em>, <em>check spelling</em> (a fuzzy match, e.g. <em>Chelonia mydass</em>),
+<em>ambiguous</em> (a name shared by two groups: <em>Acropora</em> is a coral and an old bryozoan genus; <em>Only within
+Cnidaria</em> settles it) or <em>not in WoRMS</em>. Your own names are never changed. WoRMS covers marine taxa
+best; many freshwater and land species are not in it. Answers are kept for 30 days, so a re-run does not
+ask WoRMS again.</p>
+<p>The side and bottom panes follow it too:</p>
+<ul>
+<li><strong>Lazy, right: the Inspector.</strong> The selected layer as a short story: what it shows (with a bar per class
+and its count), <em>why</em> it looks like that, <strong>Colour it by</strong> (one chip per useful column, plus <em>Let GeoSpaX
+choose</em> and <em>One colour</em>), a see-through slider, <strong>Do something with it</strong> (the analyses that fit, zoom,
+see the rows) and <strong>Where it came from</strong> (file, format, extent, columns).</li>
+<li><strong>Lazy, bottom: Activity.</strong> <em>Ideas for your data</em> (the analyses that fit the layers on the map, one click
+each) and <em>What happened</em> (every run, including the ones devices start by themselves, with <strong>Open
+report</strong>, then the latest notes).</li>
+<li><strong>Pro</strong> keeps Symbology, Attributes, Rasters, Devices on the right and Automate, Plugins, History, Log at
+the bottom.</li>
+</ul>
+<p>The layer list follows the same switch:</p>
+<div class="table"><table><thead><tr>
+<th></th>
+<th>Lazy: layer cards</th>
+<th>Pro: layer tree</th>
+</tr>
+</thead><tbody><tr>
+<td>Name</td>
+<td>Friendly (&quot;Air quality samples&quot;)</td>
+<td>File name (<code>air_quality_samples.geojson</code>)</td>
+</tr>
+<tr>
+<td>What it shows</td>
+<td>One sentence from the data: &quot;Coloured by PM2.5 against the WHO guideline: 88% of 1,500 readings are above 15.&quot;</td>
+<td>Geometry · CRS · zoom range · classification on one line</td>
+</tr>
+<tr>
+<td>Legend</td>
+<td>A bar whose segments are as wide as their share of the features</td>
+<td>Classes with counts</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Ready · Styled for you · Preparing zoomed-out view (with progress) · Hidden</td>
+<td>Compact badges (pyramid %, auto)</td>
+</tr>
+<tr>
+<td>Next step</td>
+<td>Buttons for the recipes that fit this layer (Make a surface, Hot spots, Hexagon map), run on <em>this</em> layer</td>
+<td>Ribbon and palette</td>
+</tr>
+<tr>
+<td>Arranging</td>
+<td>Grouped by origin: from your devices, your data, recipe results, reference, background</td>
+<td>Drag rows to reorder, inline opacity, filter box</td>
+</tr>
+</tbody></table></div><p>Both show the same project: switching never changes the map.</p>
+<pre><code>┌──────────────────────────────────────────────────────────────────────┐
+│ GeoSpaX   ⤓ ⟳ ⤢ ⌘                          Ctrl+K for any command    │  title bar
+│ Home Data Analysis View Edit Imagery Share R&amp;Py Automate Plugins Help│  ribbon tabs
+│ ┌ Refresh ┐ ┌ Contents ┐ ┌ Attribute ┐ ┌ Export ┐                     │  ribbon body
+│ └──Project┘ └── Layers ┘ └──Selection┘ └──  Map ┘                     │
+├────────────┬──────────────────────────────────┬───────────────────────┤
+│ Contents   │                                  │ Symbology             │
+│  ☐ layer   │            M A P                │ Attributes            │  ← drag the
+│ Explorer   │                                  │ Rasters               │    splitters
+│ Project    ├──────────────────────────────────┤ Devices               │
+│            │ Automate │ History │ Log         │                       │
+├────────────┴──────────────────────────────────┴───────────────────────┤
+│ Ready   -5.86234, 144.23451   1:18,000 · z14.0    countries · 258      │  status bar
+└──────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<div class="table"><table><thead><tr>
+<th>Where</th>
+<th>What it does</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Ribbon</strong></td>
+<td>Eleven tabs of commands with icons, tooltips and shortcuts. <strong>Analysis</strong> carries the recipes as a single dropdown button (<code>Recipes 10 ▾</code>) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The <strong>pin</strong> at the right of the tab strip (or <code>Ctrl+F1</code>) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map).</td>
+</tr>
+<tr>
+<td><strong>Contents</strong> (left)</td>
+<td>The layer list: visibility, draw order, legend, symbology. Rasters are listed with the vector layers. Every result of an analysis (a recipe, a Toolbox tool, the Ask assistant, a trigger) is added here by itself, switched on and on top, as in ArcGIS Pro and QGIS; drag it or use ▲ ▼ to change what draws over what.</td>
+</tr>
+<tr>
+<td><strong>Explorer</strong> (left)</td>
+<td>Your files on disk, as ArcGIS Pro&#39;s Catalog, QGIS&#39;s Browser and VS Code&#39;s Explorer: <strong>Folders</strong> lists the data folders, your <strong>folder connections</strong> (<strong>Connect a folder…</strong> at the top, <strong>Data › Connect folder</strong> or right-click: pick any folder of this computer; it is kept for the next start and ✕ removes it, the folder itself is never touched) (and <em>Edits</em>, the copies of layers you edited) with every map file in them; double-click a file or press <strong>+</strong> to add it to the map, a ✓ marks files already on it, right-click for <em>Add</em>, <em>Copy path</em> and <em>Refresh</em>. <strong>On the map</strong> lists the layers by the file they come from (click one to make it active); <strong>More</strong> opens sample data, recipes, devices, rasters and run history. Only the data folders can be browsed, never the rest of the computer.</td>
+</tr>
+<tr>
+<td><strong>Project</strong> (left)</td>
+<td>Your map as a whole: where it is saved (it saves itself after every change), its layers, basemap, projection and view; <strong>Save a copy…</strong> downloads it as a file to keep or share, <strong>Open…</strong> reads one back (also a 1.4.2 <code>.gspx</code> or a 2.0 <code>.geolibre.json</code>, whose layers are imported), <strong>New</strong> starts again. <strong>Bookmarks</strong> remember map views by name (also <em>View › Bookmark view</em>). The data stays in your files; the project only points at them. Developer controls (tile transport, engine cache, benchmark, Arrow → deck.gl) are folded away under <em>Diagnostics</em>, also opened by <em>Help › Engine diagnostics</em>.</td>
+</tr>
+<tr>
+<td><strong>Symbology</strong> (right)</td>
+<td>Renderer, field, ramp; point shape and size (fixed or by a field), line width, dash and casing, polygon fill and outline, opacity; labels (font, size, halo, placement, wrap) — for the active layer. Rasters: ⚙ on the raster opens its own Symbology (stretch, classes, split, RGB, band, ramp, range presets, invert, resampling, opacity, Reset to automatic).</td>
+</tr>
+<tr>
+<td><strong>Attributes</strong> (right)</td>
+<td>The table: 250 rows at a time, click a row to zoom to that feature, <code>Ctrl+click</code> to select several, plus <strong>Fields</strong> and <strong>Chart</strong> views.</td>
+</tr>
+<tr>
+<td><strong>Rasters / Devices</strong> (right)</td>
+<td>DEMs, hillshades, indices; phones, GPS units, SD cards, live sensors.</td>
+</tr>
+<tr>
+<td><strong>Automate / History / Log</strong> (bottom)</td>
+<td>Recipe gallery with Auto switches; every run with its artifacts; a running log.</td>
+</tr>
+<tr>
+<td><strong>Status bar</strong></td>
+<td>Cursor coordinates, scale ratio and zoom, the active layer, and what the last command did.</td>
+</tr>
+</tbody></table></div><p><strong>Getting around</strong></p>
+<div class="table"><table><thead><tr>
+<th>Key / gesture</th>
+<th>Result</th>
+</tr>
+</thead><tbody><tr>
+<td><code>Ctrl+K</code></td>
+<td>Command palette: search every command, recipe and layer; <code>↑↓</code> to move, <code>Enter</code> to run</td>
+</tr>
+<tr>
+<td><code>F5</code> · <code>Ctrl+S</code></td>
+<td>Refresh layers · save the project</td>
+</tr>
+<tr>
+<td><code>Ctrl+1</code> · <code>Ctrl+2</code></td>
+<td>AutoMap the active layer · open Symbology</td>
+</tr>
+<tr>
+<td><code>Ctrl+T</code> · <code>Ctrl+0</code></td>
+<td>Attribute table · zoom to everything</td>
+</tr>
+<tr>
+<td><code>Z</code> · <code>+</code> · <code>-</code></td>
+<td>Zoom to layer · in · out</td>
+</tr>
+<tr>
+<td>drag a splitter</td>
+<td>Resize a pane (double-click to reset)</td>
+</tr>
+<tr>
+<td>double-click a pane tab</td>
+<td>Collapse the pane to a 30 px strip of vertical tabs (double-click again to reopen)</td>
+</tr>
+<tr>
+<td>click a feature</td>
+<td>Identify: its attributes in a popup</td>
+</tr>
+</tbody></table></div><p>Pane sizes, which tab is open and which panes are collapsed are remembered per browser/app.</p>
+<h3 id="the-toolbox-every-tool-in-one-place"><a class="anchor" href="#the-toolbox-every-tool-in-one-place">#</a>The Toolbox: every tool in one place</h3>
+<p>The <strong>Toolbox</strong> tab (right pane, both modes; <strong>All tools</strong> in the Lazy task bar, <strong>Analysis → Toolbox</strong> in
+Pro) lists every tool GeoSpaX can run, with one search box:</p>
+<ul>
+<li><strong>Ready-made analyses</strong>: the recipes. A form, then <strong>▶ Run</strong>: the result joins the map, with a laid-out
+map and a report under Activity / History. They come first in search results.</li>
+<li><strong>Building blocks</strong>: the engine&#39;s 36 recipe steps. Each shows the tools it stands in for in ArcGIS Pro,
+QGIS, GRASS, SAGA and others (<em>≈ ArcGIS Buffer, QGIS Buffer, GRASS v.buffer…</em>), so typing the name you
+know finds the GeoSpaX way, and which ready-made analyses use it.</li>
+<li><strong>GeoLibre tools</strong>: 1,062 raster, vector, LiDAR, hydrology, terrain and conversion tools (below).</li>
+<li><strong>Plugin tools</strong> from GeoSpaX, RustGIS, QGIS and ArcGIS Pro plugins, each with a badge saying where it
+comes from.</li>
+</ul>
+<p>Recently used tools stay at the top. A tool&#39;s page shows what it does and its parameters; <strong>Open the
+tool…</strong> opens its form. Whatever a tool writes is added to the map.</p>
+<h3 id="the-layer-tree-pro"><a class="anchor" href="#the-layer-tree-pro">#</a>The layer tree (Pro)</h3>
+<p>Pro mode&#39;s Contents is a tree, as in ArcGIS Pro: <strong>Map</strong> ▸ group layers ▸ layers ▸ legend classes, then the
+basemap. <strong>＋ Group</strong> puts the selected layer in a new group; drag a layer onto a group to add it, onto
+<strong>Map</strong> to take it out, onto another layer to take its place. A group&#39;s switch hides all its layers
+without changing their own switches; the twisty (▾/▸) folds a layer&#39;s legend; ✎ renames a group
+(or double-click its name) and ⊟ ungroups it, keeping the layers. Groups are saved in the project.</p>
+<p><strong>Keyboard in the Pro tree.</strong> Tab into the layer tree (one tab stop), then ↑/↓ move, Home/End jump,
+→/← expand or collapse a group or a legend (← on a layer in a group goes to the group), Space shows or
+hides, Enter opens the symbology, Alt+↑/↓ moves the layer in the drawing order, F2 renames a group.</p>
+<p><strong>Theme.</strong> GeoSpaX opens in a light theme. The button left of the Lazy/Pro switch cycles ☀ Light → ☾ Dark →
+◐ System (follows your operating system); View → Theme does the same. The choice is remembered; add
+<code>?theme=dark</code> to a link to force one. The map&#39;s background and land colours follow the theme.</p>
+<h2 id="2c-plugins-tools-from-five-ecosystems"><a class="anchor" href="#2c-plugins-tools-from-five-ecosystems">#</a>2c. Plugins: tools from five ecosystems</h2>
+<p>Everything about plugins is on the <strong>Plugins</strong> ribbon tab. <strong>Manage plugins</strong> (first button) lists
+what is installed, the runtimes found, and imports, reloads or uninstalls plugins; the plugins&#39; own
+tools follow on the same tab, unless a plugin puts them on another tab (<code>tab:</code>). Every plugin is a
+folder with a manifest, and GeoSpaX reads five formats, so a tool written for another GIS shows up
+here:</p>
+<div class="table"><table><thead><tr>
+<th>Written for</th>
+<th>File it looks for</th>
+<th>What runs</th>
+</tr>
+</thead><tbody><tr>
+<td>GeoSpaX</td>
+<td><code>plugin.yaml</code></td>
+<td><code>process</code>, <code>python</code>, <code>r</code>, <code>wasm</code>, <code>recipe</code> tools</td>
+</tr>
+<tr>
+<td>RustGIS (<code>.rgplugin</code>)</td>
+<td><code>plugin.json</code> + <code>plugin.wasm</code></td>
+<td>the WASM module, through <code>wasmtime</code>/<code>wasm3</code>/<code>deno</code></td>
+</tr>
+<tr>
+<td>GeoLibre</td>
+<td><code>plugin.json</code>, WASM tool bundles</td>
+<td>its tools (WASI); its React UI cannot run here</td>
+</tr>
+<tr>
+<td>QGIS</td>
+<td><code>metadata.txt</code></td>
+<td>its <strong>processing algorithms</strong> through <code>qgis_process</code>; its PyQt UI cannot run here</td>
+</tr>
+<tr>
+<td>ArcGIS Pro (<code>.esriAddInX</code>)</td>
+<td><code>Config.daml</code> (+ <code>Toolboxes/*.pyt</code>)</td>
+<td>its <strong>Python toolbox</strong> tools through arcpy; the .NET assembly cannot run here</td>
+</tr>
+</tbody></table></div><p><strong>GeoLibre tools come with GeoSpaX.</strong> The <code>geolibre-tools</code> plugin brings GeoLibre&#39;s whole tool runner
+(geolibre-wasm, built on whitebox_next_gen): 1,062 tools, run locally on WebAssembly. They need
+<a href="https://nodejs.org" rel="noopener" target="_blank">Node.js</a> 18 or newer; the runner (about 9 MB) is downloaded once on first use and
+checked against its published checksum. A vector parameter is a layer on the map; raster, LiDAR and
+table parameters take a file path; results are added to the map. Offline machines: see
+<code>plugins/geolibre-tools/README.md</code>.</p>
+<p><strong>Removing one:</strong> <strong>Uninstall</strong> on the card (press it twice). Plugins that live in a folder you
+started the server with (<code>--plugins DIR</code>) are not deletable from here — the card says &quot;external
+folder&quot; so you can remove them yourself.</p>
+<p><strong>In the ribbon:</strong> recipes and plugin tools are collapsed into a single button with a count
+(<code>Recipes 10 ▾</code>) so the ribbon stays one row tall. Click it for the full list — icon, title and one
+line of description, one click to run. The tiny button in the group&#39;s title switches that group back
+to a card gallery, and the choice is remembered.</p>
+<p><strong>Using one:</strong> click a tool&#39;s <strong>Run…</strong>, fill in the form, press Run. The result (or the recipe run it
+started) is reported in the pane and in the log; recipe-backed tools also appear in <strong>History</strong>.</p>
+<p><strong>Installing:</strong> paste a folder or package path (<code>.rgplugin</code>, <code>.esriAddInX</code>, <code>.zip</code>) into the box at
+the top of the pane, or <code>geospax-server plugins import PATH</code> on the command line. Plugins are stored
+in <code>&lt;state&gt;/.geospax/plugins</code>; <code>--plugins DIR</code> adds a folder you are developing in.</p>
+<p><strong>Writing one:</strong> copy <code>plugins/example-python</code> — a <code>plugin.yaml</code> with tools and parameters, plus a
+script that reads a JSON request on stdin and prints JSON back. Full contract, runtimes and the
+honest compatibility table: <a href="/docs/plugins">PLUGINS.md</a>.</p>
+<h2 id="3-where-things-go"><a class="anchor" href="#3-where-things-go">#</a>3. Where things go</h2>
+<p>The installed desktop app keeps everything in one folder:</p>
+<pre><code>~/GeoSpaX/
+├── Inbox/       drop photos, tracks, drone and sensor logs here → the matching recipe maps them
+├── Data/        put GIS layers here (GeoPackage, Shapefile, GeoJSON, FlatGeobuf, GeoTIFF …)
+│                → they appear in the layer list next time GeoSpaX starts
+├── .geospax/    state: runs/ (finished maps, PDFs, reports), overviews, project, Auto switches
+└── README.txt
+</code></pre>
+<p>When you start it from a terminal with a folder (<code>geospax /path/to/data</code>), or with <code>GEOSPAX_DATA</code> set, it uses
+that folder instead. State then goes into <code>&lt;folder&gt;/.geospax</code>.</p>
+<h2 id="4-recipes-in-the-box"><a class="anchor" href="#4-recipes-in-the-box">#</a>4. Recipes in the box</h2>
+<div class="table"><table><thead><tr>
+<th>Recipe</th>
+<th>Makes</th>
+<th>Runs by itself when</th>
+</tr>
+</thead><tbody><tr>
+<td><code>photos-to-map</code></td>
+<td>Photos and tracks → finished map</td>
+<td>Geotagged photos land in the Inbox, or (on Auto) a phone or camera is plugged in</td>
+</tr>
+<tr>
+<td><code>track-to-map</code></td>
+<td>GPS tracks → map, KML and GeoJSON</td>
+<td>Tracks land in the Inbox, or (on Auto) a GPS unit is plugged in</td>
+</tr>
+<tr>
+<td><code>drone-flight-report</code></td>
+<td>Drone flight → coverage map and report</td>
+<td>Drone logs land in the Inbox, or (on Auto) a drone card is plugged in</td>
+</tr>
+<tr>
+<td><code>sensor-log-to-map</code></td>
+<td>Sensor log → map and report</td>
+<td>A sensor log lands in the Inbox, or (on Auto) a logger is plugged in</td>
+</tr>
+<tr>
+<td><code>air-quality-alert</code></td>
+<td>Alert map of live sensors</td>
+<td>A live PM2.5 reading goes above 35 µg/m³ (30 min cooldown)</td>
+</tr>
+<tr>
+<td><code>latest-ndvi</code></td>
+<td>Latest cloud-free NDVI (Sentinel-2)</td>
+<td>A new satellite pass covers your area (when on Auto)</td>
+</tr>
+<tr>
+<td><code>lidar-to-terrain</code></td>
+<td>LiDAR point clouds (LAS/LAZ) → terrain map, canopy map with tree tops and buildings, <strong>3D scene</strong>, report</td>
+<td>LAS/LAZ files land in the Inbox, or (on Auto) a drive with point clouds is plugged in</td>
+</tr>
+<tr>
+<td><code>terrain-report</code></td>
+<td>DEM → relief, slopes, contours, <strong>3D view</strong></td>
+<td>You press Run</td>
+</tr>
+<tr>
+<td><code>landforms-grass</code></td>
+<td>Landforms with GRASS r.geomorphon</td>
+<td>You press Run (needs GRASS)</td>
+</tr>
+<tr>
+<td><code>wetness-saga</code></td>
+<td>Topographic wetness index with SAGA</td>
+<td>You press Run (needs SAGA)</td>
+</tr>
+<tr>
+<td><code>interpolate-samples</code></td>
+<td>Field samples → the best surface: <strong>kriging or IDW</strong>, whichever predicts better, plus a map of how sure it is</td>
+<td>You press Run</td>
+</tr>
+<tr>
+<td><code>points-to-hotspots</code></td>
+<td>Incidents → <strong>hot spot map</strong> (where they cluster more than chance explains)</td>
+<td>You press Run</td>
+</tr>
+<tr>
+<td><code>r-kriging</code></td>
+<td>Kriging prediction and uncertainty (R gstat)</td>
+<td>You press Run (needs R)</td>
+</tr>
+<tr>
+<td><code>python-spatial-stats</code></td>
+<td>Centre, spread and clustering of points</td>
+<td>You press Run (needs Python 3)</td>
+</tr>
+<tr>
+<td><code>points-to-hexbins</code></td>
+<td>Hexagon density map for very many points</td>
+<td>You press Run</td>
+</tr>
+</tbody></table></div><p>To make your own recipe, use <strong>Save this map as a recipe</strong> in the app, or copy one of the examples from
+<code>/usr/share/geospax/recipes/</code> (source: <a href="https://github.com/jmozez/geospax/blob/main/recipes" rel="noopener" target="_blank"><code>recipes/</code></a>) into a folder and point <code>GEOSPAX_RECIPES</code> at it.
+The format is described in <a href="/docs/automation">AUTOMATION.md</a>.</p>
+<h2 id="5-automation-on-and-off"><a class="anchor" href="#5-automation-on-and-off">#</a>5. Automation on and off</h2>
+<p>Every recipe with a trigger has an <strong>Auto</strong> switch in the Automate section. Your choices are saved in
+<code>.geospax/automation.json</code>. From a terminal:</p>
+<div class="table"><table><thead><tr>
+<th>Setting</th>
+<th>Desktop (environment variable)</th>
+<th>Web edition (flag)</th>
+</tr>
+</thead><tbody><tr>
+<td>Recipes on Auto</td>
+<td><code>GEOSPAX_AUTO=photos-to-map,track-to-map</code> or <code>all</code></td>
+<td><code>--auto …</code></td>
+</tr>
+<tr>
+<td>Extra drop folders (mapped without Auto)</td>
+<td>— (<code>~/GeoSpaX/Inbox</code> is built in)</td>
+<td><code>--inbox DIR</code> (repeatable)</td>
+</tr>
+<tr>
+<td>Extra watched folders (treated like devices)</td>
+<td><code>GEOSPAX_WATCH=/path/one:/path/two</code></td>
+<td><code>--watch DIR</code> (repeatable)</td>
+</tr>
+<tr>
+<td>Import new devices without a recipe</td>
+<td><code>GEOSPAX_AUTO_IMPORT=1</code></td>
+<td><code>--auto-import</code></td>
+</tr>
+<tr>
+<td>Extra recipe folders</td>
+<td><code>GEOSPAX_RECIPES=DIR</code></td>
+<td><code>--recipes DIR</code></td>
+</tr>
+<tr>
+<td>Live sensors over MQTT</td>
+<td><code>GEOSPAX_MQTT=mqtt://host:1883/sensors/#</code></td>
+<td><code>--mqtt …</code></td>
+</tr>
+<tr>
+<td>Live GNSS receiver</td>
+<td><code>GEOSPAX_GPS=gpsd://localhost:2947</code> or a serial/TCP/file URL</td>
+<td><code>--gps …</code></td>
+</tr>
+<tr>
+<td>Data and state folders</td>
+<td><code>GEOSPAX_DATA</code>, <code>GEOSPAX_STATE</code></td>
+<td><code>--data DIR</code>, <code>--state-dir DIR</code></td>
+</tr>
+<tr>
+<td>Everything off</td>
+<td>—</td>
+<td><code>--no-triggers</code></td>
+</tr>
+</tbody></table></div><h2 id="5a-edit-and-query-data"><a class="anchor" href="#5a-edit-and-query-data">#</a>5a. Edit and query data</h2>
+<p>The <strong>Edit</strong> tab works like ArcGIS Pro&#39;s (and QGIS&#39;s digitising and attribute tools). Edits go into the
+<strong>active layer</strong>: the one picked in Contents.</p>
+<div class="table"><table><thead><tr>
+<th>Group</th>
+<th>Tools</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Create</strong></td>
+<td><strong>Point</strong>, <strong>Line</strong>, <strong>Polygon</strong>: click to place vertices, double-click (or click the first point) to finish, then fill in the feature&#39;s attributes. New vertices <strong>snap</strong> to the vertices of visible features (Manage edits › Snapping turns it off).</td>
+</tr>
+<tr>
+<td><strong>Modify</strong></td>
+<td><strong>Select</strong> (click; Shift adds, Ctrl removes, Delete deletes), <strong>Select by rectangle</strong>, <strong>Edit vertices</strong> (drag a vertex or the whole shape, drag a midpoint to add a vertex, right-click a vertex to delete it; Enter saves, Esc cancels), <strong>Attributes</strong> (form for the selected feature), <strong>Delete</strong>.</td>
+</tr>
+<tr>
+<td><strong>Selection</strong></td>
+<td><strong>By attributes</strong>: a query builder (field, operator, value list, AND/OR) that writes an SQL WHERE clause you can edit and <strong>Check</strong> before selecting; new selection, add, remove or select from the current one. <strong>By location</strong>: features that intersect, lie completely within, contain or are within a distance (metres) of another layer&#39;s features, or only its selected ones. <strong>Zoom to selected</strong>, <strong>Clear selection</strong>. The same selection tools are on the Edit tab.</td>
+</tr>
+<tr>
+<td><strong>Fields</strong></td>
+<td><strong>Calculate field</strong>: an SQL expression (<code>&quot;a&quot; * 2</code>, <code>round(&quot;x&quot;, 2)</code>, <code>&quot;a&quot; || &#39; &#39; || &quot;b&quot;</code>, <code>CASE WHEN &quot;x&quot; &gt; 10 THEN &#39;high&#39; ELSE &#39;low&#39; END</code>, <code>upper()</code>, <code>substr()</code>, <code>coalesce()</code> …) or a <strong>geometry</strong> measure (geodesic area in m², ha or km², length, perimeter, x, y), for all features or the selected ones; a new field is created with the type you choose. <strong>Add field</strong>, <strong>Attribute table</strong>, <strong>Definition query</strong> (only matching features are drawn, listed and analysed until you clear it; the data is not changed).</td>
+</tr>
+<tr>
+<td><strong>Manage edits</strong></td>
+<td><strong>Undo</strong>/<strong>Redo</strong> (Ctrl+Z, Ctrl+Y) step through whole edits, including deletions; <strong>New layer</strong> (empty points, lines or polygons with the fields you list); <strong>Export features</strong> (the selection or the layer as a new layer); <strong>Discard edits</strong>.</td>
+</tr>
+</tbody></table></div><p><strong>Measure</strong> (Home tab and Edit tab): <strong>Distance</strong> sums the segments you click; <strong>Area</strong> gives the area and
+perimeter of the shape you click. Both are geodesic (measured on the globe, not on the flat map), in metric
+or imperial units (click the unit button); double-click or Enter finishes, Backspace removes the last
+point, Esc closes. <strong>View › Projection</strong> switches the map between Web Mercator and a <strong>Globe</strong>.</p>
+<p><strong>Your files are safe.</strong> The first edit to a layer copies it, with its coordinate system, fields and
+feature ids, into a GeoPackage that GeoSpaX keeps in its state folder (<code>&lt;state&gt;/edits/</code>); from then on the
+layer (same name, same style) reads the copy, and it comes back the next time you start. The original
+file is never written. <strong>Discard edits</strong> goes back to it; <strong>Export</strong> (or Data › Export) saves the edited
+data wherever you like.</p>
+<p><strong>The attribute table</strong> (Attributes pane) shows every field. Click a column name to sort (again for
+descending, a third time for none); its <strong>⋮</strong> menu sorts, calculates, shows statistics or deletes the field.
+The search box looks through every text and number field of the whole layer, not just the page on screen.
+Clicking a row selects the feature on the map (Shift selects a range, Ctrl adds or removes); double-click
+the id to zoom to it and double-click a cell to edit it. <strong>Show selected</strong> lists only the selection;
+<strong>Switch</strong> selects the others. The toolbar has the same Select by attributes, Filter (definition query),
+Calculate, Add field, Delete and Export as the ribbon.</p>
+<p>The engine&#39;s API does the same for scripts: <code>POST /api/layers/{id}/select</code>, <code>…/table</code>, <code>…/calculate</code>,
+<code>…/features</code>, <code>PUT …/filter</code> (<a href="https://github.com/jmozez/geospax/blob/main/README.md" rel="noopener" target="_blank">README</a>, section API).</p>
+<h2 id="5b-lidar-point-clouds"><a class="anchor" href="#5b-lidar-point-clouds">#</a>5b. LiDAR point clouds</h2>
+<p>Put the <code>.las</code> or <code>.laz</code> files from a drone LiDAR survey (exported from DJI Terra, Pix4D and the like), an aircraft
+survey or a national LiDAR portal into <code>~/GeoSpaX/Inbox</code>, a folder of tiles included. About ten seconds later you
+have:</p>
+<ul>
+<li>a <strong>terrain map</strong>: the bare ground with buildings and trees taken away, shaded, with contours and building outlines;</li>
+<li>a <strong>canopy map</strong>: how tall the vegetation is, a dot on every tree top, buildings in grey;</li>
+<li><code>dtm.tif</code>, <code>dsm.tif</code> and <code>chm.tif</code> (ground, surface and canopy height), and <code>trees</code> and <code>buildings</code> layers with
+heights, in the results folder;</li>
+<li>a <strong>3D scene</strong> (see 5c);</li>
+<li>a report with the point density, the canopy cover, and the number and height of trees and buildings.</li>
+</ul>
+<p>If the files were classified by the vendor software, GeoSpaX uses that classification. If not, it finds the ground
+itself. A file that doesn&#39;t say where on Earth it is (some phone scans and exports) stops with a message; run it
+again with the EPSG code of the survey: <code>geospax run lidar-to-terrain --input source=FILE --input epsg=32755</code>.
+Details: <a href="/docs/automation#6c-lidar-point-clouds-built">AUTOMATION.md §6c</a>.</p>
+<h2 id="5c-3d-scenes"><a class="anchor" href="#5c-3d-scenes">#</a>5c. 3D scenes</h2>
+<p>The LiDAR and terrain recipes also build a 3D scene by themselves. The terrain is a block diagram in its map colours
+with the relief shaded, contours painted on, buildings at their measured heights, trees at their heights and crown
+widths, and the point cloud. You get it three ways:</p>
+<ul>
+<li><strong>In the app:</strong> press <strong>🧊 3D</strong> on the recipe&#39;s card. Drag to turn, right-drag (or Shift-drag) to move, scroll or
+pinch to zoom, click the compass to face north, double-click to start again. The switches at the top show or hide
+the terrain, buildings, trees and point cloud.</li>
+<li><strong><code>scene.html</code></strong> in the results folder: the same viewer with the model inside. It opens in any browser, offline,
+so you can e-mail it or put it on a USB stick.</li>
+<li><strong><code>scene.glb</code></strong>: a standard glTF 2.0 model for Blender, Windows 3D Viewer, ArcGIS Pro, CesiumJS or a 3D printer&#39;s
+slicer. The report also shows a 3D picture.</li>
+</ul>
+<p>Flat land is raised a little so you can read it: at most 1.5× for detailed surveys, up to 3× for big areas. The note
+on the picture says by how much. Buildings and trees always keep their true heights. To add a 3D scene to your own
+recipe, add a <code>scene.3d</code> step after any elevation raster (<a href="/docs/automation#6d-3d-scenes-built">AUTOMATION.md §6d</a>).</p>
+<h2 id="5d-hot-spots-and-kriging-no-r-or-python-needed"><a class="anchor" href="#5d-hot-spots-and-kriging-no-r-or-python-needed">#</a>5d. Hot spots and kriging (no R or Python needed)</h2>
+<p><strong>Hot spots.</strong> Put a file of incidents (crimes, crashes, disease cases, complaints: any points) in your Data folder
+and run <code>points-to-hotspots</code>. GeoSpaX counts them in hexagons, works out the distance at which they cluster most, and
+colours each hexagon: <strong>red</strong> where incidents cluster more than chance would explain (90, 95 or 99 % sure), <strong>blue</strong>
+where there are fewer than expected, pale where nothing stands out. It corrects for testing hundreds of hexagons at
+once, so a few red cells are not just luck. The report shows the map, how many hot and cold spots there are, the
+distance used and a chart of how it was chosen. To map hot spots of a value instead (house prices, pH, yields), set
+the <code>field</code> input.</p>
+<p><strong>Kriging.</strong> <code>interpolate-samples</code> turns field samples into a smooth surface. It tries kriging (which learns from
+the samples how fast values change with distance) and IDW, tests both by leaving out each sample in turn and
+predicting it from the rest, and keeps the one that predicts better. With kriging you also get an <strong>uncertainty map</strong>:
+pale near your samples, dark where the surface is a guess. That is where to sample next. The report shows the error of
+each method and the variogram (the chart of how quickly samples stop resembling each other).</p>
+<p>Both are checked against R&#39;s spdep and gstat, and give the same numbers. Details: <a href="/docs/automation#6e-spatial-statistics-built">AUTOMATION.md §6e</a>.</p>
+<h2 id="5e-ask-about-your-data-ai"><a class="anchor" href="#5e-ask-about-your-data-ai">#</a>5e. Ask about your data (AI)</h2>
+<p><strong>Analysis › Ask</strong> (or the <strong>Ask</strong> tab on the right) answers questions about your layers in plain
+words, such as <em>&quot;How many sites are above 2000 m? Select them.&quot;</em> It reads your data through GeoSpaX&#39;s
+own tools, gives figures only from what they return, and lists every tool it used under the answer.
+It can select features, zoom, and start recipes that do not run code. The model runs where you choose
+in <strong>Model…</strong>: Ollama on this computer (nothing leaves it), an OpenAI-compatible server, or Claude with
+your own API key. <code>geospax-server mcp</code> offers the same tools to Claude Desktop, Claude Code and other
+MCP clients.</p>
+<p><strong>Imagery › Embeddings</strong> reads Google DeepMind&#39;s AlphaEarth satellite embeddings for your area: 64
+numbers per 10 m pixel that sum up a year of satellite observations. Use them to find places like
+your sample points, group the landscape, classify it from labelled points, or map change between two
+years. See <a href="/docs/ai">AI.md</a>.</p>
+<h2 id="6-live-sensors-and-phones"><a class="anchor" href="#6-live-sensors-and-phones">#</a>6. Live sensors and phones</h2>
+<ul>
+<li><strong>MQTT:</strong> point GeoSpaX at a broker (<code>GEOSPAX_MQTT</code> / <code>--mqtt</code>). Publish JSON such as
+<code>{&quot;lat&quot;: -9.44, &quot;lon&quot;: 147.18, &quot;pm2_5&quot;: 41}</code> to <code>sensors/&lt;id&gt;</code>.</li>
+<li><strong>HTTP:</strong> POST the same JSON to <code>/api/devices/live</code>.</li>
+<li><strong>Brokers on the internet:</strong> use <code>mqtts://host:8883/topic/#</code>. Certificates are always checked; add <code>?ca=ca.pem</code> for a
+broker with its own CA, and <code>?cert=client.pem&amp;key=client.key</code> where the broker wants a client certificate.</li>
+<li><strong>LoRaWAN sensors:</strong> subscribe to your The Things Stack application
+(<code>mqtts://APP-ID@ttn:API-KEY@eu1.cloud.thethings.network/v3/%2B/devices/%2B/up</code>) or your ChirpStack server
+(<code>mqtt://host/application/%2B/device/%2B/event/up</code>). Each uplink&#39;s decoded values and signal strength go on the map,
+at the sensor&#39;s GPS position or near the gateway that heard it.</li>
+<li><strong>Public sensor networks (OGC SensorThings):</strong> <code>--sta https://host/v1.1</code> (desktop: <code>GEOSPAX_STA</code>) shows every station
+with its latest values and updates them when they report.</li>
+<li><strong>Phones:</strong> the free OwnTracks app works with no GeoSpaX app on the phone.</li>
+</ul>
+<p>Live devices appear in the <strong>Devices</strong> section, and <code>sensor</code> triggers can fire recipes on thresholds or geofences.
+Details and message formats: <a href="/docs/devices#4-sensors-in-detail">DEVICES.md §4</a>.</p>
+<h2 id="7-optional-power-tools-r-python-grass-saga"><a class="anchor" href="#7-optional-power-tools-r-python-grass-saga">#</a>7. Optional power tools: R, Python, GRASS, SAGA</h2>
+<p>Recipes that use these tools work once the tool is installed. On Debian:</p>
+<pre><code class="language-sh">sudo apt install python3                       # python-spatial-stats
+sudo apt install r-base-core r-cran-sf         # R steps; then in R: install.packages(&quot;gstat&quot;)
+sudo apt install grass-core saga               # landforms-grass, wetness-saga
+sudo apt install mosquitto                     # a local MQTT broker for live sensors
+</code></pre>
+<h2 id="8-command-line"><a class="anchor" href="#8-command-line">#</a>8. Command line</h2>
+<p>Both programs take the same subcommands, and none of them opens a window:</p>
+<pre><code class="language-sh">geospax recipes                                   # list recipes
+geospax check my-recipe.yaml                      # validate a recipe
+geospax run track-to-map --input source=~/tracks # run once on a folder or device, print the outputs
+geospax watch                                     # run triggers headless (all recipes on Auto)
+</code></pre>
+<h2 id="9-privacy"><a class="anchor" href="#9-privacy">#</a>9. Privacy</h2>
+<p>Your photos, tracks and sensor readings are processed on your own machine. Nothing is uploaded. Only recipes that
+fetch public data go online: the Copernicus DEM for terrain, and Sentinel-2 scenes from the Earth Search STAC
+catalogue. See <a href="/docs/devices#5-privacy-and-safety">DEVICES.md §5</a>.</p>
+<h2 id="10-troubleshooting"><a class="anchor" href="#10-troubleshooting">#</a>10. Troubleshooting</h2>
+<div class="table"><table><thead><tr>
+<th>Problem</th>
+<th>Try</th>
+</tr>
+</thead><tbody><tr>
+<td>No layers in the list</td>
+<td>Put files into <code>~/GeoSpaX/Data</code> and restart GeoSpaX</td>
+</tr>
+<tr>
+<td>A plugged-in device is not listed</td>
+<td>Check that it is mounted (Linux: under <code>/media/$USER</code>). Phones must be in <em>file transfer</em> mode. Or copy its files into <code>~/GeoSpaX/Inbox</code></td>
+</tr>
+<tr>
+<td>The device is listed but no map is made</td>
+<td>Press <strong>Import &amp; map</strong>, or turn on the recipe&#39;s <strong>Auto</strong> switch. A device that was already handled with the same content is not processed twice: add a file, or press <strong>Run</strong></td>
+</tr>
+<tr>
+<td>An R, GRASS or SAGA recipe fails</td>
+<td>Install the tool (section 7). The run&#39;s log names the missing piece</td>
+</tr>
+<tr>
+<td>Windows: &quot;Windows protected your PC&quot;</td>
+<td>The installer isn&#39;t code-signed yet. Click <em>More info → Run anyway</em></td>
+</tr>
+<tr>
+<td>Windows: the GeoSpaX window stays blank</td>
+<td>WebView2 is missing or broken. Reinstall it from Microsoft (&quot;WebView2 Runtime&quot;), or use <strong>GeoSpaX Web Server</strong> in the meantime</td>
+</tr>
+<tr>
+<td>Windows: an SD card or camera is not listed</td>
+<td>GeoSpaX watches removable drives and drives with <code>DCIM</code>/<code>GARMIN</code> folders. Phones in MTP mode are not read on Windows yet: copy their photos into <code>%USERPROFILE%\GeoSpaX\Inbox</code></td>
+</tr>
+<tr>
+<td>Anything else</td>
+<td>Start <code>geospax</code> from a terminal (Windows: <code>geospax-server.exe</code> in the install folder, <code>%LOCALAPPDATA%\GeoSpaX</code>). It logs what it detects and runs. Please include that log in bug reports</td>
+</tr>
+</tbody></table></div></article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#1-install">1. Install</a><a href="#2-your-first-map-four-lazy-ways">2. Your first map: four lazy ways</a><a href="#2b-the-workbench-ribbon-panes-map">2b. The workbench: ribbon, panes, map</a><a href="#2c-plugins-tools-from-five-ecosystems">2c. Plugins: tools from five ecosystems</a><a href="#3-where-things-go">3. Where things go</a><a href="#4-recipes-in-the-box">4. Recipes in the box</a><a href="#5-automation-on-and-off">5. Automation on and off</a><a href="#5a-edit-and-query-data">5a. Edit and query data</a><a href="#5b-lidar-point-clouds">5b. LiDAR point clouds</a><a href="#5c-3d-scenes">5c. 3D scenes</a><a href="#5d-hot-spots-and-kriging-no-r-or-python-needed">5d. Hot spots and kriging (no R or Python needed)</a><a href="#5e-ask-about-your-data-ai">5e. Ask about your data (AI)</a><a href="#6-live-sensors-and-phones">6. Live sensors and phones</a><a href="#7-optional-power-tools-r-python-grass-saga">7. Optional power tools: R, Python, GRASS, SAGA</a><a href="#8-command-line">8. Command line</a><a href="#9-privacy">9. Privacy</a><a href="#10-troubleshooting">10. Troubleshooting</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/USER_GUIDE.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>
