@@ -670,6 +670,15 @@ impl Engine {
                 }
             }
             // R (docs/R.md): is R there, which packages, and install what is missing
+            // chart look (ggplot2 theme, palette, text size), shared by reports, the app's charts and R
+            ("GET", ["api", "settings", "charts"]) => ApiResponse::json(200, &crate::automation::charts::style().json()),
+            ("POST", ["api", "settings", "charts"]) => {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                match crate::automation::charts::save(&self.state_dir, &body) {
+                    Ok(st) => ApiResponse::json(200, &st.json()),
+                    Err(e) => ApiResponse::error(500, e),
+                }
+            }
             ("GET", ["api", "r"]) => ApiResponse::json(200, &crate::rsetup::status()),
             ("GET", ["api", "r", "available"]) => match crate::rsetup::available() {
                 Ok(v) => ApiResponse::json(200, &v),

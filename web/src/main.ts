@@ -45,12 +45,14 @@ import {
 } from './symbology';
 import { defaultLabels, GLYPHS, HATCH_PREFIX, hatchImage, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
 import { DownloadGauge } from './downloads';
-import { isElevation, rasterAttributesHtml, rasterStoryHtml, valueHtml, type Histogram, type RasterValue } from './rasterview';
+import { isElevation, mountRasterCharts, rasterAttributesHtml, rasterStoryHtml, valueHtml, type Histogram, type RasterValue } from './rasterview';
 import './style.css';
 
 maplibregl.setWorkerUrl(workerUrl);
 
 const backend = createBackend();
+// the chart look (ggplot2 theme and palette) chosen in Settings, for the charts drawn in the app
+void import("./ggchart").then((m) => m.loadChartStyle(backend));
 
 // Forward client errors/warnings to the engine log: release webviews (Tauri)
 // have no devtools, and headless smoke tests read the engine's stderr.
@@ -968,6 +970,7 @@ function renderRasterViews() {
   if (attr) {
     attr.hidden = !r;
     attr.innerHTML = r ? rasterAttributesHtml(r, rasterHist.get(r.id) ?? null, rasterValue) : '';
+    if (r) mountRasterCharts(attr, r, rasterHist.get(r.id) ?? null);
   }
   renderInspector();
   renderContents();
@@ -1462,6 +1465,8 @@ async function openSettings() {
   const { dialog } = await import('./editing');
   const e = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const opt = (v: string, label: string, cur: string) => `<option value="${e(v)}"${v === cur ? ' selected' : ''}>${e(label)}</option>`;
+  const { loadChartStyle, saveChartStyle, THEMES: CH_THEMES, PALETTES: CH_PALETTES } = await import('./ggchart');
+  const chartSt = await loadChartStyle(backend);
   const health = await backend.json<{ version?: string; data?: string[]; state?: string }>('api/about').catch(() => ({} as { version?: string; data?: string[]; state?: string }));
   const body = `
     <div class="settings">
@@ -1473,6 +1478,12 @@ async function openSettings() {
         <label>Projection <select name="projection">${opt('globe', 'Globe (zoom out to see the Earth)', mapProjection)}${opt('mercator', 'Flat (Web Mercator)', mapProjection)}</select></label>
         <label>Basemap for new maps <select name="basemap">${BASEMAPS.filter((b) => b.id !== 'custom').map((b) => opt(b.id, b.title, prefs.basemap)).join('')}${opt('none', 'None', prefs.basemap)}</select></label>
         <label>Units (scale bar, measuring) <select name="units">${opt('metric', 'Metric (km, m)', prefs.units)}${opt('imperial', 'Imperial (mi, ft)', prefs.units)}${opt('nautical', 'Nautical (nmi)', prefs.units)}</select></label>
+      </section>
+      <section><h3>Charts</h3>
+        <p class="dim">The look of every chart: in reports, in the Attributes pane and in R (ggplot2 uses the same theme and palette).</p>
+        <label>Theme <select name="ch_theme">${CH_THEMES.map(([k, t]) => opt(k, t, chartSt.theme)).join('')}</select></label>
+        <label>Colour palette <select name="ch_palette">${CH_PALETTES.map(([k, t]) => opt(k, t, chartSt.palette)).join('')}</select></label>
+        <label>Text size (pt) <input name="ch_size" type="number" min="6" max="24" step="1" value="${chartSt.base_size}"></label>
       </section>
       <section><h3>Automation</h3>
         <label class="chk"><input type="checkbox" name="auto" ${prefs.auto ? 'checked' : ''}> Style new layers automatically (AutoMap)</label>
@@ -1513,6 +1524,9 @@ async function openSettings() {
         scaleControl?.setUnit(prefs.units);
       }
       savePrefs();
+      if (v.ch_theme !== chartSt.theme || v.ch_palette !== chartSt.palette || Number(v.ch_size) !== chartSt.base_size) {
+        void saveChartStyle(backend, { theme: v.ch_theme, palette: v.ch_palette, base_size: Number(v.ch_size) || 11 }).then(() => document.dispatchEvent(new CustomEvent('geospax:reload-views')));
+      }
       workbench?.setStatus('Settings saved', 4000);
       return true;
     },

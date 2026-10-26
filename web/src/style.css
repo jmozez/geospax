@@ -1476,3 +1476,19 @@ body.layout-page { margin: 0; height: 100vh; display: flex; flex-direction: colu
 #rconsole .rc-upd-list { list-style: none; margin: 4px 0 8px; padding: 0; max-height: 180px; overflow: auto; columns: 2; }
 #rconsole .rc-upd-list li { break-inside: avoid; padding: 2px 0; }
 #rconsole .rc-cmd { background: var(--hover); padding: 6px 8px; border-radius: 4px; white-space: pre-wrap; user-select: all; }
+
+/* ggplot2-style charts (ggchart.ts): the plot on white, as R draws it, with Customise and Download */
+.gg { margin: 6px 0 10px; }
+.gg-plot svg { width: 100%; height: auto; display: block; border-radius: 4px; }
+.gg-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.gg-acts details { border: 1px solid var(--line); border-radius: 5px; padding: 3px 8px; font-size: 12px; }
+.gg-acts details[open] { flex-basis: 100%; }
+.gg-acts summary { cursor: pointer; color: var(--fg); }
+.gg-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 12px; padding: 8px 0 4px; }
+.gg-form label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
+.gg-form label.gg-custom { flex-direction: row; align-items: center; gap: 4px; grid-column: 1 / -1; }
+.gg-form label.gg-custom[hidden] { display: none; }
+.gg-form input, .gg-form select { font: inherit; color: var(--fg); background: var(--hover); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; }
+.gg-form input[type=number] { width: 80px; }
+.gg-form .gg-px { grid-column: 1 / -1; margin: 0; }
+.gg-form button { justify-self: start; }

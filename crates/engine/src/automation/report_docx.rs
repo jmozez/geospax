@@ -110,6 +110,15 @@ pub fn render(r: &ReportInput, map_png: Option<&[u8]>) -> Result<Vec<u8>, String
             body.push_str(&para(Some("Caption"), &format!("Figure {}. {}", i + 2, f.title)));
         }
     }
+    for (i, (title, _, caption)) in r.charts.iter().enumerate() {
+        if let Some(png) = r.chart_pngs.get(i) {
+            if let Some(size) = png_size(png) {
+                body.push_str(&para(Some("Heading1"), title));
+                pic(&mut body, png, "png", title, size);
+                body.push_str(&para(Some("Caption"), caption));
+            }
+        }
+    }
     for v in &r.views {
         // a 3D still is a JPEG; Word needs its size, so it is placed at the page width, 16:9
         body.push_str(&para(Some("Heading1"), "3D view"));
@@ -230,6 +239,8 @@ mod tests {
             notes: None,
             views: vec![],
             charts: vec![],
+            chart_files: vec![],
+            chart_pngs: vec![],
             figures: vec![],
             word: None,
         }

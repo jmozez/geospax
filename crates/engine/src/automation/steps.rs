@@ -2413,6 +2413,18 @@ fn export_report(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         ("GDAL".into(), gdal::version::version_info("RELEASE_NAME")),
         ("Generated".into(), date.to_rfc3339()),
     ];
+    // each chart also as files next to the report: SVG, and a PNG at 300 dpi (for Word and print)
+    let (mut chart_files, mut chart_pngs) = (Vec::new(), Vec::new());
+    for (i, (_, svg, _)) in sc.charts.iter().enumerate() {
+        let base = format!("chart-{}", i + 1);
+        std::fs::write(sc.dir.join(format!("{base}.svg")), svg).map_err(|e| e.to_string())?;
+        let png = super::cartography::svg_to_png(svg, 300.0 / 96.0)?;
+        std::fs::write(sc.dir.join(format!("{base}.png")), &png).map_err(|e| e.to_string())?;
+        sc.artifacts.push(format!("{base}.svg"));
+        sc.artifacts.push(format!("{base}.png"));
+        chart_files.push(base);
+        chart_pngs.push(png);
+    }
     let input = report::ReportInput {
         title: title.clone(),
         subtitle,
@@ -2427,6 +2439,8 @@ fn export_report(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         notes: p_str(p, "notes").map(str::to_string),
         views: sc.views.clone(),
         charts: sc.charts.clone(),
+        chart_files,
+        chart_pngs,
         figures: sc
             .figures
             .iter()

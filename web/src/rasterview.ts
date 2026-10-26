@@ -4,6 +4,7 @@
 // map, band statistics, where it came from, and the value under any point clicked on the map
 // (GET api/rasters/{id}/value). The full raster symbology editor (web/src/rasterstyle.ts) opens
 // from here.
+import { GgChart, type BarSpec } from './ggchart';
 import type { RasterInfo } from './rasters';
 
 export interface Histogram {
@@ -144,10 +145,33 @@ export function rasterAttributesHtml(r: RasterInfo, h: Histogram | null, value: 
     <div class="pane-head"><span class="pane-title">${esc(r.title)}</span><span class="pane-sub">raster · ${r.bands ?? 1} band${(r.bands ?? 1) === 1 ? '' : 's'}</span></div>
     <p class="rv-hint">A raster has no attribute table: each of its ${(r.width * r.height).toLocaleString('en-US')} cells holds a value. Here are the statistics of those values; click the map to read one cell.</p>
     ${bandTable(r)}
-    ${(h?.bands ?? []).map((b) => `<h3>Band ${b.band}</h3>${histogramSvg(r, b)}`).join('')}
+    ${(h?.bands ?? []).map((b) => `<h3>Band ${b.band}</h3><div class="gg-host" data-band="${b.band}">${histogramSvg(r, b)}</div>`).join('')}
     <div class="rv-value">${valueHtml(value, r)}</div>
   </div>`;
 }
 
 /** Rasters that are heights (metres), which the 3D terrain view can raise. */
 export const isElevation = (kind: string | undefined) => ['dem', 'elevation', 'bathymetry', 'gebco'].includes(String(kind ?? '').toLowerCase());
+
+/** The Attributes pane's histograms as ggplot2-style charts (Customise, Download), bars coloured as on
+ *  the map. Called after rasterAttributesHtml is in the page. */
+const rasterCharts = new Map<number, GgChart>();
+export function mountRasterCharts(el: HTMLElement, r: RasterInfo, h: Histogram | null) {
+  for (const host of el.querySelectorAll<HTMLElement>('.gg-host[data-band]')) {
+    const b = h?.bands.find((x) => x.band === Number(host.dataset.band));
+    if (!b) continue;
+    const n = b.counts.length;
+    const w = (b.max - b.min) / Math.max(1, n);
+    const colors = r.legend?.colors ?? [];
+    const spec: BarSpec = {
+      kind: 'histogram',
+      bars: b.counts.map((c, i) => ({ label: `${fmtVal(b.min + i * w)} – ${fmtVal(b.min + (i + 1) * w)}`, x0: b.min + i * w, x1: b.min + (i + 1) * w, value: c, fill: rampAt(colors, (i + 0.5) / n) })),
+      title: `${r.title}${(h?.bands.length ?? 1) > 1 ? ` · band ${b.band}` : ''}`,
+      x: r.units ? `value (${r.units})` : 'value',
+      y: 'cells',
+      file: `${r.title}_band${b.band}_histogram`,
+    };
+    host.innerHTML = '';
+    rasterCharts.set(b.band, new GgChart(host, spec, 'data', rasterCharts.get(b.band)));
+  }
+}
