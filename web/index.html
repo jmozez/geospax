@@ -28,9 +28,11 @@
       <div id="shell">
         <aside id="dock-left" class="dock" data-dock="left" aria-label="Contents and catalog">
           <div class="dock-tabs" data-dock="left">
-            <button data-tab="contents">Contents</button>
-            <button data-tab="catalog">Explorer</button>
-            <button data-tab="project">Project</button>
+            <!-- the order work follows: the project, then where data comes from, then what is on the map
+                 (Contents is still the tab that opens by default) -->
+            <button data-tab="project" data-icon="book">Project</button>
+            <button data-tab="catalog" data-icon="database">Explorer</button>
+            <button data-tab="contents" data-icon="layers">Contents</button>
           </div>
           <div class="dock-body">
             <section data-tab="contents">
@@ -39,6 +41,12 @@
             </section>
             <section data-tab="catalog">
               <div id="catalog"></div>
+              <!-- devices are a source of data, so they live with the Explorer -->
+              <details id="devices-box" class="pane-group" open>
+                <summary>Devices &amp; phones</summary>
+                <div id="phone-link"></div>
+                <div id="devices"></div>
+              </details>
             </section>
             <section data-tab="project">
               <div id="project-pane"></div>
@@ -64,14 +72,19 @@
           <div id="splitter-bottom" class="splitter horizontal" data-dock="bottom" title="Drag to resize · double-click to reset"></div>
           <section id="dock-bottom" class="dock" data-dock="bottom" aria-label="Automation, history and log">
             <div class="dock-tabs" data-dock="bottom">
-              <button data-tab="activity">Activity</button>
-              <button data-tab="automate">Automate</button>
-              <button data-tab="history">History</button>
-              <button data-tab="log">Log</button>
+              <button data-tab="activity" data-icon="news">Activity</button>
+              <button data-tab="attributes" data-icon="table">Attributes</button>
+              <button data-tab="automate" data-icon="play">Automate</button>
+              <button data-tab="history" data-icon="history">History</button>
+              <button data-tab="log" data-icon="logfile">Log</button>
             </div>
             <div class="dock-body">
               <section data-tab="activity">
                 <div id="activity"></div>
+              </section>
+              <section data-tab="attributes">
+                <div id="attributes" aria-label="Attribute table"></div>
+                <div id="raster-attr" hidden aria-label="Raster statistics"></div>
               </section>
               <section data-tab="automate">
                 <div id="automate"></div>
@@ -90,17 +103,17 @@
         <div id="splitter-right" class="splitter" data-dock="right" title="Drag to resize · double-click to reset"></div>
         <aside id="dock-right" class="dock" data-dock="right" aria-label="Layer details">
           <div class="dock-tabs" data-dock="right">
-            <button data-tab="inspector">Inspector</button>
-            <button data-tab="symbology">Symbology</button>
-            <button data-tab="toolbox">Toolbox</button>
-            <button data-tab="ask">Ask</button>
-            <button data-tab="attributes">Attributes</button>
-            <button data-tab="rasters">Rasters</button>
-            <button data-tab="devices">Devices</button>
+            <button data-tab="layer" data-icon="tune">Layer</button>
+            <button data-tab="toolbox" data-icon="toolbox">Tools</button>
+            <button data-tab="ask" data-icon="chat">Ask</button>
           </div>
           <div class="dock-body">
-            <section data-tab="inspector">
+            <!-- Layer: the selected layer (Lazy: its story; Pro: symbology), or the map when none is -->
+            <section data-tab="layer">
               <div id="inspector" aria-label="Layer inspector"></div>
+              <div id="panel" aria-label="Symbology" hidden></div>
+              <div id="raster-sym" hidden aria-label="Raster symbology"></div>
+              <div id="map-props" aria-label="Map"></div>
             </section>
             <section data-tab="toolbox">
               <div id="toolbox" aria-label="Toolbox"></div>
@@ -108,22 +121,8 @@
             <section data-tab="ask">
               <div id="ask" aria-label="Ask about your data"></div>
             </section>
-            <section data-tab="symbology">
-              <div id="panel" aria-label="Symbology"></div>
-              <div id="raster-sym" hidden aria-label="Raster symbology"></div>
-            </section>
-            <section data-tab="attributes">
-              <div id="attributes" aria-label="Attribute table"></div>
-              <div id="raster-attr" hidden aria-label="Raster statistics"></div>
-            </section>
-            <section data-tab="rasters">
-              <div id="rasters"></div>
-              <p class="hint">Elevation, terrain, satellite indices and GRASS/SAGA results, styled automatically.</p>
-            </section>
-            <section data-tab="devices">
-              <div id="phone-link"></div>
-              <div id="devices"></div>
-            </section>
+            <!-- the raster list is drawn as rows of Contents; this keeps its own pane out of sight -->
+            <div id="rasters" hidden></div>
           </div>
         </aside>
       </div>

@@ -18,7 +18,7 @@ The GSX tools bring the conservation, biodiversity and environmental analysis in
 | **Land use and land cover** | spectral index, raster change, change, overlay, suitability |
 | **Soil** | spectral index, suitability, distance decay, overlay, raster change, change |
 
-They ship with GeoSpaX and are on the **Plugins** tab (one group per domain), in the **Toolbox** under
+They ship with GeoSpaX and are in the **Explorer** under **Plugins** (one per domain), in the **Tools** tab under
 *Plugins › <domain>* and in the plugin manager marked *default plugin*. They are not on the Analysis,
 Imagery or Modelling tabs, which hold GeoSpaX's own tools. All twelve run the same code, the shared
 **GSX library** in `plugins/gsx` (`library: true`: not listed, but recipes, the API and MCP call its
@@ -79,7 +79,7 @@ FlatGeobuf …).
 | **Slope zones** | Terrain › Slope zones | Horn slope from a DEM and three zones (default breaks 8° and 20°) with their areas; warns when the DEM is too coarse for slope |
 | **Species distribution model** | Species Distribution | Occurrences + environmental rasters (all their bands) → suitability (0–1) and the predicted range at the max-TSS threshold. BIOCLIM, Mahalanobis or presence-background logistic; seeded background sample; spatially blocked cross-validation with AUC, max TSS and the Boyce index |
 
-The rasters come from the map (Data › Climate gives WorldClim or CHELSA; Data › Elevation the
+The rasters come from the map (Explorer › Online data › Climate gives WorldClim or CHELSA; › Elevation the
 Copernicus DEM; Imagery the latest Sentinel-2 bands), and results go back to the map styled for what
 they are: suitability on a fixed 0–1 Viridis scale, change on a diverging red–blue scale centred on
 zero, classes with their own colours. Several environmental rasters are resampled onto the first
@@ -112,7 +112,7 @@ Moran's I = −1 exactly; the global I equals the textbook double sum; a north-f
 profile length (11.1 km for 0.1° of latitude) and climb (1,000 m) it should. On the sample
 transects, species richness gives I = 0.82 with 8 neighbours (the earlier guide expects about 0.8).
 
-**Sample data** (Data › Sample data) brings back the Papua New Guinea set: the survey transects,
+**Sample data** (Explorer › Sample data) brings back the Papua New Guinea set: the survey transects,
 birdwing butterflies and their host vines, forest patches, a habitat grid, streams, WorldClim
 temperature and rainfall and tree cover ([samples/png/README.md](../samples/png/README.md)). **1.4.2
 `.gspx` and 2.0 `.geolibre.json` projects** open like any file: their embedded layers come onto the map
@@ -173,7 +173,7 @@ reports run for real; the downloads need internet and are covered by the `data.f
 ## Online data from the 2.0 catalogue
 
 earlier GeoSpaX listed these sources; 3.0 fetches them, for the area on the map, with their citations
-(Data › Online data and Data › Check species names; steps in [AUTOMATION.md](AUTOMATION.md)):
+(Explorer › Online data, and its Check species names; steps in [AUTOMATION.md](AUTOMATION.md)):
 
 | Source | What you get | Licence and credit |
 | --- | --- | --- |

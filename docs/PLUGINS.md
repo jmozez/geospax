@@ -154,7 +154,7 @@ and expects **JSON on stdout**:
 ```
 
 A tool can name its ribbon tab with **`tab:`** (`home`, `data`, `style`, `analyze`, `imagery`,
-`modelling`, `automate`, `view`, `help`); tools that name none appear on the **Plugins** tab, grouped by
+`modelling`, `automate`, `view`, `help`); tools that name none are listed in the Explorer's **Plugins** and the **Tools** tab, grouped by
 their `group`.
 
 A plugin that reads GeoJSON sets **`geojson: true`** in `plugin.yaml`: every layer named by a `layer`
@@ -180,7 +180,7 @@ layers. The reply to `POST …/run` names them in `"added"`, and the app styles 
 them. Write results into `out_dir`. A `kind: process` plugin whose program (the first word of `run:`)
 is not on `PATH` is listed as *needs &lt;program&gt;*.
 
-A non-zero exit turns the first line of stderr into the error shown in Plugins › Manage plugins. That is the
+A non-zero exit turns the first line of stderr into the error shown in Explorer › Plugins › Manage plugins…. That is the
 whole ABI, so the same plugin shape works for a Rust binary, an R script
 (`run: Rscript ${plugin}/tools.R ${tool}`) or a WASI module
 (`run: wasmtime run --dir ${workdir} ${plugin}/tools.wasm -- ${tool}`).
@@ -193,7 +193,7 @@ automation engine — so they get triggers, run history, artifacts and Auto swit
 
 ## 4. Installing plugins
 
-- **UI:** bottom dock › **Plugins** › paste a folder or package path › **Install**.
+- **UI:** **Explorer › Plugins › Manage plugins…** › paste a folder or package path › **Install**.
 - **CLI:** `geospax-server plugins import ./my-plugin [--dir PLUGINDIR]`,
   `plugins list`, `plugins check ./my-plugin`.
 - **Removing one:** **Uninstall** on the plugin's card (it asks twice), `DELETE /api/plugins/{id}`, or

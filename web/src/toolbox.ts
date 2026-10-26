@@ -50,9 +50,16 @@ export interface ToolboxHost {
   runRecipe: (id: string, inputs: Record<string, unknown>) => void;
   openPluginTool: (p: PluginInfo, t: ToolSpec) => void;
   setStatus: (t: string, ms?: number) => void;
+  /** Open a bottom or side pane (History for the full list of runs). */
+  showTab?: (dock: 'left' | 'right' | 'bottom', tab: string) => void;
 }
 
 const RECENT_KEY = 'geospax.toolbox.recent';
+const FAV_KEY = 'geospax.toolbox.favourites';
+const RUNS_KEY = 'geospax.toolbox.runs';
+const readList = <T,>(k: string): T[] => { try { const v = JSON.parse(localStorage.getItem(k) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+const writeList = (k: string, v: unknown[]) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* session only */ } };
+const ago = (t: number) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 
 /** Toolboxes in the order the pane lists them (ArcGIS Pro / QGIS names, by task). */
 const TOOLBOXES = [
@@ -165,6 +172,10 @@ export class Toolbox {
   private open = new Set<string>(['Ready-made analyses']);
   private current: Tool | null = null;
   private recent: string[] = [];
+  /** starred tools, listed first */
+  private favs = new Set<string>(readList<string>(FAV_KEY));
+  /** the last tools started from here, newest first */
+  private runs: { key: string; name: string; at: number }[] = readList(RUNS_KEY);
 
   constructor(private el: HTMLElement, private host: ToolboxHost) {
     try {
@@ -268,8 +279,11 @@ export class Toolbox {
         hits.slice(0, 150).map((t) => this.row(t)).join('');
       if (!hits.length) body += `<p class="tb-empty">Nothing matches “${esc(q)}”. Try a shorter word, or the name the tool has in ArcGIS Pro or QGIS.</p>`;
     } else {
-      const recent = this.recent.map((k) => this.tools.find((t) => t.key === k)).filter(Boolean) as Tool[];
+      const favs = [...this.favs].map((k) => this.tools.find((t) => t.key === k)).filter(Boolean) as Tool[];
+      if (favs.length) body += `<div class="tb-cat static"><span>★ Favourites</span><em>${favs.length}</em></div>${favs.map((t) => this.row(t)).join('')}`;
+      const recent = this.recent.filter((k) => !this.favs.has(k)).map((k) => this.tools.find((t) => t.key === k)).filter(Boolean) as Tool[];
       if (recent.length) body += `<div class="tb-cat static"><span>Recently used</span></div>${recent.slice(0, 5).map((t) => this.row(t)).join('')}`;
+      if (!favs.length && !recent.length) body += `<p class="tb-tip">Tip: open a tool and click ☆ to keep it at the top.</p>`;
       // toolbox, then its toolsets (tools with no toolset first), like ArcGIS Pro's toolboxes
       const boxes = new Map<string, Tool[]>();
       for (const t of this.tools) boxes.set(toolboxOf(t.category), [...(boxes.get(toolboxOf(t.category)) ?? []), t]);
@@ -288,7 +302,11 @@ export class Toolbox {
         }
       }
     }
-    this.el.innerHTML = head + `<div class="tb-list">${body}</div>`;
+    const runs = !q && this.runs.length
+      ? `<div class="tb-runs"><div class="tb-cat static"><span>Your runs</span><button class="tb-link" data-history>All in History →</button></div>${this.runs.slice(0, 5)
+          .map((r) => `<button class="tb-run" data-tool="${esc(r.key)}"><span>${esc(r.name)}</span><small>${ago(r.at)}</small></button>`).join('')}</div>`
+      : '';
+    this.el.innerHTML = head + `<div class="tb-list">${body}${runs}</div>`;
     const s = this.el.querySelector<HTMLInputElement>('.tb-search');
     if (s && q) {
       s.focus();
@@ -300,7 +318,7 @@ export class Toolbox {
     const aka = t.kind === 'step' && t.aka ? `<small class="tb-aka">≈ ${esc(t.aka)}</small>` : '';
     return `<button class="tb-tool" data-tool="${esc(t.key)}">
       <span class="tb-ico tb-ico-${t.kind}">${icon(toolIcon(t), 18)}</span>
-      <span class="tb-name">${esc(t.name)}${t.source ? ` <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span>` : ''}</span>
+      <span class="tb-name">${this.favs.has(t.key) ? '<span class="tb-star" aria-label="favourite">★</span> ' : ''}${esc(t.name)}${t.source ? ` <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span>` : ''}</span>
       <small>${esc(t.summary.length > 120 ? `${t.summary.slice(0, 120)}…` : t.summary)}</small>${aka}
     </button>`;
   }
@@ -344,12 +362,15 @@ export class Toolbox {
         <button class="primary" data-open-plugin ${p.runnable ? '' : 'disabled'}>Open the tool…</button>`;
     }
     this.el.innerHTML = `<div class="tb-detail">
-      <button class="tb-back" data-back>← All tools</button>
+      <div class="tb-bar"><button class="tb-back" data-back>← All tools</button>
+        <button class="tb-fav" data-fav aria-pressed="${this.favs.has(t.key)}" title="${this.favs.has(t.key) ? 'Remove from favourites' : 'Add to favourites'}">${this.favs.has(t.key) ? '★ Favourite' : '☆ Favourite'}</button></div>
       <h3><span class="tb-ico tb-ico-${t.kind}">${icon(toolIcon(t), 22)}</span>${esc(t.name)}${t.source ? ` <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span>` : ''}</h3>
       <p class="tb-sum">${esc(t.summary)}</p>${body}</div>`;
   }
 
   private remember(t: Tool) {
+    this.runs = [{ key: t.key, name: t.name, at: Date.now() }, ...this.runs].slice(0, 20);
+    writeList(RUNS_KEY, this.runs);
     this.recent = [t.key, ...this.recent.filter((k) => k !== t.key)].slice(0, 8);
     try {
       localStorage.setItem(RECENT_KEY, JSON.stringify(this.recent));
@@ -370,6 +391,13 @@ export class Toolbox {
 
   private onClick(e: Event) {
     const el = e.target as HTMLElement;
+    if (el.closest('[data-fav]') && this.current) {
+      const k = this.current.key;
+      if (!this.favs.delete(k)) this.favs.add(k);
+      writeList(FAV_KEY, [...this.favs]);
+      return this.render();
+    }
+    if (el.closest('[data-history]')) return this.host.showTab?.('bottom', 'history');
     if (el.closest('[data-back]')) {
       this.current = null;
       return this.render();

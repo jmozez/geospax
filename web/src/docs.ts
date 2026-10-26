@@ -228,8 +228,9 @@ export class DocsViewer {
         </div>
         <h3 class="about-h">General</h3>
         <div class="about-card links">
-          ${link(repo, 'Home page', 'github.com/jmozez/geospax')}
-          ${link(`${repo}/releases`, 'Downloads', 'All releases and installers')}
+          ${link('https://geospax.in4metrix.dev', 'Official website', 'geospax.in4metrix.dev')}
+          ${link('https://geospax.in4metrix.dev/#download', 'Downloads', 'Windows, Linux, Android and the web app')}
+          ${link(repo, 'Source code', 'github.com/jmozez/geospax')}
           ${link(`${repo}/issues`, 'Report a problem', 'Bugs and ideas on GitHub')}
           ${doc('USER_GUIDE', 'User guide', 'How to use every part of the program')}
           ${doc('CHANGELOG', "What's new", 'Changes in each version')}

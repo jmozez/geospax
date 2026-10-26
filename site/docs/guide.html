@@ -253,6 +253,11 @@ The autopilot fills in every other setting and explains its choices in the repor
 <p>Finished maps appear in the <strong>Automate</strong> section under the recipe&#39;s runs. Open one to see the map, the PDF and the
 report.</p>
 <h2 id="2b-the-workbench-ribbon-panes-map"><a class="anchor" href="#2b-the-workbench-ribbon-panes-map">#</a>2b. The workbench: ribbon, panes, map</h2>
+<p><strong>Where things are:</strong> the left panel has <strong>Project</strong>, <strong>Explorer</strong> (folders, online data, and
+<strong>Devices &amp; phones</strong> at the bottom) and <strong>Contents</strong> (every layer and raster on the map). The right
+panel has <strong>Layer</strong> (the selected layer&#39;s style; with nothing selected, the map itself: basemap,
+globe or flat, 3D, bookmarks), <strong>Tools</strong> (the Toolbox) and <strong>Ask</strong>. Under the map: <strong>Attributes</strong>
+(the selected layer&#39;s table), <strong>Automate</strong>, <strong>History</strong> and <strong>Log</strong> (Lazy: <strong>Activity</strong>).</p>
 <p>GeoSpaX opens like a desktop GIS: a <strong>ribbon</strong> on top, <strong>panes</strong> docked around the map, and a <strong>status bar</strong>
 underneath. Nothing is hidden behind a menu you have to hunt for — and every button still runs the same engine
 calls the recipes use.</p>
@@ -272,49 +277,44 @@ selected (zoom, attribute table, symbology, AutoMap and the same next steps):</p
 </tr>
 </thead><tbody><tr>
 <td><strong>Home</strong></td>
-<td>Project · Navigate (previous/next extent, go to XY, find place, basemap) · Layer (add data, remove) · Selection · Inquiry (measure, identify) · Symbology</td>
-</tr>
-<tr>
-<td><strong>Data</strong></td>
-<td>Add data · <strong>Online data</strong> (climate, future climate, soil, species, boundaries, elevation) · Sources · Sample data</td>
-</tr>
-<tr>
-<td><strong>Analysis</strong></td>
-<td>Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Tools · Spatial statistics · Interpolation · Assistant</td>
+<td>Project · Layer (add data, basemap, remove) · Navigate (previous/next extent, go to XY, bookmarks) · Selection · Inquiry (identify, find place, measure) · Symbology</td>
 </tr>
 <tr>
 <td><strong>View</strong></td>
-<td>Navigate · Projection · Theme · Basemap · Windows</td>
+<td>Basemap · Projection (globe, flat, 3D terrain) · Theme · Windows</td>
 </tr>
 <tr>
 <td><strong>Edit</strong></td>
-<td>Editing · Selection · Measure</td>
+<td>Create · Modify · Selection · Fields · Measure · Manage edits (save, undo, discard)</td>
+</tr>
+<tr>
+<td><strong>Design</strong></td>
+<td>Precision (snapping, typed input) · Draw · Construct · Modify · Blocks · Survey · CAD exchange (DXF)</td>
 </tr>
 <tr>
 <td><strong>Imagery</strong></td>
-<td>Rasters · Satellite (latest NDVI) · Terrain · LiDAR · Raster tools</td>
+<td>Rasters · Satellite (latest NDVI) · Satellite embeddings · Terrain · LiDAR · Raster tools · AI models</td>
+</tr>
+<tr>
+<td><strong>Analysis</strong></td>
+<td>Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Spatial statistics · Interpolation · Recipes · Tools · Assistant</td>
 </tr>
 <tr>
 <td><strong>Share</strong></td>
 <td>Layout (Finish my map) · Export</td>
 </tr>
 <tr>
-<td><strong>R &amp; Python</strong></td>
-<td>R: console · setup · tmap, ggplot2 and rayshader maps · terra terrain · Earth Engine · biomod2 and MaxEnt species models · tidymodels · dbplyr (<a href="/docs/r">R.md</a>) · Python: spatial statistics · your own Python steps (<a href="/docs/automation">AUTOMATION.md</a>)</td>
-</tr>
-<tr>
-<td><strong>Automate</strong></td>
-<td>Recipes · Runs</td>
-</tr>
-<tr>
-<td><strong>Plugins</strong></td>
-<td><strong>Domain plugins (GSX)</strong> (agriculture, biodiversity, climate, conservation …: each lists its tools and kits) · Manage · plugin tools that name no tab</td>
-</tr>
-<tr>
 <td><strong>Help</strong></td>
 <td>Docs (user guide, FAQ, what&#39;s new) · Support · About · Diagnostics</td>
 </tr>
-</tbody></table></div><p>The tabs follow ArcGIS Pro&#39;s order. When the window is too narrow for a tab, its rightmost groups fold
+</tbody></table></div><p><strong>Data, R &amp; Python, recipes and plugins are in the Explorer</strong> (left panel), not on the ribbon:
+<strong>Online data</strong> (climate, future climate, soil, species, boundaries, elevation … and Check species
+names), <strong>Overture Maps</strong>, <strong>Recipes</strong> (with the recipe gallery) and <strong>Results</strong>, <strong>R &amp; Python</strong> (R:
+packages, R console, tmap, ggplot2 and rayshader maps, terra terrain, Earth Engine, biomod2 and MaxEnt,
+tidymodels, dbplyr, see <a href="/docs/r">R.md</a>; Python: environments and Python steps), <strong>AI models</strong>,
+<strong>Plugins</strong> (Manage plugins…, then each plugin), <strong>Sample data</strong> and <strong>Devices &amp; phones</strong>. Every
+one of these is also in <strong>Ctrl+K</strong>.</p>
+<p>The tabs follow the order work goes: open and look at the map (Home, View), make and prepare data (Edit, Design, Imagery), analyse it (Analysis), then hand it on (Share); groups inside a tab follow the same rule. When the window is too narrow for a tab, its rightmost groups fold
 into <strong>▾</strong> menus instead of being cut off. <strong>Settings</strong> (Home tab, or the ⚙ at the top right) keeps theme,
 mode, units, basemap and automation choices. <strong>Help</strong> opens the guides and the FAQ as a searchable web page
 of its own (a new browser tab, or a window on the desktop).</p>
@@ -323,7 +323,7 @@ three to a column, as in ArcGIS Pro. A plugin tool appears on the tab its manife
 (<a href="/docs/plugins">PLUGINS.md</a>).</p>
 </li>
 </ul>
-<p><strong>Online data</strong> (Data tab, or the Lazy task) gets free data for the area on the map, with no account:
+<p><strong>Online data</strong> (Explorer › Online data, or the Lazy task) gets free data for the area on the map, with no account:
 WorldClim 2.1 bioclim and monthly climate, WorldClim CMIP6 future climate (12 models, four SSPs, four
 periods), CHELSA 2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries, the
 Copernicus DEM, <strong>ocean depth</strong> (GEBCO 2026: sea depth and land height in one surface, drawn with sea level
@@ -332,7 +332,7 @@ tree cover in 2000 and the year of loss 2001–2025 at 30 m, for areas up to abo
 <strong>ecoregions</strong> (RESOLVE 2017, the updated WWF terrestrial ecoregions, in their published colours). Only the area is downloaded (climate keeps the provider&#39;s own grid), each result becomes a
 layer, and its citation goes into the run&#39;s methods and report. It is a recipe step, <code>data.fetch</code>, so a
 recipe can fetch data on a schedule too (<a href="/docs/automation">AUTOMATION.md</a>).</p>
-<p><strong>Check species names</strong> (Data tab) matches a layer&#39;s scientific names against the World Register of
+<p><strong>Check species names</strong> (Explorer › Online data) matches a layer&#39;s scientific names against the World Register of
 Marine Species (WoRMS). You get a copy of the layer with each name&#39;s AphiaID, its status, the accepted
 name for synonyms (<em>Acropora formosa</em> → <em>Acropora muricata</em>), the classification, the habitat and a
 verdict to review: <em>ok</em>, <em>synonym</em>, <em>check spelling</em> (a fuzzy match, e.g. <em>Chelonia mydass</em>),
@@ -391,7 +391,7 @@ the bottom.</li>
 </tbody></table></div><p>Both show the same project: switching never changes the map.</p>
 <pre><code>┌──────────────────────────────────────────────────────────────────────┐
 │ GeoSpaX   ⤓ ⟳ ⤢ ⌘                          Ctrl+K for any command    │  title bar
-│ Home Data Analysis View Edit Imagery Share R&amp;Py Automate Plugins Help│  ribbon tabs
+│ Home  View  Edit  Design  Imagery  Analysis  Share  Help            │  ribbon tabs
 │ ┌ Refresh ┐ ┌ Contents ┐ ┌ Attribute ┐ ┌ Export ┐                     │  ribbon body
 │ └──Project┘ └── Layers ┘ └──Selection┘ └──  Map ┘                     │
 ├────────────┬──────────────────────────────────┬───────────────────────┤
@@ -410,7 +410,7 @@ the bottom.</li>
 </tr>
 </thead><tbody><tr>
 <td><strong>Ribbon</strong></td>
-<td>Eleven tabs of commands with icons, tooltips and shortcuts. <strong>Analysis</strong> carries the recipes as a single dropdown button (<code>Recipes 10 ▾</code>) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The <strong>pin</strong> at the right of the tab strip (or <code>Ctrl+F1</code>) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map).</td>
+<td>Eight tabs of commands, in the order of the work (Home, View, Edit, Design, Imagery, Analysis, Share, Help; data sources, R &amp; Python, recipes and plugins live in the <strong>Explorer</strong>) with icons, tooltips and shortcuts. <strong>Analysis</strong> carries the recipes as a single dropdown button (<code>Recipes 10 ▾</code>) — click it for the list, click a row to run it; the small button in the group title expands it to a card gallery instead. The <strong>pin</strong> at the right of the tab strip (or <code>Ctrl+F1</code>) auto-hides the whole ribbon: click a tab to use it, and it closes itself afterwards (about 80px more map).</td>
 </tr>
 <tr>
 <td><strong>Contents</strong> (left)</td>
@@ -483,7 +483,7 @@ the bottom.</li>
 </tr>
 </tbody></table></div><p>Pane sizes, which tab is open and which panes are collapsed are remembered per browser/app.</p>
 <h3 id="the-toolbox-every-tool-in-one-place"><a class="anchor" href="#the-toolbox-every-tool-in-one-place">#</a>The Toolbox: every tool in one place</h3>
-<p>The <strong>Toolbox</strong> tab (right pane, both modes; <strong>All tools</strong> in the Lazy task bar, <strong>Analysis → Toolbox</strong> in
+<p>The <strong>Tools</strong> tab (right pane, both modes; <strong>All tools</strong> in the Lazy task bar, <strong>Analysis → Toolbox</strong> in
 Pro) lists every tool GeoSpaX can run, with one search box:</p>
 <ul>
 <li><strong>Ready-made analyses</strong>: the recipes. A form, then <strong>▶ Run</strong>: the result joins the map, with a laid-out
@@ -510,9 +510,9 @@ hides, Enter opens the symbology, Alt+↑/↓ moves the layer in the drawing ord
 ◐ System (follows your operating system); View → Theme does the same. The choice is remembered; add
 <code>?theme=dark</code> to a link to force one. The map&#39;s background and land colours follow the theme.</p>
 <h2 id="2c-plugins-tools-from-five-ecosystems"><a class="anchor" href="#2c-plugins-tools-from-five-ecosystems">#</a>2c. Plugins: tools from five ecosystems</h2>
-<p>Everything about plugins is on the <strong>Plugins</strong> ribbon tab. <strong>Manage plugins</strong> (first button) lists
-what is installed, the runtimes found, and imports, reloads or uninstalls plugins; the plugins&#39; own
-tools follow on the same tab, unless a plugin puts them on another tab (<code>tab:</code>). Every plugin is a
+<p>Plugins are in the <strong>Explorer</strong> under <strong>Plugins</strong>. <strong>Manage plugins…</strong> (first row) lists what is
+installed, the runtimes found, and imports, reloads or uninstalls plugins; the plugins&#39; own tools are
+in the <strong>Tools</strong> tab, and on a ribbon tab when a plugin names one (<code>tab:</code>). Every plugin is a
 folder with a manifest, and GeoSpaX reads five formats, so a tool written for another GIS shows up
 here:</p>
 <div class="table"><table><thead><tr>
@@ -748,9 +748,9 @@ point, Esc closes. <strong>View › Projection</strong> switches the map between
 <p><strong>Your files are safe.</strong> The first edit to a layer copies it, with its coordinate system, fields and
 feature ids, into a GeoPackage that GeoSpaX keeps in its state folder (<code>&lt;state&gt;/edits/</code>); from then on the
 layer (same name, same style) reads the copy, and it comes back the next time you start. The original
-file is never written. <strong>Discard edits</strong> goes back to it; <strong>Export</strong> (or Data › Export) saves the edited
+file is never written. <strong>Discard edits</strong> goes back to it; <strong>Export</strong> (or the attribute table&#39;s Export) saves the edited
 data wherever you like.</p>
-<p><strong>The attribute table</strong> (Attributes pane) shows every field. Click a column name to sort (again for
+<p><strong>The attribute table</strong> (the <strong>Attributes</strong> tab under the map) shows every field. Click a column name to sort (again for
 descending, a third time for none); its <strong>⋮</strong> menu sorts, calculates, shows statistics or deletes the field.
 The search box looks through every text and number field of the whole layer, not just the page on screen.
 Clicking a row selects the feature on the map (Shift selects a range, Ctrl adds or removes); double-click

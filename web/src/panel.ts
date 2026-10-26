@@ -29,7 +29,7 @@ import {
   swatchSvg,
   type LabelStyle,
 } from './symbols';
-import { primaryColor } from './symbology';
+import { primaryColor, legendItems } from './symbology';
 
 export interface PanelHost {
   backend: Backend;
@@ -42,7 +42,25 @@ export interface PanelHost {
   deleteOverviews(id: string): Promise<void>;
   /** AutoMap: let the engine choose the style (and say why) */
   autostyle(id: string): Promise<void>;
+  /** The header's actions (optional: absent ones are not shown) */
+  layerName?(id: string): string;
+  zoomTo?(id: string): void;
+  openTable?(id: string): void;
+  remove?(id: string): void;
 }
+
+/** The Layer tab's sections; the last one chosen is kept between layers and visits. */
+type Section = 'style' | 'labels' | 'fields' | 'source';
+const SECTIONS: [Section, string][] = [['style', 'Style'], ['labels', 'Labels'], ['fields', 'Fields'], ['source', 'Source']];
+const SEC_KEY = 'geospax.layer.section';
+const FOLD_KEY = 'geospax.layer.folded';
+const loadJson = <T,>(k: string, d: T): T => { try { return JSON.parse(localStorage.getItem(k) ?? '') as T; } catch { return d; } };
+const saveJson = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } };
+const GEOM_ICON: Record<string, string> = {
+  point: '<circle cx="8" cy="8" r="3.5"/>',
+  line: '<path d="M2 12 L6 6 L10 9 L14 3" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  polygon: '<path d="M3 4 L12 2.5 L14 11 L5 13.5 Z" fill-opacity=".35" stroke-width="1.4" stroke-linejoin="round"/>',
+};
 
 const esc = (s: unknown) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -56,6 +74,8 @@ const METHODS: [Method, string][] = [
 
 export class SymbologyPanel {
   current: string | null = null;
+  private section: Section = loadJson<Section>(SEC_KEY, 'style');
+  private folded = new Set<string>(loadJson<string[]>(FOLD_KEY, []));
   private busy = '';
   private error = '';
   private stats = '';
@@ -64,7 +84,28 @@ export class SymbologyPanel {
     private root: HTMLElement,
     private host: PanelHost,
   ) {
-    root.addEventListener('click', (e) => void this.onClick(e));
+    root.addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      const sec = t.closest<HTMLElement>('[data-sec]')?.dataset.sec as Section | undefined;
+      if (sec && t.closest('.ly-seg')) {
+        this.section = sec;
+        saveJson(SEC_KEY, sec);
+        return this.render();
+      }
+      const id = this.current;
+      const k = t.closest<HTMLElement>('[data-k]')?.dataset.k;
+      if (id && k === 'ly-vis') { const st = this.host.style(id); return this.host.setStyle(id, { ...st, visible: !st.visible }); }
+      if (id && k === 'ly-zoom') return this.host.zoomTo?.(id);
+      if (id && k === 'ly-table') return this.host.openTable?.(id);
+      if (id && k === 'ly-remove') return this.host.remove?.(id);
+      void this.onClick(e);
+    });
+    root.addEventListener('toggle', (e) => {
+      const d = e.target as HTMLDetailsElement;
+      if (!d.dataset?.fold) return;
+      if (d.open) this.folded.delete(d.dataset.fold); else this.folded.add(d.dataset.fold);
+      saveJson(FOLD_KEY, [...this.folded]);
+    }, true);
     root.addEventListener('change', (e) => void this.onChange(e));
     root.addEventListener('input', (e) => this.onInput(e));
   }
@@ -172,12 +213,12 @@ export class SymbologyPanel {
       ov = `<p class="hint">Not needed: this layer renders live at every zoom.</p>`;
     }
 
-    this.root.innerHTML = `
-      <header>
-        <div><h2>Symbology</h2><b>${esc(l.id)}</b>
-          <small>${esc(l.geometry)} · ${fmt(l.feature_count)} features · ${esc(l.driver)} · ${esc(l.crs)}</small></div>
-        <button data-k="close" title="Close" aria-label="Close">✕</button>
-      </header>
+    const fold = (id: string, title: string, inner: string) =>
+      `<details class="ly-sec" data-fold="${id}" ${this.folded.has(id) ? '' : 'open'}><summary>${title}</summary>${inner}</details>`;
+    const name = this.host.layerName?.(l.id) ?? l.name ?? l.id;
+    const items = s.kind === 'single' ? [] : legendItems(s);
+    const legend = items.length ? `<div class="ly-legend">${items.slice(0, 6).map((c) => `<span><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>`).join('')}${items.length > 6 ? `<span class="dim">+${items.length - 6} more</span>` : ''}</div>` : '';
+    const style = `
       <label class="field"><span>Primary symbology</span>
         <select data-k="kind">
           ${opt('single', 'Single symbol', s.kind === 'single')}
@@ -186,23 +227,53 @@ export class SymbologyPanel {
         </select></label>
       ${
         st.auto
-          ? `<p class="auto-why"><b>✨ Styled automatically</b> ${esc(st.auto)}. Change anything below to take over.</p>`
+          ? `<details class="auto-chip"><summary>✨ Styled automatically</summary><p>${esc(st.auto)}. Change anything below to take over.</p></details>`
           : `<button data-k="autostyle" class="auto-btn">✨ Style automatically</button>`
       }
       ${body}
       ${this.busy ? `<p class="hint">${esc(this.busy)}</p>` : ''}
       ${this.stats ? `<p class="hint">${this.stats}</p>` : ''}
       ${this.error ? `<p class="err">${esc(this.error)}</p>` : ''}
-      ${this.symbolSection(l, st)}
-      ${this.labelSection(l, st)}
-      <h3>Appearance</h3>
-      <label class="field"><span>Opacity <output>${Math.round(st.opacity * 100)}%</output></span>
-        <input type="range" min="0" max="100" step="5" data-k="opacity" value="${Math.round(st.opacity * 100)}"></label>
-      <div class="field"><span>Visible range (zoom)</span>
-        <div class="row"><input type="number" min="0" max="24" data-k="minzoom" value="${st.minzoom}" aria-label="Min zoom"> to
-        <input type="number" min="0" max="24" data-k="maxzoom" value="${st.maxzoom}" aria-label="Max zoom"></div></div>
-      <h3>Overviews</h3>
-      ${ov}`;
+      ${fold('symbol', 'Symbol', this.symbolSection(l, st).replace('<h3>Symbol</h3>', ''))}
+      ${fold('appearance', 'Appearance', `
+        <label class="field"><span>Opacity <output>${Math.round(st.opacity * 100)}%</output></span>
+          <input type="range" min="0" max="100" step="5" data-k="opacity" value="${Math.round(st.opacity * 100)}"></label>
+        <div class="field"><span>Visible range (zoom)</span>
+          <div class="row"><input type="number" min="0" max="24" data-k="minzoom" value="${st.minzoom}" aria-label="Min zoom"> to
+          <input type="number" min="0" max="24" data-k="maxzoom" value="${st.maxzoom}" aria-label="Max zoom"></div></div>`)}`;
+    const kindName: Record<string, string> = { integer: 'whole number', real: 'number', string: 'text', date: 'date', datetime: 'date and time', boolean: 'yes / no' };
+    const fields = `
+      <p class="hint">${fmt(l.fields.length)} fields · ${fmt(l.feature_count)} features</p>
+      <ul class="ly-fields">${l.fields.map((f) => `<li><b>${esc(f.name)}</b><span>${esc(kindName[f.kind] ?? f.kind)}</span></li>`).join('') || '<li class="dim">No fields</li>'}</ul>
+      ${this.host.openTable ? `<button data-k="ly-table" class="ly-wide">Open the attribute table</button>` : ''}`;
+    const [w, so, e, n] = l.bounds;
+    const source = `
+      <dl class="ly-dl">
+        <dt>File</dt><dd title="${esc(l.source)}">${esc(l.source)}</dd>
+        <dt>Format</dt><dd>${esc(l.driver)}</dd>
+        <dt>Coordinates</dt><dd>${esc(l.crs)}</dd>
+        <dt>Geometry</dt><dd>${esc(l.geometry)} · ${fmt(l.feature_count)}</dd>
+        <dt>Covers</dt><dd>${w.toFixed(3)}…${e.toFixed(3)} E, ${so.toFixed(3)}…${n.toFixed(3)} N</dd>
+      </dl>
+      ${fold('overviews', 'Overviews (fast zoomed-out drawing)', ov)}`;
+    const sections: Record<Section, string> = { style, labels: this.labelSection(l, st).replace(/<h3>Labels<\/h3>/, ''), fields, source };
+    this.root.innerHTML = `
+      <header class="ly-head">
+        <div class="ly-title">
+          <svg viewBox="0 0 16 16" width="18" height="18" fill="${esc(primaryColor(s))}" stroke="${esc(primaryColor(s))}">${GEOM_ICON[l.geometry] ?? GEOM_ICON.point}</svg>
+          <div><b title="${esc(l.id)}">${esc(name)}</b><small>${esc(l.geometry)} · ${fmt(l.feature_count)} features · ${esc(l.crs)}</small></div>
+        </div>
+        <div class="ly-acts">
+          <button data-k="ly-vis" title="${st.visible ? 'Hide on the map' : 'Show on the map'}" aria-pressed="${st.visible}">${st.visible ? '◉' : '○'}</button>
+          ${this.host.zoomTo ? '<button data-k="ly-zoom" title="Zoom to layer">⤢</button>' : ''}
+          ${this.host.openTable ? '<button data-k="ly-table" title="Attribute table">▦</button>' : ''}
+          ${this.host.remove ? '<button data-k="ly-remove" title="Remove from the map (the file is kept)">🗑</button>' : ''}
+          <button data-k="close" title="Close" aria-label="Close">✕</button>
+        </div>
+        ${legend}
+        <nav class="ly-seg" role="tablist">${SECTIONS.map(([id, t]) => `<button role="tab" data-sec="${id}" aria-selected="${id === this.section}">${t}</button>`).join('')}</nav>
+      </header>
+      <div class="ly-body" data-sec="${this.section}">${sections[this.section]}</div>`;
   }
 
   /** Symbol: shape, size and stroke of points; width and dash of lines; fill and outline of polygons. */

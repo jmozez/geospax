@@ -25,6 +25,7 @@ pub mod devices;
 pub mod docs;
 pub mod edit;
 pub mod geostats;
+pub mod guest;
 pub mod sensors;
 pub mod sta;
 pub mod jobs;
@@ -233,6 +234,9 @@ pub struct Engine {
     /// The web edition answers other devices (`--host` not loopback): folder connections can then
     /// not be added, since one would let those devices list any folder of this computer.
     pub shared: std::sync::atomic::AtomicBool,
+    /// Public guest demo (`--public`): no sign-in, a project per visitor (`?ws=`), and what could
+    /// misuse the server (code, installs, folders, settings) refused; see `guest.rs`.
+    pub guest: std::sync::atomic::AtomicBool,
     cache: Option<Mutex<LruCache<CacheKey, Arc<TileResult>>>>,
     pool: rayon::ThreadPool,
     pub(crate) job_pool: rayon::ThreadPool,
@@ -414,6 +418,7 @@ impl Engine {
             data_dirs: cfg.data.clone(),
             connections: RwLock::new(browse::load_connections(&state_dir)),
             shared: std::sync::atomic::AtomicBool::new(false),
+            guest: std::sync::atomic::AtomicBool::new(false),
             cache,
             pool,
             job_pool,
