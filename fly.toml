@@ -40,5 +40,5 @@ primary_region = "syd"   # Sydney: the closest Fly region to Papua New Guinea
     path = "/api/health"
 
 [[vm]]
-  size = "shared-cpu-2x"
-  memory = "2gb"
+  size = "shared-cpu-1x"
+  memory = "1gb"
