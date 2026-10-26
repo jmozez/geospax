@@ -66,7 +66,7 @@ The Flatpak (`packaging/flatpak/io.github.jmozez.GeoSpaX.yml`) is built and chec
 app on its own servers without network access, so its copy of the manifest lists the Rust crates and npm
 packages as sources. To submit:
 
-1. The offline manifest and both lists are ready in `packaging/flatpak/flathub/`, pointing at tag `v3.0.4`.
+1. The offline manifest and both lists are ready in `packaging/flatpak/flathub/`, pointing at tag `v3.0.5`.
    For a later release, change the tag and regenerate the lists with the Flatpak builder tools
    (<https://github.com/flatpak/flatpak-builder-tools>):
    `flatpak-cargo-generator Cargo.lock -o packaging/flatpak/flathub/cargo-sources.json` and

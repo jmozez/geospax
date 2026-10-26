@@ -88,7 +88,7 @@ all the time. Recipes, triggers and downloads run only while the machine is up: 
 app on its own servers without network access, so its copy of the manifest lists the Rust crates and npm
 packages as sources. To submit:</p>
 <ol>
-<li>The offline manifest and both lists are ready in <code>packaging/flatpak/flathub/</code>, pointing at tag <code>v3.0.4</code>.
+<li>The offline manifest and both lists are ready in <code>packaging/flatpak/flathub/</code>, pointing at tag <code>v3.0.5</code>.
 For a later release, change the tag and regenerate the lists with the Flatpak builder tools
 (<a href="https://github.com/flatpak/flatpak-builder-tools" rel="noopener" target="_blank">https://github.com/flatpak/flatpak-builder-tools</a>):
 <code>flatpak-cargo-generator Cargo.lock -o packaging/flatpak/flathub/cargo-sources.json</code> and

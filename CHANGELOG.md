@@ -5,6 +5,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+## [3.0.5] — 2026-10-26
+
 ### Security — public guest demo (audit and attack tests)
 - Visitors are kept apart on the server: each layer, raster, run and job belongs to the visitor who made it
   (the `geospax_ws` cookie); everything else is not listed and answers *not found*, including map tiles,

@@ -77,6 +77,9 @@
     <display_length compare="ge">900</display_length>
   </requires>
   <releases>
+    <release version="3.0.5" date="2026-10-26">
+      <description><p>Security fixes for the public web demo: visitors kept apart, upload limits.</p></description>
+    </release>
     <release version="3.0.4" date="2026-10-26">
       <description><p>Public guest demo of the web app, redesigned side panels, a ribbon in the order of the work.</p></description>
     </release>
