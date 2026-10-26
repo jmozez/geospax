@@ -5,6 +5,7 @@
 use crate::Engine;
 use serde_json::json;
 use std::fs;
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
@@ -54,13 +55,15 @@ fn unique(dir: &Path, name: &str) -> PathBuf {
     (2..).map(|i| dir.join(format!("{stem} ({i}){ext}"))).find(|p| !p.exists()).unwrap()
 }
 
-fn unzip(zip_path: &Path, dest: &Path) -> Result<Vec<PathBuf>, String> {
+fn unzip(zip_path: &Path, dest: &Path, max_total: u64) -> Result<Vec<PathBuf>, String> {
+    let mut total = 0u64;
     let file = fs::File::open(zip_path).map_err(|e| e.to_string())?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("not a zip file: {e}"))?;
     let mut files = Vec::new();
     for i in 0..zip.len() {
         let mut f = zip.by_index(i).map_err(|e| e.to_string())?;
-        if f.is_dir() {
+        // folders are made as needed; links are never followed or created (they could point anywhere)
+        if f.is_dir() || f.is_symlink() {
             continue;
         }
         if f.size() > MAX_ZIP_MEMBER {
@@ -82,7 +85,15 @@ fn unzip(zip_path: &Path, dest: &Path) -> Result<Vec<PathBuf>, String> {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let mut w = fs::File::create(&out).map_err(|e| e.to_string())?;
-        std::io::copy(&mut f, &mut w).map_err(|e| e.to_string())?;
+        // the sizes a zip declares can lie: count what actually comes out (zip bombs)
+        let room = (max_total - total).min(MAX_ZIP_MEMBER);
+        let n = std::io::copy(&mut (&mut f).take(room + 1), &mut w).map_err(|e| e.to_string())?;
+        if n > room {
+            drop(w);
+            let _ = fs::remove_dir_all(dest);
+            return Err(format!("the zip unpacks to more than {} MB", room.min(max_total) >> 20));
+        }
+        total += n;
         files.push(out);
     }
     Ok(files)
@@ -139,7 +150,8 @@ pub fn upload(engine: &Arc<Engine>, name: &str, body: &[u8]) -> Result<serde_jso
     // a zip unpacks into a folder of the same name; shapefile sidecars travel together
     let candidates = if ext == "zip" {
         let folder = unique(&dir, &path.file_stem().unwrap_or_default().to_string_lossy());
-        let files = unzip(&path, &folder)?;
+        let max = if engine.guest.load(std::sync::atomic::Ordering::Relaxed) { crate::guest::MAX_UNZIPPED } else { u64::MAX };
+        let files = unzip(&path, &folder, max)?;
         let _ = fs::remove_file(&path);
         files
     } else {
@@ -176,7 +188,7 @@ mod tests {
             std::io::Write::write_all(&mut z, b"x").unwrap();
             z.finish().unwrap();
         }
-        assert!(unzip(&zp, &dir.join("out")).is_err());
+        assert!(unzip(&zp, &dir.join("out"), u64::MAX).is_err());
         assert!(!dir.join("escape.txt").exists());
         let _ = fs::remove_dir_all(dir);
     }

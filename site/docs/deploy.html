@@ -52,14 +52,19 @@
 <p><code>fly.toml</code> runs the web edition as a <strong>public guest demo</strong> (<code>GEOSPAX_PUBLIC=1</code>, or <code>--public</code>):</p>
 <ul>
 <li>no sign-in: anyone with the address can use it;</li>
-<li>each visitor gets a workspace of their own (kept in their browser&#39;s id, <code>?ws=</code>), so nobody sees anyone
-else&#39;s map, and starts clean: dark, Lazy mode, on the globe;</li>
+<li>each visitor gets a workspace of their own (a random id in their browser, sent as the <code>geospax_ws</code>
+cookie) and starts clean: dark, Lazy mode, on the globe;</li>
+<li>the server keeps who made each layer, raster, run and job (<code>&lt;state&gt;/guests/owners.json</code>). A visitor sees,
+reads (tiles, tables, exports), changes and deletes only their own; everything else answers <em>not found</em>,
+also when a tool input or map preview names it. Data that was on the server before is nobody&#39;s;</li>
+<li>uploads are at most 64 MB, a zip may unpack to at most 256 MB, and all guests&#39; uploads together to 4 GB;
+replies never show the server&#39;s folders, and visitors&#39; messages never reach the server log;</li>
 <li>what could misuse the server is refused: R and Python code, installing plugins or packages, folders of
 the server, devices, saved recipes, server settings and the AI assistant;</li>
 <li>uploads, downloads, run results and guest projects not touched for 7 days are deleted (checked hourly).</li>
 </ul>
 <p>One machine runs (the data volume pins it) and it stops when idle, so you pay mostly while it is used.
-Also set a monthly spending limit in the Fly billing settings.</p>
+Fly has no hard spending limit: watch the Cost Explorer in the Fly billing settings.</p>
 <p>Install <code>flyctl</code> (<a href="https://fly.io/docs/flyctl/install/" rel="noopener" target="_blank">https://fly.io/docs/flyctl/install/</a>), sign in with <code>fly auth login</code>, then from the
 repository folder:</p>
 <pre><code class="language-sh">fly launch --copy-config --no-deploy          # creates the app from fly.toml; choose a unique name if asked
@@ -83,7 +88,7 @@ all the time. Recipes, triggers and downloads run only while the machine is up: 
 app on its own servers without network access, so its copy of the manifest lists the Rust crates and npm
 packages as sources. To submit:</p>
 <ol>
-<li>The offline manifest and both lists are ready in <code>packaging/flatpak/flathub/</code>, pointing at tag <code>v3.0.3</code>.
+<li>The offline manifest and both lists are ready in <code>packaging/flatpak/flathub/</code>, pointing at tag <code>v3.0.4</code>.
 For a later release, change the tag and regenerate the lists with the Flatpak builder tools
 (<a href="https://github.com/flatpak/flatpak-builder-tools" rel="noopener" target="_blank">https://github.com/flatpak/flatpak-builder-tools</a>):
 <code>flatpak-cargo-generator Cargo.lock -o packaging/flatpak/flathub/cargo-sources.json</code> and

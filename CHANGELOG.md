@@ -5,6 +5,22 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Security — public guest demo (audit and attack tests)
+- Visitors are kept apart on the server: each layer, raster, run and job belongs to the visitor who made it
+  (the `geospax_ws` cookie); everything else is not listed and answers *not found*, including map tiles,
+  tables, Arrow exports, deletes, edits and tool inputs or map previews that name it. Before, any visitor
+  could list, read, change or delete another visitor's uploads.
+- Uploads at most 64 MB (413 with a clear message instead of "the file is empty"); zips may unpack to at
+  most 256 MB, counted while unpacking (zip bombs), and links inside zips are skipped; all guest uploads
+  together at most 4 GB.
+- Replies no longer show server folders (where a file was saved, paths in tool results and errors);
+  visitors' log messages no longer reach the server log.
+- Run reports are served with a sandbox Content Security Policy (no scripts); every reply carries
+  `nosniff`, `SAMEORIGIN` framing and a strict referrer policy; `index.html` is revalidated on every load.
+- The web demo answers on its own domain (it only accepted `localhost`), and the visitor id no longer
+  needs `crypto.randomUUID` (missing outside HTTPS).
+- rustls-webpki 0.103.16 and webpki-roots 1.0.11 (RUSTSEC-2026-0382, RUSTSEC-2026-0381).
+
 ## [3.0.4] — 2026-10-26
 
 ### Changed — panels, organised by purpose

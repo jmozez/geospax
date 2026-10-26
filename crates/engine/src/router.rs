@@ -19,6 +19,8 @@ pub struct ApiRequest {
     pub path: String,
     pub query: String,
     pub body: Vec<u8>,
+    /// Public guest demo: the visitor's workspace (the `geospax_ws` cookie), see guest.rs.
+    pub ws: Option<String>,
 }
 
 impl ApiRequest {
@@ -102,21 +104,23 @@ fn fid_list(v: &serde_json::Value) -> Option<Vec<u64>> {
     v.as_array().map(|a| a.iter().filter_map(|x| x.as_u64()).collect())
 }
 
-fn param(query: &str, key: &str) -> Option<String> {
+pub(crate) fn param(query: &str, key: &str) -> Option<String> {
     query_param(query, key).map(pct_decode)
 }
 
 impl Engine {
     pub fn handle(self: &Arc<Self>, req: ApiRequest) -> ApiResponse {
+        if self.guest.load(std::sync::atomic::Ordering::Relaxed) {
+            return crate::guest::handle(self, req);
+        }
+        self.handle_inner(req)
+    }
+
+    pub(crate) fn handle_inner(self: &Arc<Self>, req: ApiRequest) -> ApiResponse {
         let segs: Vec<String> = req.path.trim_matches('/').split('/').filter(|s| !s.is_empty()).map(pct_decode).collect();
         let segs: Vec<&str> = segs.iter().map(String::as_str).collect();
         let q = req.query.as_str();
         let guest = self.guest.load(std::sync::atomic::Ordering::Relaxed);
-        if guest {
-            if let Some(why) = crate::guest::refused(&req.method, &segs) {
-                return ApiResponse::error(403, format!("not in the guest demo ({why}): download GeoSpaX for the full app"));
-            }
-        }
         match (req.method.as_str(), segs.as_slice()) {
             ("GET", ["api", "docs"]) => ApiResponse::json(
                 200,
@@ -836,7 +840,13 @@ impl Engine {
                 None => ApiResponse::error(404, format!("unknown run '{id}'")),
             },
             ("GET", ["api", "runs", id, "files", name]) => match self.automation.artifact(id, name) {
-                Ok((bytes, ct)) => ApiResponse { status: 200, content_type: ct, headers: vec![("Cache-Control", "no-store".to_string())], body: bytes },
+                // reports open as pages of this site: they may show data anyone uploaded, so never run its scripts
+                Ok((bytes, ct)) => ApiResponse {
+                    status: 200,
+                    content_type: ct,
+                    headers: vec![("Cache-Control", "no-store".to_string()), ("Content-Security-Policy", "sandbox; default-src 'self' data: 'unsafe-inline'; script-src 'none'".to_string())],
+                    body: bytes,
+                },
                 Err(e) => ApiResponse::error(404, e),
             },
             ("GET", ["api", "project"]) => match self.project_file(guest, q) {

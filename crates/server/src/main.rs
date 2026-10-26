@@ -117,14 +117,34 @@ fn parse_args_from(argv: Vec<String>) -> Args {
 async fn api(State(engine): State<Arc<Engine>>, req: Request) -> Response {
     let method = req.method().to_string();
     let uri = req.uri().clone();
+    let ws = req
+        .headers()
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(';'))
+        .find_map(|c| c.trim().strip_prefix("geospax_ws=").map(String::from));
+    let guest = engine.guest.load(std::sync::atomic::Ordering::Relaxed);
     // files dropped on the app may be large (GeoPackages, zipped shapefiles); everything else is small
-    let limit = if uri.path() == "/api/upload" { 1 << 30 } else { 16 << 20 };
-    let body = to_bytes(req.into_body(), limit).await.unwrap_or_default();
+    // (the public guest demo takes smaller files: its disk is shared by every visitor)
+    let limit = match (uri.path() == "/api/upload", guest) {
+        (true, false) => 1 << 30,
+        (true, true) => geospax_engine::guest::MAX_UPLOAD,
+        _ => 16 << 20,
+    };
+    let Ok(body) = to_bytes(req.into_body(), limit).await else {
+        return Response::builder()
+            .status(StatusCode::PAYLOAD_TOO_LARGE)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(format!("{{\"error\":\"the file is larger than {} MB\"}}", limit >> 20)))
+            .unwrap();
+    };
     let api_req = ApiRequest {
         method,
         path: uri.path().to_string(),
         query: uri.query().unwrap_or("").to_string(),
         body: body.to_vec(),
+        ws,
     };
     let (tx, rx) = tokio::sync::oneshot::channel::<ApiResponse>();
     engine.dispatch(api_req, move |r| {
@@ -384,6 +404,7 @@ async fn serve(args: Args) {
     if args.public {
         engine.guest.store(true, std::sync::atomic::Ordering::Relaxed);
         geospax_engine::automation::sidecar::GUEST.store(true, std::sync::atomic::Ordering::Relaxed);
+        engine.owners.init(&engine);
         // guest files older than a week go, at start and then every hour
         let (state, data) = (engine.state_dir.clone(), args.cfg.data.clone());
         std::thread::spawn(move || loop {
@@ -455,12 +476,17 @@ async fn serve(args: Args) {
         .unwrap();
 }
 
-/// Built files under /assets carry a content hash and never change; everything else of the page
+/// Security headers on every reply; then caching: built files under /assets carry a content hash and never change; everything else of the page
 /// (index.html first) is checked with the server on every load, so browsers (phones above all)
 /// never keep running an old version after an update.
 async fn cache_policy(req: axum::extract::Request, next: axum::middleware::Next) -> axum::response::Response {
     let path = req.uri().path().to_string();
     let mut res = next.run(req).await;
+    // on every reply: no MIME sniffing, no framing by other sites, no full URLs leaked to them
+    let h = res.headers_mut();
+    h.insert("x-content-type-options", axum::http::HeaderValue::from_static("nosniff"));
+    h.entry("x-frame-options").or_insert(axum::http::HeaderValue::from_static("SAMEORIGIN"));
+    h.insert("referrer-policy", axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"));
     if path.starts_with("/api/") || path.starts_with("/tiles/") || res.headers().contains_key(axum::http::header::CACHE_CONTROL) {
         return res;
     }
