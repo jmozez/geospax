@@ -680,8 +680,10 @@ body[data-mode='lazy'] #contents + .hint { display: none; }
 @media (max-width: 1600px) { .tk-txt small { display: none; } }
 
 /* ---------------------------------------------------------------- panes per mode */
-body[data-mode='lazy'] .dock-tabs button:is([data-tab='symbology'], [data-tab='rasters'], [data-tab='automate'], [data-tab='plugins'], [data-tab='history'], [data-tab='log'], [data-tab='project']) { display: none; }
-body[data-mode='pro'] .dock-tabs button:is([data-tab='inspector'], [data-tab='activity']) { display: none; }
+body[data-mode='lazy'] .dock-tabs button:is([data-tab='automate'], [data-tab='plugins'], [data-tab='history'], [data-tab='log'], [data-tab='project']) { display: none; }
+body[data-mode='pro'] .dock-tabs button:is([data-tab='activity']) { display: none; }
+/* the Layer tab: Lazy tells the layer's story (Inspector), Pro shows its symbology, or the map */
+body[data-mode='pro'] #inspector, body[data-mode='lazy'] :is(#panel, #raster-sym, #map-props) { display: none; }
 
 /* ---------------------------------------------------------------- Lazy: Inspector (right) */
 .ins { padding: 4px 4px 16px; }
@@ -1496,3 +1498,34 @@ body.layout-page { margin: 0; height: 100vh; display: flex; flex-direction: colu
 /* public guest demo: a link to the full app next to the edition badge */
 .guest-cta { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--accent, #ff7a45); text-decoration: none; white-space: nowrap; }
 .guest-cta:hover { text-decoration: underline; }
+
+/* dock tabs with icons, like the ribbon; a narrow or folded pane keeps only the icons */
+.dock-tabs { container-type: inline-size; }
+.dock-tabs button { display: inline-flex; align-items: center; gap: 6px; }
+.dock-tabs button svg { flex: none; opacity: .8; }
+.dock-tabs button.on svg { opacity: 1; color: var(--accent); }
+@container (max-width: 230px) { .dock-tabs button span { display: none; } .dock-tabs button { padding: 6px 9px; } }
+.dock.collapsed .dock-tabs button span { display: none; }
+#dock-left.collapsed .dock-tabs button, #dock-right.collapsed .dock-tabs button { writing-mode: horizontal-tb; transform: none; justify-content: center; padding: 9px 0; }
+
+/* Devices & phones, at the foot of the Explorer */
+.pane-group { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 8px; }
+.pane-group > summary { cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 4px 2px 8px; list-style: none; }
+.pane-group > summary::before { content: '▸'; display: inline-block; width: 14px; transition: transform .15s; }
+.pane-group[open] > summary::before { transform: rotate(90deg); }
+
+/* Layer tab with nothing selected: the map */
+#map-props { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px; }
+#map-props[hidden] { display: none; }
+.mp-head { display: flex; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--sunken); }
+.mp-head svg { color: var(--accent); flex: none; }
+.mp-head b { display: block; font-size: 14px; }
+.mp-head small, .mp-row small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+.mp-group h4 { margin: 0 0 6px; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.mp-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 4px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--fg); cursor: pointer; }
+.mp-row:hover { background: var(--sunken); border-color: var(--line); }
+.mp-row svg { flex: none; color: var(--muted); }
+.mp-row b { font-weight: 600; font-size: 12.5px; }
+.mp-seg { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--sunken); margin-top: 4px; }
+.mp-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 4px; font-size: 11.5px; border: 0; border-radius: 6px; background: none; color: var(--fg); cursor: pointer; }
+.mp-seg button:hover { background: var(--panel); }

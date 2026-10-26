@@ -51,7 +51,7 @@ const DEFAULT_LAYOUT: Layout = {
   right: 340,
   bottom: 232,
   collapsed: [],
-  tabs: { left: 'contents', right: 'symbology', bottom: 'automate' },
+  tabs: { left: 'contents', right: 'layer', bottom: 'automate' },
   ribbon: 'home',
   compact: true,
   ribbonPinned: true,
@@ -183,6 +183,46 @@ export class Workbench {
     document.addEventListener('geospax:reload-views', () => this.renderActivity());
     this.applyModeTabs();
     this.renderActivity();
+    this.wireMapProps();
+  }
+
+  /**
+   * The Layer tab with nothing selected shows the map itself (Figma, Felt and ArcGIS Pro show the
+   * document's properties then): basemap, projection, navigation and the way to a finished map.
+   */
+  private wireMapProps() {
+    const el = document.querySelector<HTMLElement>('#map-props');
+    if (!el) return;
+    const row = (cmd: string, ico: string, title: string, hint: string) =>
+      `<button class="mp-row" data-cmd="${cmd}">${icon(ico, 16)}<span><b>${esc(title)}</b><small>${esc(hint)}</small></span></button>`;
+    el.innerHTML = `
+      <div class="mp-head">${icon('earth', 18)}<div><b>Map</b><small>No layer selected: click one in Contents to style it</small></div></div>
+      <div class="mp-group"><h4>Appearance</h4>
+        ${row('home.basemap', 'gallery', 'Basemap', 'Imagery, streets, terrain or none')}
+        <div class="mp-seg" role="group" aria-label="Projection">
+          <button data-cmd="view.projGlobe">${icon('globe', 15)} Globe</button>
+          <button data-cmd="view.projMercator">${icon('flatmap', 15)} Flat</button>
+          <button data-cmd="view.terrain3d">${icon('mountain', 15)} 3D terrain</button>
+        </div>
+      </div>
+      <div class="mp-group"><h4>Navigate</h4>
+        ${row('view.zoomAll', 'extent', 'Full extent', 'Zoom to everything on the map')}
+        ${row('view.bookmarks', 'bookmark', 'Bookmarks', 'Saved views of this project')}
+      </div>
+      <div class="mp-group"><h4>Make</h4>
+        ${row('home.addData', 'fileAdd', 'Add data', 'Files, devices or online data for this area')}
+        ${row('home.finish', 'print', 'Finish my map', 'Layout, legend, PNG, PDF, SVG and a report')}
+      </div>`;
+    el.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-cmd]');
+      if (b) void this.run(b.dataset.cmd!);
+    });
+    const panel = document.querySelector<HTMLElement>('#panel');
+    const rsym = document.querySelector<HTMLElement>('#raster-sym');
+    const sync = () => { el.hidden = !(panel?.hidden ?? true) || !(rsym?.hidden ?? true); };
+    const mo = new MutationObserver(sync);
+    for (const n of [panel, rsym]) if (n) mo.observe(n, { attributes: true, attributeFilter: ['hidden'] });
+    sync();
   }
 
   /** The command host every ribbon button sees. */
@@ -709,7 +749,11 @@ export class Workbench {
     document.querySelectorAll<HTMLElement>('.dock-tabs').forEach((bar) => {
       const dock = (bar.dataset.dock ?? 'left') as Dock;
       bar.innerHTML = [...bar.querySelectorAll<HTMLElement>('button[data-tab]')]
-        .map((b) => `<button data-tab="${b.dataset.tab}">${esc(b.textContent ?? '')}</button>`)
+        .map((b) => {
+          const label = esc(b.textContent ?? '');
+          const ico = b.dataset.icon ? icon(b.dataset.icon, 14) : '';
+          return `<button data-tab="${b.dataset.tab}" title="${label}"${b.dataset.icon ? ` data-icon="${b.dataset.icon}"` : ''}>${ico}<span>${label}</span></button>`;
+        })
         .join('');
       bar.addEventListener('click', (e) => {
         const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
@@ -720,11 +764,35 @@ export class Workbench {
   }
 
   showTab(dock: Dock, tab: string) {
+    // panes that moved when the right panel became Layer / Tools / Ask: callers keep their old names
+    const moved: Record<string, [Dock, string]> = {
+      'right:inspector': ['right', 'layer'], 'right:symbology': ['right', 'layer'],
+      'right:attributes': ['bottom', 'attributes'], 'right:rasters': ['left', 'contents'], 'right:devices': ['left', 'catalog'],
+    };
+    const to = moved[`${dock}:${tab}`];
+    if (to) {
+      [dock, tab] = to;
+      if (tab === 'catalog') setTimeout(() => document.querySelector('#devices-box')?.scrollIntoView({ block: 'start' }), 50);
+    }
     this.layout.tabs[dock] = tab;
+    if (dock === 'bottom' && tab === 'attributes') this.fillAttributes();
     if (this.layout.collapsed.includes(dock)) this.layout.collapsed = this.layout.collapsed.filter((d) => d !== dock);
     this.saveLayout();
     this.applyLayout();
     document.dispatchEvent(new CustomEvent('geospax:show-pane', { detail: dock }));
+  }
+
+  /** The Attributes tab opened by itself: the selected layer's table, or how to get one. */
+  private fillingAttributes = false;
+  private fillAttributes() {
+    const el = document.querySelector<HTMLElement>('#attributes');
+    if (!el || el.hidden || (el.childElementCount && !el.querySelector(':scope > .attr-hint')) || this.fillingAttributes) return;
+    if (this.cmdHost().activeId()) {
+      this.fillingAttributes = true;
+      void this.run('edit.table').finally(() => { this.fillingAttributes = false; });
+    } else {
+      el.innerHTML = `<div class="pane-empty attr-hint">${icon('table', 22)}<p>Select a layer in Contents to see its rows here, or use <b>Attribute table</b> on the ribbon.</p></div>`;
+    }
   }
 
   toggleDock(dock: Dock) {
@@ -1582,10 +1650,10 @@ export class Workbench {
     const bottom = this.layout.tabs.bottom;
     if (lazy) {
       if (this.layout.tabs.left === 'project') this.layout.tabs.left = 'contents';
-      if (!['inspector', 'toolbox', 'ask', 'devices', 'attributes'].includes(right)) this.layout.tabs.right = 'inspector';
-      if (bottom !== 'activity') this.layout.tabs.bottom = 'activity';
+      if (!['layer', 'toolbox', 'ask'].includes(right)) this.layout.tabs.right = 'layer';
+      if (!['activity', 'attributes'].includes(bottom)) this.layout.tabs.bottom = 'activity';
     } else {
-      if (right === 'inspector') this.layout.tabs.right = 'symbology';
+      if (!['layer', 'toolbox', 'ask'].includes(right)) this.layout.tabs.right = 'layer';
       if (bottom === 'activity') this.layout.tabs.bottom = 'automate';
     }
     this.applyLayout();

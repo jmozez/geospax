@@ -49,17 +49,26 @@
 <p>The download buttons read the newest GitHub release by themselves. Once the web edition is online, set
 <code>WEBAPP_URL</code> at the top of <code>site/main.js</code> if visitors should get an &quot;Open the web app&quot; button.</p>
 <h2 id="web-edition-on-flyio"><a class="anchor" href="#web-edition-on-flyio">#</a>Web edition on Fly.io</h2>
-<p>The web edition is <strong>one workspace</strong>: everyone signed in with the access token sees and changes the same
-layers and projects, and the token gives full control. Host it as your own GeoSpaX in the browser, not as an
-open site for anonymous visitors.</p>
+<p><code>fly.toml</code> runs the web edition as a <strong>public guest demo</strong> (<code>GEOSPAX_PUBLIC=1</code>, or <code>--public</code>):</p>
+<ul>
+<li>no sign-in: anyone with the address can use it;</li>
+<li>each visitor gets a workspace of their own (kept in their browser&#39;s id, <code>?ws=</code>), so nobody sees anyone
+else&#39;s map, and starts clean: dark, Lazy mode, on the globe;</li>
+<li>what could misuse the server is refused: R and Python code, installing plugins or packages, folders of
+the server, devices, saved recipes, server settings and the AI assistant;</li>
+<li>uploads, downloads, run results and guest projects not touched for 7 days are deleted (checked hourly).</li>
+</ul>
+<p>One machine runs (the data volume pins it) and it stops when idle, so you pay mostly while it is used.
+Also set a monthly spending limit in the Fly billing settings.</p>
 <p>Install <code>flyctl</code> (<a href="https://fly.io/docs/flyctl/install/" rel="noopener" target="_blank">https://fly.io/docs/flyctl/install/</a>), sign in with <code>fly auth login</code>, then from the
 repository folder:</p>
 <pre><code class="language-sh">fly launch --copy-config --no-deploy          # creates the app from fly.toml; choose a unique name if asked
 fly volumes create geospax_data --size 10 --region syd
-fly secrets set GEOSPAX_TOKEN=$(openssl rand -hex 24)
 fly deploy
 </code></pre>
-<p>Open <code>https://&lt;app&gt;.fly.dev/?token=&lt;your token&gt;</code> once; the browser remembers it. Keep the token private.</p>
+<p><strong>A private workspace instead</strong> (one workspace for you, everything allowed): remove the <code>[env]</code>
+<code>GEOSPAX_PUBLIC</code> line from <code>fly.toml</code>, run <code>fly secrets set GEOSPAX_TOKEN=$(openssl rand -hex 24)</code> and
+<code>fly deploy</code>, then open <code>https://&lt;app&gt;.fly.dev/?token=&lt;your token&gt;</code> once. Keep the token private.</p>
 <p><strong>Your own subdomain:</strong> <code>fly certs add app.geospax.in4metrix.dev</code>, then add the CNAME record it shows
 (to <code>&lt;app&gt;.fly.dev</code>) at your DNS provider.</p>
 <p><strong>Updates:</strong> <code>fly deploy</code> pulls the newest release image (<code>ghcr.io/jmozez/geospax:latest</code>). Data, runs and

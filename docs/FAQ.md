@@ -130,7 +130,7 @@ Projection**.
 
 ### How do I change colours, symbols and labels?
 
-Select the layer, then **Symbology** (Pro: right pane; Lazy: the card's **⋯**). Points can be circles, squares,
+Select the layer, then the **Layer** tab (right pane; Lazy: also the card's **⋯**). Points can be circles, squares,
 stars and more, sized by a field; lines can be dashed with a casing; polygons can be hollow; labels have font,
 size, halo and placement. Rasters have their own **Symbology** (⚙ on the raster): stretch, classes, RGB, ramp
 and opacity. **AutoMap** chooses a good style for you and says why.

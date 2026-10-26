@@ -161,6 +161,12 @@ report.
 
 ## 2b. The workbench: ribbon, panes, map
 
+**Where things are:** the left panel has **Project**, **Explorer** (folders, online data, and
+**Devices & phones** at the bottom) and **Contents** (every layer and raster on the map). The right
+panel has **Layer** (the selected layer's style; with nothing selected, the map itself: basemap,
+globe or flat, 3D, bookmarks), **Tools** (the Toolbox) and **Ask**. Under the map: **Attributes**
+(the selected layer's table), **Automate**, **History** and **Log** (Lazy: **Activity**).
+
 GeoSpaX opens like a desktop GIS: a **ribbon** on top, **panes** docked around the map, and a **status bar**
 underneath. Nothing is hidden behind a menu you have to hunt for — and every button still runs the same engine
 calls the recipes use.
@@ -288,7 +294,7 @@ Pane sizes, which tab is open and which panes are collapsed are remembered per b
 
 ### The Toolbox: every tool in one place
 
-The **Toolbox** tab (right pane, both modes; **All tools** in the Lazy task bar, **Analysis → Toolbox** in
+The **Tools** tab (right pane, both modes; **All tools** in the Lazy task bar, **Analysis → Toolbox** in
 Pro) lists every tool GeoSpaX can run, with one search box:
 
 - **Ready-made analyses**: the recipes. A form, then **▶ Run**: the result joins the map, with a laid-out
@@ -443,7 +449,7 @@ layer (same name, same style) reads the copy, and it comes back the next time yo
 file is never written. **Discard edits** goes back to it; **Export** (or Data › Export) saves the edited
 data wherever you like.
 
-**The attribute table** (Attributes pane) shows every field. Click a column name to sort (again for
+**The attribute table** (the **Attributes** tab under the map) shows every field. Click a column name to sort (again for
 descending, a third time for none); its **⋮** menu sorts, calculates, shows statistics or deletes the field.
 The search box looks through every text and number field of the whole layer, not just the page on screen.
 Clicking a row selects the feature on the map (Shift selects a range, Ctrl adds or removes); double-click

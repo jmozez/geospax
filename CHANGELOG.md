@@ -5,6 +5,15 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Changed — panels, organised by purpose
+- Right panel: three tabs with icons, **Layer · Tools · Ask** (was up to six, the last cut off). Layer is
+  the selected layer's style (Lazy: its story), or with nothing selected the map: basemap, globe / flat /
+  3D, full extent, bookmarks, add data and Finish my map.
+- **Attributes** moved under the map; **Devices & phones** to the foot of the Explorer; the Rasters tab
+  is gone (rasters are rows of Contents). Left panel: **Project · Explorer · Contents**, Contents still
+  opens first. Tabs keep only their icons when a pane is narrow or folded.
+- About: **Official website** (geospax.in4metrix.dev) and its downloads; GitHub as Source code.
+
 ### Added — public guest demo of the web edition
 - `geospax-server --public` (or `GEOSPAX_PUBLIC=1`, now set in `fly.toml`): no sign-in; every visitor has a
   workspace of their own and starts clean (dark, Lazy, globe); R/Python code, plugin and package installs,
