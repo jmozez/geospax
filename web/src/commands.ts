@@ -55,7 +55,23 @@ export interface Command {
 
 // 24×24 monochrome glyphs; the ribbon tints them with `currentColor`.
 export const ICONS: Record<string, string> = {
-  // geoprocessing glyphs for the Toolbox (buffer, clip, dissolve …), like ArcGIS Pro's tool icons
+  // geoprocessing glyphs for the Toolbox
+  'gp-filter': 'M3 3h18v18H3zm2 2v4h4V5zm5 0v4h4V5zm5 0v4h4V5zM5 10v4h4v-4zm5 0v4h4v-4zm5 0v4h4v-4zM5 15v4h4v-4zm5 0v4h4v-4zm5 0v4h4v-4zm-4.5-4.5h3v3h-3z',
+  'gp-segment': 'M3 3h18v18H3zm2 2v6.5l4-2.5 3 3 3-5 4 2V5zm14 8.4-3.6-1.8-3 5-3.1-3.1L5 13.8V19h14z',
+  'gp-radar': 'M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8zm0 4a6 6 0 0 1 6 6h-2a4 4 0 0 0-4-4zm-1 5h2v11h-2zm-6 9h14v2H5z',
+  'gp-network': 'M5 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4zm14 2a2 2 0 1 0 0 4a2 2 0 1 0 0-4zM12 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4zM5 17a2 2 0 1 0 0 4a2 2 0 1 0 0-4zm14 0a2 2 0 1 0 0 4a2 2 0 1 0 0-4zM6.3 5.9l1-1.6 4.4 6.4-1 .8zm7.2 4.6 4.3-2.6.9 1.6-4.3 2.6zM6 17.5l5-4.3 1.2 1.4-5 4.3zm6.8-3 5 3.3-1 1.6-5-3.3z',
+  'gp-sink': 'M2 6h4c1 5 3 9 6 9s5-4 6-9h4v2h-2.4c-1.3 5.5-4 9-7.6 9S5.7 13.5 4.4 8H2zm8 0h4v2h-4z',
+  'gp-stream': 'M11 22v-6.6L5.3 9.7l1.4-1.4L11 12.6V2h2v6.6l3.3-3.3 1.4 1.4L13 11.4V22z',
+  'gp-generalize': 'M3 18 8 6l4 8 3-5 6 9h-2.4L15 13l-3 5-4-8-3.2 8z',
+  'gp-eye': 'M12 5c5 0 9 4 10 7-1 3-5 7-10 7S3 15 2 12c1-3 5-7 10-7zm0 2c-3.6 0-6.6 2.6-7.8 5 1.2 2.4 4.2 5 7.8 5s6.6-2.6 7.8-5C18.6 9.6 15.6 7 12 7zm0 2a3 3 0 1 1 0 6a3 3 0 1 1 0-6z',
+  'gp-landform': 'M2 19 9 7l3 5 2-3 8 10zm4-2h12.8L14 12.3 12 15.3 9 11z',
+  'gp-tile': 'M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z',
+  'gp-change': 'M3 4h8v7H3zm2 2v3h4V6zm8 7h8v7h-8zm2 2v3h4v-3zM14 4h3a4 4 0 0 1 4 4v1h2l-3 3-3-3h2V8a2 2 0 0 0-2-2h-3zM10 20H7a4 4 0 0 1-4-4v-1H1l3-3 3 3H5v1a2 2 0 0 0 2 2h3z',
+  'gp-thermal': 'M10 3a2 2 0 0 1 4 0v10.3a4.5 4.5 0 1 1-4 0zm2 12a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5zm4-12h4v2h-4zm0 4h4v2h-4zm0 4h3v2h-3z',
+  'gp-edge': 'M3 3h18v18H3zm2 2v14h14V5zm2 2h2v10H7zm4 0h6v2h-6zm0 4h4v2h-4z',
+  'gp-metric': 'M3 21V3h2v16h16v2zm4-4 4-6 3 3 5-7 1.6 1.2-6.4 9-3-3-2.6 3.8z',
+  'gp-cube': 'M12 2 21 7v10l-9 5-9-5V7zm0 2.3L6 7.6l6 3.3 6-3.3zM5 9.3v6.5l6 3.3v-6.5zm14 0-6 3.3v6.5l6-3.3z',
+  // (buffer, clip, dissolve …), like ArcGIS Pro's tool icons
   'gp-buffer': 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20zm0 2a8 8 0 1 1 0 16a8 8 0 1 1 0-16zm0 5a3 3 0 1 0 0 6a3 3 0 1 0 0-6z',
   'gp-clip': 'M3 3h11v2H5v9H3zM9 9h12v12H9zm2 2v8h8v-8zM3 16h2v5h5v-2H5z',
   'gp-dissolve': 'M3 4h18v16H3zm2 2v12h14V6zm2 2h4v3H7zm6 0h4v8h-4zm-6 5h4v3H7z',

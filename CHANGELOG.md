@@ -17,8 +17,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   old one; records stay on the phone). Its version now follows GeoSpaX: 3.0.3.
 
 ### Changed — Toolbox icons
-- Every Toolbox tool and toolbox has an icon, as in ArcGIS Pro and QGIS: buffer, clip, dissolve,
-  slope, hillshade, contours, flow, interpolation, hot spots, raster calculator … (new glyphs).
+- Every one of the 1,223 Toolbox tools and every toolbox has an icon, as in ArcGIS Pro and QGIS: each
+  toolset has its own (filters, segmentation, radar, depressions, streams, generalisation, visibility …)
+  and well-known tools have theirs (Buffer, Clip, Slope, Kriging, Viewshed …); 32 new glyphs.
+- A tool shared by several domain plugins (Slope zones is in five) is listed once, with its domains.
 
 ### Fixed — climate data
 - **Climate** (Data › Online data) now picks the detail for the area: CHELSA 2.1 at ~1 km for areas up

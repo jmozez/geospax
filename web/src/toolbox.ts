@@ -85,42 +85,75 @@ const STEP_TITLES: Record<string, string> = {
 
 const toolboxOf = (category: string) => category.split(' › ')[0];
 
-// A tool's icon, like ArcGIS Pro's and QGIS's: what the tool does (its name, then the tools it stands
-// in for), else its toolbox's. First match wins, so the specific words come before the general ones.
+// A tool's icon, like ArcGIS Pro's and QGIS's. Tools with a well-known job (Buffer, Clip, Slope,
+// Kriging …) get that job's icon, matched on whole words of the name; every other tool gets the icon
+// of its toolset (Image Analysis › Filters, Hydrology › Depressions …), then of its toolbox.
 const ICON_RULES: [RegExp, string][] = [
-  [/buffer/, 'gp-buffer'], [/clip|erase|cut |extract by mask|crop/, 'gp-clip'], [/intersect|overlay|identity/, 'intersect'],
-  [/union|combine/, 'union'], [/difference|symmetrical|subtract/, 'subtract'], [/dissolve|aggregate polygons/, 'gp-dissolve'],
-  [/merge|append|mosaic|patch/, 'gp-merge'], [/project|reproject|warp|transform|coordinate system|crs/, 'gp-project'],
-  [/contour|isoline/, 'gp-contour'], [/hillshade|shaded relief|illumination/, 'gp-hillshade'], [/slope/, 'slope'],
-  [/aspect|curvature|terrain|ruggedness|tpi|tri\b|roughness|dem|elevation|viewshed|visibility/, 'mountain'],
-  [/flow|watershed|basin|stream|drainage|fill sinks|hydrolog|catchment|twi|wetness/, 'gp-flow'],
-  [/kernel|density|heat ?map/, 'gp-density'], [/kriging|idw|interpolat|spline|natural neighbou?r|surface from/, 'gp-interpolate'],
-  [/hexagon|grid|fishnet|tessellat|bins/, 'grid'], 
-  [/hot ?spot|getis|moran|lisa|cluster|autocorrelation/, 'hotspot'], [/regression|statistic|summar|histogram|correlat/, 'chart'],
-  [/zonal|tabulate/, 'gp-zonal'], [/reclass|classif|segment|threshold|otsu/, 'gp-classify'],
-  [/calculat|algebra|expression|math|band ?math/, 'gp-calc'], [/ndvi|spectral|index|band|pansharpen|composite|imagery|satellite|sentinel|landsat/, 'satellite'],
-  [/join|relate|attribute/, 'gp-join'], [/field/, 'fields'], [/select|query|sql|filter/, 'select'],
-  [/sample|extract values|values to points/, 'gp-sample'], [/convert|to raster|to polygon|to point|to line|rasteri[sz]e|polygoni[sz]e|vectori[sz]e/, 'gp-convert'],
-  [/voronoi|thiessen|delaunay|triangulat|tin\b/, 'polygon'],
-  [/centroid|point|vertex|vertices/, 'point'], [/line|path|route|network|distance|nearest|near\b|cost/, 'road'],
-  [/area|polygon|shape|geometry|simplif|smooth|generali[sz]/, 'shape'], [/lidar|point cloud|las\b|laz\b|canopy|3d/, 'pointcloud'],
-  [/resample|overview|pyramid|raster|grid/, 'gp-raster'], [/species|occurrence|biodivers|richness|diversity|sdm|habitat/, 'leaf'],
-  [/forest|tree|deforest/, 'leaf'], [/climate|rain|precip|temperature/, 'd-climate'], [/soil/, 'd-soil'],
-  [/export|save|write|pdf|png|svg/, 'export'], [/map|layout|report|atlas|legend|label/, 'layout'],
-  [/download|online|fetch|import|open/, 'download'], [/gps|track|photo|device|sensor|phone/, 'phone'],
-  [/python/, 'python'], [/\br\b|r script/, 'rlogo'], [/style|symbol|colou?r/, 'palette'],
+  [/\bbuffer/, 'gp-buffer'], [/\b(clip|erase|extract by mask|crop)\b/, 'gp-clip'], [/\bintersect/, 'intersect'],
+  [/\bunion\b/, 'union'], [/^(symmetrical difference|difference)( 3d)?$/, 'subtract'], [/\bdissolve/, 'gp-dissolve'],
+  [/^(merge|append|mosaic)\b/, 'gp-merge'], [/\b(reproject|project raster|project vector|^project$|warp)\b/, 'gp-project'],
+  [/\bcontour/, 'gp-contour'], [/\b(hillshade|shaded relief|multidirectional hillshade)\b/, 'gp-hillshade'], [/^slope|\bslope\b(?! vs)/, 'slope'],
+  [/\b(watershed|basin|catchment)/, 'gp-flow'], [/\b(viewshed|line of sight|visibility|skyline|horizon)\b/, 'gp-eye'],
+  [/\b(kernel density|point density|line density|heat ?map)\b/, 'gp-density'], [/\b(kriging|idw|inverse distance|spline|natural neighbou?r|empirical bayesian)\b/, 'gp-interpolate'],
+  [/\b(hot ?spots?|getis|moran|lisa|dbscan|clusters|clustering)\b/, 'hotspot'], [/\bhistogram\b(?! (equali|match))/, 'chart'], [/\bzonal\b/, 'gp-zonal'],
+  [/\b(reclass|reclassify)\b/, 'gp-classify'], [/\b(raster calculator|band math|map algebra)\b/, 'gp-calc'],
+  [/\b(ndvi|ndwi|nbr|evi|savi|spectral index)\b/, 'satellite'], [/\b(join|relate)\b/, 'gp-join'], [/\bcentroid/, 'point'],
+  [/\b(voronoi|thiessen|delaunay)\b/, 'polygon'], [/\b(hexagon|hexbin|h3|fishnet|tessellation)/, 'grid'],
+  [/^filter (vector|raster) features\b|\bselect\b|\bquery\b/, 'select'], [/\b(lidar|las|point cloud)\b/, 'pointcloud'], [/\bfilter\b/, 'gp-filter'], [/\b(classification|k-means)\b/, 'gp-classify'], [/\binterpolation\b/, 'gp-interpolate'], [/\bgridding\b/, 'gp-raster'],
+  [/\b(near|nearest|distance)\b/, 'ruler'], [/\b(shortest path|route|routes|closest facility|service area|od cost)\b/, 'road'],
+  [/^(random )?sample\b|\b(extract values|values (at|to) points|raster\.sample)\b/, 'gp-sample'], [/\b(select|query|sql)\b/, 'select'],
+  [/\b(export|save)\b/, 'export'], [/\b(regression|correlation)\b/, 'gp-metric'], [/\b(species|occurrence|richness|diversity|patch|patches|fragmentation|tree|forest)\b/, 'leaf'], [/\bprofile\b/, 'gp-landform'],
+  [/\bpolygon overlay\b/, 'intersect'], [/\b(protection|priority|protected|representation)\b/, 'pin'], [/\breport\b/, 'layout'], [/\bpoint grid\b/, 'grid'],
+  // the engine's own tools, by their step name
+  [/^ai\./, 'detect'], [/^data\.fetch/, 'download'], [/^devices\.import_photos/, 'camera'], [/^devices\./, 'phone'], [/^embeddings\./, 'embed'],
+  [/^io\.open/, 'folder'], [/^lidar\./, 'pointcloud'], [/^overviews\./, 'gp-raster'], [/^r$/, 'rlogo'], [/^(saga|grass|tool)$/, 'toolbox'], [/^sensor\./, 'speed'],
+  [/\b(change|two-date|two dates)\b/, 'gp-change'], [/\b(suitability)\b/, 'gp-classify'], [/\b(python)\b/, 'python'], [/\br script\b/, 'rlogo'],
 ];
+// ready-made analyses (recipes) by their subject
+const RECIPE_RULES: [RegExp, string][] = [
+  [/slopes?\b/, 'slope'], [/wetness/, 'wetness'], [/landform/, 'gp-landform'], [/lidar|point cloud/, 'pointcloud'], [/photo/, 'camera'],
+  [/gps|track/, 'phone'], [/drone/, 'camera'], [/climate|rain/, 'd-climate'], [/soil/, 'd-soil'], [/air.quality|sensor/, 'speed'],
+  [/hot ?spot|incident/, 'hotspot'], [/hexagon|density/, 'gp-density'], [/flood|water|river|watershed/, 'gp-flow'], [/forest|tree|habitat|species|vegetation/, 'leaf'],
+  [/land ?cover|change/, 'gp-change'], [/elevation|terrain|dem\b/, 'mountain'], [/satellite|ndvi|imagery/, 'satellite'], [/boundar|admin/, 'polygon'],
+];
+const TOOLSET_ICON: Record<string, string> = {
+  'Spatial Statistics': 'hotspot', 'Spatial Statistics › Rasters': 'gp-metric', 'Spatial Statistics › Space-time': 'clock',
+  'Raster Analysis › Math': 'gp-calc', 'Raster Analysis › Map algebra': 'gp-calc', 'Raster Analysis › Multidimensional': 'gp-cube',
+  'Raster Analysis › Distance and cost': 'ruler', 'Raster Analysis › Zonal': 'gp-zonal', 'Raster Analysis › Generate': 'gp-raster',
+  'Raster Analysis › Neighbourhood': 'gp-filter', 'Raster Analysis › Reclassify and mask': 'gp-classify',
+  'Image Analysis › Filters': 'gp-filter', 'Image Analysis › Segmentation (OBIA)': 'gp-segment', 'Image Analysis › Classification': 'gp-classify',
+  'Image Analysis › Radar (SAR)': 'gp-radar', 'Image Analysis › Enhancement': 'tune', 'Image Analysis › Spectral indices': 'satellite',
+  'Image Analysis › Change detection': 'gp-change', 'Image Analysis › Edges and features': 'gp-edge', 'Image Analysis › Correction': 'satellite',
+  'Image Analysis › Thermal': 'gp-thermal',
+  'Terrain › Surface': 'mountain', 'Terrain › Derivatives': 'slope', 'Terrain › Multiscale': 'mountain', 'Terrain › Visibility': 'gp-eye',
+  'Terrain › Landforms': 'gp-landform', 'Terrain › Roughness': 'gp-landform',
+  'Analysis › Geometry': 'shape', 'Analysis › Sampling and grids': 'grid', 'Analysis › Overlay': 'intersect', 'Analysis › Fields and attributes': 'fields',
+  'Cartography › Generalization': 'gp-generalize', 'Network Analysis': 'gp-network', 'Network Analysis › Linear referencing': 'road',
+  'Hydrology › Stream networks': 'gp-stream', 'Hydrology › Flow routing': 'gp-flow', 'Hydrology › Depressions': 'gp-sink',
+  'Hydrology › Indices': 'wetness', 'Hydrology › Watersheds': 'gp-flow',
+  'Conversion › Vector and tables': 'gp-convert', 'Conversion › Raster and vector': 'gp-convert', 'Conversion › Geometry and topology': 'shape',
+  'Conversion › Tiles and web': 'gp-tile',
+  'LiDAR and 3D › 3D features': 'cube', 'LiDAR and 3D › Filter and classify': 'pointcloud', 'LiDAR and 3D › Gridding': 'gp-raster',
+  'LiDAR and 3D › Metrics': 'gp-metric', 'LiDAR and 3D › Manage': 'pointcloud',
+  'Landscape Ecology › Shape metrics': 'gp-metric', 'Landscape Ecology › Patches': 'leaf',
+  'Data Management › Projections': 'gp-project', 'Data Management › Rasters': 'gp-raster', 'Data Management › Online data': 'download',
+  Interpolation: 'gp-interpolate',
+};
 const TOOLBOX_ICON: Record<string, string> = {
   'Ready-made analyses': 'play', Analysis: 'toolbox', 'Raster Analysis': 'gp-raster', 'Spatial Statistics': 'hotspot',
   Terrain: 'mountain', Hydrology: 'gp-flow', 'Image Analysis': 'satellite', 'Remote sensing': 'satellite', 'LiDAR and 3D': 'pointcloud',
   Interpolation: 'gp-interpolate', Cartography: 'palette', 'Maps and reports': 'layout', 'Data Management': 'database',
-  'Field data and devices': 'phone', 'Network Analysis': 'road', 'Landscape Ecology': 'leaf', 'Scripting (R and Python)': 'code', Conversion: 'gp-convert', Plugins: 'puzzle',
+  'Field data and devices': 'phone', 'Network Analysis': 'gp-network', 'Landscape Ecology': 'leaf', 'Scripting (R and Python)': 'code',
+  Conversion: 'gp-convert', Plugins: 'puzzle',
 };
-function toolIcon(t: { name: string; aka: string; category: string; kind: string; tool?: { icon?: string } }): string {
-  const hay = `${t.name} ${t.aka}`.toLowerCase();
-  for (const [re, ic] of ICON_RULES) if (re.test(hay)) return ic;
-  if (t.tool?.icon && ICONS[t.tool.icon]) return t.tool.icon;
-  return TOOLBOX_ICON[toolboxOf(t.category)] ?? (t.kind === 'recipe' ? 'play' : 'toolbox');
+export function toolIcon(t: { name: string; aka: string; category: string; kind: string; tool?: { icon?: string } }): string {
+  const name = t.name.toLowerCase();
+  if (t.kind === 'recipe') for (const [re, ic] of RECIPE_RULES) if (re.test(name)) return ic;
+  for (const [re, ic] of ICON_RULES) if (re.test(name)) return ic;
+  if (TOOLSET_ICON[t.category]) return TOOLSET_ICON[t.category];
+  const aka = t.aka.toLowerCase();
+  for (const [re, ic] of ICON_RULES) if (re.test(aka)) return ic;
+  return TOOLBOX_ICON[toolboxOf(t.category)] ?? (t.kind === 'recipe' ? 'play' : t.tool?.icon && ICONS[t.tool.icon] ? t.tool.icon : 'toolbox');
 }
 const toolsetOf = (category: string) => category.split(' › ')[1] ?? '';
 
@@ -172,13 +205,31 @@ export class Toolbox {
     for (const x of s.steps) {
       tools.push({ key: `s:${x.name}`, kind: 'step', name: STEP_TITLES[x.name] ?? x.name, summary: x.summary, category: FAMILY_TOOLBOX[x.family] ?? 'Data Management', source: '', aka: x.borrowed ?? '', step: x });
     }
+    // the twelve domain plugins share tools (Slope zones is in five of them): each shows once, with the
+    // domains it belongs to; a plugin that names two tools alike gets the second one's id as its name
+    const shared = new Map<string, Tool>();
     for (const pl of p.plugins.filter((x) => !x.library)) {
+      const names = new Set<string>();
       for (const t of pl.tools ?? []) {
+        if (pl.id.startsWith('geospax-')) {
+          const seen = shared.get(t.id);
+          const domain = pl.name.replace(/^GeoSpaX\s*/, '');
+          if (seen) {
+            seen.aka += `, ${domain}`;
+            seen.summary = seen.summary.replace(/^\(in ([^)]*)\) /, (_, d) => `(in ${d}, ${domain}) `);
+            continue;
+          }
+        }
+        const display = names.has(t.name) ? t.id.replace(/[_-]+/g, ' ').replace(/^./, (c) => c.toUpperCase()) : t.name;
+        names.add(t.name);
         // built-in tool sets file their tools by task, like the engine's own; added plugins go under
         // Plugins, one toolset each, with where they come from
         const src = SOURCE_LABEL[pl.source] ?? pl.source;
         const cat = pl.builtin ? t.group || 'Analysis' : `Plugins › ${pl.name}`;
-        tools.push({ key: `p:${pl.id}/${t.id}`, kind: 'plugin', name: t.name, summary: t.summary, category: cat, source: pl.builtin ? '' : src, aka: t.id, plugin: pl, tool: t });
+        const dom = pl.id.startsWith('geospax-');
+        const entry: Tool = { key: `p:${pl.id}/${t.id}`, kind: 'plugin', name: display, summary: dom ? `(in ${pl.name.replace(/^GeoSpaX\s*/, '')}) ${t.summary}` : t.summary, category: dom ? 'Plugins › Domain tools' : cat, source: pl.builtin ? '' : src, aka: t.id, plugin: pl, tool: t };
+        if (dom) shared.set(t.id, entry);
+        tools.push(entry);
       }
     }
     this.tools = tools;
