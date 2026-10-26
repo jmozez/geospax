@@ -422,7 +422,7 @@ async fn serve(args: Args) {
     // Beyond this computer, the API needs a token: it can run recipe code and install plugins
     // (the public guest demo has no sign-in: what could misuse the server is refused instead)
     let token = if args.public { None } else { args.token.clone().or_else(|| (!auth::is_loopback(&args.host)).then(auth::new_token)) };
-    let auth = Arc::new(auth::Auth { token: token.clone() });
+    let auth = Arc::new(auth::Auth { token: token.clone(), public: args.public });
     let mut app = Router::new()
         .route("/api/{*rest}", any(api))
         .route("/tiles/{*rest}", any(api))

@@ -10,6 +10,9 @@
 //!   name a local `Host` (stops DNS rebinding) and, when a browser sends `Origin`, come from the
 //!   same host (stops other web sites posting to localhost).
 //!
+//! - **Public guest demo** (`--public`): no token and any `Host` (the server sits behind its own
+//!   domain), but still same-origin only; what a guest may do is limited in the engine (guest.rs).
+//!
 //! Always open: static files, `GET /api/health`, and `/api/hooks/{token}` (webhooks carry their own
 //! secret token).
 
@@ -27,6 +30,8 @@ pub const COOKIE: &str = "geospax_token";
 pub struct Auth {
     /// `None`: local mode
     pub token: Option<String>,
+    /// public guest demo: any host name, but still no cross-site requests
+    pub public: bool,
 }
 
 /// True for 127.0.0.0/8, ::1 and `localhost`.
@@ -117,7 +122,7 @@ pub fn refuse(
                 .get(header::HOST)
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("");
-            if !is_loopback(host_only(host)) {
+            if !auth.public && !is_loopback(host_only(host)) {
                 return Some("this server only answers requests addressed to localhost");
             }
             if let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) {
@@ -179,6 +184,7 @@ mod tests {
     fn token_mode_refuses_unauthenticated_api_calls() {
         let a = Auth {
             token: Some("s3cret".into()),
+            public: false,
         };
         let none = HeaderMap::new();
         for p in [
@@ -213,6 +219,7 @@ mod tests {
     fn public_paths_stay_open() {
         let a = Auth {
             token: Some("s3cret".into()),
+            public: false,
         };
         let none = HeaderMap::new();
         assert!(refuse(&a, &Method::GET, "/api/health", "", &none).is_none());
@@ -222,7 +229,7 @@ mod tests {
 
     #[test]
     fn local_mode_refuses_rebinding_and_cross_site() {
-        let a = Auth { token: None };
+        let a = Auth { token: None, public: false };
         let ok = h(&[
             (header::HOST, "localhost:8080"),
             (header::ORIGIN, "http://localhost:8080"),
@@ -257,6 +264,22 @@ mod tests {
             (header::ORIGIN, "https://evil.example"),
         ]);
         assert!(refuse(&a, &POST, "/api/recipes", "", &csrf).is_some());
+    }
+
+    #[test]
+    fn public_demo_answers_its_own_domain_only() {
+        let a = Auth { token: None, public: true };
+        let ok = h(&[
+            (header::HOST, "geospax.fly.dev"),
+            (header::ORIGIN, "https://geospax.fly.dev"),
+        ]);
+        assert!(refuse(&a, &Method::GET, "/api/layers", "", &ok).is_none());
+        assert!(refuse(&a, &Method::GET, "/api/layers", "", &h(&[(header::HOST, "geospax.fly.dev")])).is_none());
+        let csrf = h(&[
+            (header::HOST, "geospax.fly.dev"),
+            (header::ORIGIN, "https://evil.example"),
+        ]);
+        assert!(refuse(&a, &POST, "/api/upload", "", &csrf).is_some());
     }
 
     #[test]
