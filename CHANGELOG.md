@@ -7,6 +7,11 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [3.0.3] — 2026-10-26
 
+### Fixed — climate data
+- **Climate** (Data › Online data) now picks the detail for the area: CHELSA 2.1 at ~1 km for areas up
+  to 4° a side, else the finest WorldClim grid giving at least 40 cells across (it used a ~18 km grid,
+  a handful of cells for a valley). CHELSA values are now in °C and mm, not the stored integers.
+
 ### Fixed
 - **Linux desktop: blank window** on systems with many fonts installed (seen on Fedora 43 with about 1,900):
   the interface named fonts that only exist on Windows and macOS, and for each one WebKitGTK searched every

@@ -20,7 +20,7 @@ use crate::catalog::GeomKind;
 use crate::raster;
 use crate::wkb::Geom;
 
-pub const SOURCES: &str = "worldclim, worldclim-monthly, worldclim-future, chelsa, soilgrids, gebco, hansen, worldcover, ecoregions, gbif, obis, inat, gadm";
+pub const SOURCES: &str = "climate (auto), worldclim, worldclim-monthly, worldclim-future, chelsa, soilgrids, gebco, hansen, worldcover, ecoregions, gbif, obis, inat, gadm";
 
 /// GEBCO 2026 Grid, cloud-optimised copy on Source Cooperative (giswqs/gebco-bathymetry), checked
 /// against GEBCO's grid geometry (86,400 × 43,200 at 15″) and known depths and heights.
@@ -394,6 +394,52 @@ pub fn raster_sources(source: &str, p: &Value) -> Result<(Vec<RasterSource>, &'s
     }
 }
 
+/// The scale and offset that turn a source's stored values into real units: the file's own, else
+/// CHELSA 2.1's published ones (temperatures 0.1 K, everything else 0.1 of the unit).
+fn value_scale(ds: &gdal::Dataset, name: &str) -> (f64, f64) {
+    if let Ok(b) = ds.rasterband(1) {
+        let (s, o) = (b.scale().unwrap_or(1.0), b.offset().unwrap_or(0.0));
+        if s != 1.0 || o != 0.0 {
+            return (s, o);
+        }
+    }
+    match name.strip_prefix("chelsa_bio").and_then(|n| n.parse::<u32>().ok()) {
+        Some(1 | 5 | 6 | 8 | 9 | 10 | 11) => (0.1, -273.15),
+        Some(_) => (0.1, 0.0),
+        None => (1.0, 0.0),
+    }
+}
+
+/// `source: climate` / `resolution: auto`: CHELSA at ~1 km for areas up to 4° a side (a coarse
+/// WorldClim grid would give them only a handful of cells), else the finest WorldClim grid that
+/// keeps the download small while giving the area at least 40 cells across.
+pub fn auto_climate(p: &Value, source: &str, b: [f64; 4]) -> (Value, String) {
+    let mut p = p.clone();
+    let side = (b[2] - b[0]).min(b[3] - b[1]).max(1e-6);
+    let res_auto = matches!(p_str(&p, "resolution"), None | Some("auto"));
+    let mut src = source.to_string();
+    let mut note = None;
+    if source == "climate" || (source == "worldclim" && p_str(&p, "resolution") == Some("auto")) {
+        if side <= 4.0 {
+            src = "chelsa".into();
+            note = Some(format!("auto: CHELSA 2.1 at ~1 km ({:.0} cells across the area)", side * 120.0));
+        } else {
+            src = "worldclim".into();
+        }
+    }
+    if src.starts_with("worldclim") && res_auto {
+        let r = [("10m", 6.0), ("5m", 12.0), ("2.5m", 24.0)].into_iter().find(|(_, per)| side * per >= 40.0).map(|x| x.0).unwrap_or("2.5m");
+        if let Some(o) = p.as_object_mut() {
+            o.insert("resolution".into(), json!(r));
+        }
+        note.get_or_insert(format!("auto: WorldClim 2.1 at {r}"));
+    }
+    if let (Some(o), Some(n)) = (p.as_object_mut(), note) {
+        o.insert("auto_note".into(), json!(n));
+    }
+    (p, src)
+}
+
 /// Rewrite band 1 of a raster in place, value by value (nodata stays nodata).
 fn recode(path: &Path, f: impl Fn(f32) -> f32) -> Result<(), String> {
     let ds = gdal::Dataset::open_ex(path, gdal::DatasetOptions { open_flags: gdal::GdalOpenFlags::GDAL_OF_UPDATE | gdal::GdalOpenFlags::GDAL_OF_RASTER, ..Default::default() }).map_err(|e| e.to_string())?;
@@ -610,8 +656,11 @@ impl Drop for Gauge {
 }
 
 fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<StepOut, String> {
-    let (list, citation) = raster_sources(source, p)?;
     let (b, what) = aoi(sc, p)?;
+    // "auto" (the default) picks the dataset and resolution that give the area real detail
+    let (p, source) = &auto_climate(p, source, b);
+    let (p, source) = (p, source.as_str());
+    let (list, citation) = raster_sources(source, p)?;
     if source == "worldcover" && (b[2] - b[0] > HANSEN_MAX_DEG || b[3] - b[1] > HANSEN_MAX_DEG) {
         return Err(format!("WorldCover is read at 10 m for areas up to {HANSEN_MAX_DEG}° a side; this area is {:.1}° × {:.1}°. Zoom in, or choose a smaller layer as the area.", b[2] - b[0], b[3] - b[1]));
     }
@@ -625,6 +674,9 @@ fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<Ste
     let prefix = p_str(p, "name").map(sanitize);
     let mut made = Vec::new();
     let mut why = vec![format!("area {:.3}–{:.3}°E, {:.3}–{:.3}°N ({what})", b[0], b[2], b[1], b[3])];
+    if let Some(n) = p.get("auto_note").and_then(Value::as_str) {
+        why.push(n.to_string());
+    }
     raster::net_reset();
     let mut gauge = Gauge::new(sc, format!("{} for the area", list.first().map(|r| r.title.split(" (").next().unwrap_or("").to_string()).unwrap_or_default()));
     let n_items = list.len().max(1) as f64;
@@ -700,6 +752,11 @@ fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<Ste
             gauge.update(((k as f64 + f) / n_items).max(by_bytes), bytes, zip_total);
             !cancel.load(std::sync::atomic::Ordering::Relaxed)
         })?);
+        // stored integers to real units (CHELSA keeps °C as 0.1 K, mm as 0.1 mm)
+        let (scale, offset) = value_scale(&srcs[0], &r.name);
+        if scale != 1.0 || offset != 0.0 {
+            recode(&tmp, |v| (v as f64 * scale + offset) as f32)?;
+        }
         // loss year: the year itself (2001–2025), no loss left empty, so the legend reads in years
         if r.kind == "lossyear" {
             recode(&tmp, |v| if v >= 1.0 && v <= 99.0 { 2000.0 + v } else { -9999.0 })?;
@@ -918,6 +975,20 @@ mod tests {
     fn worldcover_tiles_by_south_west_corner() {
         assert_eq!(super::worldcover_tiles([146.9, -6.8, 147.1, -6.6]), vec!["S09E144", "S09E147"]);
         assert_eq!(super::worldcover_tiles([2.1, 48.7, 2.5, 49.0]), vec!["N48E000"]);
+    }
+
+    #[test]
+    fn auto_climate_picks_detail() {
+        let small = [146.0, -7.0, 146.6, -6.6];
+        let (p, s) = auto_climate(&json!({}), "climate", small);
+        assert_eq!(s, "chelsa");
+        assert!(p["auto_note"].as_str().unwrap().contains("CHELSA"));
+        let (p, s) = auto_climate(&json!({}), "climate", [100.0, -10.0, 150.0, 10.0]);
+        assert_eq!((s.as_str(), p["resolution"].as_str()), ("worldclim", Some("10m")));
+        let (p, _) = auto_climate(&json!({}), "worldclim", [0.0, 0.0, 5.0, 5.0]);
+        assert_eq!(p["resolution"], "5m");
+        let (p, s) = auto_climate(&json!({ "resolution": "10m" }), "worldclim", small);
+        assert_eq!((s.as_str(), p["resolution"].as_str()), ("worldclim", Some("10m")));
     }
 
     #[test]
