@@ -34,7 +34,14 @@ for i in $(seq 90); do
   [ -n "$SOCK" ] && break
   sleep 2
 done
-[ -n "$SOCK" ] || { echo "no WebView devtools socket"; adb logcat -d | tail -200; exit 1; }
+[ -n "$SOCK" ] || { echo "no WebView devtools socket"; adb logcat -d | grep -vE "AppsFilter|glBindAttrib" | tail -150; exit 1; }
 adb forward tcp:9222 "localabstract:$SOCK"
-node scripts/test-field-emulator.mjs || { adb logcat -d | grep -iE 'geospax|chromium|tauri|location' | tail -200; exit 1; }
+if ! node scripts/test-field-emulator.mjs 2>&1 | tee "$W/test.log"; then FAILED=1; fi
+grep -q 'all checks passed' "$W/test.log" || FAILED=1
+adb exec-out screencap -p > releases/field-emulator-screen.png || true
+if [ -n "${FAILED:-}" ]; then
+  echo "== app log"; adb logcat -d | grep -E 'chromium|Console|RustStdout|geospax' | grep -vE 'AppsFilter|glBindAttrib' | tail -80
+  echo "== test output (again)"; cat "$W/test.log"
+  exit 1
+fi
 adb exec-out screencap -p > releases/field-emulator-screen.png || true

@@ -249,14 +249,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Android SDK and NDK, GDAL for geospax-server, Playwright
+      - name: Android SDK and NDK, GDAL for geospax-server
         run: |
           echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" >> "$GITHUB_ENV"
           echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
           sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libgdal-dev clang libclang-dev
           rustup target add x86_64-linux-android
-          npm install --no-save --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          echo "PW=$RUNNER_TEMP/pw/node_modules/playwright" >> "$GITHUB_ENV"
       - uses: actions/cache@v4
         with:
           path: |

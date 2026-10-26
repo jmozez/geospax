@@ -6,14 +6,12 @@
 // 2. Pairing: the app asks the phone link hello through its HTTP plugin (self-signed certificate).
 // 3. Sending: a point at the averaged position goes to GeoSpaX and lands in its inbox at those coordinates.
 import { execFileSync } from 'node:child_process';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
-const { chromium } = createRequire(import.meta.url)(process.env.PW ?? 'playwright');
-
 const PHONE_URL = process.env.PHONE_URL;
 const INBOX = process.env.INBOX;
 const ok = (c, m) => { if (!c) { console.error(`FAIL ${m}`); process.exit(1); } console.log(`ok   ${m}`); };
+process.on('unhandledRejection', (e) => { console.error(`FAIL ${e?.stack ?? e}`); process.exit(1); });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const metres = (a, b) => {
   const R = 6371008.8, rad = Math.PI / 180;
@@ -22,14 +20,29 @@ const metres = (a, b) => {
 };
 const geoFix = (lon, lat) => execFileSync('adb', ['emu', 'geo', 'fix', String(lon), String(lat), '40']);
 
-const browser = await chromium.connectOverCDP('http://localhost:9222');
-let page;
-for (let i = 0; i < 60 && !page; i++) {
-  page = browser.contexts().flatMap((c) => c.pages()).find((p) => !p.url().startsWith('about:'));
-  if (!page) await sleep(1000);
+// The WebView's own DevTools protocol (no Playwright: emulator WebViews can be years older than it supports)
+let target;
+for (let i = 0; i < 60 && !target; i++) {
+  const list = await fetch('http://localhost:9222/json').then((r) => r.json()).catch(() => []);
+  target = list.find((t) => t.type === 'page' && t.webSocketDebuggerUrl && !t.url.startsWith('about:'));
+  if (!target) await sleep(1000);
 }
-ok(page, `app page found (${page?.url()})`);
-await page.waitForFunction(() => window.__field, null, { timeout: 60_000 });
+ok(target, `app page found (${target?.url})`);
+const ws = new WebSocket(target.webSocketDebuggerUrl);
+await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+let nextId = 1;
+const pending = new Map();
+ws.onmessage = (m) => { const d = JSON.parse(m.data); pending.get(d.id)?.(d); pending.delete(d.id); };
+const cdp = (method, params = {}) => new Promise((res) => { const id = nextId++; pending.set(id, res); ws.send(JSON.stringify({ id, method, params })); });
+/** Run `fn` (a function, given `arg`) in the page and return its JSON result. */
+async function evaluate(fn, arg) {
+  const r = await cdp('Runtime.evaluate', { expression: `(${fn})(${JSON.stringify(arg ?? null)})`, awaitPromise: true, returnByValue: true });
+  if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description ?? r.result.exceptionDetails.text);
+  return r.result?.result?.value;
+}
+const page = { evaluate, textContent: (sel) => evaluate((s) => document.querySelector(s)?.textContent ?? null, sel) };
+for (let i = 0; i < 60 && !(await evaluate(() => !!window.__field)); i++) await sleep(1000);
+ok(await evaluate(() => !!window.__field), 'app started (window.__field)');
 
 // 1. GPS: two places a few km apart (a real move), each held for some seconds as a phone standing still
 for (const [lon, lat] of [[147.1503, -6.7219], [147.1812, -6.7344]]) {
@@ -82,6 +95,7 @@ if (PHONE_URL) {
     ok(metres(pt, [res.v[0], res.v[1]]) < 0.01 && metres(pt, [147.1812, -6.7344]) < 1, `received point at ${pt} (GPS fix 147.1812, -6.7344)`);
   }
 }
-await page.screenshot({ path: process.env.SHOT ?? 'field-emulator.png' }).catch(() => {});
-await browser.close();
+const shot = await cdp('Page.captureScreenshot', { format: 'png' });
+if (shot.result?.data) writeFileSync(process.env.SHOT ?? 'field-emulator.png', Buffer.from(shot.result.data, 'base64'));
+ws.close();
 console.log('field app on the emulator: all checks passed');
