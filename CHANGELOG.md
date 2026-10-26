@@ -47,6 +47,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   that the system (Fedora, Debian) or conda manages is not changed: the dialog shows the command.
 
 ### Added — 3D relief with rayshader
+- **Satellite imagery drape**: Esri World Imagery is warped by GDAL onto the DEM's own grid, so each
+  picture pixel sits on its elevation cell (choose `overlay: colours` for colours by height instead).
+- **Map furniture on the 3D picture**: title bar, north arrow in the scene, block size and vertical
+  exaggeration, an elevation legend (colours mode) and the data sources.
 - **3D relief with rayshader (R)** (Ready-made analyses): the Copernicus 30 m DEM for an area,
   shaded with rayshader (sphere shading, water, ray-traced shadows, ambient occlusion) and rendered
   off-screen as a path-traced 3D block and a flat relief map, both in the report. Needs R with

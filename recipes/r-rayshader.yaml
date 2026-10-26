@@ -6,14 +6,16 @@ recipe: r-rayshader
 version: 1
 title: 3D relief with rayshader (R)
 description: >-
-  An area in: the Copernicus 30 m DEM for it, shaded with rayshader (sphere shading, water, ray-traced
-  shadows, ambient occlusion) and rendered as a 3D relief block and a flat relief map, in the report.
+  An area in: the Copernicus 30 m DEM for it, draped with satellite imagery (or colours by
+  height) and shaded with rayshader (water, ray-traced shadows, ambient occlusion) and rendered as a 3D relief block and a flat relief map, in the report.
   Needs R with rayshader.
 inputs:
   area: { type: layer, default: auto, description: the area (any layer); without one, the map view }
   buffer: { type: number, default: 500, description: margin around the area in metres }
-  exaggeration: { type: number, default: 1.5, description: vertical exaggeration of the 3D block }
-  texture: { type: text, default: imhof1, description: "rayshader texture: imhof1 … imhof4, desert, bw, unicorn" }
+  title: { type: text, default: "3D relief", description: title written on the picture }
+  exaggeration: { type: number, default: 2, description: vertical exaggeration of the 3D block }
+  overlay: { type: text, default: imagery, description: "draped over the relief: imagery (Esri World Imagery, warped onto the DEM's own grid so each picture pixel sits on its elevation cell) or colours" }
+  texture: { type: text, default: elevation, description: "colours: elevation (green valleys, brown slopes, white peaks), or a rayshader texture: imhof1 … imhof4, desert, bw, unicorn" }
 steps:
   - id: dem
     use: dem.fetch
@@ -22,8 +24,8 @@ steps:
     use: r
     with:
       inputs: { dem: "${dem.raster}" }
-      params: { exaggeration: "${inputs.exaggeration}", texture: "${inputs.texture}" }
-      packages: [rayshader, rayrender, terra]
+      params: { title: "${inputs.title}", exaggeration: "${inputs.exaggeration}", texture: "${inputs.texture}", overlay: "${inputs.overlay}" }
+      packages: [rayshader, rayrender, terra, png]
       code: |
         library(rayshader)
 
@@ -31,6 +33,7 @@ steps:
 
         exaggeration <- as.numeric(params$exaggeration)
         texture <- params$texture
+        overlay <- params$overlay
 
         # rayshader works on a matrix of heights; large DEMs are thinned to about a million cells
         cell_m <- mean(terra::res(dem))            # dem.fetch gives metres (local UTM zone)
@@ -39,31 +42,106 @@ steps:
         if (scale < 1) elevation <- resize_matrix(elevation, scale = scale)
         z_scale <- cell_m / scale / exaggeration
 
-        relief <- elevation |>
-          sphere_shade(texture = texture) |>
-          add_water(detect_water(elevation), color = texture) |>
-          add_shadow(ray_shade(elevation, zscale = z_scale, multicore = TRUE), 0.5) |>
+        # colours: by elevation (a hypsometric tint, with rayshader's Lambertian hillshade over it),
+        # or one of rayshader's own textures
+        tint <- grDevices::colorRampPalette(c("#3d7a3d", "#8db35a", "#d9c99a", "#a8835f", "#e8e4dc", "#ffffff"))(256)
+        if (texture == "elevation") {
+          tint <- grDevices::colorRampPalette(c("#3d7a3d", "#8db35a", "#d9c99a", "#a8835f", "#e8e4dc", "#ffffff"))(256)
+          base <- elevation |>
+            height_shade(texture = tint) |>
+            add_shadow(lamb_shade(elevation, zscale = z_scale, sunangle = 315, sunaltitude = 45), 0.3)
+          water_colour <- "imhof1"
+        } else {
+          base <- sphere_shade(elevation, texture = texture, zscale = z_scale)
+          water_colour <- texture
+        }
+
+        # satellite imagery instead: Esri World Imagery tiles warped by GDAL onto exactly the grid of the
+        # height matrix (same extent, rows and columns), so every picture pixel sits on its own cell.
+        # rayshader images are columns x rows of the matrix, which is how terra lays out a raster.
+        if (overlay == "imagery") {
+          tiles <- tempfile(fileext = ".xml")
+          # GDAL's tile placeholders ($ then {z} …), written in two parts so the recipe does not read them
+          tile_url <- paste0("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/",
+                             "$", "{z}/", "$", "{y}/", "$", "{x}")
+          writeLines(paste0(
+            '<GDAL_WMS><Service name="TMS"><ServerUrl>', tile_url, '</ServerUrl></Service>',
+            '<DataWindow><UpperLeftX>-20037508.34</UpperLeftX><UpperLeftY>20037508.34</UpperLeftY><LowerRightX>20037508.34</LowerRightX><LowerRightY>-20037508.34</LowerRightY>',
+            '<TileLevel>17</TileLevel><TileCountX>1</TileCountX><TileCountY>1</TileCountY><YOrigin>top</YOrigin></DataWindow>',
+            '<Projection>EPSG:3857</Projection><BlockSizeX>256</BlockSizeX><BlockSizeY>256</BlockSizeY><BandsCount>3</BandsCount>',
+            '<ZeroBlockHttpCodes>204,404</ZeroBlockHttpCodes></GDAL_WMS>'
+          ), tiles)
+          grid <- terra::rast(terra::ext(dem), nrows = ncol(elevation), ncols = nrow(elevation), crs = terra::crs(dem))
+          picture <- terra::rast(tiles) |>
+            terra::project(grid, method = "bilinear", by_util = TRUE) |>
+            terra::as.array()
+          picture[is.na(picture)] <- 0
+          base <- picture / 255
+          message("draped: Esri World Imagery (Esri, Maxar, Earthstar Geographics and the GIS user community)")
+        }
+
+        relief <- base |>
+          add_water(detect_water(elevation), color = water_colour) |>
+          add_shadow(ray_shade(elevation, zscale = z_scale, multicore = TRUE), if (overlay == "imagery") 0.3 else 0.5) |>
           add_shadow(ambient_shade(elevation, zscale = z_scale, multicore = TRUE), 0)
 
         # the flat shaded relief, at print size
         save_figure("shaded_relief", function() plot_map(relief), width = 180, height = 180, formats = "png")
 
-        # the 3D block, path-traced (rayrender), lit from the north-west as maps are
+        # the 3D block, path-traced (rayrender), lit from the north-west as maps are, with a scale bar
+        # north arrow in the scene, the title, size and sources on the picture
         relief |>
           plot_3d(elevation, zscale = z_scale, solid = TRUE, shadow = TRUE, water = TRUE,
-                  theta = 135, phi = 35, zoom = 0.7, fov = 0, windowsize = c(1600, 1200))
+                  theta = 135, phi = 35, zoom = 0.75, fov = 0, windowsize = c(1600, 1200))
+        side_km <- nrow(elevation) * cell_m / scale / 1000
+        render_compass(position = "N", compass_radius = nrow(elevation) / 12)
+        picture_3d <- figure_path("relief_3d")
         render_highquality(
-          filename = figure_path("relief_3d"),
+          filename = picture_3d,
           samples = 128, width = 1600, height = 1200,
           light = TRUE, lightdirection = 315, lightaltitude = 35,
+          title_text = params$title, title_size = 34, title_color = "white",
+          title_bar_color = "#1c1c1c", title_bar_alpha = 0.7,
           interactive = FALSE
         )
         rgl::close3d()
+
+        # the legend (colours by height) and the sources, drawn onto the picture
+        credit <- paste0(
+          "Elevation: Copernicus GLO-30 DEM (ESA, Airbus)",
+          if (overlay == "imagery") " | Imagery: Esri, Maxar, Earthstar Geographics" else "",
+          " | Made with GeoSpaX and rayshader"
+        )
+        heights <- range(elevation, na.rm = TRUE)
+        finish_picture <- function(path) {
+          img <- png::readPNG(path)
+          w <- dim(img)[2]
+          h <- dim(img)[1]
+          grDevices::png(path, width = w, height = h)
+          graphics::par(mar = c(0, 0, 0, 0))
+          graphics::plot.new()
+          graphics::plot.window(c(0, w), c(0, h), xaxs = "i", yaxs = "i")
+          graphics::rasterImage(img, 0, 0, w, h)
+          if (overlay != "imagery" && texture == "elevation") {
+            x <- seq(w - 380, w - 60, length.out = 257)
+            graphics::rect(x[-257], 70, x[-1], 92, col = tint, border = NA)
+            graphics::rect(w - 380, 70, w - 60, 92, border = "grey30")
+            graphics::text(c(w - 380, w - 60), 58, paste(round(heights), "m"), cex = 1.3, col = "grey20")
+            graphics::text(w - 220, 108, "Elevation", cex = 1.4, font = 2, col = "grey15")
+          }
+          graphics::text(16, 48, sprintf("Block %.1f km across  |  vertical exaggeration x%g  |  red N on the block points north", side_km, exaggeration),
+                         adj = c(0, 0), cex = 1.2, col = "grey20")
+          graphics::text(16, 18, credit, adj = c(0, 0), cex = 1.05, col = "grey30")
+          grDevices::dev.off()
+        }
+        finish_picture(picture_3d)
 
         result(
           cells = length(elevation),
           resolution_m = round(cell_m / scale),
           exaggeration = exaggeration,
+          overlay = if (overlay == "imagery") "Esri World Imagery" else texture,
+          side_km = round(side_km, 1),
           min_m = round(min(elevation, na.rm = TRUE)),
           max_m = round(max(elevation, na.rm = TRUE))
         )

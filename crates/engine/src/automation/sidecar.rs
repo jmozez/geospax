@@ -333,6 +333,8 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
     c.arg(&script).current_dir(dir).stdin(Stdio::null()).stdout(out).stderr(err).env_clear();
     for k in ["PATH", "HOME", "USER", "LANG", "LC_ALL", "TZ", "TMPDIR", "PYTHONPATH", "VIRTUAL_ENV", "CONDA_PREFIX", "R_HOME", "R_LIBS", "R_LIBS_USER", "R_LIBS_SITE", "PROJ_DATA", "PROJ_LIB", "GDAL_DATA", "SYSTEMROOT",
         // Windows: Python and R need these to find temp dirs, user libraries and system DLLs
+        // a proxy and its certificates, so R and Python reach the internet where the app does (GDAL, curl)
+        "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy", "CURL_CA_BUNDLE", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE",
         "SYSTEMDRIVE", "WINDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PATHEXT", "COMSPEC", "R_USER", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE"] {
         if let Ok(v) = std::env::var(k) {
             c.env(k, v);
