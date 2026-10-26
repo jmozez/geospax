@@ -396,3 +396,25 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  fly:
+    name: deploy the web app (geospax.fly.dev)
+    # each release: the new image goes live on Fly. Needs the FLY_API_TOKEN secret
+    # (fly tokens create deploy -a geospax); without it this job says so and does nothing.
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
+    needs: [docker, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+      - name: Deploy the release image
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::warning::FLY_API_TOKEN is not set: the web app was not updated (fly deploy -a geospax by hand)"
+            exit 0
+          fi
+          flyctl deploy -a geospax --config fly.toml --ha=false --image "ghcr.io/jmozez/geospax:${TAG#v}"
+          curl -sf https://geospax.fly.dev/api/health
