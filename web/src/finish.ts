@@ -199,6 +199,17 @@ export class FinishMap {
     });
   }
 
+  /** Share › Export map › PDF / SVG / PNG / Word: Finish my map with just that output ticked. */
+  openFor(fmt: 'png' | 'pdf' | 'svg' | 'report') {
+    this.open();
+    const form = this.el.querySelector<HTMLFormElement>('form');
+    if (!form) return;
+    for (const k of ['png', 'pdf', 'svg', 'report']) {
+      const box = form.querySelector<HTMLInputElement>(`input[name="${k}"]`);
+      if (box) box.checked = k === fmt || (fmt === 'report' && k === 'png');
+    }
+  }
+
   open() {
     if (!this.host.visible().length) return this.host.setStatus('Switch on at least one layer first: the finished map shows what is on the map', 5000);
     const lazy = this.host.mode() === 'lazy';

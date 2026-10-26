@@ -1,0 +1,19 @@
+# Find overlaps, gaps and invalid shapes in a polygon layer that should tile an area.
+recipe: check-topology
+version: 1
+title: Check topology (overlaps, gaps, invalid shapes)
+description: >-
+  Checks a polygon layer that should tile an area (parcels, land cover, districts) for features that
+  overlap, gaps between them and invalid shapes. Each problem becomes a feature of a new layer, with
+  the features it involves and its area, ready to fix with the Edit tools.
+inputs:
+  layer: { type: layer, default: auto, description: polygon layer to check }
+  max_gap: { type: number, default: 100000, description: "largest gap to report, m² (bigger holes are taken as intended)" }
+steps:
+  - id: polys
+    use: io.open
+    with: { layer: "${inputs.layer}", kind: polygon }
+  - id: topology
+    use: vector.topology
+    with: { layer: "${polys.layer}", max_gap: "${inputs.max_gap}" }
+outputs: [topology]

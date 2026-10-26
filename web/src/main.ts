@@ -13,6 +13,9 @@ import { createBackend, clientTileTimings, type EngineStats, type Job, type Laye
 import { runBenchmark, type BenchReport } from './bench';
 import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
+import { MapExtras } from './mapextras';
+import { ShareExtras } from './shareextras';
+import { Tutorials } from './tutorials';
 import { Editor } from './editing';
 import { Measure } from './measure';
 import { onContextMenu, showMenu, type MenuItem } from './contextmenu';
@@ -2171,6 +2174,78 @@ async function main() {
   document.addEventListener('geospax:connect-folder', () => void workbench?.connectFolder());
   document.addEventListener('geospax:delete-runs', (e) => void workbench?.deleteRuns((e as CustomEvent<string[]>).detail));
   document.addEventListener('geospax:toolbox-search', (e) => toolbox.find((e as CustomEvent<string>).detail));
+  // map tools of the Home and View tabs (mapextras.ts): coordinates, swipe, spyglass, time, grid, scale
+  const extras = new MapExtras({
+    map,
+    backend,
+    layers: () => layers,
+    activeId: () => panel.current,
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+    changed: async (id) => {
+      tileRev[id] = (tileRev[id] ?? 0) + 1;
+      await reloadLayers();
+    },
+  });
+  document.addEventListener('geospax:x', (e) => {
+    const a = (e as CustomEvent<string>).detail;
+    switch (a) {
+      case 'coords': return void extras.coordinates();
+      case 'crs': return void extras.coordinateSystem();
+      case 'swipe': case 'spyglass': return extras.toggleCompare(a);
+      case 'time': return void extras.timeSlider();
+      case 'grid': return extras.toggleGrid();
+      case 'scale': return void extras.goToScale();
+      case 'lockscale': return extras.toggleScaleLock();
+      case 'labels': return toggleLabels();
+    }
+    if (a.startsWith('download:')) return void share.download(a.slice(9));
+    switch (a) {
+      case 'publish': return void share.publishWebMap();
+      case 'package': return void share.packageProject();
+      case 'print': return share.print();
+      case 'survey': return void share.surveyPoints();
+      case 'areas': return void share.areaTable();
+      case 'hatch': return void share.hatch();
+    }
+    document.dispatchEvent(new CustomEvent('geospax:x2', { detail: a }));
+  });
+  const tutorials = new Tutorials();
+  document.addEventListener('geospax:tutorials', () => tutorials.chooser());
+  const share = new ShareExtras({
+    backend,
+    layers: () => layers,
+    activeId: () => panel.current,
+    project: () => project,
+    visible: () => project.order.filter((id) => layerById(id) && shownOnMap(id)),
+    view: () => ({ center: map.getCenter().toArray() as [number, number], zoom: map.getZoom() }),
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+    applyStyle: () => applyStyle(),
+    saveProject: () => saveProject(),
+    reload: () => reloadLayers(),
+    openUrl: (p) => window.open(p, '_blank'),
+  });
+  /** Home › Labels: the selected layer's labels on or off (first text field when it has none yet). */
+  function toggleLabels() {
+    const id = panel.current;
+    const st = id ? project.layers[id] : undefined;
+    const l = id ? layerById(id) : undefined;
+    if (!id || !st || !l) return workbench?.setStatus('Pick a layer in Contents first.');
+    if (st.labels?.on) st.labels.on = false;
+    else {
+      const field = st.labels?.field || l.fields.find((f) => f.kind === 'string')?.name || l.fields[0]?.name;
+      if (!field) return workbench?.setStatus(`${l.name} has no fields to label with.`);
+      st.labels = { ...(st.labels ?? defaultLabels(field)), field, on: true };
+    }
+    applyStyle();
+    saveProject();
+    workbench?.setStatus(`Labels ${st.labels?.on ? `on (${st.labels.field})` : 'off'} · ${l.name}`);
+  }
+  // a ribbon button that opens one tool (commands.ts toolCmd)
+  document.addEventListener('geospax:open-tool', (e) => {
+    const { keys, search } = (e as CustomEvent<{ keys: string[]; search: string }>).detail;
+    workbench?.showTab('right', 'toolbox');
+    void toolbox.openTool(keys).then((ok) => { if (!ok) toolbox.find(search); });
+  });
   document.addEventListener('geospax:plugin-ran', async (e) => {
     const ids = (e as CustomEvent<string[]>).detail;
     await reloadLayers();
@@ -2257,16 +2332,39 @@ async function main() {
     },
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
     log: (line, level) => workbench?.log(line, level),
+    rules: (id) => project.attrRules?.[id] ?? {},
+    setRules: (id, r) => {
+      project.attrRules = { ...(project.attrRules ?? {}), [id]: r };
+      saveProject();
+    },
   });
   attributesPane?.attachEditor(editor);
+  // Ctrl+C / Ctrl+V on the map copy and paste the selected features (Edit › Clipboard)
+  document.addEventListener('keydown', (e) => {
+    const t = e.target as HTMLElement;
+    if (t.closest('input, textarea, select, [contenteditable]') || !(e.ctrlKey || e.metaKey) || window.getSelection()?.toString()) return;
+    const k = e.key.toLowerCase();
+    if (k === 'c' && panel.current && editor!.selected(panel.current).length) { e.preventDefault(); void editor!.copySelected(); }
+    else if (k === 'v') { e.preventDefault(); void editor!.paste(); }
+  });
   (window as unknown as { editor: Editor }).editor = editor;
   document.addEventListener('geospax:edit', (e) => {
     const ed = editor!;
     const a = (e as CustomEvent<string>).detail;
     const id = panel.current;
     switch (a) {
-      case 'point': case 'line': case 'polygon': case 'select': case 'box': case 'vertices':
+      case 'point': case 'line': case 'polygon': case 'select': case 'box': case 'vertices': case 'lasso':
         return void ed.setTool(ed.tool === a ? 'idle' : a);
+      case 'split': case 'merge': case 'cut': case 'reshape': return void ed.geometryEdit(a);
+      case 'copy': return void ed.copySelected();
+      case 'paste': return void ed.paste();
+      case 'copy-along': return void ed.copyAlongLine();
+      case 'gps-point': return void ed.pointFromGps();
+      case 'rules': return void ed.attributeRules();
+      case 'trace':
+        ed.tracing = !ed.tracing;
+        document.body.dataset.tracing = ed.tracing ? 'on' : 'off';
+        return workbench?.setStatus(ed.tracing ? 'Trace on: snap two vertices of the same feature and the new edge follows it' : 'Trace off');
       case 'attributes': return void ed.editAttributes();
       case 'delete': return void ed.deleteSelected();
       case 'select-attributes': return void ed.selectByAttributes();
@@ -2737,7 +2835,11 @@ async function main() {
   });
   document.addEventListener('geospax:start', () => void start.show());
   document.addEventListener('geospax:browse', () => start.browse());
-  document.addEventListener('geospax:finish', () => finish.open());
+  document.addEventListener('geospax:finish', (e) => {
+    const fmt = (e as CustomEvent<string | null>).detail;
+    if (fmt === 'png' || fmt === 'pdf' || fmt === 'svg' || fmt === 'report') finish.openFor(fmt);
+    else finish.open();
+  });
   document.addEventListener('geospax:layout', () => void finish.openLayout());
   finishMap = finish;
   document.querySelector('#theme-switch')?.addEventListener('click', () => setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light'));

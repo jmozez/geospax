@@ -7,6 +7,7 @@ import type { Backend, LayerInfo } from './backend';
 import { DocsViewer } from './docs';
 import type { RecipeInfo } from './automate';
 import type { PluginsPane } from './plugins';
+import { formatCoords } from './mapextras';
 import { groupItemsHtml, COMMANDS, TABS, commandHtml, groupsFor, icon, pluginIcon, recipeIcon, type Command, type CommandHost, type TabId } from './commands';
 import type { PluginInfo, PluginsState } from './plugins';
 import { ONLINE_SOURCES } from './online';
@@ -767,8 +768,9 @@ export class Workbench {
           const ico = b.dataset.icon ? icon(b.dataset.icon, 14) : '';
           return `<button data-tab="${b.dataset.tab}" title="${label}"${b.dataset.icon ? ` data-icon="${b.dataset.icon}"` : ''}>${ico}<span>${label}</span></button>`;
         })
-        .join('');
+        .join('') + `<button class="dock-fold" data-fold="${dock}" aria-label="Collapse the ${dock} panel"></button>`;
       bar.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('[data-fold]')) return this.toggleDock(dock);
         const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
         if (b) this.showTab(dock, b.dataset.tab!);
       });
@@ -834,6 +836,17 @@ export class Workbench {
         s.classList.toggle('on', s.dataset.tab === this.layout.tabs[dock]);
       });
       const bar = d.querySelector<HTMLElement>('.dock-tabs');
+      // the collapse / expand chevron points the way the panel will move
+      const fold = bar?.querySelector<HTMLElement>('[data-fold]');
+      if (fold) {
+        const shut = c.includes(dock);
+        const name = dock === 'right' ? 'details' : dock;
+        const dir = { left: shut ? 'right' : 'left', right: shut ? 'left' : 'right', bottom: shut ? 'up' : 'down' }[dock];
+        fold.innerHTML = icon(`chevron${dir[0].toUpperCase()}${dir.slice(1)}`, 14);
+        fold.title = `${shut ? 'Expand' : 'Collapse'} the ${name} panel (double-click the tabs does the same)`;
+        fold.setAttribute('aria-label', fold.title);
+        fold.setAttribute('aria-expanded', String(!shut));
+      }
       bar?.querySelectorAll<HTMLElement>('button[data-tab]').forEach((b) => {
         b.classList.toggle('on', b.dataset.tab === this.layout.tabs[dock]);
       });
@@ -1834,7 +1847,7 @@ export class Workbench {
       if (scale) scale.textContent = `1:${nice(ratio)} · z${z.toFixed(1)}`;
     };
     map.on('mousemove', (e) => {
-      if (coords) coords.textContent = `${e.lngLat.lat.toFixed(5)}, ${e.lngLat.lng.toFixed(5)}`;
+      if (coords) coords.textContent = formatCoords(e.lngLat.lng, e.lngLat.lat);
     });
     map.on('move', updScale);
     map.on('zoom', updScale);

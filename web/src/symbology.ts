@@ -72,6 +72,8 @@ export interface Project {
   cadLocked?: string[];
   /** Design › Insert: where each block was placed, so DXF export writes block references */
   cadInserts?: CadInsert[];
+  /** Edit › Attribute rules: layer id -> field -> allowed values, default, required */
+  attrRules?: Record<string, Record<string, { values?: string[]; default?: string; required?: boolean }>>;
 }
 
 /** a placed block: the feature it made, its insertion point and turn, and that feature's geometry then */

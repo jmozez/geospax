@@ -426,6 +426,21 @@ export class Toolbox {
     this.render();
   }
 
+  /** Open one tool by its key from a ribbon button: a plugin tool's form opens at once. Keys are
+   *  r:<recipe>, s:<step> or p:<plugin>/<tool>; a list tries each in turn (the first one installed). */
+  async openTool(keys: string | string[]) {
+    if (!this.tools.length) await this.reload();
+    const t = (Array.isArray(keys) ? keys : [keys]).map((k) => this.tools.find((x) => x.key === k)).find(Boolean);
+    if (!t) return false;
+    this.current = t;
+    this.render();
+    if (t.kind === 'plugin' && t.plugin?.runnable && t.tool) {
+      this.remember(t);
+      this.host.openPluginTool(t.plugin, t.tool);
+    }
+    return true;
+  }
+
   /** Open one tool by its key (palette, ribbon). */
   show(key: string) {
     const t = this.tools.find((x) => x.key === key);
