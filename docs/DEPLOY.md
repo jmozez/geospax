@@ -18,9 +18,17 @@ The download buttons read the newest GitHub release by themselves. Once the web 
 
 ## Web edition on Fly.io
 
-The web edition is **one workspace**: everyone signed in with the access token sees and changes the same
-layers and projects, and the token gives full control. Host it as your own GeoSpaX in the browser, not as an
-open site for anonymous visitors.
+`fly.toml` runs the web edition as a **public guest demo** (`GEOSPAX_PUBLIC=1`, or `--public`):
+
+- no sign-in: anyone with the address can use it;
+- each visitor gets a workspace of their own (kept in their browser's id, `?ws=`), so nobody sees anyone
+  else's map, and starts clean: dark, Lazy mode, on the globe;
+- what could misuse the server is refused: R and Python code, installing plugins or packages, folders of
+  the server, devices, saved recipes, server settings and the AI assistant;
+- uploads, downloads, run results and guest projects not touched for 7 days are deleted (checked hourly).
+
+One machine runs (the data volume pins it) and it stops when idle, so you pay mostly while it is used.
+Also set a monthly spending limit in the Fly billing settings.
 
 Install `flyctl` (<https://fly.io/docs/flyctl/install/>), sign in with `fly auth login`, then from the
 repository folder:
@@ -28,11 +36,12 @@ repository folder:
 ```sh
 fly launch --copy-config --no-deploy          # creates the app from fly.toml; choose a unique name if asked
 fly volumes create geospax_data --size 10 --region syd
-fly secrets set GEOSPAX_TOKEN=$(openssl rand -hex 24)
 fly deploy
 ```
 
-Open `https://<app>.fly.dev/?token=<your token>` once; the browser remembers it. Keep the token private.
+**A private workspace instead** (one workspace for you, everything allowed): remove the `[env]`
+`GEOSPAX_PUBLIC` line from `fly.toml`, run `fly secrets set GEOSPAX_TOKEN=$(openssl rand -hex 24)` and
+`fly deploy`, then open `https://<app>.fly.dev/?token=<your token>` once. Keep the token private.
 
 **Your own subdomain:** `fly certs add app.geospax.in4metrix.dev`, then add the CNAME record it shows
 (to `<app>.fly.dev`) at your DNS provider.

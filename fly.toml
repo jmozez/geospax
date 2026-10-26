@@ -1,4 +1,7 @@
-# GeoSpaX web edition on Fly.io (docs/DEPLOY.md): one private workspace, signed in with an access token.
+# GeoSpaX web edition on Fly.io (docs/DEPLOY.md): the public guest demo behind "Try it in the browser".
+# No sign-in; each visitor has a workspace of their own; R/Python code, installs, folders and devices are
+# refused; guest files are deleted after 7 days. One machine only (the volume pins it): set a spending
+# limit in the Fly billing settings too. For a private workspace instead, remove GEOSPAX_PUBLIC and set a token.
 #   fly launch --copy-config --no-deploy        # once: creates the app (pick a unique name)
 #   fly volumes create geospax_data --size 10   # once: maps, layers, runs and settings live here
 #   fly secrets set GEOSPAX_TOKEN=$(openssl rand -hex 24)
@@ -8,6 +11,9 @@ primary_region = "syd"   # Sydney: the closest Fly region to Papua New Guinea
 
 [build]
   image = "ghcr.io/jmozez/geospax:latest"
+
+[env]
+  GEOSPAX_PUBLIC = "1"
 
 [experimental]
   # the image's own start command, with data and state on the volume

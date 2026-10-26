@@ -5,6 +5,12 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added — public guest demo of the web edition
+- `geospax-server --public` (or `GEOSPAX_PUBLIC=1`, now set in `fly.toml`): no sign-in; every visitor has a
+  workspace of their own and starts clean (dark, Lazy, globe); R/Python code, plugin and package installs,
+  server folders, devices, saved recipes, settings and the AI assistant are refused; guest files are
+  deleted after 7 days. The header says "Guest demo" with a link to the full app.
+
 ## [3.0.3] — 2026-10-26
 
 ### Changed — fewer builds

@@ -1492,3 +1492,7 @@ body.layout-page { margin: 0; height: 100vh; display: flex; flex-direction: colu
 .gg-form input[type=number] { width: 80px; }
 .gg-form .gg-px { grid-column: 1 / -1; margin: 0; }
 .gg-form button { justify-self: start; }
+
+/* public guest demo: a link to the full app next to the edition badge */
+.guest-cta { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--accent, #ff7a45); text-decoration: none; white-space: nowrap; }
+.guest-cta:hover { text-decoration: underline; }

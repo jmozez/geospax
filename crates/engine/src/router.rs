@@ -111,6 +111,12 @@ impl Engine {
         let segs: Vec<String> = req.path.trim_matches('/').split('/').filter(|s| !s.is_empty()).map(pct_decode).collect();
         let segs: Vec<&str> = segs.iter().map(String::as_str).collect();
         let q = req.query.as_str();
+        let guest = self.guest.load(std::sync::atomic::Ordering::Relaxed);
+        if guest {
+            if let Some(why) = crate::guest::refused(&req.method, &segs) {
+                return ApiResponse::error(403, format!("not in the guest demo ({why}): download GeoSpaX for the full app"));
+            }
+        }
         match (req.method.as_str(), segs.as_slice()) {
             ("GET", ["api", "docs"]) => ApiResponse::json(
                 200,
@@ -213,7 +219,7 @@ impl Engine {
             // Overture Maps: its themes, and one theme downloaded for an area (a job with the gauge)
             ("GET", ["api", "overture"]) => ApiResponse::json(200, &json!({ "themes": crate::geoparquet::OVERTURE.iter().map(|t| json!({ "id": t.0, "title": t.1 })).collect::<Vec<_>>() })),
             ("POST", ["api", "overture"]) => {
-                if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
+                if self.shared.load(std::sync::atomic::Ordering::Relaxed) && !guest {
                     return ApiResponse::error(403, "this GeoSpaX was started with --restricted: it does not download");
                 }
                 let b: Vec<f64> = param(q, "bbox").unwrap_or_default().split(',').filter_map(|x| x.trim().parse().ok()).collect();
@@ -334,7 +340,11 @@ impl Engine {
             },
             ("GET", ["api", "health"]) => ApiResponse::json(200, &json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") })),
             // Settings › About this installation: where the data and the results live
-            ("GET", ["api", "about"]) => ApiResponse::json(200, &json!({ "version": env!("CARGO_PKG_VERSION"), "data": self.data_dirs, "state": self.state_dir })),
+            ("GET", ["api", "about"]) => ApiResponse::json(200, &if guest {
+                json!({ "version": env!("CARGO_PKG_VERSION"), "guest": true, "keep_days": crate::guest::KEEP.as_secs() / 86400 })
+            } else {
+                json!({ "version": env!("CARGO_PKG_VERSION"), "data": self.data_dirs, "state": self.state_dir })
+            }),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();
                 ApiResponse::json(200, &json!({ "layers": layers, "warnings": self.warnings, "reader": self.read_mode.as_str() }))
@@ -829,8 +839,14 @@ impl Engine {
                 Ok((bytes, ct)) => ApiResponse { status: 200, content_type: ct, headers: vec![("Cache-Control", "no-store".to_string())], body: bytes },
                 Err(e) => ApiResponse::error(404, e),
             },
-            ("GET", ["api", "project"]) => self.project_get(),
-            ("PUT", ["api", "project"]) => self.project_put(&req.body),
+            ("GET", ["api", "project"]) => match self.project_file(guest, q) {
+                Ok(p) => self.project_get(&p),
+                Err(e) => e,
+            },
+            ("PUT", ["api", "project"]) => match self.project_file(guest, q) {
+                Ok(p) => self.project_put(&p, &req.body),
+                Err(e) => e,
+            },
             ("OPTIONS", _) => ApiResponse { status: 204, content_type: "text/plain", headers: vec![], body: vec![] },
             _ => ApiResponse::error(404, format!("no route for {} {}", req.method, req.path)),
         }
@@ -1047,9 +1063,19 @@ impl Engine {
         self.state_dir.join("project.json")
     }
 
-    fn project_get(&self) -> ApiResponse {
+    /// The project file: the one of this installation, or in the guest demo the visitor's own (`?ws=`).
+    fn project_file(&self, guest: bool, q: &str) -> Result<std::path::PathBuf, ApiResponse> {
+        if !guest {
+            return Ok(self.project_path());
+        }
+        crate::guest::workspace(param(q, "ws").as_deref())
+            .map(|ws| crate::guest::project_path(&self.state_dir, &ws))
+            .ok_or_else(|| ApiResponse::error(400, "guest demo: ws=<workspace id> is needed"))
+    }
+
+    fn project_get(&self, path: &std::path::Path) -> ApiResponse {
         let _g = self.project_lock.lock().unwrap();
-        match std::fs::read(self.project_path()) {
+        match std::fs::read(path) {
             Ok(b) => match serde_json::from_slice::<serde_json::Value>(&b) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(500, format!("corrupt project file: {e}")),
@@ -1058,7 +1084,7 @@ impl Engine {
         }
     }
 
-    fn project_put(&self, body: &[u8]) -> ApiResponse {
+    fn project_put(&self, path: &std::path::Path, body: &[u8]) -> ApiResponse {
         if body.len() > 4 << 20 {
             return ApiResponse::error(413, "project too large (4 MB max)");
         }
@@ -1066,9 +1092,8 @@ impl Engine {
             return ApiResponse::error(400, "invalid JSON");
         };
         let _g = self.project_lock.lock().unwrap();
-        let path = self.project_path();
         let tmp = path.with_extension("json.part");
-        let res = std::fs::create_dir_all(&self.state_dir)
+        let res = std::fs::create_dir_all(path.parent().unwrap_or(&self.state_dir))
             .and_then(|_| std::fs::write(&tmp, serde_json::to_vec_pretty(&v).unwrap_or_default()))
             .and_then(|_| std::fs::rename(&tmp, &path));
         match res {

@@ -313,9 +313,16 @@ if (inherits(.out, c("sf", "SpatRaster", "ggplot", "tmap"))) save_layer("result"
     )
 }
 
+/// Set in the public guest demo (`--public`): R and Python steps are refused there, since they run
+/// arbitrary code on the server.
+pub static GUEST: AtomicBool = AtomicBool::new(false);
+
 /// Run one code step in `dir` (created). Fails on a non-zero exit, timeout or cancel.
 #[allow(clippy::too_many_arguments)]
 pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value, packages: &[String], dir: &Path, timeout: Duration, cancel: &AtomicBool) -> Result<ScriptRun, String> {
+    if GUEST.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(format!("{} steps do not run in the guest demo: download GeoSpaX for the full app", lang.name()));
+    }
     let (cmd, version) = find(lang).ok_or_else(|| format!("{} is not installed: {}", lang.name(), install_hint(lang)))?;
     let outputs = dir.join("outputs");
     std::fs::create_dir_all(&outputs).map_err(|e| format!("{}: {e}", outputs.display()))?;
