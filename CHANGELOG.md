@@ -5,6 +5,33 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added — the ribbon, tab by tab (reviewed against ArcGIS Pro 3.6, QGIS 4.0 and current tools)
+- **Panels**: a collapse / expand chevron at the end of each panel's tab strip (left, right, bottom).
+- **Home**: Lasso selection; Labels on/off for the selected layer; Coordinates in decimal degrees,
+  degrees-minutes-seconds, UTM, MGRS or any EPSG system.
+- **View**: Swipe and Spyglass (the map with and without the selected layer); Time slider (a layer with a
+  date or year field, by year, month or day, or accumulating; it works through a definition query, so
+  tools and exports see the same features); Grid (graticule with labels); Go to scale and Lock scale;
+  Coordinate system (search PROJ's EPSG registry, systems for the map's area first).
+- **Edit**: Split, Merge, Cut and Reshape (GEOS through GDAL, attributes kept, undoable); Copy, Paste
+  (Ctrl+C / Ctrl+V) and Copy along line; Trace; GPS point (live phone or GNSS position); Attribute rules
+  (value lists, defaults, required fields); Check topology (overlaps, gaps, invalid shapes as a layer).
+- **Design**: Survey points from a CSV in any EPSG system; Area table (geodesic area and perimeter, CSV);
+  Hatch; Copy / Paste features between GIS layers and drawings.
+- **Imagery**: Indices (spectral index with Otsu extent, any normalised difference); Terrain (hillshade,
+  slope, aspect, ruggedness, wetness index, viewshed, elevation profile); Clip, Mosaic, Reproject, Resample,
+  Change.
+- **Analysis**: every Tools button opens its tool directly; Erase; **Zonal statistics with exact cell
+  coverage** (each cell weighted by the share inside the polygon, as exactextract; thin and small polygons
+  get correct values where centre-based methods give none); Network: service area, closest facility,
+  shortest path.
+- **Share**: Export map (PDF, SVG, PNG, Word report); Export data (GeoPackage, Shapefile, KML, CSV,
+  GeoJSON, GeoParquet); **Web map** (an interactive map in one HTML file: layer switches, legend, pop-ups,
+  for any browser or web host); Package project (.gspx, read back by Open…); Print.
+- **Help**: Tutorials (guided lessons on the real window); Search commands.
+- Tests: `scripts/test-ribbon-tools.py` (known answers for zonal statistics, topology, split / merge / cut /
+  reshape, downloads; in CI) and `scripts/test-web-ribbon.mjs` (the tools in a browser).
+
 ## [3.0.6] — 2026-10-26
 
 ### Security — web demo (geospax.fly.dev) and the apps
