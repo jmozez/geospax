@@ -10,6 +10,7 @@
 //!                                                  (docs/AUTOMATION.md §9)
 
 mod auth;
+mod ratelimit;
 
 use axum::body::{to_bytes, Body};
 use axum::extract::{Request, State};
@@ -450,6 +451,7 @@ async fn serve(args: Args) {
         .with_state(engine)
         .fallback_service(static_files)
         .layer(axum::middleware::from_fn(cache_policy))
+        .layer(axum::middleware::from_fn_with_state(Arc::new(ratelimit::Limits::new(args.public)), ratelimit::middleware))
         .layer(axum::middleware::from_fn_with_state(auth, auth::middleware));
     if args.gzip {
         // Gzip vector tiles and JSON, but not Arrow: float64 coordinates barely

@@ -2542,6 +2542,7 @@ async function main() {
     renderContents();
   }
   (window as unknown as { workbench: Workbench | null }).workbench = workbench;
+  (window as unknown as { toolbox: Toolbox }).toolbox = toolbox;
   if (startEmpty) intro && setTimeout(() => map.easeTo({ zoom: globeZoom(), duration: 2000 }), 500);
   else if (fitOnLoad) intro ? setTimeout(() => fitAll(3000), 700) : fitAll();
   else if (intro) setTimeout(() => map.flyTo({ center: view.center, zoom: view.zoom, duration: 3000, essential: true }), 700);

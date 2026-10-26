@@ -1,6 +1,7 @@
 // Data › Online data: every form opens, and "Get data" saves the right one-step recipe. The recipe
 // request is intercepted (no internet needed); data_steps.rs tests the downloads themselves.
 //   PW=/path/to/node_modules/playwright node scripts/test-web-online.mjs [base]
+import { runCmd } from './lib/ui.mjs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -26,13 +27,11 @@ await page.route('**/api/recipes', async (route) => {
 });
 await page.goto(`${base}/?mode=pro`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
-await page.click('#ribbon-tabs .rb-tab[data-tab="data"]');
 const tabs = await page.locator('#ribbon-tabs .rb-tab').allInnerTexts();
-ok('the ribbon has the 3.0 tabs', ['Home', 'Data', 'Map', 'Analysis', 'Imagery', 'Modelling', 'Automate', 'View', 'Help', 'Plugins'].every((t) => tabs.includes(t)), tabs.join(' · '));
+ok('the ribbon has its tabs in the order of the work', ['Home', 'View', 'Edit', 'Design', 'Imagery', 'Analysis', 'Share', 'Help'].every((t, i) => tabs[i] === t), tabs.join(' · '));
 const submit = async (cmd, fill) => {
   saved = null;
-  await page.click('#ribbon-tabs .rb-tab[data-tab="data"]');
-  await page.locator(`[data-cmd="${cmd}"]`).first().click();
+  await runCmd(page, cmd);
   await page.waitForTimeout(300);
   if (fill) await fill();
   await page.click('#online button[type=submit]');
@@ -45,7 +44,7 @@ const submit = async (cmd, fill) => {
 let r = await submit('data.climate', async () => {
   await page.click('#online [data-bio="prec"]');
 });
-ok('Climate → data.fetch worldclim with BIO12–19 for the map view', r.use === 'data.fetch' && r.w?.source === 'worldclim' && r.w.variables.join() === '12,13,14,15,16,17,18,19' && r.w.aoi.length === 4 && !r.w.variable, JSON.stringify(r.w));
+ok('Climate → data.fetch (automatic source: CHELSA or WorldClim) with BIO12–19 for the map view', r.use === 'data.fetch' && ['climate', 'worldclim'].includes(r.w?.source) && r.w.variables.join() === '12,13,14,15,16,17,18,19' && r.w.aoi.length === 4 && !r.w.variable, JSON.stringify(r.w));
 r = await submit('data.climate', async () => {
   await page.selectOption('#online select[name=source]', 'worldclim-monthly');
   await page.fill('#online input[name=months]', '1-3, 12');
