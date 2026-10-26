@@ -194,5 +194,5 @@ automated requests (a Cloudflare browser challenge), so it needs another route.
 
 ## Credits
 
-The GSX analysis and its tests: **J. Moses**, GeoSpaX 1.4.2 and 2.0, MIT. Turf (MIT) and proj4js
+The GSX analysis and its tests: **in4metrix**, GeoSpaX 1.4.2 and 2.0, MIT. Turf (MIT) and proj4js
 (MIT) are bundled into `run.mjs`.

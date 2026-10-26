@@ -4,7 +4,7 @@ plugin: geospax-lulc
 version: 3.0.1
 title: "Land use and land cover"
 description: "Cover indices, two-date transitions with hectares, field-validation overlays and land-use allocation."
-author: J. Moses (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
+author: in4metrix (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
 license: MIT
 homepage: https://github.com/jmozez/geospax
 kind: process

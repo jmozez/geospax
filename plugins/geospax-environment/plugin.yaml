@@ -4,7 +4,7 @@ plugin: geospax-environment
 version: 3.0.1
 title: "Environment"
 description: "Slope zones, spectral indices, raster change, overlay and elevation profiles."
-author: J. Moses (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
+author: in4metrix (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
 license: MIT
 homepage: https://github.com/jmozez/geospax
 kind: process

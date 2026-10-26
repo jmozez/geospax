@@ -1,6 +1,6 @@
 // Conservation, landscape and biodiversity tools for GeoSpaX 3 (plugins/gsx). One JSON request on stdin, one JSON answer on stdout
 // (docs/PLUGINS.md). The analysis code in src/analysis comes from GeoSpaX 2.0 (@geospax/analysis,
-// jm0535/GeoSpaX) and 1.4.2 (jm0535/map-kit), by J. Moses, MIT; it is unchanged so its golden-value
+// jm0535/GeoSpaX) and 1.4.2 (jm0535/map-kit), by in4metrix, MIT; it is unchanged so its golden-value
 // tests still hold. This file only maps GeoSpaX parameters to those functions and writes results.
 //   node run.mjs <tool>         run a tool
 //   node run.mjs --manifest     print the tool list (gen-manifest.mjs turns it into plugin.yaml)

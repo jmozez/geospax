@@ -5,7 +5,7 @@ plugin: gsx
 version: 3.0.1
 title: GSX tool library
 description: "19 conservation, landscape and biodiversity tools shared by the twelve domain plugins. Runs on Node, offline."
-author: J. Moses (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
+author: in4metrix (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
 license: MIT
 homepage: https://github.com/jmozez/geospax
 kind: process

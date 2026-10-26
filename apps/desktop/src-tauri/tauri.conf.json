@@ -34,7 +34,7 @@
       "icons/icon.ico"
     ],
     "publisher": "in4metrix",
-    "copyright": "© in4metrix (www.in4metrix.dev) · developed by J. Moses · MIT"
+    "copyright": "© in4metrix (www.in4metrix.dev) · MIT"
   },
   "plugins": {
     "updater": {

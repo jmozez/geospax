@@ -235,7 +235,7 @@ export class DocsViewer {
           ${doc('CHANGELOG', "What's new", 'Changes in each version')}
           ${doc('THIRD_PARTY_NOTICES', 'Credits and licences', 'Open-source parts and data sources')}
         </div>
-        <p class="about-foot">© <a href="https://www.in4metrix.dev" target="_blank" rel="noopener">in4metrix</a> · developed by J. Moses · MIT licence · earlier versions: GeoSpaX 2.0 (<a href="https://github.com/jm0535/GeoSpaX" target="_blank" rel="noopener">jm0535/GeoSpaX</a>) and 1.4.2 (<a href="https://github.com/jm0535/map-kit" target="_blank" rel="noopener">jm0535/map-kit</a>)</p>
+        <p class="about-foot">© <a href="https://www.in4metrix.dev" target="_blank" rel="noopener">in4metrix</a> · MIT licence · earlier versions: GeoSpaX 2.0 (<a href="https://github.com/jm0535/GeoSpaX" target="_blank" rel="noopener">jm0535/GeoSpaX</a>) and 1.4.2 (<a href="https://github.com/jm0535/map-kit" target="_blank" rel="noopener">jm0535/map-kit</a>)</p>
       </div>`,
     );
     const btn = document.querySelector<HTMLButtonElement>('.about-check');

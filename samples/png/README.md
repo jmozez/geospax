@@ -5,9 +5,9 @@ every layer to the map.
 
 | File | What it is | Source and licence |
 | --- | --- | --- |
-| `species_richness_transects.geojson` | 42 survey points on two montane transects (YUS, Huon Peninsula; Mt Wilhelm, Chimbu): elevation, species richness, tree cover, rainfall | **Fictional** but ecologically realistic (mid-elevation richness peak); J. Moses, GeoSpaX 1.4.2, MIT |
-| `birdwing_butterfly_presences.geojson` | 40 presence points of *Ornithoptera priamus* with counts and elevation | Teaching data, J. Moses, GeoSpaX 1.4.2, MIT |
-| `birdwing_host_vines.geojson` | 53 points of the host vine *Aristolochia tagala*: density, canopy | Teaching data, J. Moses, GeoSpaX 1.4.2, MIT |
+| `species_richness_transects.geojson` | 42 survey points on two montane transects (YUS, Huon Peninsula; Mt Wilhelm, Chimbu): elevation, species richness, tree cover, rainfall | **Fictional** but ecologically realistic (mid-elevation richness peak); in4metrix, GeoSpaX 1.4.2, MIT |
+| `birdwing_butterfly_presences.geojson` | 40 presence points of *Ornithoptera priamus* with counts and elevation | Teaching data, in4metrix, GeoSpaX 1.4.2, MIT |
+| `birdwing_host_vines.geojson` | 53 points of the host vine *Aristolochia tagala*: density, canopy | Teaching data, in4metrix, GeoSpaX 1.4.2, MIT |
 | `forest_patches.geojson` | 35 forest patch polygons: area, connectivity, disturbance, protection | Simulated teaching data, GeoSpaX 1.4.2, MIT |
 | `habitat_survey_grid.geojson` | 90-cell survey grid: elevation, rainfall, NDVI, mean temperature, habitat type, canopy | Simulated teaching data, GeoSpaX 1.4.2, MIT |
 | `stream_water_sources.geojson` | 28 stream points: order, flow, distance to road | Simulated teaching data, GeoSpaX 1.4.2, MIT |

@@ -3,7 +3,7 @@
   "bundle": {
     "targets": ["nsis"],
     "publisher": "in4metrix",
-    "copyright": "© in4metrix (www.in4metrix.dev) · developed by J. Moses · MIT",
+    "copyright": "© in4metrix (www.in4metrix.dev) · MIT",
     "category": "Utility",
     "shortDescription": "Maps that make themselves",
     "longDescription": "GeoSpaX: the open-source GIS where every map is a re-runnable recipe that triggers itself on new data.",
