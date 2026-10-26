@@ -204,6 +204,14 @@ interface RStatus {
   install_note?: string;
 }
 
+/** Suggestions for Python package names: the geospatial and data-science packages people install most. */
+const PY_SUGGEST = ['geopandas', 'shapely', 'pyproj', 'rasterio', 'fiona', 'pyogrio', 'GDAL', 'xarray', 'rioxarray', 'numpy', 'pandas', 'scipy', 'scikit-learn',
+  'matplotlib', 'pystac-client', 'planetary-computer', 'stackstac', 'odc-stac', 'duckdb', 'leafmap', 'geemap', 'earthengine-api', 'osmnx', 'networkx', 'momepy',
+  'pysal', 'esda', 'libpysal', 'mgwr', 'spopt', 'pointpats', 'h3', 'folium', 'contextily', 'mapclassify', 'cartopy', 'rasterstats', 'whitebox', 'richdem',
+  'laspy', 'pdal', 'open3d', 'pyvista', 'scikit-image', 'opencv-python', 'torch', 'torchgeo', 'segment-geospatial', 'samgeo', 'lonboard', 'pydeck', 'plotly',
+  'seaborn', 'statsmodels', 'xgboost', 'lightgbm', 'dask', 'dask-geopandas', 'zarr', 'netCDF4', 'cfgrib', 'h5py', 'pyarrow', 'polars', 'geoparquet', 'overturemaps',
+  'pygbif', 'requests', 'tqdm', 'jupyterlab', 'ipywidgets'];
+
 interface JobInfo { id: number; status: string; message: string; progress: number; done: number; total: number; log?: string[]; transfer?: (Transfer & { units?: number; planned?: number }) | null }
 
 interface RunOut {
@@ -244,6 +252,7 @@ export class RConsole {
     });
     document.addEventListener('geospax:r', (e) => {
       const what = String((e as CustomEvent).detail ?? 'blank');
+      if (what.startsWith('python:')) return void this.pythonUpdates(what.slice(7));
       void (what === 'setup' ? this.setup() : this.console(what));
     });
   }
@@ -310,17 +319,60 @@ export class RConsole {
       }</p>
       <form class="rc-kits"><div class="rc-kitlist">${this.kitsHtml(s, missing)}</div>
         ${extra.length ? `<label class="ck"><input type="checkbox" name="pkg" value="${esc(extra.join(','))}" checked /> Also: ${esc(extra.join(', '))}</label>` : ''}
-        <label><span>Other packages</span><input name="more" placeholder="e.g. lidR, landscapemetrics, sdmTMB" /></label>
+        <label><span>Other packages</span><input name="more" list="rc-cran" autocomplete="off" placeholder="Start typing: lidR, landscapemetrics, sdmTMB …" /></label><datalist id="rc-cran"></datalist>
       </form>
+      <div class="rc-updates" hidden></div>
       <div class="rc-progress" hidden><div class="rc-bar running" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><b>0%</b></div><div class="rc-meta"><span class="rc-size"></span><span class="rc-eta"></span></div><span class="dim"></span>
         <pre class="rc-log" aria-live="polite" aria-label="Installation log"></pre></div>
       <p class="dim">Packages are ready-built binaries (CRAN on Windows and macOS, Posit Package Manager on Linux): nothing is compiled. Needs internet.${
         s.library ? ` Library: <code>${esc(s.library)}</code>` : ''
       }</p>`,
-      `<span class="dim" id="rc-msg"></span><button type="button" data-close>Close</button>${
+      `<span class="dim" id="rc-msg"></span>${s.installed ? '<button type="button" id="rc-check">Check for updates</button>' : ''}<button type="button" data-close>Close</button>${
         s.installed || s.can_install_r ? `<button class="primary" type="button" id="rc-install">${s.installed ? 'Install selected' : 'Install R and selected packages'}</button>` : ''
       }`);
     this.el.querySelector('#rc-install')?.addEventListener('click', () => void this.install());
+    this.el.querySelector('#rc-check')?.addEventListener('click', () => void this.checkUpdates());
+    // package names from CRAN as the user types (the list is read once, then filtered here)
+    const more = this.el.querySelector<HTMLInputElement>('input[name=more]');
+    more?.addEventListener('input', () => void this.suggest(more));
+  }
+
+  private cran: string[] | null = null;
+  private async suggest(input: HTMLInputElement) {
+    if (!this.cran) {
+      this.cran = [];
+      this.cran = (await this.host.backend.json<{ packages: string[] }>('api/r/available').catch(() => ({ packages: [] as string[] }))).packages;
+    }
+    // the word being typed (several names can be given, separated by commas or spaces)
+    const word = input.value.split(/[\s,]+/).pop()!.toLowerCase();
+    const list = this.el.querySelector('#rc-cran');
+    if (!list) return;
+    const hits = word.length < 2 ? [] : [...this.cran.filter((p) => p.toLowerCase().startsWith(word)), ...this.cran.filter((p) => !p.toLowerCase().startsWith(word) && p.toLowerCase().includes(word))].slice(0, 40);
+    const head = input.value.slice(0, input.value.length - word.length);
+    list.innerHTML = hits.map((p) => `<option value="${esc(head + p)}"></option>`).join('');
+  }
+
+  /** Newer versions of the packages in GeoSpaX's R library, with an "Update all" button. */
+  private async checkUpdates() {
+    const box = this.el.querySelector<HTMLElement>('.rc-updates')!;
+    box.hidden = false;
+    box.innerHTML = '<p class="dim">Checking the repository for newer versions…</p>';
+    try {
+      const r = await this.host.backend.json<{ packages: { name: string; installed: string; available: string }[] }>('api/r/outdated');
+      if (!r.packages.length) {
+        box.innerHTML = '<p class="ok">✓ Every package in GeoSpaX\'s R library is up to date.</p>';
+        return;
+      }
+      box.innerHTML = `<p><b>${r.packages.length} update${r.packages.length === 1 ? '' : 's'} available</b></p>
+        <ul class="rc-upd-list">${r.packages.map((p) => `<li><label class="ck"><input type="checkbox" name="upd" value="${esc(p.name)}" checked /> <b>${esc(p.name)}</b> <span class="dim">${esc(p.installed)} → ${esc(p.available)}</span></label></li>`).join('')}</ul>
+        <button type="button" class="primary" id="rc-update">Update selected</button>`;
+      box.querySelector('#rc-update')!.addEventListener('click', () => {
+        const pk = [...box.querySelectorAll<HTMLInputElement>('input[name=upd]:checked')].map((c) => c.value);
+        if (pk.length) void this.install(pk);
+      });
+    } catch (e) {
+      box.innerHTML = `<p class="err">${esc((e as Error).message ?? e)}</p>`;
+    }
   }
 
   private body(html: string, footer = '<button type="button" data-close>Close</button>') {
@@ -330,16 +382,31 @@ export class RConsole {
     sheet.insertAdjacentHTML('beforeend', `<footer>${footer}</footer>`);
   }
 
-  private async install() {
+  private async install(update: string[] | null = null) {
     const form = this.el.querySelector<HTMLFormElement>('.rc-kits')!;
     const f = new FormData(form);
     const kits = f.getAll('kit').map(String);
     const packages = [...f.getAll('pkg').flatMap((v) => String(v).split(',')), ...String(f.get('more') ?? '').split(/[\s,]+/)].map((s) => s.trim()).filter(Boolean);
     const msg = this.el.querySelector<HTMLElement>('#rc-msg')!;
-    if (!kits.length && !packages.length && this.status?.installed) {
+    if (!update && !kits.length && !packages.length && this.status?.installed) {
       msg.textContent = 'Tick a kit or name a package';
       return;
     }
+    await this.follow(() => this.host.backend.json<JobInfo>('api/r/install', {
+        method: 'POST',
+        body: JSON.stringify(update ? { r: false, packages: update, update: true } : { r: true, kits, packages }),
+        headers: { 'content-type': 'application/json' },
+      }), 'R setup', async (ok) => {
+      // the package list is refreshed under the log, which stays open to read
+      if (ok) await this.refreshPackages();
+      if (ok && update) await this.checkUpdates();
+      document.dispatchEvent(new CustomEvent('geospax:envs-changed'));
+    });
+  }
+
+  /** Start a package job and follow it with the coloured gauge (size, speed, packages, time left) and its log. */
+  private async follow(start: () => Promise<JobInfo>, what: string, after: (ok: boolean) => Promise<void> = async () => {}) {
+    const msg = this.el.querySelector<HTMLElement>('#rc-msg')!;
     const prog = this.el.querySelector<HTMLElement>('.rc-progress')!;
     const barEl = prog.querySelector<HTMLElement>('.rc-bar')!;
     // a coloured bar: striped and moving while R downloads and builds, green when done, red on failure
@@ -353,13 +420,10 @@ export class RConsole {
     };
     barEl.className = 'rc-bar running';
     const label = prog.querySelector('span')!;
-    this.el.querySelector<HTMLButtonElement>('#rc-install')!.disabled = true;
+    const btn = this.el.querySelector<HTMLButtonElement>('#rc-install, #rc-update');
+    if (btn) btn.disabled = true;
     try {
-      let job = await this.host.backend.json<JobInfo>('api/r/install', {
-        method: 'POST',
-        body: JSON.stringify({ r: true, kits, packages }),
-        headers: { 'content-type': 'application/json' },
-      });
+      let job = await start();
       prog.hidden = false;
       const log = prog.querySelector<HTMLElement>('.rc-log')!;
       const show = (j: JobInfo) => {
@@ -370,7 +434,7 @@ export class RConsole {
       while (job.status === 'queued' || job.status === 'running') {
         const t = job.transfer;
         bar.value = t ? t.fraction : job.progress;
-        label.textContent = job.message || 'Starting R…';
+        label.textContent = job.message || 'Starting…';
         // size downloaded (of the expected total), speed, packages done and time left, like a download gauge
         prog.querySelector('.rc-size')!.textContent = t
           ? `${bytesText(t.bytes)}${t.total ? ` of about ${bytesText(t.total)}` : ' downloaded'}${t.rate > 0 && t.bytes > 0 ? ` · ${bytesText(t.rate)}/s` : ''}${t.planned ? ` · ${t.units ?? 0} of ${t.planned} packages` : ''}`
@@ -386,14 +450,58 @@ export class RConsole {
       show(job);
       label.textContent = job.status === 'done' ? `✓ ${job.message}` : `✗ ${job.message}`;
       label.className = job.status === 'done' ? 'ok' : 'err';
-      this.host.setStatus(job.status === 'done' ? job.message : `R setup: ${job.message}`, 8000);
-      // the package list is refreshed under the log, which stays open to read
-      if (job.status === 'done') await this.refreshPackages();
+      this.host.setStatus(job.status === 'done' ? job.message : `${what}: ${job.message}`, 8000);
+      await after(job.status === 'done');
     } catch (err) {
       msg.textContent = String((err as Error).message ?? err);
     } finally {
-      const b = this.el.querySelector<HTMLButtonElement>('#rc-install');
+      const b = this.el.querySelector<HTMLButtonElement>('#rc-install, #rc-update');
       if (b) b.disabled = false;
+    }
+  }
+
+  /** Python packages of one environment: which have newer versions, and update them with pip (with
+   *  the same gauge). A Python the system or conda manages is updated there instead: the command is shown. */
+  async pythonUpdates(path: string) {
+    this.el.innerHTML = `<div class="sheet fin rc"><header><b>Python packages</b><button type="button" data-close aria-label="Close">✕</button></header><div class="body"></div></div>`;
+    this.el.hidden = false;
+    this.body(`<p class="fin-lead"><code>${esc(path)}</code></p>
+      <div class="rc-updates"><p class="dim">Checking PyPI for newer versions (can take a minute)…</p></div>
+      <label><span>Install or update other packages</span><input name="pymore" list="py-sugg" autocomplete="off" placeholder="Start typing: geopandas, rasterio, osmnx …" /></label><datalist id="py-sugg">${PY_SUGGEST.map((p) => `<option value="${esc(p)}"></option>`).join('')}</datalist>
+      <div class="rc-progress" hidden><div class="rc-bar running" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><b>0%</b></div><div class="rc-meta"><span class="rc-size"></span><span class="rc-eta"></span></div><span class="dim"></span>
+        <pre class="rc-log" aria-live="polite" aria-label="Update log"></pre></div>`,
+      `<span class="dim" id="rc-msg"></span><button type="button" data-close>Close</button><button type="button" class="primary" id="rc-update">Install / update</button>`);
+    const box = this.el.querySelector<HTMLElement>('.rc-updates')!;
+    const run = (pk: string[]) => this.follow(() => this.host.backend.json<JobInfo>('api/python/update', { method: 'POST', body: JSON.stringify({ path, packages: pk }), headers: { 'content-type': 'application/json' } }), 'Python', async (ok) => {
+      if (ok) await this.pythonUpdates(path);
+      document.dispatchEvent(new CustomEvent('geospax:envs-changed'));
+    });
+    this.el.querySelector('#rc-update')!.addEventListener('click', () => {
+      const pk = [...box.querySelectorAll<HTMLInputElement>('input[name=upd]:checked')].map((c) => c.value);
+      pk.push(...String(this.el.querySelector<HTMLInputElement>('input[name=pymore]')?.value ?? '').split(/[\s,]+/).filter(Boolean));
+      if (!pk.length) this.el.querySelector('#rc-msg')!.textContent = 'Tick an update or name a package';
+      else void run(pk);
+    });
+    try {
+      const r = await this.host.backend.json<{ packages: { name: string; installed: string; available: string }[]; manager: string; command: string | null }>(`api/python/outdated?path=${encodeURIComponent(path)}`);
+      if (r.manager !== 'pip') {
+        box.innerHTML = `<p>${r.packages.length ? `<b>${r.packages.length} update${r.packages.length === 1 ? '' : 's'} available.</b> ` : '✓ Up to date. '}This Python is managed by ${r.manager === 'conda' ? 'conda' : 'your system'}, so GeoSpaX does not change it with pip. Update it with:</p><pre class="rc-cmd">${esc(r.command ?? '')}</pre>${r.packages.length ? `<ul class="rc-upd-list">${r.packages.map((p) => `<li><b>${esc(p.name)}</b> <span class="dim">${esc(p.installed)} → ${esc(p.available)}</span></li>`).join('')}</ul>` : ''}`;
+        this.el.querySelector('#rc-update')?.remove();
+        this.el.querySelector('input[name=pymore]')?.closest('label')?.remove();
+        return;
+      }
+      box.innerHTML = r.packages.length
+        ? `<p><b>${r.packages.length} update${r.packages.length === 1 ? '' : 's'} available</b> <button type="button" class="link" data-all>Select all</button> <button type="button" class="link" data-none>None</button></p>
+          <ul class="rc-upd-list">${r.packages.map((p) => {
+            // the GDAL bindings must match the GDAL library on this computer: never updated by default, with a warning
+            const gdal = p.name.toLowerCase() === 'gdal';
+            return `<li><label class="ck" ${gdal ? 'title="The GDAL Python package must match the GDAL library installed on this computer; update it with the library"' : ''}><input type="checkbox" name="upd" value="${esc(p.name)}" ${gdal ? 'data-risky' : ''} /> <b>${esc(p.name)}</b> <span class="dim">${esc(p.installed)} → ${esc(p.available)}</span>${gdal ? ' <span class="err">⚠ match your GDAL</span>' : ''}</label></li>`;
+          }).join('')}</ul>`
+        : '<p class="ok">✓ Every package in this environment is up to date.</p>';
+      box.querySelector('[data-all]')?.addEventListener('click', () => box.querySelectorAll<HTMLInputElement>('input[name=upd]:not([data-risky])').forEach((c) => (c.checked = true)));
+      box.querySelector('[data-none]')?.addEventListener('click', () => box.querySelectorAll<HTMLInputElement>('input[name=upd]').forEach((c) => (c.checked = false)));
+    } catch (e) {
+      box.innerHTML = `<p class="err">${esc((e as Error).message ?? e)}</p>`;
     }
   }
 

@@ -26,6 +26,14 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - R setup shows a coloured, moving progress bar with the size downloaded (of the expected total),
   the speed, packages done (with their dependencies) and the time left; green when done, red on failure.
 
+### Added — package updates and suggestions (R and Python)
+- R setup: **Check for updates** lists newer versions of the packages in GeoSpaX's R library and
+  updates the ones you tick, with the same gauge. The package box suggests CRAN names as you type.
+- Python (Explorer › each environment › Check for updates, install packages…): newer versions from
+  PyPI, updated with pip with the same gauge; suggestions for geospatial packages as you type. Nothing
+  is ticked by default; the GDAL bindings are flagged (they must match the GDAL library). A Python
+  that the system (Fedora, Debian) or conda manages is not changed: the dialog shows the command.
+
 ### Fixed — climate data
 - **Climate** (Data › Online data) now picks the detail for the area: CHELSA 2.1 at ~1 km for areas up
   to 4° a side, else the finest WorldClim grid giving at least 40 cells across (it used a ~18 km grid,

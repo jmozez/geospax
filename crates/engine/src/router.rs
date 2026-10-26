@@ -645,6 +645,21 @@ impl Engine {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(400, e),
             },
+            ("GET", ["api", "python", "outdated"]) => match crate::pyenv::outdated(self, &param(q, "path").unwrap_or_default()) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(502, e),
+            },
+            ("POST", ["api", "python", "update"]) => {
+                if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
+                    return ApiResponse::error(403, "this GeoSpaX was started with --restricted: Python packages cannot be changed from here");
+                }
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let pk: Vec<String> = body["packages"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default();
+                match crate::pyenv::start_update(self, body["path"].as_str().unwrap_or(""), pk) {
+                    Ok(job) => ApiResponse::json(202, &job.json()),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
             ("POST", ["api", "python", "use"]) => {
                 if self.shared.load(std::sync::atomic::Ordering::Relaxed) {
                     return ApiResponse::error(403, "this GeoSpaX was started with --restricted: the Python environment cannot be changed from here");
@@ -656,6 +671,14 @@ impl Engine {
             }
             // R (docs/R.md): is R there, which packages, and install what is missing
             ("GET", ["api", "r"]) => ApiResponse::json(200, &crate::rsetup::status()),
+            ("GET", ["api", "r", "available"]) => match crate::rsetup::available() {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(502, e),
+            },
+            ("GET", ["api", "r", "outdated"]) => match crate::rsetup::outdated() {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(502, e),
+            },
             ("POST", ["api", "r", "install"]) => {
                 let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
                 let list = |k: &str| body.get(k).and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect::<Vec<_>>()).unwrap_or_default();
@@ -665,7 +688,8 @@ impl Engine {
                     kits = crate::rsetup::DEFAULT_KITS.iter().map(|s| s.to_string()).collect();
                 }
                 let with_r = body.get("r").and_then(|v| v.as_bool()).unwrap_or(true);
-                match crate::rsetup::start_install(self, with_r, crate::rsetup::packages_of(&kits)) {
+                let update = body.get("update").and_then(|v| v.as_bool()).unwrap_or(false);
+                match crate::rsetup::start_install(self, with_r, crate::rsetup::packages_of(&kits), update) {
                     Ok(job) => ApiResponse::json(202, &job.json()),
                     Err(e) => ApiResponse::error(400, e),
                 }

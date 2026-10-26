@@ -88,6 +88,40 @@ pub fn status() -> Value {
     json!({ "installed": true, "rscript": cmd, "version": version, "library": lib, "kits": kits, "packages": packages, "repo": repo() })
 }
 
+/// Packages in GeoSpaX's own R library that have a newer version in the repository (name,
+/// installed, available). The user's other R libraries are not touched.
+pub fn outdated() -> Result<Value, String> {
+    let (cmd, _) = sidecar::find(Lang::R).ok_or("R is not installed")?;
+    let lib = library();
+    if !lib.is_dir() {
+        return Ok(json!({ "packages": [] }));
+    }
+    let script = format!(
+        r#"options(repos = c(CRAN = {repo}), timeout = 120)
+ap <- tryCatch(suppressWarnings(utils::available.packages()), error = function(e) NULL)
+if (is.null(ap) || nrow(ap) == 0) cat("GSXERR", "the package list could not be read\n") else {{
+  old <- utils::old.packages(lib.loc = {lib}, available = ap)
+  if (!is.null(old)) for (i in seq_len(nrow(old))) cat(old[i, "Package"], old[i, "Installed"], old[i, "ReposVer"], "\n", sep = "\t")
+}}
+"#,
+        repo = rs(&repo()),
+        lib = rs(&lib.to_string_lossy())
+    );
+    let out = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).output().map_err(|e| e.to_string())?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    if let Some(e) = text.lines().find_map(|l| l.strip_prefix("GSXERR")) {
+        return Err(format!("could not reach the package repository ({}): {}", repo(), e.trim()));
+    }
+    let list: Vec<Value> = text
+        .lines()
+        .filter_map(|l| {
+            let f: Vec<&str> = l.split('\t').collect();
+            (f.len() >= 3 && !f[0].is_empty()).then(|| json!({ "name": f[0], "installed": f[1], "available": f[2] }))
+        })
+        .collect();
+    Ok(json!({ "packages": list, "library": lib }))
+}
+
 /// Where binaries come from: CRAN (Windows, macOS) or Posit Public Package Manager (Linux).
 fn repo() -> String {
     if cfg!(target_os = "linux") {
@@ -129,7 +163,7 @@ fn can_install_r() -> Result<(), String> {
 }
 
 /// Install R (when `with_r` and it is missing) and then `packages`, as a background job.
-pub fn start_install(engine: &Arc<Engine>, with_r: bool, packages: Vec<String>) -> Result<Arc<Job>, String> {
+pub fn start_install(engine: &Arc<Engine>, with_r: bool, packages: Vec<String>, update: bool) -> Result<Arc<Job>, String> {
     if let Some(j) = engine.jobs.active("r-setup", "r") {
         return Err(format!("R setup job {} is already running", j.id));
     }
@@ -157,7 +191,7 @@ pub fn start_install(engine: &Arc<Engine>, with_r: bool, packages: Vec<String>) 
             if packages.is_empty() {
                 return Ok("R is ready".into());
             }
-            install_packages(&j, &packages)
+            install_packages(&j, &packages, update)
         })();
         match res {
             Ok(msg) => j.finish(Status::Done, msg, Some(status())),
@@ -168,7 +202,7 @@ pub fn start_install(engine: &Arc<Engine>, with_r: bool, packages: Vec<String>) 
     Ok(job)
 }
 
-fn install_packages(job: &Job, packages: &[String]) -> Result<String, String> {
+fn install_packages(job: &Job, packages: &[String], update: bool) -> Result<String, String> {
     let (cmd, _) = sidecar::find(Lang::R).ok_or("R is not installed")?;
     let lib = library();
     std::fs::create_dir_all(&lib).map_err(|e| format!("{}: {e}", lib.display()))?;
@@ -180,6 +214,7 @@ lib <- {lib}
 .libPaths(c(lib, .libPaths()))
 options(repos = c(CRAN = {repo}), HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(), paste(getRversion(), R.version$platform, R.version$arch, R.version$os)), timeout = 600)
 pk <- c({list})
+upd <- {upd}
 failed <- character()
 ver <- function(p) tryCatch(as.character(utils::packageVersion(p)), error = function(e) "")
 if (length(pk)) {{
@@ -191,12 +226,14 @@ if (length(pk)) {{
     dep <- tools::package_dependencies(pk, db = ap, which = c("Depends", "Imports", "LinkingTo"), recursive = TRUE)
     all <- unique(c(pk, unlist(dep)))
     have <- rownames(utils::installed.packages(lib.loc = c(lib, .libPaths())))
-    cat("GSXPLAN", length(setdiff(intersect(all, rownames(ap)), have)), "\n")
+    todo <- setdiff(intersect(all, rownames(ap)), have)
+    if (upd) todo <- union(todo, intersect(pk, rownames(ap)))
+    cat("GSXPLAN", length(todo), "\n")
   }}, error = function(e) NULL)
 }}
 for (i in seq_along(pk)) {{
   cat("GSX", i, length(pk), pk[i], "\n")
-  if (nzchar(ver(pk[i]))) {{
+  if (!upd && nzchar(ver(pk[i]))) {{
     cat("GSXOK", pk[i], ver(pk[i]), "already\n")
     next
   }}
@@ -209,7 +246,8 @@ cat("GSXFAILED", failed, "\n")
 "#,
         lib = rs(&lib.to_string_lossy()),
         repo = rs(&repo()),
-        list = list.join(", ")
+        list = list.join(", "),
+        upd = if update { "TRUE" } else { "FALSE" }
     );
     job.log(format!("$ Rscript (library {}, packages from {})", lib.display(), repo()));
     let mut child = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| format!("could not start {cmd}: {e}"))?;
@@ -395,4 +433,21 @@ mod tests {
         assert_eq!(newest_link(html, "R-", "-win.exe").as_deref(), Some("R-4.5.1-win.exe"));
         assert_eq!(packages_of(&["maps".into(), "lidR".into()]), ["tmap", "ggplot2", "ggspatial", "patchwork", "viridisLite", "lidR"]);
     }
+}
+
+/// Every package name in the repository (for suggestions as the user types), read once per run.
+pub fn available() -> Result<Value, String> {
+    static CACHE: std::sync::Mutex<Option<Vec<String>>> = std::sync::Mutex::new(None);
+    if let Some(v) = CACHE.lock().unwrap().as_ref() {
+        return Ok(json!({ "packages": v }));
+    }
+    let (cmd, _) = sidecar::find(Lang::R).ok_or("R is not installed")?;
+    let script = format!("options(repos = c(CRAN = {}), timeout = 120)\ncat(rownames(utils::available.packages()), sep = \"\\n\")\n", rs(&repo()));
+    let out = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).output().map_err(|e| e.to_string())?;
+    let names: Vec<String> = String::from_utf8_lossy(&out.stdout).lines().map(str::trim).filter(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')).map(str::to_string).collect();
+    if names.is_empty() {
+        return Err(format!("could not read the package list from {}", repo()));
+    }
+    *CACHE.lock().unwrap() = Some(names.clone());
+    Ok(json!({ "packages": names }))
 }
