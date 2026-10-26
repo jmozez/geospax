@@ -1,4 +1,4 @@
-// Conservation, landscape and biodiversity tools (from GeoSpaX 2.0): GeoSpaX parameters in, src/analysis functions, layers and a result table out.
+// Conservation, landscape and biodiversity tools : GeoSpaX parameters in, src/analysis functions, layers and a result table out.
 // Each tool appears once in the Toolbox (grouped by what it does); the domain kits (conservation,
 // forestry, hydrology …) are recipes that combine them.
 import type { Feature } from 'geojson';
@@ -529,5 +529,5 @@ export const TOOLS: Tool[] = [
 // The tools reach the user through the twelve domain plugins (gen-manifest.mjs), not the core tabs.
 // phase B: rasters and species distribution models (src/rastertools.ts)
 TOOLS.push(...RASTER_TOOLS);
-// from 1.4.2: LISA and elevation profiles (src/legacytools.ts)
+// LISA and elevation profiles (src/legacytools.ts)
 TOOLS.push(...LEGACY_TOOLS);

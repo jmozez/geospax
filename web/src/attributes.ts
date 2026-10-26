@@ -8,6 +8,7 @@
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { Editor } from './editing';
+import { GgChart, type BarSpec } from './ggchart';
 
 const PAGE = 200; // rows per request
 const esc = (s: unknown) =>
@@ -178,6 +179,9 @@ export class AttributesPane {
     }
     const scroll = this.root.querySelector('.attr-wrap')?.scrollLeft ?? 0;
     this.root.innerHTML = head + (this.view === 'table' ? this.tableHtml() : this.view === 'fields' ? this.fieldsHtml() : this.chartHtml());
+    // the chart is drawn by ggchart.ts (ggplot2 look, Customise, Download)
+    const gg = this.root.querySelector<HTMLElement>('.gg-host');
+    this.gg = gg && this.chartSpec ? new GgChart(gg, this.chartSpec, 'single', this.gg) : null;
     const wrap = this.root.querySelector('.attr-wrap');
     if (wrap) wrap.scrollLeft = scroll;
   }
@@ -253,8 +257,9 @@ export class AttributesPane {
     const options = p.fields.map((f) => `<option${f === field ? ' selected' : ''}>${esc(f)}</option>`).join('');
     const vals = p.rows.map((r) => r.values[ci]);
     const numeric = p.kinds[ci] === 'integer' || p.kinds[ci] === 'real';
-    let bars: string;
     let summary = '';
+    const layerName = this.layer()?.name ?? 'layer';
+    let spec: BarSpec;
     if (numeric) {
       const nums = vals.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
       if (nums.length < 2) return `<div class="pane-empty">Not enough numeric values on this page.</div>`;
@@ -266,31 +271,27 @@ export class AttributesPane {
         <tr><th>min</th><td>${this.num(sorted[0])}</td><th>median</th><td>${this.num(q(0.5))}</td><th>max</th><td>${this.num(sorted[sorted.length - 1])}</td></tr></table>`;
       const min = sorted[0];
       const max = sorted[sorted.length - 1];
-      const bins = 12;
+      // bins as geom_histogram's default (30), fewer for small samples (Sturges)
+      const bins = Math.min(30, Math.max(5, Math.ceil(Math.log2(nums.length) + 1)));
+      const width = (max - min || 1) / bins;
       const hits = new Array(bins).fill(0);
-      for (const v of nums) hits[Math.min(bins - 1, Math.floor(((v - min) / (max - min || 1)) * bins))]++;
-      const most = Math.max(1, ...hits);
-      bars = hits
-        .map((h, i) => {
-          const lo = min + ((max - min) * i) / bins;
-          return `<div class="bar-row"><span class="bar-key">${esc(lo.toPrecision(3))}</span><span class="bar" style="width:${((h / most) * 100).toFixed(1)}%"></span><span class="bar-val">${h.toLocaleString()}</span></div>`;
-        })
-        .join('');
+      for (const v of nums) hits[Math.min(bins - 1, Math.floor((v - min) / width))]++;
+      spec = { kind: 'histogram', bars: hits.map((h, i) => ({ label: `${(min + i * width).toPrecision(4)} – ${(min + (i + 1) * width).toPrecision(4)}`, x0: min + i * width, x1: min + (i + 1) * width, value: h })), title: `Distribution of ${field}`, x: field, y: 'count', file: `${layerName}_${field}_histogram` };
     } else {
       const counts = new Map<string, number>();
       for (const v of vals) counts.set(String(v ?? '(null)'), (counts.get(String(v ?? '(null)')) ?? 0) + 1);
       const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14);
-      const most = Math.max(1, ...top.map((t) => t[1]));
-      bars = top
-        .map(([k, v]) => `<div class="bar-row"><span class="bar-key" title="${esc(k)}">${esc(k)}</span><span class="bar" style="width:${((v / most) * 100).toFixed(1)}%"></span><span class="bar-val">${v.toLocaleString()}</span></div>`)
-        .join('');
+      spec = { kind: 'bar', bars: top.map(([k, v]) => ({ label: k, value: v })), title: `Most common values of ${field}`, x: field, y: 'count', file: `${layerName}_${field}_counts` };
     }
+    this.chartSpec = spec;
     return `<div class="chart-box">
       <label class="chart-title">Field <select data-chart-field>${options}</select> <span class="dim">${numeric ? 'histogram' : 'top values'} of the ${p.rows.length.toLocaleString()} rows on this page${this.search || this.onlySelected ? ' (searched/selected)' : ''}</span></label>
-      ${summary}${bars}
+      ${summary}<div class="gg-host"></div>
     </div>`;
   }
 
+  private chartSpec: BarSpec | null = null;
+  private gg: GgChart | null = null;
   private statsField: string | null = null;
 
   /** Show a new selection without rebuilding the table (keeps double-click, scroll and focus). */

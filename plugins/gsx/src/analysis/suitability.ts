@@ -1,6 +1,6 @@
 // Suitability — Weighted Linear Combination (WLC) with constraints.
 //
-// Ported methodology from GeoSpaX v1 js/geospax-conservation.js WLC engine,
+// Ported methodology from earlier GeoSpaX js/geospax-conservation.js WLC engine,
 // audit-fixed: graded scoring, metre cell size, distance-decay, cost/benefit
 // flags, constraint masks, and no silent fallback on missing weights.
 

@@ -478,10 +478,10 @@ pub(super) fn hotspots(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             x_label: "distance band (m)".into(),
             y_label: "clustering (Moran's I z-score)".into(),
             series: vec![
-                Series { label: String::new(), color: "#5b6b78".into(), width: 1.5, kind: Kind::Line, points: pts.clone() },
-                Series { label: "z-score per distance".into(), color: "#33414d".into(), width: 1.0, kind: Kind::Dots(None), points: pts },
+                Series { label: String::new(), color: "@0".into(), width: 1.0, kind: Kind::Line, points: pts.clone() },
+                Series { label: "z-score per distance".into(), color: "@0".into(), width: 1.0, kind: Kind::Dots(None), points: pts },
             ],
-            marks: vec![(distance, format!("used: {}", dist_text(distance)), "#d62f27".into())],
+            marks: vec![(distance, format!("used: {}", dist_text(distance)), "@1".into())],
             hlines: vec![(1.96, "z = 1.96 (95 %)".into())],
             y_zero: true,
         });
@@ -781,7 +781,7 @@ pub(super) fn interpolate_auto(sc: &mut StepCtx, p: &Value) -> Result<StepOut, S
         let maxnp = k.lags.iter().map(|l| l.np).max().unwrap_or(1) as f64;
         let mut series = vec![Series {
             label: "pairs of samples (dot size = number of pairs)".into(),
-            color: "#33414d".into(),
+            color: "#333333".into(),
             width: 1.0,
             kind: Kind::Dots(Some(k.lags.iter().map(|l| 2.5 + 4.5 * (l.np as f64 / maxnp).sqrt()).collect())),
             points: k.lags.iter().map(|l| (l.dist, l.gamma)).collect(),
@@ -790,10 +790,11 @@ pub(super) fn interpolate_auto(sc: &mut StepCtx, p: &Value) -> Result<StepOut, S
             let best = v.model == k.vgm.model;
             series.push(Series {
                 label: format!("{}{}", v.model.name(), if best { " (best fit)" } else { "" }),
+                // one palette colour per model, as ggplot2 maps a discrete variable to colour
                 color: match v.model {
-                    Model::Sph => "#c0392b",
-                    Model::Exp => "#2471a3",
-                    Model::Gau => "#7d3c98",
+                    Model::Sph => "@0",
+                    Model::Exp => "@1",
+                    Model::Gau => "@2",
                 }
                 .into(),
                 width: if best { 2.5 } else { 1.2 },
@@ -808,7 +809,7 @@ pub(super) fn interpolate_auto(sc: &mut StepCtx, p: &Value) -> Result<StepOut, S
             x_label: "distance between samples (m)".into(),
             y_label: format!("semivariance of {field}"),
             series,
-            marks: if k.vgm.practical_range() <= hmax * 1.05 { vec![(k.vgm.practical_range(), format!("range {}", dist_text(k.vgm.practical_range())), "#c0392b".into())] } else { vec![] },
+            marks: if k.vgm.practical_range() <= hmax * 1.05 { vec![(k.vgm.practical_range(), format!("range {}", dist_text(k.vgm.practical_range())), "#4D4D4D".into())] } else { vec![] },
             hlines: if k.vgm.practical_range() <= hmax * 1.05 { vec![(k.vgm.sill(), "sill".into())] } else { vec![] },
             y_zero: true,
         });

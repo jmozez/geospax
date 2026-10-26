@@ -4,7 +4,7 @@ plugin: geospax-agriculture
 version: 3.0.1
 title: "Agriculture"
 description: "Crop condition from spectral indices, suitability, distance decay, slope zones and crop change."
-author: J. Moses (GeoSpaX 1.4.2 and 2.0) · plugin by GeoSpaX
+author: in4metrix
 license: MIT
 homepage: https://github.com/jmozez/geospax
 kind: process

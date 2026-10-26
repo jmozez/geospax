@@ -3,7 +3,7 @@
   "version": "3.0.1",
   "private": true,
   "type": "module",
-  "description": "GSX tools for GeoSpaX 3: conservation, biodiversity and environmental analysis from GeoSpaX 2.0 (jm0535/GeoSpaX) and 1.4.2 (jm0535/map-kit), run as one plugin.",
+  "description": "GSX tools for GeoSpaX 3: conservation, biodiversity and environmental analysis, run as one plugin.",
   "scripts": {
     "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node18 --outfile=run.mjs --banner:js=\"// Built from plugins/gsx/src by npm run build (do not edit by hand).\" --legal-comments=none --minify",
     "gen": "node gen-manifest.mjs",

@@ -22,7 +22,7 @@ use std::sync::Arc;
 pub const KITS: &[(&str, &str, &[&str])] = &[
     ("spatial", "Spatial data (sf, terra, stars)", &["sf", "terra", "stars"]),
     ("maps", "Publication maps (tmap, ggplot2)", &["tmap", "ggplot2", "ggspatial", "patchwork", "viridisLite"]),
-    ("relief", "3D relief (rayshader)", &["rayshader"]),
+    ("relief", "3D relief (rayshader)", &["rayshader", "rayrender"]),
     ("sdm", "Species distribution models (biomod2, MaxEnt)", &["biomod2", "maxnet", "dismo", "predicts"]),
     ("ml", "Machine learning (tidymodels)", &["tidymodels", "ranger"]),
     ("data", "Data wrangling and databases (tidyverse, dbplyr)", &["tidyverse", "dbplyr", "DBI", "RSQLite", "duckdb"]),
@@ -88,6 +88,40 @@ pub fn status() -> Value {
     json!({ "installed": true, "rscript": cmd, "version": version, "library": lib, "kits": kits, "packages": packages, "repo": repo() })
 }
 
+/// Packages in GeoSpaX's own R library that have a newer version in the repository (name,
+/// installed, available). The user's other R libraries are not touched.
+pub fn outdated() -> Result<Value, String> {
+    let (cmd, _) = sidecar::find(Lang::R).ok_or("R is not installed")?;
+    let lib = library();
+    if !lib.is_dir() {
+        return Ok(json!({ "packages": [] }));
+    }
+    let script = format!(
+        r#"options(repos = c(CRAN = {repo}), timeout = 120)
+ap <- tryCatch(suppressWarnings(utils::available.packages()), error = function(e) NULL)
+if (is.null(ap) || nrow(ap) == 0) cat("GSXERR", "the package list could not be read\n") else {{
+  old <- utils::old.packages(lib.loc = {lib}, available = ap)
+  if (!is.null(old)) for (i in seq_len(nrow(old))) cat(old[i, "Package"], old[i, "Installed"], old[i, "ReposVer"], "\n", sep = "\t")
+}}
+"#,
+        repo = rs(&repo()),
+        lib = rs(&lib.to_string_lossy())
+    );
+    let out = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).output().map_err(|e| e.to_string())?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    if let Some(e) = text.lines().find_map(|l| l.strip_prefix("GSXERR")) {
+        return Err(format!("could not reach the package repository ({}): {}", repo(), e.trim()));
+    }
+    let list: Vec<Value> = text
+        .lines()
+        .filter_map(|l| {
+            let f: Vec<&str> = l.split('\t').collect();
+            (f.len() >= 3 && !f[0].is_empty()).then(|| json!({ "name": f[0], "installed": f[1], "available": f[2] }))
+        })
+        .collect();
+    Ok(json!({ "packages": list, "library": lib }))
+}
+
 /// Where binaries come from: CRAN (Windows, macOS) or Posit Public Package Manager (Linux).
 fn repo() -> String {
     if cfg!(target_os = "linux") {
@@ -129,7 +163,7 @@ fn can_install_r() -> Result<(), String> {
 }
 
 /// Install R (when `with_r` and it is missing) and then `packages`, as a background job.
-pub fn start_install(engine: &Arc<Engine>, with_r: bool, packages: Vec<String>) -> Result<Arc<Job>, String> {
+pub fn start_install(engine: &Arc<Engine>, with_r: bool, packages: Vec<String>, update: bool) -> Result<Arc<Job>, String> {
     if let Some(j) = engine.jobs.active("r-setup", "r") {
         return Err(format!("R setup job {} is already running", j.id));
     }
@@ -157,7 +191,7 @@ pub fn start_install(engine: &Arc<Engine>, with_r: bool, packages: Vec<String>) 
             if packages.is_empty() {
                 return Ok("R is ready".into());
             }
-            install_packages(&j, &packages)
+            install_packages(&j, &packages, update)
         })();
         match res {
             Ok(msg) => j.finish(Status::Done, msg, Some(status())),
@@ -168,7 +202,7 @@ pub fn start_install(engine: &Arc<Engine>, with_r: bool, packages: Vec<String>) 
     Ok(job)
 }
 
-fn install_packages(job: &Job, packages: &[String]) -> Result<String, String> {
+fn install_packages(job: &Job, packages: &[String], update: bool) -> Result<String, String> {
     let (cmd, _) = sidecar::find(Lang::R).ok_or("R is not installed")?;
     let lib = library();
     std::fs::create_dir_all(&lib).map_err(|e| format!("{}: {e}", lib.display()))?;
@@ -180,15 +214,26 @@ lib <- {lib}
 .libPaths(c(lib, .libPaths()))
 options(repos = c(CRAN = {repo}), HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(), paste(getRversion(), R.version$platform, R.version$arch, R.version$os)), timeout = 600)
 pk <- c({list})
+upd <- {upd}
 failed <- character()
 ver <- function(p) tryCatch(as.character(utils::packageVersion(p)), error = function(e) "")
 if (length(pk)) {{
   ok <- tryCatch({{ nrow(utils::available.packages()) > 0 }}, error = function(e) FALSE, warning = function(w) FALSE)
   if (!ok) cat("GSXNOREPO", getOption("repos")[["CRAN"]], "\n")
+  # how many packages (with their dependencies) will be downloaded and installed: the gauge's total
+  if (ok) tryCatch({{
+    ap <- utils::available.packages()
+    dep <- tools::package_dependencies(pk, db = ap, which = c("Depends", "Imports", "LinkingTo"), recursive = TRUE)
+    all <- unique(c(pk, unlist(dep)))
+    have <- rownames(utils::installed.packages(lib.loc = c(lib, .libPaths())))
+    todo <- setdiff(intersect(all, rownames(ap)), have)
+    if (upd) todo <- union(todo, intersect(pk, rownames(ap)))
+    cat("GSXPLAN", length(todo), "\n")
+  }}, error = function(e) NULL)
 }}
 for (i in seq_along(pk)) {{
   cat("GSX", i, length(pk), pk[i], "\n")
-  if (nzchar(ver(pk[i]))) {{
+  if (!upd && nzchar(ver(pk[i]))) {{
     cat("GSXOK", pk[i], ver(pk[i]), "already\n")
     next
   }}
@@ -201,7 +246,8 @@ cat("GSXFAILED", failed, "\n")
 "#,
         lib = rs(&lib.to_string_lossy()),
         repo = rs(&repo()),
-        list = list.join(", ")
+        list = list.join(", "),
+        upd = if update { "TRUE" } else { "FALSE" }
     );
     job.log(format!("$ Rscript (library {}, packages from {})", lib.display(), repo()));
     let mut child = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| format!("could not start {cmd}: {e}"))?;
@@ -221,7 +267,30 @@ cat("GSXFAILED", failed, "\n")
     let mut no_repo: Option<String> = None;
     let base = job.json()["done"].as_u64().unwrap_or(0);
     let mut failed: Vec<String> = Vec::new();
+    // the gauge: packages to install (with dependencies), installed so far, bytes downloaded
+    let (t0, mut planned, mut units, mut bytes, mut label) = (std::time::Instant::now(), 0u64, 0u64, 0u64, String::new());
+    let gauge = |planned: u64, units: u64, bytes: u64, label: &str| {
+        if planned == 0 {
+            return;
+        }
+        let frac = (units as f64 / planned as f64).min(0.99);
+        let el = t0.elapsed().as_secs_f64();
+        // bytes per finished package so far gives the expected total download
+        let total = (units > 0 && bytes > 0).then(|| (bytes as f64 / units.max(1) as f64 * planned as f64).max(bytes as f64) as u64);
+        let eta = (frac > 0.0).then(|| el / frac * (1.0 - frac));
+        let v = serde_json::json!({ "label": label, "fraction": frac, "bytes": bytes, "total": total, "rate": if el > 0.0 { bytes as f64 / el } else { 0.0 }, "eta_s": eta, "elapsed_s": el, "units": units, "planned": planned });
+        job.update(|s| s.transfer = Some(v));
+    };
     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+        // R prints the size of each file it downloads and a line for each package it installs
+        if let Some(n) = line.split("length ").nth(1).and_then(|r| r.split(" bytes").next()).and_then(|n| n.trim().parse::<u64>().ok()) {
+            bytes += n;
+            gauge(planned, units, bytes, &label);
+        }
+        if line.starts_with("* DONE (") || line.contains("successfully unpacked and MD5 sums checked") {
+            units += 1;
+            gauge(planned, units, bytes, &label);
+        }
         if job.cancel.load(Ordering::Relaxed) {
             let _ = child.kill();
             let _ = child.wait();
@@ -238,6 +307,8 @@ cat("GSXFAILED", failed, "\n")
                 let i: u64 = parts[1].parse().unwrap_or(1);
                 let p = parts[3].to_string();
                 job.log(format!("— {p} ({i} of {})", parts[2]));
+                label = format!("{p} ({i} of {})", parts[2]);
+                gauge(planned, units, bytes, &label);
                 job.update(|s| {
                     s.done = base + i - 1;
                     s.message = format!("Installing {p} ({i} of {})", parts[2]);
@@ -251,6 +322,11 @@ cat("GSXFAILED", failed, "\n")
                 let url = parts.get(1).unwrap_or(&"CRAN").to_string();
                 job.log(format!("✗ cannot reach the package repository {url}: check the internet connection or proxy"));
                 no_repo = Some(url);
+            }
+            Some(&"GSXPLAN") => {
+                planned = parts.get(1).and_then(|n| n.parse().ok()).unwrap_or(0);
+                job.log(format!("{planned} package(s) to download and install, with their dependencies"));
+                gauge(planned, units, bytes, &label);
             }
             Some(&"GSXFAILED") => failed = parts[1..].iter().map(|s| s.to_string()).collect(),
             _ if !line.trim().is_empty() => job.log(line.clone()),
@@ -357,4 +433,21 @@ mod tests {
         assert_eq!(newest_link(html, "R-", "-win.exe").as_deref(), Some("R-4.5.1-win.exe"));
         assert_eq!(packages_of(&["maps".into(), "lidR".into()]), ["tmap", "ggplot2", "ggspatial", "patchwork", "viridisLite", "lidR"]);
     }
+}
+
+/// Every package name in the repository (for suggestions as the user types), read once per run.
+pub fn available() -> Result<Value, String> {
+    static CACHE: std::sync::Mutex<Option<Vec<String>>> = std::sync::Mutex::new(None);
+    if let Some(v) = CACHE.lock().unwrap().as_ref() {
+        return Ok(json!({ "packages": v }));
+    }
+    let (cmd, _) = sidecar::find(Lang::R).ok_or("R is not installed")?;
+    let script = format!("options(repos = c(CRAN = {}), timeout = 120)\ncat(rownames(utils::available.packages()), sep = \"\\n\")\n", rs(&repo()));
+    let out = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).output().map_err(|e| e.to_string())?;
+    let names: Vec<String> = String::from_utf8_lossy(&out.stdout).lines().map(str::trim).filter(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')).map(str::to_string).collect();
+    if names.is_empty() {
+        return Err(format!("could not read the package list from {}", repo()));
+    }
+    *CACHE.lock().unwrap() = Some(names.clone());
+    Ok(json!({ "packages": names }))
 }

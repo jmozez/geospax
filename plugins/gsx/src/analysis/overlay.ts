@@ -1,6 +1,6 @@
 // Polygon overlay primitives shared by the conservation tools.
 //
-// Ported from GeoSpaX v1 (js/geospax-conservation.js GSX.unionAll and the
+// Ported from earlier GeoSpaX (js/geospax-conservation.js GSX.unionAll and the
 // pairwise overlay helpers). v1 targeted Turf 6 (pairwise signatures); this
 // port targets the workspace's Turf 7, where intersect/difference/union take
 // a FeatureCollection. Failure semantics are unchanged: malformed geometry is

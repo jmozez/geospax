@@ -1,7 +1,7 @@
 // The Project pane (left dock): what the project is, where it is saved, and what is in it, as the
 // Project pane in ArcGIS Pro. The project (draw order, styles, groups, basemap, view, bookmarks) saves
 // itself to the engine's state folder after every change; "Save a copy" downloads it as a file to keep
-// or share, "Open" reads one back (a 3.0 copy, or a 1.4.2 .gspx / 2.0 .geolibre.json whose layers are
+// or share, "Open" reads one back (a 3.0 copy, or a .gspx / .geolibre.json whose layers are
 // imported), and bookmarks remember map views by name.
 import type { Backend } from './backend';
 import type { Project } from './symbology';
@@ -26,7 +26,7 @@ export interface ProjectPaneHost {
   save: () => void;
   /** replace the whole project (Open, New) and redraw */
   replace: (p: Project) => Promise<void>;
-  /** a 1.4.2 / 2.0 project file: imported through the upload route */
+  /** an earlier GeoSpaX project file: imported through the upload route */
   importFile: (f: File) => Promise<void>;
   setStatus: (t: string, ms?: number) => void;
 }
@@ -64,7 +64,7 @@ export class ProjectPane {
       </dl>
       <div class="row">
         <button data-act="save-copy" title="Download the project as a file to keep or share">${icon('download', 14)} Save a copy…</button>
-        <button data-act="open" title="Open a GeoSpaX 3 project copy, a 1.4.2 .gspx or a 2.0 .geolibre.json">${icon('folder', 14)} Open…</button>
+        <button data-act="open" title="Open a GeoSpaX 3 project copy, a .gspx or .geolibre.json file">${icon('folder', 14)} Open…</button>
         <button data-act="new" title="Start again: every layer back to its default style, no groups or bookmarks">${icon('plus', 14)} New</button>
       </div>
       <h2>Bookmarks</h2>

@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window and the help window: core IPC; the main window may open the help window (Help \u203a User guide).",
+  "description": "Main window and the help and layout windows: core IPC; the main window may open the help and layout windows (Help › User guide).",
   "windows": [
     "main",
-    "help"
+    "help",
+    "layout"
   ],
   "permissions": [
     "core:default",

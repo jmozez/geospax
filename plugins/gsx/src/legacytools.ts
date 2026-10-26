@@ -1,7 +1,7 @@
 import { maxOf, minOf } from './analysis/extent';
-// Tools from GeoSpaX 1.4.2 (jm0535/map-kit) rebuilt for GeoSpaX 3: local Moran's I (LISA) with the
+// Tools from earlier GeoSpaX rebuilt for GeoSpaX 3: local Moran's I (LISA) with the
 // global Moran's I and its scatterplot, and the elevation profile (along lines over a DEM, or through
-// points with an elevation field). Same methods as 1.4.2's documentation (Anselin 1995; conditional
+// points with an elevation field). Same methods as the earlier documentation (Anselin 1995; conditional
 // permutation), written for the plugin contract.
 import type { Feature, Geometry, Position } from 'geojson';
 import centroid from '@turf/centroid';

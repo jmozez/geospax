@@ -171,3 +171,125 @@ pub fn choose(engine: &Engine, path: &str) -> Result<Value, String> {
     unsafe { std::env::set_var("GEOSPAX_PYTHON", &py) };
     Ok(json!({ "python": py, "version": version_of(&py) }))
 }
+
+/// How packages of this environment are updated: "pip" (GeoSpaX runs pip), or the command to run
+/// instead when the system or conda manages it (pip there would break the distribution's Python).
+fn manager(py: &Path) -> (&'static str, Option<String>) {
+    let prefix = py.parent().and_then(Path::parent).unwrap_or(Path::new("/"));
+    if prefix.join("conda-meta").is_dir() {
+        let name = prefix.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        return ("conda", Some(format!("conda update -n {name} --all  (or mamba update …)")));
+    }
+    let script = "import sysconfig, os; print(os.path.exists(os.path.join(sysconfig.get_path('stdlib'), 'EXTERNALLY-MANAGED')))";
+    let managed = crate::command(py.to_string_lossy().as_ref()).args(["-c", script]).stdin(Stdio::null()).output().map(|o| String::from_utf8_lossy(&o.stdout).trim() == "True").unwrap_or(false);
+    if managed {
+        let cmd = if Path::new("/usr/bin/dnf").exists() {
+            "sudo dnf upgrade 'python3-*'"
+        } else if Path::new("/usr/bin/apt").exists() {
+            "sudo apt update && sudo apt upgrade"
+        } else {
+            "your system's package manager"
+        };
+        return ("system", Some(format!("{cmd}, or make a virtual environment (python3 -m venv ~/.venvs/gis) and choose it here")));
+    }
+    ("pip", None)
+}
+
+/// Packages with a newer version on PyPI (name, installed, available), and how to update them.
+pub fn outdated(engine: &Engine, path: &str) -> Result<Value, String> {
+    let py = known(engine, path)?;
+    let (how, command) = manager(&py);
+    let o = crate::command(py.to_string_lossy().as_ref())
+        .args(["-m", "pip", "list", "--outdated", "--format=json", "--disable-pip-version-check"])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !o.status.success() {
+        return Err(format!("pip could not check: {}", String::from_utf8_lossy(&o.stderr).lines().last().unwrap_or("is pip installed in this environment?")));
+    }
+    let list: Vec<Value> = serde_json::from_slice::<Vec<Value>>(&o.stdout)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| json!({ "name": p["name"], "installed": p["version"], "available": p["latest_version"] }))
+        .collect();
+    Ok(json!({ "packages": list, "manager": how, "command": command }))
+}
+
+/// Update (or install) packages in a pip-managed environment, as a job with a download gauge.
+pub fn start_update(engine: &std::sync::Arc<Engine>, path: &str, packages: Vec<String>) -> Result<std::sync::Arc<crate::jobs::Job>, String> {
+    use std::io::{BufRead, BufReader};
+    let py = known(engine, path)?;
+    if let (how @ ("conda" | "system"), Some(cmd)) = manager(&py) {
+        return Err(format!("this {how} Python is updated outside GeoSpaX: {cmd}"));
+    }
+    // package names only: letters, digits, . _ - and an optional [extra] / version pin
+    if packages.is_empty() || packages.iter().any(|p| p.is_empty() || !p.chars().all(|c| c.is_ascii_alphanumeric() || "._-[]=<>!~,".contains(c)) || p.starts_with('-')) {
+        return Err("name the packages to update".into());
+    }
+    if let Some(j) = engine.jobs.active("py-update", path) {
+        return Err(format!("a Python update ({}) is already running", j.id));
+    }
+    let job = engine.jobs.create("py-update", path);
+    job.update(|s| s.total = packages.len() as u64);
+    let j = job.clone();
+    engine.job_pool.spawn(move || {
+        j.update(|s| s.status = crate::jobs::Status::Running);
+        let t0 = std::time::Instant::now();
+        let res = (|| -> Result<String, String> {
+            let mut args = vec!["-m".to_string(), "pip".into(), "install".into(), "--upgrade".into(), "--progress-bar".into(), "off".into(), "--disable-pip-version-check".into()];
+            args.extend(packages.iter().cloned());
+            j.log(format!("$ python -m pip install --upgrade {}", packages.join(" ")));
+            let mut child = crate::command(py.to_string_lossy().as_ref()).args(&args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| e.to_string())?;
+            let err = child.stderr.take();
+            let errs: std::sync::Arc<std::sync::Mutex<Vec<String>>> = Default::default();
+            if let Some(e) = err {
+                let sink = errs.clone();
+                std::thread::spawn(move || sink.lock().unwrap().extend(BufReader::new(e).lines().map_while(Result::ok)));
+            }
+            // the gauge: "Collecting x" names a package to fetch, "Downloading x (12.3 MB)" its size
+            let (mut planned, mut fetched, mut bytes, mut label) = (packages.len() as u64, 0u64, 0f64, String::new());
+            for line in BufReader::new(child.stdout.take().ok_or("no output from pip")?).lines().map_while(Result::ok) {
+                if j.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                    let _ = child.kill();
+                    return Err("cancelled".into());
+                }
+                let t = line.trim();
+                if let Some(name) = t.strip_prefix("Collecting ") {
+                    label = name.split_whitespace().next().unwrap_or(name).to_string();
+                    planned = planned.max(fetched + 1);
+                }
+                if t.starts_with("Downloading ") {
+                    fetched += 1;
+                    if let Some(sz) = t.rsplit('(').next().and_then(|r| r.strip_suffix(')')) {
+                        let mut it = sz.split_whitespace();
+                        if let (Some(n), Some(u)) = (it.next().and_then(|n| n.parse::<f64>().ok()), it.next()) {
+                            bytes += n * match u { "kB" => 1e3, "MB" => 1e6, "GB" => 1e9, _ => 1.0 };
+                        }
+                    }
+                    planned = planned.max(fetched + 1);
+                }
+                let frac = if t.starts_with("Successfully installed") || t.starts_with("Installing collected") { 0.95 } else { (fetched as f64 / (planned + 1) as f64).min(0.9) };
+                let el = t0.elapsed().as_secs_f64();
+                let total = (fetched > 0).then(|| (bytes / fetched as f64 * planned as f64).max(bytes) as u64);
+                let v = json!({ "label": label, "fraction": frac, "bytes": bytes as u64, "total": total, "rate": if el > 0.0 { bytes / el } else { 0.0 }, "eta_s": (frac > 0.0).then(|| el / frac * (1.0 - frac)), "elapsed_s": el, "units": fetched, "planned": planned });
+                j.update(|s| {
+                    s.transfer = Some(v);
+                    s.message = if label.is_empty() { "Updating".into() } else { format!("Fetching {label}") };
+                });
+                if !t.is_empty() {
+                    j.log(line.clone());
+                }
+            }
+            let st = child.wait().map_err(|e| e.to_string())?;
+            for l in errs.lock().unwrap().drain(..) {
+                j.log(l);
+            }
+            if st.success() { Ok(format!("{} Python package(s) up to date", packages.len())) } else { Err("pip could not update them (the log says why)".into()) }
+        })();
+        match res {
+            Ok(m) => j.finish(crate::jobs::Status::Done, m, None),
+            Err(e) => j.finish(crate::jobs::Status::Failed, e, None),
+        }
+    });
+    Ok(job)
+}

@@ -4,6 +4,8 @@
 // method in the report. sf layers come in as `layer`, rasters as terra `raster`; what the code
 // returns comes back: sf → layers, SpatRaster → rasters, ggplot/tmap → figures, data frames → tables.
 // The templates are full, editable R: "show me the code" is the point.
+import { bytesText, etaText } from './downloads';
+import type { Transfer } from './automate';
 import type { Backend } from './backend';
 
 const esc = (s: unknown) =>
@@ -28,50 +30,99 @@ interface Template {
 }
 
 export const TEMPLATES: Record<string, Template> = {
+  // Every template follows the tidyverse style guide: the native pipe |>, dplyr / purrr verbs,
+  // snake_case names, .data[[...]] for a field chosen at run time, one step per line, ggplot2 for
+  // charts (the theme and palette chosen in Settings are already set by GeoSpaX, see sidecar.rs).
   blank: {
     title: 'R console',
     lead: 'Any R code. `layer` is the chosen layer (sf), `raster` the chosen raster (terra). Return a named list: sf → layers, SpatRaster → rasters, ggplot/tmap → figures, data frames → tables.',
     needs: [],
     packages: [],
     code: `# layer (sf) and raster (terra) are the inputs chosen above
-# save_figure("name", plot_or_function), save_table("name", df), result(key = value)
-summary(layer)
+# save_figure("name", plot), save_table("name", df), result(key = value)
+layer |>
+  sf::st_drop_geometry() |>
+  dplyr::glimpse()
+`,
+  },
+  chart: {
+    title: 'ggplot2 chart',
+    lead: 'A chart of a field with ggplot2 (histogram for numbers, bar chart for categories) in the theme and palette chosen in Settings, saved as PNG, PDF and SVG.',
+    needs: ['layer'],
+    packages: ['ggplot2', 'dplyr', 'sf'],
+    code: `library(ggplot2)
+library(dplyr)
+
+attributes <- sf::st_drop_geometry(layer)
+field <- attributes |>
+  select(where(is.numeric)) |>
+  names() |>
+  dplyr::first()                                  # or e.g. "elevation"
+
+chart <- attributes |>
+  filter(!is.na(.data[[field]])) |>
+  ggplot(aes(x = .data[[field]])) +
+  geom_histogram(bins = 30) +
+  labs(title = paste("Distribution of", field), x = field, y = "count")
+
+save_figure("chart", chart, width = 160, height = 120, dpi = 300, formats = c("png", "pdf", "svg"))
 `,
   },
   tmap: {
     title: 'tmap map',
     lead: 'A thematic map of a layer with tmap: classed fill, legend, north arrow and scale bar, saved at print size (PNG and PDF).',
     needs: ['layer'],
-    packages: ['tmap', 'sf'],
+    packages: ['tmap', 'sf', 'dplyr'],
     code: `library(tmap)
-field <- names(Filter(is.numeric, sf::st_drop_geometry(layer)))[1]   # or e.g. "population"
-geom <- as.character(sf::st_geometry_type(layer, by_geometry = FALSE))
-shape <- tm_shape(layer)
-m <- if (grepl("POINT", geom)) {
-  shape + tm_dots(fill = field, size = 0.4, fill.scale = tm_scale_intervals(style = "jenks", values = "viridis"))
-} else {
-  shape + tm_polygons(fill = field, fill.scale = tm_scale_intervals(style = "jenks", values = "viridis"),
-                      fill.legend = tm_legend(title = field))
-}
-m <- m + tm_compass(position = c("right", "top")) + tm_scalebar(position = c("left", "bottom")) +
+library(dplyr)
+
+field <- layer |>
+  sf::st_drop_geometry() |>
+  select(where(is.numeric)) |>
+  names() |>
+  first()                                         # or e.g. "population"
+is_point <- layer |>
+  sf::st_geometry_type(by_geometry = FALSE) |>
+  as.character() |>
+  grepl(pattern = "POINT")
+fill_scale <- tm_scale_intervals(style = "jenks", values = "viridis")
+
+map <- tm_shape(layer) +
+  (if (is_point) {
+    tm_dots(fill = field, size = 0.4, fill.scale = fill_scale)
+  } else {
+    tm_polygons(fill = field, fill.scale = fill_scale, fill.legend = tm_legend(title = field))
+  }) +
+  tm_compass(position = c("right", "top")) +
+  tm_scalebar(position = c("left", "bottom")) +
   tm_layout(frame = FALSE, legend.outside = TRUE)
-save_figure("tmap_map", m, width = 180, height = 140, dpi = 300)
+
+save_figure("tmap_map", map, width = 180, height = 140, dpi = 300)
 `,
   },
   ggplot: {
     title: 'ggplot2 map',
-    lead: 'A ggplot2 map (geom_sf) with a scale bar and north arrow from ggspatial, saved at print size.',
+    lead: 'A ggplot2 map (geom_sf) with a scale bar and north arrow from ggspatial, in the theme chosen in Settings, saved at print size.',
     needs: ['layer'],
-    packages: ['ggplot2', 'ggspatial', 'sf'],
+    packages: ['ggplot2', 'ggspatial', 'sf', 'dplyr'],
     code: `library(ggplot2)
-field <- names(Filter(is.numeric, sf::st_drop_geometry(layer)))[1]
-p <- ggplot(layer) +
+library(dplyr)
+
+field <- layer |>
+  sf::st_drop_geometry() |>
+  select(where(is.numeric)) |>
+  names() |>
+  first()
+
+map <- layer |>
+  ggplot() +
   geom_sf(aes(fill = .data[[field]], colour = .data[[field]]), linewidth = 0.2) +
-  scale_fill_viridis_c(guide = "none") + scale_colour_viridis_c(name = field) +
+  scale_fill_viridis_c(guide = "none") +
+  scale_colour_viridis_c(name = field) +
   ggspatial::annotation_scale(location = "bl") +
-  ggspatial::annotation_north_arrow(location = "tr", style = ggspatial::north_arrow_minimal()) +
-  theme_minimal(base_size = 10) + theme(panel.grid = element_line(colour = "grey90"))
-save_figure("ggplot_map", p, width = 180, height = 140, dpi = 300)
+  ggspatial::annotation_north_arrow(location = "tr", style = ggspatial::north_arrow_minimal())
+
+save_figure("ggplot_map", map, width = 180, height = 140, dpi = 300)
 `,
   },
   rayshader: {
@@ -80,14 +131,18 @@ save_figure("ggplot_map", p, width = 180, height = 140, dpi = 300)
     needs: ['raster'],
     packages: ['rayshader', 'terra'],
     code: `library(rayshader)
+
 dem <- raster[[1]]
-m <- raster_to_matrix(dem)
-z <- max(1, mean(terra::res(dem)) * if (terra::is.lonlat(dem)) 111320 else 1) / 10   # vertical exaggeration
+elevation <- raster_to_matrix(dem)
+# vertical exaggeration: cell size in metres / 10
+metres_per_unit <- if (terra::is.lonlat(dem)) 111320 else 1
+z_scale <- max(1, mean(terra::res(dem)) * metres_per_unit) / 10
+
 save_figure("relief", function() {
-  m |>
+  elevation |>
     sphere_shade(texture = "imhof1") |>
-    add_shadow(ray_shade(m, zscale = z), 0.5) |>
-    add_shadow(ambient_shade(m, zscale = z), 0) |>
+    add_shadow(ray_shade(elevation, zscale = z_scale), 0.5) |>
+    add_shadow(ambient_shade(elevation, zscale = z_scale), 0) |>
     plot_map()
 }, width = 180, height = 140, formats = "png")
 # 3D: plot_3d(...) then render_snapshot(figure_path("relief_3d")) (needs OpenGL)
@@ -95,48 +150,96 @@ save_figure("relief", function() {
   },
   terrain: {
     title: 'terra terrain',
-    lead: 'Slope, aspect, hillshade and terrain ruggedness from an elevation raster with terra.',
+    lead: 'Slope, aspect, hillshade and terrain ruggedness from an elevation raster with terra, with a summary table.',
     needs: ['raster'],
-    packages: ['terra'],
-    code: `dem <- raster[[1]]
-t <- terra::terrain(dem, v = c("slope", "aspect", "TRI"), unit = "degrees")
-shade <- terra::shade(terra::terrain(dem, "slope", unit = "radians"), terra::terrain(dem, "aspect", unit = "radians"))
-stats <- data.frame(layer = names(t), mean = terra::global(t, "mean", na.rm = TRUE)[[1]],
-                    max = terra::global(t, "max", na.rm = TRUE)[[1]])
-list(slope = t[["slope"]], aspect = t[["aspect"]], ruggedness = t[["TRI"]], hillshade = shade, terrain_stats = stats)
+    packages: ['terra', 'dplyr', 'tibble'],
+    code: `library(dplyr)
+
+dem <- raster[[1]]
+derived <- terra::terrain(dem, v = c("slope", "aspect", "TRI"), unit = "degrees")
+hillshade <- terra::shade(
+  slope = terra::terrain(dem, "slope", unit = "radians"),
+  aspect = terra::terrain(dem, "aspect", unit = "radians")
+)
+
+terrain_stats <- tibble::tibble(
+  layer = names(derived),
+  mean = terra::global(derived, "mean", na.rm = TRUE)[[1]],
+  max = terra::global(derived, "max", na.rm = TRUE)[[1]]
+) |>
+  mutate(across(c(mean, max), \\(x) round(x, 2)))
+
+list(
+  slope = derived[["slope"]],
+  aspect = derived[["aspect"]],
+  ruggedness = derived[["TRI"]],
+  hillshade = hillshade,
+  terrain_stats = terrain_stats
+)
 `,
   },
   biomod2: {
     title: 'biomod2 ensemble SDM',
     lead: 'An ensemble species distribution model with biomod2: occurrence points + environmental rasters (e.g. WorldClim from Data › Climate), pseudo-absences, GLM + random forest + MaxNet, TSS-weighted ensemble.',
     needs: ['layer', 'raster'],
-    packages: ['biomod2', 'terra', 'sf'],
+    packages: ['biomod2', 'terra', 'sf', 'dplyr'],
     code: `library(biomod2)
-xy <- sf::st_coordinates(sf::st_transform(layer, terra::crs(raster)))
-data <- BIOMOD_FormatingData(resp.var = rep(1, nrow(xy)), expl.var = raster, resp.xy = xy,
-  resp.name = "species", PA.nb.rep = 1, PA.nb.absences = 1000, PA.strategy = "random")
-mods <- BIOMOD_Modeling(data, models = c("GLM", "RF", "MAXNET"), CV.strategy = "random",
-  CV.nb.rep = 2, CV.perc = 0.8, metric.eval = c("TSS", "ROC"), var.import = 2)
-ens <- BIOMOD_EnsembleModeling(mods, em.by = "all", em.algo = "EMwmean",
-  metric.select = "TSS", metric.select.thresh = 0.5, metric.eval = c("TSS", "ROC"))
-proj <- BIOMOD_EnsembleForecasting(ens, proj.name = "current", new.env = raster)
-suitability <- terra::rast(get_predictions(proj))[[1]] / 1000
-list(suitability = suitability, evaluation = get_evaluations(mods), importance = get_variables_importance(mods))
+library(dplyr)
+
+presence_xy <- layer |>
+  sf::st_transform(terra::crs(raster)) |>
+  sf::st_coordinates()
+
+model_data <- BIOMOD_FormatingData(
+  resp.var = rep(1, nrow(presence_xy)), expl.var = raster, resp.xy = presence_xy,
+  resp.name = "species", PA.nb.rep = 1, PA.nb.absences = 1000, PA.strategy = "random"
+)
+models <- BIOMOD_Modeling(
+  model_data, models = c("GLM", "RF", "MAXNET"), CV.strategy = "random",
+  CV.nb.rep = 2, CV.perc = 0.8, metric.eval = c("TSS", "ROC"), var.import = 2
+)
+ensemble <- BIOMOD_EnsembleModeling(
+  models, em.by = "all", em.algo = "EMwmean",
+  metric.select = "TSS", metric.select.thresh = 0.5, metric.eval = c("TSS", "ROC")
+)
+projection <- BIOMOD_EnsembleForecasting(ensemble, proj.name = "current", new.env = raster)
+
+suitability <- terra::rast(get_predictions(projection))[[1]] / 1000
+evaluation <- get_evaluations(models) |>
+  as_tibble()
+importance <- get_variables_importance(models) |>
+  as_tibble() |>
+  group_by(expl.var) |>
+  summarise(importance = mean(var.imp), .groups = "drop") |>
+  arrange(desc(importance))
+
+list(suitability = suitability, evaluation = evaluation, importance = importance)
 `,
   },
   maxent: {
     title: 'MaxEnt (maxnet)',
     lead: 'MaxEnt with maxnet: presences from a point layer, 5,000 background points from the rasters, cloglog suitability.',
     needs: ['layer', 'raster'],
-    packages: ['maxnet', 'terra', 'sf'],
+    packages: ['maxnet', 'terra', 'sf', 'dplyr'],
     code: `library(maxnet)
-pts <- terra::vect(sf::st_transform(layer, terra::crs(raster)))
-pres <- terra::extract(raster, pts, ID = FALSE)
-bg <- terra::spatSample(raster, 5000, "random", na.rm = TRUE, values = TRUE)
-d <- na.omit(rbind(data.frame(p = 1, pres), data.frame(p = 0, bg)))
-fit <- maxnet(d$p, d[, -1, drop = FALSE], maxnet.formula(d$p, d[, -1, drop = FALSE], classes = "lqh"))
+library(dplyr)
+
+presence <- layer |>
+  sf::st_transform(terra::crs(raster)) |>
+  terra::vect() |>
+  terra::extract(x = raster, ID = FALSE) |>
+  mutate(presence = 1)
+background <- raster |>
+  terra::spatSample(5000, "random", na.rm = TRUE, values = TRUE) |>
+  mutate(presence = 0)
+training <- bind_rows(presence, background) |>
+  tidyr::drop_na()
+
+predictors <- select(training, -presence)
+fit <- maxnet(training$presence, predictors, maxnet.formula(training$presence, predictors, classes = "lqh"))
 suitability <- terra::predict(raster, fit, type = "cloglog", na.rm = TRUE)
-result(presences = sum(d$p == 1), background = sum(d$p == 0))
+
+result(presences = sum(training$presence == 1), background = sum(training$presence == 0))
 list(suitability = suitability)
 `,
   },
@@ -146,18 +249,36 @@ list(suitability = suitability)
     needs: ['layer'],
     packages: ['tidymodels', 'ranger', 'sf'],
     code: `library(tidymodels)
-d <- sf::st_drop_geometry(layer) |> dplyr::select(where(is.numeric))
-target <- names(d)[1]                       # the field to predict
-ok <- stats::complete.cases(d)
-f <- stats::as.formula(paste(target, "~ ."))
-wf <- workflow() |> add_formula(f) |> add_model(rand_forest(trees = 500) |> set_engine("ranger") |> set_mode("regression"))
+
+numeric_fields <- layer |>
+  sf::st_drop_geometry() |>
+  select(where(is.numeric))
+target <- names(numeric_fields)[1]               # the field to predict
+complete <- stats::complete.cases(numeric_fields)
+training <- filter(numeric_fields, complete)
+
+forest_wf <- workflow() |>
+  add_formula(stats::reformulate(".", response = target)) |>
+  add_model(
+    rand_forest(trees = 500) |>
+      set_engine("ranger") |>
+      set_mode("regression")
+  )
+
 set.seed(1)
-cv <- fit_resamples(wf, vfold_cv(d[ok, ], v = 5), metrics = metric_set(rmse, rsq))
-fitted <- fit(wf, d[ok, ])
-out <- layer[ok, ]
-out$predicted <- predict(fitted, d[ok, ])$.pred
-out$residual <- out[[target]] - out$predicted
-list(predictions = out, cv_metrics = collect_metrics(cv))
+cv_metrics <- forest_wf |>
+  fit_resamples(vfold_cv(training, v = 5), metrics = metric_set(rmse, rsq)) |>
+  collect_metrics()
+fitted <- fit(forest_wf, training)
+
+predictions <- layer |>
+  filter(complete) |>
+  mutate(
+    predicted = predict(fitted, training)$.pred,
+    residual = .data[[target]] - predicted
+  )
+
+list(predictions = predictions, cv_metrics = cv_metrics)
 `,
   },
   dbplyr: {
@@ -166,13 +287,26 @@ list(predictions = out, cv_metrics = collect_metrics(cv))
     needs: ['layer'],
     packages: ['dplyr', 'dbplyr', 'duckdb', 'sf'],
     code: `library(dplyr)
+
 con <- DBI::dbConnect(duckdb::duckdb())
 on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
-DBI::dbWriteTable(con, "layer", sf::st_drop_geometry(layer))
-num <- names(Filter(is.numeric, sf::st_drop_geometry(layer)))[1]
-q <- tbl(con, "layer") |> summarise(n = n(), mean = mean(.data[[num]], na.rm = TRUE), max = max(.data[[num]], na.rm = TRUE))
-show_query(q)
-list(summary = collect(q))
+
+attributes <- sf::st_drop_geometry(layer)
+DBI::dbWriteTable(con, "layer", attributes)
+field <- attributes |>
+  select(where(is.numeric)) |>
+  names() |>
+  first()
+
+query <- tbl(con, "layer") |>
+  summarise(
+    n = n(),
+    mean = mean(.data[[field]], na.rm = TRUE),
+    max = max(.data[[field]], na.rm = TRUE)
+  )
+
+show_query(query)
+list(summary = collect(query))
 `,
   },
   gee: {
@@ -181,13 +315,23 @@ list(summary = collect(q))
     needs: ['layer'],
     packages: ['rgee', 'sf', 'terra'],
     code: `library(rgee)
+
 ee_Initialize(quiet = TRUE)
-aoi <- sf_as_ee(sf::st_as_sfc(sf::st_bbox(sf::st_transform(layer, 4326))))
+area <- layer |>
+  sf::st_transform(4326) |>
+  sf::st_bbox() |>
+  sf::st_as_sfc() |>
+  sf_as_ee()
+
+# Earth Engine objects chain with $ (its own API), not with |>
 ndvi <- ee$ImageCollection("COPERNICUS/S2_SR_HARMONIZED")$
-  filterBounds(aoi)$filterDate("2024-01-01", "2024-12-31")$
+  filterBounds(area)$
+  filterDate("2024-01-01", "2024-12-31")$
   filter(ee$Filter$lt("CLOUDY_PIXEL_PERCENTAGE", 20))$
-  median()$normalizedDifference(c("B8", "B4"))
-list(ndvi = ee_as_rast(ndvi, region = aoi, scale = 30))
+  median()$
+  normalizedDifference(c("B8", "B4"))
+
+list(ndvi = ee_as_rast(ndvi, region = area, scale = 30))
 `,
   },
 };
@@ -202,7 +346,15 @@ interface RStatus {
   install_note?: string;
 }
 
-interface JobInfo { id: number; status: string; message: string; progress: number; done: number; total: number; log?: string[] }
+/** Suggestions for Python package names: the geospatial and data-science packages people install most. */
+const PY_SUGGEST = ['geopandas', 'shapely', 'pyproj', 'rasterio', 'fiona', 'pyogrio', 'GDAL', 'xarray', 'rioxarray', 'numpy', 'pandas', 'scipy', 'scikit-learn',
+  'matplotlib', 'pystac-client', 'planetary-computer', 'stackstac', 'odc-stac', 'duckdb', 'leafmap', 'geemap', 'earthengine-api', 'osmnx', 'networkx', 'momepy',
+  'pysal', 'esda', 'libpysal', 'mgwr', 'spopt', 'pointpats', 'h3', 'folium', 'contextily', 'mapclassify', 'cartopy', 'rasterstats', 'whitebox', 'richdem',
+  'laspy', 'pdal', 'open3d', 'pyvista', 'scikit-image', 'opencv-python', 'torch', 'torchgeo', 'segment-geospatial', 'samgeo', 'lonboard', 'pydeck', 'plotly',
+  'seaborn', 'statsmodels', 'xgboost', 'lightgbm', 'dask', 'dask-geopandas', 'zarr', 'netCDF4', 'cfgrib', 'h5py', 'pyarrow', 'polars', 'geoparquet', 'overturemaps',
+  'pygbif', 'requests', 'tqdm', 'jupyterlab', 'ipywidgets'];
+
+interface JobInfo { id: number; status: string; message: string; progress: number; done: number; total: number; log?: string[]; transfer?: (Transfer & { units?: number; planned?: number }) | null }
 
 interface RunOut {
   figures?: Record<string, string[]>;
@@ -242,6 +394,7 @@ export class RConsole {
     });
     document.addEventListener('geospax:r', (e) => {
       const what = String((e as CustomEvent).detail ?? 'blank');
+      if (what.startsWith('python:')) return void this.pythonUpdates(what.slice(7));
       void (what === 'setup' ? this.setup() : this.console(what));
     });
   }
@@ -308,17 +461,60 @@ export class RConsole {
       }</p>
       <form class="rc-kits"><div class="rc-kitlist">${this.kitsHtml(s, missing)}</div>
         ${extra.length ? `<label class="ck"><input type="checkbox" name="pkg" value="${esc(extra.join(','))}" checked /> Also: ${esc(extra.join(', '))}</label>` : ''}
-        <label><span>Other packages</span><input name="more" placeholder="e.g. lidR, landscapemetrics, sdmTMB" /></label>
+        <label><span>Other packages</span><input name="more" list="rc-cran" autocomplete="off" placeholder="Start typing: lidR, landscapemetrics, sdmTMB …" /></label><datalist id="rc-cran"></datalist>
       </form>
-      <div class="rc-progress" hidden><progress max="1" value="0"></progress><span class="dim"></span>
+      <div class="rc-updates" hidden></div>
+      <div class="rc-progress" hidden><div class="rc-bar running" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><b>0%</b></div><div class="rc-meta"><span class="rc-size"></span><span class="rc-eta"></span></div><span class="dim"></span>
         <pre class="rc-log" aria-live="polite" aria-label="Installation log"></pre></div>
       <p class="dim">Packages are ready-built binaries (CRAN on Windows and macOS, Posit Package Manager on Linux): nothing is compiled. Needs internet.${
         s.library ? ` Library: <code>${esc(s.library)}</code>` : ''
       }</p>`,
-      `<span class="dim" id="rc-msg"></span><button type="button" data-close>Close</button>${
+      `<span class="dim" id="rc-msg"></span>${s.installed ? '<button type="button" id="rc-check">Check for updates</button>' : ''}<button type="button" data-close>Close</button>${
         s.installed || s.can_install_r ? `<button class="primary" type="button" id="rc-install">${s.installed ? 'Install selected' : 'Install R and selected packages'}</button>` : ''
       }`);
     this.el.querySelector('#rc-install')?.addEventListener('click', () => void this.install());
+    this.el.querySelector('#rc-check')?.addEventListener('click', () => void this.checkUpdates());
+    // package names from CRAN as the user types (the list is read once, then filtered here)
+    const more = this.el.querySelector<HTMLInputElement>('input[name=more]');
+    more?.addEventListener('input', () => void this.suggest(more));
+  }
+
+  private cran: string[] | null = null;
+  private async suggest(input: HTMLInputElement) {
+    if (!this.cran) {
+      this.cran = [];
+      this.cran = (await this.host.backend.json<{ packages: string[] }>('api/r/available').catch(() => ({ packages: [] as string[] }))).packages;
+    }
+    // the word being typed (several names can be given, separated by commas or spaces)
+    const word = input.value.split(/[\s,]+/).pop()!.toLowerCase();
+    const list = this.el.querySelector('#rc-cran');
+    if (!list) return;
+    const hits = word.length < 2 ? [] : [...this.cran.filter((p) => p.toLowerCase().startsWith(word)), ...this.cran.filter((p) => !p.toLowerCase().startsWith(word) && p.toLowerCase().includes(word))].slice(0, 40);
+    const head = input.value.slice(0, input.value.length - word.length);
+    list.innerHTML = hits.map((p) => `<option value="${esc(head + p)}"></option>`).join('');
+  }
+
+  /** Newer versions of the packages in GeoSpaX's R library, with an "Update all" button. */
+  private async checkUpdates() {
+    const box = this.el.querySelector<HTMLElement>('.rc-updates')!;
+    box.hidden = false;
+    box.innerHTML = '<p class="dim">Checking the repository for newer versions…</p>';
+    try {
+      const r = await this.host.backend.json<{ packages: { name: string; installed: string; available: string }[] }>('api/r/outdated');
+      if (!r.packages.length) {
+        box.innerHTML = '<p class="ok">✓ Every package in GeoSpaX\'s R library is up to date.</p>';
+        return;
+      }
+      box.innerHTML = `<p><b>${r.packages.length} update${r.packages.length === 1 ? '' : 's'} available</b></p>
+        <ul class="rc-upd-list">${r.packages.map((p) => `<li><label class="ck"><input type="checkbox" name="upd" value="${esc(p.name)}" checked /> <b>${esc(p.name)}</b> <span class="dim">${esc(p.installed)} → ${esc(p.available)}</span></label></li>`).join('')}</ul>
+        <button type="button" class="primary" id="rc-update">Update selected</button>`;
+      box.querySelector('#rc-update')!.addEventListener('click', () => {
+        const pk = [...box.querySelectorAll<HTMLInputElement>('input[name=upd]:checked')].map((c) => c.value);
+        if (pk.length) void this.install(pk);
+      });
+    } catch (e) {
+      box.innerHTML = `<p class="err">${esc((e as Error).message ?? e)}</p>`;
+    }
   }
 
   private body(html: string, footer = '<button type="button" data-close>Close</button>') {
@@ -328,26 +524,48 @@ export class RConsole {
     sheet.insertAdjacentHTML('beforeend', `<footer>${footer}</footer>`);
   }
 
-  private async install() {
+  private async install(update: string[] | null = null) {
     const form = this.el.querySelector<HTMLFormElement>('.rc-kits')!;
     const f = new FormData(form);
     const kits = f.getAll('kit').map(String);
     const packages = [...f.getAll('pkg').flatMap((v) => String(v).split(',')), ...String(f.get('more') ?? '').split(/[\s,]+/)].map((s) => s.trim()).filter(Boolean);
     const msg = this.el.querySelector<HTMLElement>('#rc-msg')!;
-    if (!kits.length && !packages.length && this.status?.installed) {
+    if (!update && !kits.length && !packages.length && this.status?.installed) {
       msg.textContent = 'Tick a kit or name a package';
       return;
     }
-    const prog = this.el.querySelector<HTMLElement>('.rc-progress')!;
-    const bar = prog.querySelector('progress')!;
-    const label = prog.querySelector('span')!;
-    this.el.querySelector<HTMLButtonElement>('#rc-install')!.disabled = true;
-    try {
-      let job = await this.host.backend.json<JobInfo>('api/r/install', {
+    await this.follow(() => this.host.backend.json<JobInfo>('api/r/install', {
         method: 'POST',
-        body: JSON.stringify({ r: true, kits, packages }),
+        body: JSON.stringify(update ? { r: false, packages: update, update: true } : { r: true, kits, packages }),
         headers: { 'content-type': 'application/json' },
-      });
+      }), 'R setup', async (ok) => {
+      // the package list is refreshed under the log, which stays open to read
+      if (ok) await this.refreshPackages();
+      if (ok && update) await this.checkUpdates();
+      document.dispatchEvent(new CustomEvent('geospax:envs-changed'));
+    });
+  }
+
+  /** Start a package job and follow it with the coloured gauge (size, speed, packages, time left) and its log. */
+  private async follow(start: () => Promise<JobInfo>, what: string, after: (ok: boolean) => Promise<void> = async () => {}) {
+    const msg = this.el.querySelector<HTMLElement>('#rc-msg')!;
+    const prog = this.el.querySelector<HTMLElement>('.rc-progress')!;
+    const barEl = prog.querySelector<HTMLElement>('.rc-bar')!;
+    // a coloured bar: striped and moving while R downloads and builds, green when done, red on failure
+    const bar = {
+      set value(v: number) {
+        const pct = Math.round(Math.min(Math.max(v, 0), 1) * 100);
+        barEl.querySelector('i')!.style.width = `${Math.max(pct, 2)}%`;
+        barEl.querySelector('b')!.textContent = `${pct}%`;
+        barEl.setAttribute('aria-valuenow', String(pct));
+      },
+    };
+    barEl.className = 'rc-bar running';
+    const label = prog.querySelector('span')!;
+    const btn = this.el.querySelector<HTMLButtonElement>('#rc-install, #rc-update');
+    if (btn) btn.disabled = true;
+    try {
+      let job = await start();
       prog.hidden = false;
       const log = prog.querySelector<HTMLElement>('.rc-log')!;
       const show = (j: JobInfo) => {
@@ -356,24 +574,76 @@ export class RConsole {
         if (atEnd) log.scrollTop = log.scrollHeight;
       };
       while (job.status === 'queued' || job.status === 'running') {
-        bar.value = job.progress;
-        label.textContent = job.message || 'Starting R…';
+        const t = job.transfer;
+        bar.value = t ? t.fraction : job.progress;
+        label.textContent = job.message || 'Starting…';
+        // size downloaded (of the expected total), speed, packages done and time left, like a download gauge
+        prog.querySelector('.rc-size')!.textContent = t
+          ? `${bytesText(t.bytes)}${t.total ? ` of about ${bytesText(t.total)}` : ' downloaded'}${t.rate > 0 && t.bytes > 0 ? ` · ${bytesText(t.rate)}/s` : ''}${t.planned ? ` · ${t.units ?? 0} of ${t.planned} packages` : ''}`
+          : 'Working out what to download…';
+        prog.querySelector('.rc-eta')!.textContent = t ? etaText(t.eta_s) : '';
         show(job);
         await new Promise((r) => setTimeout(r, 700));
         job = await this.host.backend.json<JobInfo>(`api/jobs/${job.id}`);
       }
       bar.value = 1;
+      prog.querySelector('.rc-eta')!.textContent = job.status === 'done' ? 'done' : '';
+      barEl.className = `rc-bar ${job.status === 'done' ? 'done' : 'failed'}`;
       show(job);
       label.textContent = job.status === 'done' ? `✓ ${job.message}` : `✗ ${job.message}`;
       label.className = job.status === 'done' ? 'ok' : 'err';
-      this.host.setStatus(job.status === 'done' ? job.message : `R setup: ${job.message}`, 8000);
-      // the package list is refreshed under the log, which stays open to read
-      if (job.status === 'done') await this.refreshPackages();
+      this.host.setStatus(job.status === 'done' ? job.message : `${what}: ${job.message}`, 8000);
+      await after(job.status === 'done');
     } catch (err) {
       msg.textContent = String((err as Error).message ?? err);
     } finally {
-      const b = this.el.querySelector<HTMLButtonElement>('#rc-install');
+      const b = this.el.querySelector<HTMLButtonElement>('#rc-install, #rc-update');
       if (b) b.disabled = false;
+    }
+  }
+
+  /** Python packages of one environment: which have newer versions, and update them with pip (with
+   *  the same gauge). A Python the system or conda manages is updated there instead: the command is shown. */
+  async pythonUpdates(path: string) {
+    this.el.innerHTML = `<div class="sheet fin rc"><header><b>Python packages</b><button type="button" data-close aria-label="Close">✕</button></header><div class="body"></div></div>`;
+    this.el.hidden = false;
+    this.body(`<p class="fin-lead"><code>${esc(path)}</code></p>
+      <div class="rc-updates"><p class="dim">Checking PyPI for newer versions (can take a minute)…</p></div>
+      <label><span>Install or update other packages</span><input name="pymore" list="py-sugg" autocomplete="off" placeholder="Start typing: geopandas, rasterio, osmnx …" /></label><datalist id="py-sugg">${PY_SUGGEST.map((p) => `<option value="${esc(p)}"></option>`).join('')}</datalist>
+      <div class="rc-progress" hidden><div class="rc-bar running" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><b>0%</b></div><div class="rc-meta"><span class="rc-size"></span><span class="rc-eta"></span></div><span class="dim"></span>
+        <pre class="rc-log" aria-live="polite" aria-label="Update log"></pre></div>`,
+      `<span class="dim" id="rc-msg"></span><button type="button" data-close>Close</button><button type="button" class="primary" id="rc-update">Install / update</button>`);
+    const box = this.el.querySelector<HTMLElement>('.rc-updates')!;
+    const run = (pk: string[]) => this.follow(() => this.host.backend.json<JobInfo>('api/python/update', { method: 'POST', body: JSON.stringify({ path, packages: pk }), headers: { 'content-type': 'application/json' } }), 'Python', async (ok) => {
+      if (ok) await this.pythonUpdates(path);
+      document.dispatchEvent(new CustomEvent('geospax:envs-changed'));
+    });
+    this.el.querySelector('#rc-update')!.addEventListener('click', () => {
+      const pk = [...box.querySelectorAll<HTMLInputElement>('input[name=upd]:checked')].map((c) => c.value);
+      pk.push(...String(this.el.querySelector<HTMLInputElement>('input[name=pymore]')?.value ?? '').split(/[\s,]+/).filter(Boolean));
+      if (!pk.length) this.el.querySelector('#rc-msg')!.textContent = 'Tick an update or name a package';
+      else void run(pk);
+    });
+    try {
+      const r = await this.host.backend.json<{ packages: { name: string; installed: string; available: string }[]; manager: string; command: string | null }>(`api/python/outdated?path=${encodeURIComponent(path)}`);
+      if (r.manager !== 'pip') {
+        box.innerHTML = `<p>${r.packages.length ? `<b>${r.packages.length} update${r.packages.length === 1 ? '' : 's'} available.</b> ` : '✓ Up to date. '}This Python is managed by ${r.manager === 'conda' ? 'conda' : 'your system'}, so GeoSpaX does not change it with pip. Update it with:</p><pre class="rc-cmd">${esc(r.command ?? '')}</pre>${r.packages.length ? `<ul class="rc-upd-list">${r.packages.map((p) => `<li><b>${esc(p.name)}</b> <span class="dim">${esc(p.installed)} → ${esc(p.available)}</span></li>`).join('')}</ul>` : ''}`;
+        this.el.querySelector('#rc-update')?.remove();
+        this.el.querySelector('input[name=pymore]')?.closest('label')?.remove();
+        return;
+      }
+      box.innerHTML = r.packages.length
+        ? `<p><b>${r.packages.length} update${r.packages.length === 1 ? '' : 's'} available</b> <button type="button" class="link" data-all>Select all</button> <button type="button" class="link" data-none>None</button></p>
+          <ul class="rc-upd-list">${r.packages.map((p) => {
+            // the GDAL bindings must match the GDAL library on this computer: never updated by default, with a warning
+            const gdal = p.name.toLowerCase() === 'gdal';
+            return `<li><label class="ck" ${gdal ? 'title="The GDAL Python package must match the GDAL library installed on this computer; update it with the library"' : ''}><input type="checkbox" name="upd" value="${esc(p.name)}" ${gdal ? 'data-risky' : ''} /> <b>${esc(p.name)}</b> <span class="dim">${esc(p.installed)} → ${esc(p.available)}</span>${gdal ? ' <span class="err">⚠ match your GDAL</span>' : ''}</label></li>`;
+          }).join('')}</ul>`
+        : '<p class="ok">✓ Every package in this environment is up to date.</p>';
+      box.querySelector('[data-all]')?.addEventListener('click', () => box.querySelectorAll<HTMLInputElement>('input[name=upd]:not([data-risky])').forEach((c) => (c.checked = true)));
+      box.querySelector('[data-none]')?.addEventListener('click', () => box.querySelectorAll<HTMLInputElement>('input[name=upd]').forEach((c) => (c.checked = false)));
+    } catch (e) {
+      box.innerHTML = `<p class="err">${esc((e as Error).message ?? e)}</p>`;
     }
   }
 

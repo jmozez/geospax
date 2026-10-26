@@ -43,9 +43,9 @@
           <a class="btn primary" href="#download" data-primary-download>Download for free</a>
           <a class="btn ghost" href="#webapp" data-webapp>Open the web app</a>
         </div>
-        <p class="platforms">Windows 10/11 · Any Linux (AppImage) · Debian &amp; Ubuntu · Fedora &amp; RHEL · Web</p>
+        <p class="platforms">Windows 10/11 · Any Linux (AppImage or Flathub) · Android · Web</p>
         <figure class="shot hero-shot">
-          <img src="/img/screenshot-pro.webp" width="1600" height="960" alt="GeoSpaX Pro in the dark theme: Overture roads and buildings of Lae, Papua New Guinea, over a Sentinel-2 scene" />
+          <img src="/img/screenshot-pro.webp" width="1600" height="960" alt="GeoSpaX Pro: every building, road and place of central Lae, Papua New Guinea (Overture Maps), styled by type, with street and place names, over Esri World Imagery" />
         </figure>
       </div>
     </section>
@@ -63,6 +63,19 @@
           <article><h3>Automation</h3><p>Every result is a re-runnable recipe. Triggers run it when a device is plugged in, a folder changes, a schedule fires or a sensor crosses a threshold.</p></article>
           <article><h3>R, Python and AI</h3><p>R and Python as recipe steps with an R console; an assistant (Ollama, OpenAI-compatible or Claude) and an MCP server.</p></article>
           <article><h3>Private by default</h3><p>Everything runs on your computer and works offline. Nothing is uploaded unless you choose to.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="modes" class="band">
+      <div class="wrap">
+        <h2>Lazy or Pro: the same map, your choice of controls</h2>
+        <div class="grid two">
+          <figure class="shot"><img loading="lazy" src="/img/screenshot-lazy.webp" width="1600" height="960" alt="GeoSpaX Lazy mode: layer cards that say what each layer shows, a task bar and next steps" /><figcaption><b>Lazy.</b> Layer cards that say what each layer shows and why it looks that way, a task bar (Add data, Online data, Make it look good, Find patterns, Finish my map) and one-click next steps.</figcaption></figure>
+          <figure class="shot"><img loading="lazy" src="/img/screenshot-pro.webp" width="1600" height="960" alt="GeoSpaX Pro mode: ribbon, layer tree with legends and the Symbology pane with labels" /><figcaption><b>Pro.</b> An ArcGIS Pro-style ribbon, the layer tree with legends, and the Symbology pane: symbols, classes and labels for every layer.</figcaption></figure>
+          <figure class="shot"><img loading="lazy" src="/img/screenshot-globe.webp" width="1600" height="960" alt="GeoSpaX starting on the globe with Esri World Imagery" /><figcaption><b>It starts on the globe.</b> A clean slate over world imagery: zoom in anywhere, drop in data, or fetch it for the area on the map.</figcaption></figure>
+          <figure class="shot"><img loading="lazy" src="/img/tour-dem-wilhelm.webp" width="1600" height="960" alt="Copernicus 30 m DEM of Mount Wilhelm, Papua New Guinea, in a hypsometric tint" /><figcaption><b>Mount Wilhelm in 30 m.</b> The Copernicus DEM for the area (839–4,471 m), fetched in 4 seconds and tinted green to white, with its histogram and statistics.</figcaption></figure>
+          <figure class="shot"><img loading="lazy" src="/img/tour-dem-3d.webp" width="1600" height="960" alt="Mount Wilhelm DEM as 3D terrain over Esri World Imagery" /><figcaption><b>…and in 3D.</b> One click on <i>3D view</i> raises the DEM as terrain; for a print-quality 3D relief, the <i>3D relief with rayshader</i> analysis renders it in R.</figcaption></figure>
         </div>
       </div>
     </section>
@@ -107,19 +120,11 @@
             <a class="btn primary" data-asset="x86_64.AppImage" href="https://github.com/jmozez/geospax/releases/latest">Download AppImage</a>
             <code>chmod +x GeoSpaX-*.AppImage &amp;&amp; ./GeoSpaX-*.AppImage</code>
           </article>
-          <article class="dl" data-os="debian">
-            <h3>Debian 13 / Ubuntu</h3>
-            <p>Desktop app and web edition in one package.</p>
-            <a class="btn primary" data-asset=".deb" href="https://github.com/jmozez/geospax/releases/latest">Download .deb</a>
-            <code>sudo apt install ./geospax_*.deb</code>
-          </article>
-          <article class="dl" data-os="fedora">
-            <h3>Fedora / RHEL</h3>
-            <p>Desktop app and web edition in one package. Pick the one for your system.</p>
-            <a class="btn primary" data-asset=".fc44.x86_64.rpm" href="https://github.com/jmozez/geospax/releases/latest">Fedora 44 (.rpm)</a>
-            <a class="btn" data-asset=".fc43.x86_64.rpm" href="https://github.com/jmozez/geospax/releases/latest">Fedora 43 (.rpm)</a>
-            <a class="btn" data-asset=".el10.x86_64.rpm" href="https://github.com/jmozez/geospax/releases/latest">RHEL · Rocky · AlmaLinux 10 (.rpm)</a>
-            <code>sudo dnf install ./geospax-*.rpm</code>
+          <article class="dl" data-os="flatpak">
+            <h3>Linux · Flathub</h3>
+            <p>Install from Flathub (GNOME Software, KDE Discover) and get updates with the rest of your system.</p>
+            <a class="btn primary" href="https://flathub.org/apps/io.github.jmozez.GeoSpaX" rel="noopener">Get it on Flathub</a>
+            <code>flatpak install flathub io.github.jmozez.GeoSpaX</code>
           </article>
           <article class="dl" id="webapp" data-os="web">
             <h3>Web app</h3>
@@ -142,7 +147,7 @@
 
   <footer>
     <div class="wrap foot">
-      <span>© J. Moses · GeoSpaX is MIT-licensed.</span>
+      <span>© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed.</span>
       <span><a href="https://github.com/jmozez/geospax" rel="noopener">Source</a> · <a href="https://github.com/jmozez/geospax/issues" rel="noopener">Report a problem</a> · <a href="https://github.com/jmozez/geospax/blob/main/docs/USER_GUIDE.md" rel="noopener">User guide</a></span>
     </div>
   </footer>

@@ -5,6 +5,89 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+## [3.0.3] — 2026-10-26
+
+### Changed — fewer builds
+- Releases carry the Windows installer and ZIP, the Linux AppImage, the Flathub Flatpak and the
+  Android APK. The .deb and .rpm packages are no longer built: the AppImage and Flatpak run on every
+  distribution.
+
+### Added — phone app update notice
+- GeoSpaX Field checks once a day for a newer APK and offers to download it (it installs over the
+  old one; records stay on the phone). Its version now follows GeoSpaX: 3.0.3.
+
+### Changed — Toolbox icons
+- Every one of the 1,223 Toolbox tools and every toolbox has an icon, as in ArcGIS Pro and QGIS: each
+  toolset has its own (filters, segmentation, radar, depressions, streams, generalisation, visibility …)
+  and well-known tools have theirs (Buffer, Clip, Slope, Kriging, Viewshed …); 32 new glyphs.
+- A tool shared by several domain plugins (Slope zones is in five) is listed once, with its domains.
+
+### Changed — R package install gauge
+- R setup shows a coloured, moving progress bar with the size downloaded (of the expected total),
+  the speed, packages done (with their dependencies) and the time left; green when done, red on failure.
+
+### Changed — charts in ggplot2 style, customisable and downloadable
+- Every chart (report charts, the Attributes chart, raster histograms, R steps) follows ggplot2: one
+  look chosen in **Settings › Charts**: theme (theme_grey by default, bw, minimal, classic, light,
+  dark), palette (ggplot2 hue, matching R exactly; viridis, Okabe–Ito, Set2, Dark2) and text size.
+- Each chart in the app has **Customise** (title, axis labels, theme, palette, colour, text size) and
+  **Download** (PNG or SVG; 72, 150, 300 or 600 dpi; 4:3, 16:9, 1:1, 3:2, journal one or two
+  columns, A4 landscape, or a custom size in mm). Report charts are saved next to the report as SVG and
+  300 dpi PNG, linked in the report and placed in the Word document.
+- R: the prelude sets the ggplot2 theme and palette from Settings; `save_figure` writes PNG, PDF and
+  SVG by default. The R templates and the R kriging recipe follow the tidyverse style guide (|>,
+  dplyr / purrr verbs, snake_case, .data pronoun); a new **ggplot2 chart** template.
+
+### Added — package updates and suggestions (R and Python)
+- R setup: **Check for updates** lists newer versions of the packages in GeoSpaX's R library and
+  updates the ones you tick, with the same gauge. The package box suggests CRAN names as you type.
+- Python (Explorer › each environment › Check for updates, install packages…): newer versions from
+  PyPI, updated with pip with the same gauge; suggestions for geospatial packages as you type. Nothing
+  is ticked by default; the GDAL bindings are flagged (they must match the GDAL library). A Python
+  that the system (Fedora, Debian) or conda manages is not changed: the dialog shows the command.
+
+### Added — 3D relief with rayshader
+- **Satellite imagery drape**: Esri World Imagery is warped by GDAL onto the DEM's own grid, so each
+  picture pixel sits on its elevation cell (choose `overlay: colours` for colours by height instead).
+- **Map furniture on the 3D picture**: title bar, north arrow in the scene, block size and vertical
+  exaggeration, an elevation legend (colours mode) and the data sources.
+- **3D relief with rayshader (R)** (Ready-made analyses): the Copernicus 30 m DEM for an area,
+  shaded with rayshader (sphere shading, water, ray-traced shadows, ambient occlusion) and rendered
+  off-screen as a path-traced 3D block and a flat relief map, both in the report. Needs R with
+  rayshader (R setup › 3D relief, now with rayrender).
+
+### Changed — screenshots
+- New high-resolution screenshots (3200 × 1920): Lae with every building, road and place labelled
+  over satellite imagery in Pro and Lazy mode, the start-up globe, and Mount Wilhelm's DEM flat and
+  in 3D, on the home page, in the README and in the Flathub listing.
+
+### Fixed — phone app logo
+- The GeoSpaX Field APK shows the GeoSpaX logo (the desktop app's) on the home screen, padded for
+  Android's round and rounded-square icon shapes, instead of the Tauri logo, and in its top bar.
+
+### Fixed — climate data
+- **Climate** (Data › Online data) now picks the detail for the area: CHELSA 2.1 at ~1 km for areas up
+  to 4° a side, else the finest WorldClim grid giving at least 40 cells across (it used a ~18 km grid,
+  a handful of cells for a valley). CHELSA values are now in °C and mm, not the stored integers.
+
+### Fixed
+- **Linux desktop: blank window** on systems with many fonts installed (seen on Fedora 43 with about 1,900):
+  the interface named fonts that only exist on Windows and macOS, and for each one WebKitGTK searched every
+  installed font, so the first paint took minutes at full CPU. The interface now uses only the generic
+  `system-ui`, `sans-serif` and `monospace` families.
+- **Linux desktop:** WebKitGTK's DMA-BUF renderer is turned off unless you set it yourself; it leaves the window
+  blank with the NVIDIA driver and some GPU and compositor combinations.
+
+### Added
+- **Layout window** (Share → Layout window, or Open in layout window in Finish my map): the map page in a
+  window of its own, for a second monitor or full screen, with zoom and pan. It redraws live as the map,
+  its layers or their styles change, and **Make final files** writes the PNG, PDF, SVG and the report.
+- **The report as a Word document** (`report.docx`) next to `report.html`: title, map, numbers, method
+  notes, decisions, data and provenance as real headings, tables and pictures, ready to edit.
+- Finish my map makes the **SVG** by default too; each finished map on the start screen shows its delete
+  button at all times.
+- **Fedora 43 package** (`.fc43`) next to Fedora 44's, each built and install-tested on its own release.
+
 ## [3.0.2] — 2026-10-25
 
 ### Fixed
@@ -147,7 +230,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [3.0.0] — 2026-10-22
 
-GeoSpaX 3.0: GeoSpaX 1.4.2 (jm0535/map-kit) and 2.0 (jm0535/GeoSpaX) brought into this design. Installers
+GeoSpaX 3.0. Installers
 for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attached to the GitHub release.
 
 ### Added — Equal Earth for exported maps
@@ -198,10 +281,10 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
 - `test-plan-b.py` (31 checks, offline mirrors with known answers, in CI); the online-data UI test covers the
   new forms.
 
-### Changed — the twelve domain plugins of 2.0 are default plugins
-- The GSX tools reach the app as GeoSpaX 2.0's twelve domain plugins (Conservation, Agriculture,
+### Changed — the twelve domain plugins are default plugins
+- The GSX tools reach the app as twelve domain plugins (Conservation, Agriculture,
   Biodiversity, Environment, Forestry, Marine, Climate, Disaster, Geoscience, Hydrology, Land use and
-  land cover, Soil), shipped and listed as **default plugins**, each with its 2.0 tools, on the Plugins
+  land cover, Soil), shipped and listed as **default plugins**, each with its tools, on the Plugins
   tab and in the Toolbox under *Plugins*. They are no longer on the Analysis, Imagery and Modelling tabs.
 - They share one library (`plugins/gsx`, `library: true`), so recipes and scripts calling `gsx/<tool>`
   keep working. New manifest keys `library` and `default` ([PLUGINS.md](docs/PLUGINS.md)).
@@ -276,7 +359,7 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
   or right-click adds a file. Only the data folders can be listed (`GET /api/browse`,
   `POST /api/browse/add`); paths outside them, `..` included, are refused.
 - **Project** pane: where the project is saved, what it holds (layers, basemap, projection, view),
-  **Save a copy…**, **Open…** (3.0 copies, 1.4.2 `.gspx`, 2.0 `.geolibre.json`), **New**, and named
+  **Save a copy…**, **Open…** (3.0 copies, `.gspx`, `.geolibre.json`), **New**, and named
   **bookmarks** (also *View › Bookmarks* and *Bookmark view*). The developer controls moved under
   *Diagnostics* (*Help › Engine diagnostics*).
 
@@ -307,10 +390,10 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
 - **Basemap gallery** (View): OpenStreetMap, OpenTopoMap, Esri Topographic and World Imagery,
   Sentinel-2 cloudless 2016, CARTO light and dark, or your own XYZ tiles; each with its licence or terms.
 - **Local Moran's I (LISA)** with the global Moran's I and the Moran scatterplot, and **elevation
-  profiles** (lines over a DEM, or points with an elevation field per transect) — from 1.4.2; tool
+  profiles** (lines over a DEM, or points with an elevation field per transect); tool
   results can carry charts.
-- **Sample data** (Data): the 1.4.2 Papua New Guinea survey and teaching layers with WorldClim and tree
-  cover rasters (`samples/png`, credits in its README); **1.4.2 `.gspx` and 2.0 `.geolibre.json`
+- **Sample data** (Data): the Papua New Guinea survey and teaching layers with WorldClim and tree
+  cover rasters (`samples/png`, credits in its README); **`.gspx` and `.geolibre.json`
   projects** open like any file (their embedded layers).
 - **View › Projection: Globe** (MapLibre's globe at small scales) besides Web Mercator.
 - Engine API for all of it (`crates/engine/src/edit.rs`); `scripts/test-edit.py` (44 checks on
@@ -340,7 +423,7 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
   grid on exported maps, so its classes and any class renamed in the legend editor disappeared; it now
   keeps its classes (an even sample of points is drawn, the legend says so).
 
-### Added — rasters and species distribution models (from GeoSpaX 2.0)
+### Added — rasters and species distribution models 
 - **Spectral index and extent** (NDVI, NDWI, NDBI, NBR, any band pair) with an automatic Otsu
   threshold; **raster change** between two dates with loss and gain thresholds; **slope zones**.
 - **Species distribution model**: BIOCLIM, Mahalanobis or presence-background logistic from
@@ -401,14 +484,14 @@ for Linux (Debian 13 .deb) and Windows 10/11 (setup and portable ZIP) are attach
   2.1, SoilGrids 2.0, GBIF / OBIS / iNaturalist occurrences, GADM boundaries and the Copernicus DEM for
   the area on the map, no API keys, each with its citation. New recipe step **`data.fetch`**.
 
-### Added — GSX tools (from GeoSpaX 2.0), phase A
+### Added — GSX tools , phase A
 - **`plugins/gsx`**: 13 tools in the Toolbox: polygon overlay, weighted suitability (WLC), distance
   decay, unprotected priority sites, protection gap, minimum-cost representation (SCP), weighted
   hotspot grid, fragmentation metrics, patch connectivity, two-date change, DBSCAN, Clark–Evans and
-  richness/diversity. GeoSpaX 2.0's analysis code and its 103 tests, unchanged, on Node; offline.
+  richness/diversity. The analysis code and its 103 tests, unchanged, on Node; offline.
 - Plugins can ask for **layers as GeoJSON** (`geojson: true`) and return a **results table and notes**
   that the tool dialog shows.
-- The **GeoSpaX 2.0 logo**: title bar, favicon, desktop icons and README.
+- The **GeoSpaX logo**: title bar, favicon, desktop icons and README.
 
 
 ### Added — preview and legend editor

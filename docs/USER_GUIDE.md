@@ -20,11 +20,11 @@ This guide gets you from zero to a finished map in a few minutes.
 
 | You have | Do this |
 |---|---|
-| **Windows 10 or 11** (64-bit) | Run `GeoSpaX_3.0.2_x64-setup.exe`. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start **GeoSpaX** from the Start menu. **GeoSpaX Web Server** in the same menu opens the web edition in your browser. The installer isn't code-signed yet, so Windows may say "Windows protected your PC": click *More info → Run anyway*. Prefer no installer? Unzip `GeoSpaX-3.0.2-windows-x64.zip` anywhere and run `geospax.exe`. |
-| **Any Linux** (AppImage) | Download `GeoSpaX-3.0.2-x86_64.AppImage`, make it executable (right-click › *Properties › Allow executing as program*, or `chmod +x GeoSpaX-*.AppImage`) and double-click it. Nothing is installed and no admin password is needed; it updates itself from inside the app. Works on distributions from 2024 onwards (Ubuntu 24.04, Fedora 40, Debian 13, Arch, openSUSE Tumbleweed …). |
-| **Debian 13** (desktop) | Download `geospax_3.0.2_amd64.deb`, then `sudo apt install ./geospax_3.0.2_amd64.deb`. Start **GeoSpaX** from the applications menu. |
+| **Windows 10 or 11** (64-bit) | Run `GeoSpaX_3.0.3_x64-setup.exe`. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start **GeoSpaX** from the Start menu. **GeoSpaX Web Server** in the same menu opens the web edition in your browser. The installer isn't code-signed yet, so Windows may say "Windows protected your PC": click *More info → Run anyway*. Prefer no installer? Unzip `GeoSpaX-3.0.3-windows-x64.zip` anywhere and run `geospax.exe`. |
+| **Any Linux** (AppImage) | Download `GeoSpaX-3.0.3-x86_64.AppImage`, make it executable (right-click › *Properties › Allow executing as program*, or `chmod +x GeoSpaX-*.AppImage`) and double-click it. Nothing is installed and no admin password is needed; it updates itself from inside the app. Works on distributions from 2024 onwards (Ubuntu 24.04, Fedora 40, Debian 13, Arch, openSUSE Tumbleweed …). |
+| **Debian 13** (desktop) | Download `geospax_3.0.3_amd64.deb`, then `sudo apt install ./geospax_3.0.3_amd64.deb`. Start **GeoSpaX** from the applications menu. |
 | **Fedora 43 / 44** (desktop) | Download the package for your release (`rpm -E %fedora`): `geospax-<version>-1.fc43.x86_64.rpm` or `…fc44…`, then `sudo dnf install ./geospax-<version>-1.fc4N.x86_64.rpm`. Start **GeoSpaX** from the applications menu. Another Fedora release: build a matching one with `scripts/setup-fedora.sh && scripts/package-rpm.sh`. |
-| **RHEL, Rocky Linux, AlmaLinux 10** | Enable EPEL (`sudo dnf install epel-release`; on RHEL also `sudo subscription-manager repos --enable codeready-builder-for-rhel-10-x86_64-rpms`), then `sudo dnf install ./geospax-3.0.2-1.el10.x86_64.rpm`. The Fedora package does not install there: each is built against its own system's GDAL. |
+| **RHEL, Rocky Linux, AlmaLinux 10** | Enable EPEL (`sudo dnf install epel-release`; on RHEL also `sudo subscription-manager repos --enable codeready-builder-for-rhel-10-x86_64-rpms`), then `sudo dnf install ./geospax-3.0.3-1.el10.x86_64.rpm`. The Fedora package does not install there: each is built against its own system's GDAL. |
 | Another Debian/Ubuntu release | The `.deb` above is built against GDAL 3.10 (`libgdal36`). Build a matching one: `scripts/setup-linux.sh && scripts/package-linux.sh` (it works out the right dependencies for your system), or use the web edition in a container. |
 | **Docker** (any OS, web edition) | `mkdir -p data inbox && docker compose up -d`, then open the `http://localhost:8080/?token=…` link printed by `docker compose logs geospax` (set `GEOSPAX_TOKEN` to keep a fixed token). The compose file also starts an MQTT broker for live sensors. *The image is built by CI on version tags; it has not been built in our own test sandbox yet.* |
 | macOS | Not packaged yet (it needs a Mac to build). Use the Docker web edition for now. |
@@ -110,6 +110,15 @@ emptiest top corner and the scale bar in the emptiest bottom corner. Pick a corn
 
 Behind the scenes Finish my map is an ordinary recipe, `finished-map`, replaced each time: it has run
 history and provenance, and you can re-run it or give it a trigger like any other.
+
+**The layout window: the page beside your map.** **Share → Layout window** (or **Open in layout window** in
+Finish my map) opens the map page in a window of its own, like ArcGIS Pro's layout view or QGIS's print
+layout. Move it to a second monitor or press **F** for full screen. Scroll to zoom (the page is vector, so it
+stays sharp), drag to move, double-click or **0** to fit, **1** for actual size. While **Live** is on it
+redraws whenever you pan the map, switch a layer on or off or change a style, using the choices last made
+in Finish my map (title, layout, style, furniture). **Make final files** writes the PNG, the vector PDF, the
+SVG and the report, as a web page and as a **Word document (report.docx)** you can edit; the links appear
+under the toolbar and in the report.
 
 **Opening the app is already lazy.** Every layer GeoSpaX sees for the first time is styled by AutoMap,
 the same engine the recipes use: it picks the field that matters (never an ID), the classification and a

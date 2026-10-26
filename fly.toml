@@ -3,7 +3,7 @@
 #   fly volumes create geospax_data --size 10   # once: maps, layers, runs and settings live here
 #   fly secrets set GEOSPAX_TOKEN=$(openssl rand -hex 24)
 #   fly deploy                                  # also to update to the newest release image
-app = "geospax-in4metrix"
+app = "geospax"
 primary_region = "syd"   # Sydney: the closest Fly region to Papua New Guinea
 
 [build]

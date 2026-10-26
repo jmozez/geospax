@@ -30,8 +30,14 @@ pub struct ReportInput {
     pub views: Vec<View3d>,
     /// Inline SVG charts: (title, svg, caption)
     pub charts: Vec<(String, String, String)>,
+    /// The same charts as files next to the report (SVG and a 300 dpi PNG): base names, in order
+    pub chart_files: Vec<String>,
+    /// those PNGs, for the Word report
+    pub chart_pngs: Vec<Vec<u8>>,
     /// Further maps of the run (after the main one), as PNG pictures
     pub figures: Vec<Figure>,
+    /// the same report as a Word document, next to this one (linked at the top)
+    pub word: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -80,6 +86,9 @@ pub fn render(r: &ReportInput) -> String {
         esc(&r.title),
         esc(&r.subtitle)
     );
+    if let Some(w) = &r.word {
+        let _ = write!(h, "<p class=\"files\">Edit this report: <a href=\"{w}\" download>Word document ({w})</a></p>", w = esc(w));
+    }
     if !r.cards.is_empty() {
         h.push_str("<section class=\"cards\">");
         for (big, label) in &r.cards {
@@ -118,8 +127,9 @@ pub fn render(r: &ReportInput) -> String {
             file = esc(&f.file)
         );
     }
-    for (title, svg, caption) in &r.charts {
-        let _ = write!(h, "<section class=\"card chart\"><h2>{}</h2>{svg}<p class=\"files\">{}</p></section>", esc(title), esc(caption));
+    for (i, (title, svg, caption)) in r.charts.iter().enumerate() {
+        let files = r.chart_files.get(i).map(|f| format!(" Download: <a href=\"{f}.svg\" download>SVG</a> · <a href=\"{f}.png\" download>PNG (300 dpi)</a>", f = esc(f))).unwrap_or_default();
+        let _ = write!(h, "<section class=\"card chart\"><h2>{}</h2>{svg}<p class=\"files\">{}{files}</p></section>", esc(title), esc(caption));
     }
     if let Some(n) = &r.notes {
         let _ = write!(h, "<section class=\"card\"><h2>Notes</h2><p>{}</p></section>", esc(n));

@@ -2,8 +2,8 @@
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
     "targets": ["nsis"],
-    "publisher": "GeoSpaX contributors",
-    "copyright": "GeoSpaX contributors · MIT",
+    "publisher": "in4metrix",
+    "copyright": "© in4metrix (www.in4metrix.dev) · MIT",
     "category": "Utility",
     "shortDescription": "Maps that make themselves",
     "longDescription": "GeoSpaX: the open-source GIS where every map is a re-runnable recipe that triggers itself on new data.",
