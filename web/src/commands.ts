@@ -55,6 +55,24 @@ export interface Command {
 
 // 24×24 monochrome glyphs; the ribbon tints them with `currentColor`.
 export const ICONS: Record<string, string> = {
+  // geoprocessing glyphs for the Toolbox (buffer, clip, dissolve …), like ArcGIS Pro's tool icons
+  'gp-buffer': 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20zm0 2a8 8 0 1 1 0 16a8 8 0 1 1 0-16zm0 5a3 3 0 1 0 0 6a3 3 0 1 0 0-6z',
+  'gp-clip': 'M3 3h11v2H5v9H3zM9 9h12v12H9zm2 2v8h8v-8zM3 16h2v5h5v-2H5z',
+  'gp-dissolve': 'M3 4h18v16H3zm2 2v12h14V6zm2 2h4v3H7zm6 0h4v8h-4zm-6 5h4v3H7z',
+  'gp-merge': 'M4 3h2v6l6 6 6-6V3h2v7l-7 7v4h-2v-4l-7-7z',
+  'gp-project': 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20zm0 2c1.6 1.7 2.6 4.6 2.7 7H9.3C9.4 8.6 10.4 5.7 12 4zm-3 9h6c-.1 2.4-1.1 5.3-3 7-1.9-1.7-2.9-4.6-3-7zM4.1 11a8 8 0 0 1 3-5.4A15 15 0 0 0 7.3 11zm0 2h3.2a15 15 0 0 0 .8 5.4A8 8 0 0 1 4.1 13zm12.6 0h3.2a8 8 0 0 1-4 5.4c.5-1.7.8-3.5.8-5.4zm0-2c0-1.9-.3-3.7-.8-5.4a8 8 0 0 1 4 5.4z',
+  'gp-contour': 'M2 18c3-6 6-9 10-9s7 3 10 9h-2.3C17.2 13.5 15 11 12 11s-5.2 2.5-7.7 7zm4 0c2-3 4-5 6-5s4 2 6 5h-2.6c-1.2-1.6-2.3-3-3.4-3s-2.2 1.4-3.4 3z',
+  'gp-hillshade': 'M2 20l7-12 4 6 3-4 6 10zm3.5-2h3l2-3.4zM17 6a2 2 0 1 0 0-4a2 2 0 1 0 0 4z',
+  'gp-raster': 'M3 3h18v18H3zm2 2v4h4V5zm6 0v4h4V5zm6 0v4h2V5zM5 11v4h4v-4zm6 0v4h4v-4zm6 0v4h2v-4zM5 17v2h4v-2zm6 0v2h4v-2zm6 0v2h2v-2z',
+  'gp-calc': 'M4 2h16v20H4zm2 2v4h12V4zm0 6v2h3v-2zm5 0v2h2v-2zm4 0v2h3v-2zM6 14v2h3v-2zm5 0v2h2v-2zm4 0v6h3v-6zM6 18v2h3v-2zm5 0v2h2v-2z',
+  'gp-density': 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zm0 3a6 6 0 1 1 0 12a6 6 0 1 1 0-12zm0 3a3 3 0 1 0 0 6a3 3 0 1 0 0-6z',
+  'gp-interpolate': 'M4 18a2 2 0 1 0 0-4a2 2 0 1 0 0 4zm6-8a2 2 0 1 0 0-4a2 2 0 1 0 0 4zm10 4a2 2 0 1 0 0-4a2 2 0 1 0 0 4zM5 15l4.5-6.5 1.6 1.2L6.6 16zm6.6-6.4 6.8 2.7-.8 1.9-6.8-2.7z',
+  'gp-flow': 'M12 2c3 4 6 7.5 6 11a6 6 0 0 1-12 0c0-3.5 3-7 6-11zm0 3.4C9.8 8.4 8 10.9 8 13a4 4 0 0 0 8 0c0-2.1-1.8-4.6-4-7.6z',
+  'gp-join': 'M3 5h8v14H3zm2 2v10h4V7zm8-2h8v14h-8zm2 2v10h4V7zM10 11h4v2h-4z',
+  'gp-convert': 'M4 7h12l-3-3 1.4-1.4L20 8l-5.6 5.4L13 12l3-3H4zm16 10H8l3 3-1.4 1.4L4 16l5.6-5.4L11 12l-3 3h12z',
+  'gp-classify': 'M3 4h6v4H3zm0 6h10v4H3zm0 6h16v4H3zM11 4h10v4H11z',
+  'gp-zonal': 'M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h18v8H3zm2 2v4h14v-4z',
+  'gp-sample': 'M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7zm0 4a3 3 0 1 0 0 6a3 3 0 1 0 0-6z',
   circle: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zm0 2a7 7 0 1 1 0 14a7 7 0 1 1 0-14z',
   ellipse: 'M12 6a10 6 0 1 0 0 12a10 6 0 1 0 0-12zm0 2a8 4 0 1 1 0 8a8 4 0 1 1 0-8z',
   union: 'M3 3h12v6h6v12H9v-6H3z',

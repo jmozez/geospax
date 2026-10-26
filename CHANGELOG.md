@@ -16,6 +16,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - GeoSpaX Field checks once a day for a newer APK and offers to download it (it installs over the
   old one; records stay on the phone). Its version now follows GeoSpaX: 3.0.3.
 
+### Changed — Toolbox icons
+- Every Toolbox tool and toolbox has an icon, as in ArcGIS Pro and QGIS: buffer, clip, dissolve,
+  slope, hillshade, contours, flow, interpolation, hot spots, raster calculator … (new glyphs).
+
 ### Fixed — climate data
 - **Climate** (Data › Online data) now picks the detail for the area: CHELSA 2.1 at ~1 km for areas up
   to 4° a side, else the finest WorldClim grid giving at least 40 cells across (it used a ~18 km grid,

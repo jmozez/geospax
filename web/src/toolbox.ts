@@ -14,6 +14,7 @@
 import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
 import { SOURCE_LABEL, type PluginInfo, type ToolSpec } from './plugins';
+import { ICONS, icon } from './commands';
 
 const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -83,6 +84,44 @@ const STEP_TITLES: Record<string, string> = {
 };
 
 const toolboxOf = (category: string) => category.split(' › ')[0];
+
+// A tool's icon, like ArcGIS Pro's and QGIS's: what the tool does (its name, then the tools it stands
+// in for), else its toolbox's. First match wins, so the specific words come before the general ones.
+const ICON_RULES: [RegExp, string][] = [
+  [/buffer/, 'gp-buffer'], [/clip|erase|cut |extract by mask|crop/, 'gp-clip'], [/intersect|overlay|identity/, 'intersect'],
+  [/union|combine/, 'union'], [/difference|symmetrical|subtract/, 'subtract'], [/dissolve|aggregate polygons/, 'gp-dissolve'],
+  [/merge|append|mosaic|patch/, 'gp-merge'], [/project|reproject|warp|transform|coordinate system|crs/, 'gp-project'],
+  [/contour|isoline/, 'gp-contour'], [/hillshade|shaded relief|illumination/, 'gp-hillshade'], [/slope/, 'slope'],
+  [/aspect|curvature|terrain|ruggedness|tpi|tri\b|roughness|dem|elevation|viewshed|visibility/, 'mountain'],
+  [/flow|watershed|basin|stream|drainage|fill sinks|hydrolog|catchment|twi|wetness/, 'gp-flow'],
+  [/kernel|density|heat ?map/, 'gp-density'], [/kriging|idw|interpolat|spline|natural neighbou?r|surface from/, 'gp-interpolate'],
+  [/hexagon|grid|fishnet|tessellat|bins/, 'grid'], 
+  [/hot ?spot|getis|moran|lisa|cluster|autocorrelation/, 'hotspot'], [/regression|statistic|summar|histogram|correlat/, 'chart'],
+  [/zonal|tabulate/, 'gp-zonal'], [/reclass|classif|segment|threshold|otsu/, 'gp-classify'],
+  [/calculat|algebra|expression|math|band ?math/, 'gp-calc'], [/ndvi|spectral|index|band|pansharpen|composite|imagery|satellite|sentinel|landsat/, 'satellite'],
+  [/join|relate|attribute/, 'gp-join'], [/field/, 'fields'], [/select|query|sql|filter/, 'select'],
+  [/sample|extract values|values to points/, 'gp-sample'], [/convert|to raster|to polygon|to point|to line|rasteri[sz]e|polygoni[sz]e|vectori[sz]e/, 'gp-convert'],
+  [/voronoi|thiessen|delaunay|triangulat|tin\b/, 'polygon'],
+  [/centroid|point|vertex|vertices/, 'point'], [/line|path|route|network|distance|nearest|near\b|cost/, 'road'],
+  [/area|polygon|shape|geometry|simplif|smooth|generali[sz]/, 'shape'], [/lidar|point cloud|las\b|laz\b|canopy|3d/, 'pointcloud'],
+  [/resample|overview|pyramid|raster|grid/, 'gp-raster'], [/species|occurrence|biodivers|richness|diversity|sdm|habitat/, 'leaf'],
+  [/forest|tree|deforest/, 'leaf'], [/climate|rain|precip|temperature/, 'd-climate'], [/soil/, 'd-soil'],
+  [/export|save|write|pdf|png|svg/, 'export'], [/map|layout|report|atlas|legend|label/, 'layout'],
+  [/download|online|fetch|import|open/, 'download'], [/gps|track|photo|device|sensor|phone/, 'phone'],
+  [/python/, 'python'], [/\br\b|r script/, 'rlogo'], [/style|symbol|colou?r/, 'palette'],
+];
+const TOOLBOX_ICON: Record<string, string> = {
+  'Ready-made analyses': 'play', Analysis: 'toolbox', 'Raster Analysis': 'gp-raster', 'Spatial Statistics': 'hotspot',
+  Terrain: 'mountain', Hydrology: 'gp-flow', 'Image Analysis': 'satellite', 'Remote sensing': 'satellite', 'LiDAR and 3D': 'pointcloud',
+  Interpolation: 'gp-interpolate', Cartography: 'palette', 'Maps and reports': 'layout', 'Data Management': 'database',
+  'Field data and devices': 'phone', 'Network Analysis': 'road', 'Landscape Ecology': 'leaf', 'Scripting (R and Python)': 'code', Conversion: 'gp-convert', Plugins: 'puzzle',
+};
+function toolIcon(t: { name: string; aka: string; category: string; kind: string; tool?: { icon?: string } }): string {
+  const hay = `${t.name} ${t.aka}`.toLowerCase();
+  for (const [re, ic] of ICON_RULES) if (re.test(hay)) return ic;
+  if (t.tool?.icon && ICONS[t.tool.icon]) return t.tool.icon;
+  return TOOLBOX_ICON[toolboxOf(t.category)] ?? (t.kind === 'recipe' ? 'play' : 'toolbox');
+}
 const toolsetOf = (category: string) => category.split(' › ')[1] ?? '';
 
 export class Toolbox {
@@ -187,7 +226,7 @@ export class Toolbox {
       for (const c of order) {
         const list = boxes.get(c)!;
         const isOpen = this.open.has(c);
-        body += `<button class="tb-cat" data-cat="${esc(c)}" aria-expanded="${isOpen}"><span>${isOpen ? '▾' : '▸'} ${esc(c)}</span><em>${list.length.toLocaleString('en-US')}</em></button>`;
+        body += `<button class="tb-cat" data-cat="${esc(c)}" aria-expanded="${isOpen}"><span>${isOpen ? '▾' : '▸'} <span class="tb-ico tb-ico-box">${icon(TOOLBOX_ICON[c] ?? 'toolbox', 16)}</span> ${esc(c)}</span><em>${list.length.toLocaleString('en-US')}</em></button>`;
         if (!isOpen) continue;
         const sets = new Map<string, Tool[]>();
         for (const t of list) sets.set(toolsetOf(t.category), [...(sets.get(toolsetOf(t.category)) ?? []), t]);
@@ -209,6 +248,7 @@ export class Toolbox {
   private row(t: Tool): string {
     const aka = t.kind === 'step' && t.aka ? `<small class="tb-aka">≈ ${esc(t.aka)}</small>` : '';
     return `<button class="tb-tool" data-tool="${esc(t.key)}">
+      <span class="tb-ico tb-ico-${t.kind}">${icon(toolIcon(t), 18)}</span>
       <span class="tb-name">${esc(t.name)}${t.source ? ` <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span>` : ''}</span>
       <small>${esc(t.summary.length > 120 ? `${t.summary.slice(0, 120)}…` : t.summary)}</small>${aka}
     </button>`;
@@ -254,7 +294,7 @@ export class Toolbox {
     }
     this.el.innerHTML = `<div class="tb-detail">
       <button class="tb-back" data-back>← All tools</button>
-      <h3>${esc(t.name)}${t.source ? ` <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span>` : ''}</h3>
+      <h3><span class="tb-ico tb-ico-${t.kind}">${icon(toolIcon(t), 22)}</span>${esc(t.name)}${t.source ? ` <span class="tb-src src-${esc(t.source.toLowerCase())}">${esc(t.source)}</span>` : ''}</h3>
       <p class="tb-sum">${esc(t.summary)}</p>${body}</div>`;
   }
 
