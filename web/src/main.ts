@@ -1917,6 +1917,10 @@ async function main() {
       await backend.json(`api/jobs/${jobId}/cancel`, { method: 'POST' });
     },
     autostyle: (id) => autostyleLayer(id, { keepVisibility: true }),
+    layerName: (id) => { const l = layerById(id); return l ? friendlyName(l, layers) : id; },
+    zoomTo: (id) => fitLayer(id),
+    openTable: (id) => { void attributesPane?.open(id); workbench?.showTab('right', 'attributes'); },
+    remove: (id) => void removeLayer(id),
     deleteOverviews: async (id) => {
       await backend.json(`api/layers/${id}/overviews`, { method: 'DELETE' });
       jobs.delete(id);

@@ -115,12 +115,12 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 #results .summary { color: var(--muted); }
 #results a { color: var(--accent); }
 /* Symbology lives in the right dock now, not in a floating card. */
-#panel { padding: 10px 12px 20px; }
+#panel { padding: 0 2px 20px; }
 #panel[hidden] { display: none; }
-#panel header { display: flex; justify-content: space-between; align-items: start; gap: 8px; margin-bottom: 8px; }
-#panel header b { display: block; word-break: break-all; }
+#panel header:not(.ly-head) { display: flex; justify-content: space-between; align-items: start; gap: 8px; margin-bottom: 8px; }
+#panel header:not(.ly-head) b { display: block; word-break: break-all; }
 #panel header small { color: var(--muted); }
-#panel header button { padding: 2px 8px; }
+#panel header:not(.ly-head) button { padding: 2px 8px; }
 #panel h3 { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
 #panel p { margin: 6px 0; }
 #panel .field { display: block; margin: 7px 0; }
@@ -683,7 +683,9 @@ body[data-mode='lazy'] #contents + .hint { display: none; }
 body[data-mode='lazy'] .dock-tabs button:is([data-tab='automate'], [data-tab='plugins'], [data-tab='history'], [data-tab='log'], [data-tab='project']) { display: none; }
 body[data-mode='pro'] .dock-tabs button:is([data-tab='activity']) { display: none; }
 /* the Layer tab: Lazy tells the layer's story (Inspector), Pro shows its symbology, or the map */
-body[data-mode='pro'] #inspector, body[data-mode='lazy'] :is(#panel, #raster-sym, #map-props) { display: none; }
+body[data-mode='pro'] #inspector, body[data-mode='lazy'] :is(#panel, #raster-sym) { display: none; }
+/* Lazy with nothing selected: the map view in place of the inspector's "Click a layer" */
+body[data-mode='lazy']:not(:has(#inspector .ins-empty)) #map-props, body[data-mode='lazy'] #inspector:has(.ins-empty) { display: none; }
 
 /* ---------------------------------------------------------------- Lazy: Inspector (right) */
 .ins { padding: 4px 4px 16px; }
@@ -1529,3 +1531,37 @@ body.layout-page { margin: 0; height: 100vh; display: flex; flex-direction: colu
 .mp-seg { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--sunken); margin-top: 4px; }
 .mp-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 4px; font-size: 11.5px; border: 0; border-radius: 6px; background: none; color: var(--fg); cursor: pointer; }
 .mp-seg button:hover { background: var(--panel); }
+
+/* Layer tab: sticky header with the layer, its actions, a mini legend and the section switcher */
+.ly-head { position: sticky; top: -8px; z-index: 2; margin: -8px -12px 10px; padding: 12px 12px 0; background: var(--panel); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 8px 6px; }
+.ly-title { display: flex; gap: 9px; align-items: center; min-width: 0; }
+.ly-title svg { flex: none; }
+.ly-title b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ly-title small { display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ly-title > div { min-width: 0; }
+.ly-acts { display: flex; gap: 2px; align-items: center; }
+.ly-acts button { width: 26px; height: 26px; padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--muted); font-size: 13px; cursor: pointer; }
+.ly-acts button:hover { color: var(--fg); background: var(--sunken); border-color: var(--line); }
+.ly-acts button[aria-pressed='true'] { color: var(--accent); }
+.ly-legend { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--muted); }
+.ly-legend span { display: inline-flex; align-items: center; gap: 5px; max-width: 46%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ly-legend i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.ly-seg { grid-column: 1 / -1; display: flex; gap: 2px; margin: 2px -2px 0; }
+.ly-seg button { flex: 1; padding: 7px 4px 8px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+.ly-seg button:hover { color: var(--fg); }
+.ly-seg button[aria-selected='true'] { color: var(--fg); border-bottom-color: var(--accent); }
+.ly-sec { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 4px; }
+.ly-sec > summary { cursor: pointer; list-style: none; font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 8px 0; }
+.ly-sec > summary::before { content: '▸'; display: inline-block; width: 14px; transition: transform .15s; }
+.ly-sec[open] > summary::before { transform: rotate(90deg); }
+.auto-chip { margin: 6px 0 10px; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 8px; padding: 0 10px; font-size: 12px; }
+.auto-chip > summary { cursor: pointer; padding: 7px 0; font-weight: 600; color: var(--accent); list-style: none; }
+.auto-chip p { margin: 0 0 8px; color: var(--fg); }
+.ly-fields { list-style: none; margin: 0 0 12px; padding: 0; border: 1px solid var(--line); border-radius: 8px; }
+.ly-fields li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.ly-fields li:last-child { border-bottom: 0; }
+.ly-fields span { color: var(--muted); }
+.ly-wide { width: 100%; }
+.ly-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0 0 8px; font-size: 12.5px; }
+.ly-dl dt { color: var(--muted); }
+.ly-dl dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
