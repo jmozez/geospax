@@ -14,7 +14,11 @@ export interface AskHost {
   showRun: (run: string) => void;
   layerName: (id: string) => string;
   setStatus: (t: string, ms?: number) => void;
+  /** The layer selected on the map, shown as the conversation's context */
+  activeId?: () => string | null;
 }
+
+const TURNS_KEY = 'geospax.ask.turns';
 
 interface Settings { provider: 'ollama' | 'openai' | 'anthropic'; url: string; model: string; has_key: boolean; tools: string[] }
 interface Step { tool: string; args: Record<string, unknown>; ok: boolean; error?: string }
@@ -52,7 +56,14 @@ export class AskPane {
   private busy = false;
   private settings: Settings | null = null;
 
+  /** the conversation survives a reload (kept in this browser, the last 40 messages) */
+  private keep() {
+    try { localStorage.setItem(TURNS_KEY, JSON.stringify(this.turns.slice(-40))); } catch { /* session only */ }
+  }
+
   constructor(private host: AskHost, private el: HTMLElement) {
+    try { const t = JSON.parse(localStorage.getItem(TURNS_KEY) ?? '[]'); if (Array.isArray(t)) this.turns = t; } catch { /* none */ }
+    document.addEventListener('geospax:active', () => { if (!this.busy) this.render(); });
     el.addEventListener('click', (e) => void this.click(e));
     el.addEventListener('submit', (e) => { e.preventDefault(); void this.send(); });
     el.addEventListener('keydown', (e) => {
@@ -81,12 +92,13 @@ export class AskPane {
     this.el.innerHTML = `
       <div class="ask-head"><span class="ask-who" title="Where the answers come from">${esc(who)}</span>
         <button type="button" data-act="settings" title="Choose the model">${icon('settings', 14)} Model…</button>
-        ${this.turns.length ? `<button type="button" data-act="clear" title="Start a new conversation">${icon('clear', 14)}</button>` : ''}</div>
+        ${this.turns.length ? `<button type="button" data-act="clear" title="Start a new conversation">${icon('plus', 14)} New chat</button>` : ''}</div>
       <div class="ask-log" aria-live="polite">${turns || `<div class="ask-intro">
         <p>Ask about your data in plain words. The assistant reads your layers through GeoSpaX's own tools, never invents numbers, and can select features on the map.</p>
         <p class="hint">${esc(s ? PROVIDERS[s.provider]?.where ?? '' : '')}</p>
         <div class="ask-sugg">${SUGGESTIONS.map((q) => `<button type="button" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`}
         ${this.busy ? `<div class="ask-msg bot busy"><span class="spinner"></span> Thinking and looking at the data…</div>` : ''}</div>
+      ${(() => { const a = this.host.activeId?.(); return a ? `<div class="ask-ctx" title="Questions about “the layer” or “it” mean this one">${icon('layers', 12)} About <b>${esc(this.host.layerName(a))}</b></div>` : ''; })()}
       <form class="ask-form"><textarea id="ask-q" rows="2" placeholder="Ask about your data…" aria-label="Question"${this.busy ? ' disabled' : ''}></textarea>
         <button type="submit" class="primary"${this.busy ? ' disabled' : ''}>Ask</button></form>`;
     const log = this.el.querySelector('.ask-log');
@@ -121,6 +133,7 @@ export class AskPane {
       this.turns.push({ role: 'assistant', text: e instanceof Error ? e.message : String(e), error: true });
     }
     this.busy = false;
+    this.keep();
     this.render();
     this.el.querySelector<HTMLTextAreaElement>('#ask-q')?.focus();
   }
@@ -130,7 +143,7 @@ export class AskPane {
     const q = t.closest<HTMLElement>('[data-q]')?.dataset.q;
     if (q) return this.ask(q);
     switch (t.closest<HTMLElement>('[data-act]')?.dataset.act) {
-      case 'clear': this.turns = []; return this.render();
+      case 'clear': this.turns = []; this.keep(); return this.render();
       case 'settings': return this.openSettings();
     }
   }

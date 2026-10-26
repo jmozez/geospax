@@ -12,6 +12,11 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **Attributes** moved under the map; **Devices & phones** to the foot of the Explorer; the Rasters tab
   is gone (rasters are rows of Contents). Left panel: **Project · Explorer · Contents**, Contents still
   opens first. Tabs keep only their icons when a pane is narrow or folded.
+- **Layer** tab: a sticky header (name, size, coordinate system; show/hide, zoom, table, remove), a mini
+  legend, and Style · Labels · Fields · Source; Symbol, Appearance and Overviews fold and stay as left.
+- **Tools** tab: ☆ favourites at the top, recently used, and your recent runs (with a link to History).
+- **Ask** tab: the conversation is kept across reloads, **New chat** starts over, and a chip shows the
+  layer the questions are about.
 - About: **Official website** (geospax.in4metrix.dev) and its downloads; GitHub as Source code.
 
 ### Added — public guest demo of the web edition

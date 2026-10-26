@@ -2108,6 +2108,7 @@ async function main() {
       workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
     },
     openPluginTool: (p, t) => pluginsPane?.openTool(p, t),
+    showTab: (d, t) => workbench?.showTab(d, uiMode === 'lazy' && t === 'history' ? 'activity' : t),
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
   });
   void toolbox.reload();
@@ -2482,8 +2483,9 @@ async function main() {
     select: (layer, fids) => { panel.open(layer); editor?.setSelection(layer, fids); fitLayer(layer); },
     zoom: (layer) => fitLayer(layer),
     showRun: () => workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'history'),
-    layerName: (id) => layerById(id)?.name ?? id,
+    layerName: (id) => { const l = layerById(id); return l ? friendlyName(l, layers) : id; },
     setStatus: (t, ms) => workbench?.setStatus(t, ms),
+    activeId: () => panel.current,
   }, $('#ask'));
   document.addEventListener('geospax:ask-settings', () => void askPane.openSettings());
   document.addEventListener('geospax:ask', (e) => {

@@ -1565,3 +1565,20 @@ body.layout-page { margin: 0; height: 100vh; display: flex; flex-direction: colu
 .ly-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0 0 8px; font-size: 12.5px; }
 .ly-dl dt { color: var(--muted); }
 .ly-dl dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Tools tab: favourites, the bar above a tool, and your recent runs */
+.tb-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.tb-fav { border: 1px solid var(--line); background: var(--sunken); color: var(--fg); border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+.tb-fav[aria-pressed='true'] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.tb-star { color: var(--accent); }
+.tb-tip { color: var(--muted); font-size: 12px; margin: 6px 2px 10px; }
+.tb-runs { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 6px; }
+.tb-runs .tb-cat.static { display: flex; justify-content: space-between; align-items: center; }
+.tb-link { border: 0; background: none; color: var(--accent); font-size: 11.5px; cursor: pointer; padding: 0; }
+.tb-run { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px; background: none; color: var(--fg); text-align: left; font-size: 12.5px; cursor: pointer; }
+.tb-run:hover { background: var(--sunken); }
+.tb-run small { color: var(--muted); white-space: nowrap; }
+
+/* Ask: the layer a question is about */
+.ask-ctx { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 4px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--sunken); color: var(--muted); font-size: 11.5px; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ask-ctx b { color: var(--fg); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
