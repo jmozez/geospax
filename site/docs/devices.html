@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Devices and sensors · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX devices and sensors: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices" aria-current="page">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="device-and-sensor-hub"><a class="anchor" href="#device-and-sensor-hub">#</a>Device and sensor hub</h1>
+<p>GeoSpaX reads location and remote-sensing data straight from connected devices: phones, GPS/GNSS receivers, sports
+watches, drones, cameras, sensor loggers and live IoT sensors. A plugged-in device can start a recipe by itself
+(<a href="/docs/automation">AUTOMATION.md</a> §3, <code>device</code> trigger), and a live sensor reading can too (<code>sensor</code> trigger: a
+threshold or a geofence). That&#39;s the lazy-mapper promise: <strong>plug it in, get a map. A sensor sees something, get a map.</strong></p>
+<h2 id="1-what-geospax-reads"><a class="anchor" href="#1-what-geospax-reads">#</a>1. What GeoSpaX reads</h2>
+<div class="table"><table><thead><tr>
+<th>Device</th>
+<th>Typical connection</th>
+<th>What GeoSpaX extracts</th>
+<th>Now</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Android phone</strong></td>
+<td><strong>Wi-Fi via the phone link (scan a QR code, §3a)</strong>, USB (MTP; mounted by gvfs on Linux), OwnTracks over MQTT</td>
+<td>Photos with EXIF GPS (position, altitude, direction, time, camera); GPX/KML from tracker apps; sensor-app CSV exports; live location</td>
+<td>✅ mounted storage · phone page · OwnTracks · sensor-app CSV</td>
+</tr>
+<tr>
+<td><strong>iPhone / iPad</strong></td>
+<td><strong>Wi-Fi via the phone link (§3a)</strong>, USB (PTP; gphoto2 mount on Linux), Files export, OwnTracks</td>
+<td>JPEG/HEIC EXIF GPS; live location; sensor-app CSV exports (e.g. SensorLog)</td>
+<td>✅ JPEG; ✅ HEIC (verified with a libheif-encoded file; real iPhone files untested); phone page ✅</td>
+</tr>
+<tr>
+<td><strong>Handheld GPS</strong> (Garmin and similar)</td>
+<td>USB mass storage</td>
+<td>GPX tracks and waypoints (<code>Garmin/GPX</code>); FIT activities</td>
+<td>✅ GPX · ✅ FIT</td>
+</tr>
+<tr>
+<td><strong>Sports watches, bike computers, fitness sensors</strong></td>
+<td>USB mass storage (<code>GARMIN/Activity/*.fit</code>), exported FIT files</td>
+<td>Track + one reading per record: heart rate, cadence, power, temperature, altitude, speed, distance (units from the FIT profile)</td>
+<td>✅ FIT (<code>fitparser</code>, MIT)</td>
+</tr>
+<tr>
+<td><strong>Sensor loggers</strong>: portable air-quality monitors, weather, soil and water probes, IoT data loggers</td>
+<td>USB / SD card / synced folder</td>
+<td>CSV, TSV or JSON lines with latitude/longitude columns → a <strong>readings</strong> point layer (every numeric column, units from headers such as <code>PM2.5 (µg/m³)</code>), plus a track when the logger moved</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>GNSS receivers, RTK rovers</strong></td>
+<td>USB/serial (NMEA 0183), Bluetooth SPP (<code>/dev/rfcomm*</code>), TCP, gpsd</td>
+<td>Live fixes (GGA/RMC: position, altitude, speed, course, quality, satellites, HDOP)</td>
+<td>✅ NMEA (serial, TCP, file replay), gpsd · UBX, NTRIP/RTCM corrections, RINEX post-processing (RTKLIB) in P3</td>
+</tr>
+<tr>
+<td><strong>Live environmental / IoT sensors</strong></td>
+<td><strong>MQTT</strong> (built-in 3.1.1 subscriber, plain or TLS <code>mqtts://</code>), <strong>HTTP push</strong> (<code>POST /api/devices/live</code>)</td>
+<td>Located readings → live layer, Devices pane values, <code>sensor</code> triggers (threshold, geofence)</td>
+<td>✅ MQTT · ✅ mqtts (own CA, client certificates) · ✅ HTTP</td>
+</tr>
+<tr>
+<td><strong>LoRaWAN sensors</strong> (air quality, water tanks, soil, rain gauges, GPS trackers)</td>
+<td>Your network server&#39;s MQTT feed: <strong>The Things Stack</strong> (TTN v3) or <strong>ChirpStack</strong> (v4 and v3), or a TTN webhook to <code>POST /api/devices/live</code></td>
+<td>Decoded payload values, strongest gateway&#39;s RSSI/SNR, number of gateways; position from the payload (trackers), the console location, or the receiving gateway (§4)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>OGC SensorThings services</strong> (public air-quality and water-level networks, FROST servers, city IoT platforms)</td>
+<td>HTTP polling (<code>--sta URL</code>)</td>
+<td>Every station with a location → live sensor with the newest value of each datastream, named after the observed property with its unit (§4)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Drones</strong> (DJI and others)</td>
+<td>SD card / USB</td>
+<td>Photo EXIF GPS + DJI XMP (gimbal yaw, relative altitude); <code>.SRT</code> video telemetry as flight tracks</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Cameras</strong> (GPS-enabled or phone-tagged)</td>
+<td>SD / USB / PTP</td>
+<td>EXIF GPS</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Action cams</strong> (GoPro, Insta360)</td>
+<td>SD / USB</td>
+<td>GPMF telemetry in MP4 (GPS, IMU) as tracks</td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Thermal cameras</strong> (FLIR R-JPEG, DJI thermal)</td>
+<td>SD / USB</td>
+<td>EXIF GPS ✅; radiometric temperature → temperature raster</td>
+<td>P3/P4</td>
+</tr>
+<tr>
+<td><strong>Multispectral cameras</strong> (MicaSense, DJI Multispectral, Parrot Sequoia)</td>
+<td>SD / USB</td>
+<td>Per-band TIFF with EXIF/XMP (band, irradiance) → reflectance, NDVI through OpenDroneMap</td>
+<td>EXIF GPS ✅ · bands in P4</td>
+</tr>
+<tr>
+<td><strong>LiDAR point clouds</strong> (drone LiDAR such as DJI Zenmuse L1/L2 after DJI Terra, airborne surveys, national LiDAR tiles, handheld SLAM exports)</td>
+<td>USB drive, SD card, synced or drop folder</td>
+<td><code>.las</code>/<code>.laz</code> (LAS 1.0–1.4, COPC) counted from their headers: points, coordinate system, footprint, height range → <code>lidar</code> device; <code>lidar-to-terrain</code> makes bare-earth terrain, surface and canopy rasters, buildings and tree tops (<a href="/docs/automation#6c-lidar-point-clouds-built">AUTOMATION.md §6c</a>) and a 3D scene (<a href="/docs/automation#6d-3d-scenes-built">§6d</a>). A drop folder may hold a <em>link</em> to a folder of tiles: symlinks are followed (within the usual depth and file limits)</td>
+<td>✅ LAS/LAZ · E57/PLY and raw DJI <code>.LDR</code> not read (export LAS from the vendor software)</td>
+</tr>
+<tr>
+<td><strong>Field spectroradiometers</strong></td>
+<td>Files with GPS</td>
+<td>Spectra → spectral-library points for classification</td>
+<td>P4</td>
+</tr>
+<tr>
+<td><strong>Satellites</strong> (a sensor, not a device)</td>
+<td>STAC APIs</td>
+<td>New scenes over your area → <code>stac</code> trigger → terrain/NDVI autopilot</td>
+<td>✅ Sentinel-2 L2A via Earth Search (<a href="/docs/automation#6b-rasters-remote-sensing-and-providers-built">AUTOMATION.md §6b</a>)</td>
+</tr>
+</tbody></table></div><h2 id="2-connections-by-edition-and-os"><a class="anchor" href="#2-connections-by-edition-and-os">#</a>2. Connections by edition and OS</h2>
+<div class="table"><table><thead><tr>
+<th>Connection</th>
+<th>Desktop (Tauri)</th>
+<th>Web edition</th>
+<th>Notes</th>
+</tr>
+</thead><tbody><tr>
+<td>USB mass storage, SD cards</td>
+<td>✅ Linux <code>/media/$USER/*</code>, <code>/run/media/$USER/*</code>; macOS <code>/Volumes/*</code>; Windows: removable drive letters plus any drive with <code>DCIM</code>/<code>GARMIN</code>/<code>PRIVATE</code> at the top (fixed disks are skipped), named by volume label</td>
+<td>Server-side only</td>
+<td>Polled every 5 s; inotify/FSEvents later</td>
+</tr>
+<tr>
+<td>Phones over MTP / PTP</td>
+<td>✅ Linux via gvfs mounts (<code>/run/user/&lt;uid&gt;/gvfs/mtp:*</code>, <code>gphoto2:*</code>) · Windows WPD and macOS in P3</td>
+<td>–</td>
+<td>MTP reads are slow, so scans are bounded and cached</td>
+</tr>
+<tr>
+<td>Serial / USB-CDC GNSS, Bluetooth SPP</td>
+<td>✅ Unix device files (<code>/dev/ttyUSB*</code>, <code>/dev/ttyACM*</code>, <code>/dev/rfcomm*</code>) · Windows COM ports (<code>serial://COM3?baud=4800</code>; line set with <code>mode.com</code>; not yet tried with real hardware)</td>
+<td>Server-side only</td>
+<td>BLE GNSS and BLE sensors (<code>btleplug</code>) in P3</td>
+</tr>
+<tr>
+<td>NMEA over TCP, gpsd</td>
+<td>✅</td>
+<td>✅ (server)</td>
+<td>Many phone apps and RTK receivers stream NMEA over TCP</td>
+</tr>
+<tr>
+<td><strong>MQTT broker</strong> (Mosquitto, EMQX, HiveMQ, Home Assistant, OwnTracks, The Things Stack, ChirpStack, AWS IoT Core)</td>
+<td>✅ <code>GEOSPAX_MQTT</code></td>
+<td>✅ <code>--mqtt</code></td>
+<td>Subscribes with QoS 0, acknowledges QoS 1, reconnects with back-off (2 s → 60 s). <code>mqtt://</code> (plain, port 1883) or <code>mqtts://</code> (TLS 1.2/1.3 via rustls, port 8883): the broker&#39;s certificate is checked against Mozilla&#39;s CA list or your own CA (<code>?ca=</code>); client certificates with <code>?cert=&amp;key=</code></td>
+</tr>
+<tr>
+<td><strong>OGC SensorThings API</strong> (v1.0, v1.1)</td>
+<td>✅ <code>GEOSPAX_STA</code></td>
+<td>✅ <code>--sta</code></td>
+<td>Polled every 60 s (<code>?every=</code> 10 s – 1 day); one request per 100 stations; <code>bbox=</code> limits it to your area</td>
+</tr>
+<tr>
+<td><strong>HTTP push</strong> (any sensor, script or gateway)</td>
+<td>✅</td>
+<td>✅</td>
+<td><code>POST /api/devices/live</code> with JSON (§4)</td>
+</tr>
+<tr>
+<td><strong>Phone link</strong> (Wi-Fi: photos, tracks, logs, camera, live location)</td>
+<td>✅ Devices → <em>Send from phone</em></td>
+<td>✅ (<code>--phone</code>)</td>
+<td>Any OS, any phone browser, no app. HTTPS with a self-signed certificate on port 8765, pairing code in the QR (§3a)</td>
+</tr>
+<tr>
+<td>Phone page without the phone link (<code>/phone.html</code> from the web edition)</td>
+<td>–</td>
+<td>✅</td>
+<td>Live location only, and only over HTTPS or localhost (secure context)</td>
+</tr>
+<tr>
+<td>Web Serial / Web Bluetooth</td>
+<td>–</td>
+<td>Optional, Chromium browsers only</td>
+<td>Not available in WebKit/Safari</td>
+</tr>
+<tr>
+<td>Native mobile (Tauri mobile)</td>
+<td>P3</td>
+<td>–</td>
+<td>Background location, camera capture, phone sensors</td>
+</tr>
+</tbody></table></div><h2 id="3-automatic-workflows"><a class="anchor" href="#3-automatic-workflows">#</a>3. Automatic workflows</h2>
+<p>A device recipe runs when its <strong>Auto</strong> switch is on (UI, <code>--auto</code>, <code>GEOSPAX_AUTO</code>): the device hub calls the
+automation engine for every new or changed device with geodata, and the matching recipe gets the device folder as
+<code>source</code> (<a href="/docs/automation#3-triggers">AUTOMATION.md §3</a>). A recipe that takes the device replaces the plain auto-import.</p>
+<p><strong>Drop folders are the exception (v1.0).</strong> Files put into <code>~/GeoSpaX/Inbox</code> (installed desktop app) or into an
+<code>--inbox DIR</code> (server) are taken by the matching device recipe <em>without</em> an Auto switch, because putting them there
+is the consent. Plugged-in phones, cameras and loggers still wait for Auto or a click (§5). The hub also remembers
+the content signature it last handled (<code>&lt;state&gt;/devices/seen.json</code>): a device that stays plugged in across a restart
+is listed but not processed again, while new photos, tracks or appended sensor rows trigger a new run.
+Live readings go the same way through the <code>sensor</code> trigger.</p>
+<div class="table"><table><thead><tr>
+<th>Event</th>
+<th>Default recipe</th>
+<th>State</th>
+</tr>
+</thead><tbody><tr>
+<td>Geotagged photos (phone, camera, folder)</td>
+<td><code>photos-to-map</code>: photo points with camera-direction wedges, tracks, labelled waypoints; finished PNG/SVG map + report</td>
+<td>✅ ~5 s from plug-in (device poll) to map; the run takes 0.15 s</td>
+</tr>
+<tr>
+<td>Tracks (GPS unit, watch, logs)</td>
+<td><code>track-to-map</code>: lines + waypoints (+ the watch&#39;s readings layer), map, KML for Google Earth, GeoJSON, report</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Drone card</td>
+<td><code>drone-flight-report</code>: flight path (SRT), photo positions, dissolved ground coverage in hectares (UTM), map + report</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Sensor logger</strong> (kind <code>sensor</code>, has readings)</td>
+<td><code>sensor-log-to-map</code>: readings coloured by the main measurement (PM2.5 classes anchored to the WHO guideline), the logger&#39;s track, per-measurement statistics, GeoJSON, report</td>
+<td>✅ 0.12 s per run; 5 s from plug-in</td>
+</tr>
+<tr>
+<td><strong>Live reading above a threshold</strong></td>
+<td><code>air-quality-alert</code>: <code>sensor: { field: pm2_5, above: 35, cooldown: 30m }</code> → snapshot of every live sensor&#39;s last 2 h → map + report</td>
+<td>✅ 0.26 s from the reading to a finished map</td>
+</tr>
+<tr>
+<td><strong>Device enters an area</strong></td>
+<td>any recipe with <code>sensor: { inside: &lt;polygon layer&gt; }</code> (geofence)</td>
+<td>✅ fires on entering; once per cooldown</td>
+</tr>
+<tr>
+<td>Drone image set</td>
+<td><code>drone-to-ortho</code>: orthomosaic + DSM (+ NDVI if multispectral) via OpenDroneMap</td>
+<td>planned (P3/P4)</td>
+</tr>
+<tr>
+<td>Multispectral/thermal frames</td>
+<td>Index or temperature rasters after ortho</td>
+<td>P4</td>
+</tr>
+<tr>
+<td><strong>LiDAR point clouds</strong> (kind <code>lidar</code>, has point clouds)</td>
+<td><code>lidar-to-terrain</code>: ground from the vendor classes or the SMRF filter → terrain map (relief, contours, buildings), canopy map (canopy height, tree tops, buildings), canopy-height classes, <strong>3D scene</strong> (terrain, buildings, trees, point cloud: glTF + offline viewer + picture), report</td>
+<td>✅ 3.5 s for 0.7 M points; 8–9 s from dropping a folder to a finished report; 15 s for 10.7 M points</td>
+</tr>
+</tbody></table></div><h2 id="3a-send-from-phone-phone-link"><a class="anchor" href="#3a-send-from-phone-phone-link">#</a>3a. Send from phone (phone link)</h2>
+<p>The lazy way to get photos and tracks off a phone: no cable, no app, any OS (Windows, macOS, Linux) and any phone
+(Android, iPhone).</p>
+<ol>
+<li>In GeoSpaX, <strong>Devices → Send from phone → Turn on</strong>. A QR code appears (web edition: or start with <code>--phone</code>).</li>
+<li>Point the phone&#39;s camera at it. The phone opens the GeoSpaX page and warns once about the certificate, which is
+this computer&#39;s own: choose <em>Advanced → Continue</em>.</li>
+<li><strong>Choose files</strong> (photos from the gallery, GPX/KML tracks, sensor CSVs), <strong>Take a photo</strong>, or <strong>Share live
+location</strong>. When the files are in, GeoSpaX moves them as one batch into the drop folder, the matching recipe
+(photos-to-map, track-to-map, sensor-log-to-map) runs, and the finished map appears on the phone too.</li>
+</ol>
+<p><strong>Where photo locations come from.</strong> Phones often strip GPS from photos picked in the browser, so GeoSpaX tries in order:</p>
+<ul>
+<li>the photo&#39;s own EXIF GPS;</li>
+<li>a position from the phone itself: <strong>Take a photo</strong> sends the phone&#39;s GPS position along, and GeoSpaX writes it into
+an XMP sidecar (<code>IMG.jpg.xmp</code>) only if the photo has no location of its own;</li>
+<li>the GPS track by time. While <strong>Share live location</strong> is on, the phone&#39;s live track goes into the batch as a timed
+GPX, and photos without GPS are placed on it by their capture time. The same works for any device or folder that
+holds a GPS track (a Garmin GPX next to camera photos, say): GeoSpaX interpolates between the two track points
+around the photo time, if they are at most 5 minutes apart, and snaps to the nearest point within 60 s of either
+end. The camera&#39;s time zone comes from EXIF <code>OffsetTimeOriginal</code>, else this computer&#39;s. Lightroom, darktable and
+digiKam sidecars (<code>exif:GPSLatitude</code>) are read too.</li>
+</ul>
+<p>The photos layer records how each photo got its position in a <code>placed</code> field (<code>exif</code>, <code>sidecar</code>, <code>track</code>), and
+<code>GET /api/devices</code> counts them (<code>photos_placed</code>).</p>
+<p><strong>Safety.</strong></p>
+<ul>
+<li>The phone link is off until you turn it on (remembered across restarts; <em>Turn off</em> closes the port).</li>
+<li>It listens on its own port (default 8765, or the next free one) with HTTPS. Every request needs the 128-bit
+pairing code from the QR code; <strong>New code</strong> changes it, and phones paired earlier must scan again.</li>
+<li>Apart from upload and commit it forwards only live positions, run status and finished maps; settings and data
+are out of reach.</li>
+<li>Uploads are limited to 64 MB per file (videos are not mapped). A batch the phone never finishes is committed
+after two quiet minutes.</li>
+<li>Files land in the drop folder: desktop <code>~/GeoSpaX/Inbox/Phone &lt;date time&gt;/</code>, web edition <code>--inbox</code> or
+<code>&lt;state&gt;/phone/From phone/</code>.</li>
+<li>The certificate and pairing code live in <code>&lt;state&gt;/phone/</code>. On Windows the firewall asks once whether GeoSpaX may
+accept connections on private networks.</li>
+</ul>
+<div class="table"><table><thead><tr>
+<th>Phone link endpoint (port 8765)</th>
+<th></th>
+</tr>
+</thead><tbody><tr>
+<td><code>GET /</code></td>
+<td>The phone page (pairing code from the QR address, kept in the phone&#39;s storage)</td>
+</tr>
+<tr>
+<td><code>GET /api/phone/hello?t=</code></td>
+<td>Which computer this is, upload limit</td>
+</tr>
+<tr>
+<td><code>POST /api/phone/upload?t=&amp;batch=&amp;name=[&amp;lat=&amp;lon=&amp;acc=&amp;ts=]</code></td>
+<td>One file (raw body); with a position (camera mode) a sidecar is written if the photo has none</td>
+</tr>
+<tr>
+<td><code>POST /api/phone/commit?t=&amp;batch=[&amp;live=phone-&lt;id&gt;]</code></td>
+<td>Move the batch into the drop folder (adding the live track as GPX) and look at it now</td>
+</tr>
+<tr>
+<td><code>POST /api/devices/live?t=</code> · <code>GET /api/runs?t=</code> · <code>GET /api/runs/{id}/files/{name}?t=</code></td>
+<td>Live location, run status, the finished map and report</td>
+</tr>
+</tbody></table></div><h2 id="4-sensors-in-detail"><a class="anchor" href="#4-sensors-in-detail">#</a>4. Sensors in detail</h2>
+<h3 id="sensor-files-on-a-device"><a class="anchor" href="#sensor-files-on-a-device">#</a>Sensor files on a device</h3>
+<p>A file is a <strong>sensor log</strong> when its first lines say so (no configuration):</p>
+<ul>
+<li><strong>CSV / TSV / TXT</strong> (comma, semicolon or tab; quoted fields; decimal commas with semicolons): the header has a
+latitude column (<code>lat</code>, <code>latitude</code>, <code>gps_lat</code>, <code>geo:lat</code>, <code>locationLatitude(WGS84)</code> …) and a longitude column
+(<code>lon</code>, <code>lng</code>, <code>long</code>, <code>longitude</code>, <code>geo:long</code> …). A time column (<code>time</code>, <code>timestamp</code>, <code>datetime</code>, <code>loggingTime</code> …)
+is kept as text.</li>
+<li><strong>JSON lines / JSON arrays</strong> (<code>.jsonl</code>, <code>.ndjson</code>, <code>.json</code>): records with lat/lon keys, a nested
+<code>location</code>/<code>position</code> object, or a GeoJSON Point <code>geometry</code> (values from <code>properties</code>).</li>
+<li><strong>FIT</strong> (<code>.fit</code>): every <code>record</code> message with a position.</li>
+</ul>
+<p>Every numeric column becomes a measurement (up to 32 per file, 64 per device). Names are cleaned to snake_case and
+units are taken from the header (<code>PM2.5 (µg/m³)</code> → <code>pm2_5</code> in µg/m³; <code>Temperature [°C]</code> → <code>temperature</code> in °C).
+Bookkeeping columns (ids, accuracy, HDOP, satellites, bearing) are skipped, and rows without a fix (empty or 0/0
+coordinates) are counted and skipped. A logger that moved (timed rows a few metres apart) also gets a <strong>track</strong>; a list
+of fixed stations does not. The device&#39;s GeoPackage gains a <code>readings</code> layer: <code>time</code>, <code>source</code>, <code>device</code> and one real
+field per measurement, so every tool, recipe step and R/Python code step can use it.</p>
+<h3 id="live-readings-over-http"><a class="anchor" href="#live-readings-over-http">#</a>Live readings over HTTP</h3>
+<p><code>POST /api/devices/live</code> takes one JSON object per reading:</p>
+<pre><code class="language-json">{ &quot;id&quot;: &quot;aq-01&quot;, &quot;name&quot;: &quot;Market street monitor&quot;, &quot;lat&quot;: -5.8601, &quot;lon&quot;: 144.2302,
+  &quot;values&quot;: { &quot;pm2_5&quot;: 41.2, &quot;pm10&quot;: 66.0, &quot;temperature&quot;: 23.1 } }
+</code></pre>
+<ul>
+<li>Flat numeric keys work too (<code>{&quot;id&quot;: &quot;probe-7&quot;, &quot;lat&quot;: …, &quot;lon&quot;: …, &quot;soil_moisture&quot;: 31.5}</code>), and numeric strings count.</li>
+<li>A reading without <code>lat</code>/<code>lon</code> uses the sensor&#39;s last position (fixed stations send it once).</li>
+<li><code>t</code> is optional: seconds or milliseconds since 1970, or ISO 8601 text.</li>
+<li>Live ids are <code>sensor-&lt;id&gt;</code> for sensors and <code>phone-&lt;id&gt;</code> for the phone page.</li>
+<li>The response gives the live id: <code>{&quot;ok&quot;: true, &quot;device&quot;: &quot;sensor-aq-01&quot;}</code>.</li>
+</ul>
+<h3 id="live-readings-over-mqtt"><a class="anchor" href="#live-readings-over-mqtt">#</a>Live readings over MQTT</h3>
+<p><code>--mqtt mqtt://[user[:password]@]host[:1883]/topic/filter/#</code> (repeatable; desktop: <code>GEOSPAX_MQTT=url1,url2</code>). Each
+message is parsed like an HTTP push.</p>
+<p>Brokers on the internet need TLS: <code>mqtts://[user[:password]@]host[:8883]/topic/#</code>. The broker&#39;s certificate must be valid
+for the host name and signed by a CA in Mozilla&#39;s list (the <code>webpki-roots</code> set, built in, so it works the same on
+every OS). There is no switch to skip the check. Options after <code>?</code>:</p>
+<div class="table"><table><thead><tr>
+<th>Option</th>
+<th>For</th>
+</tr>
+</thead><tbody><tr>
+<td><code>ca=/path/ca.pem</code></td>
+<td>A broker with a certificate from your own CA (a site or lab broker, a Mosquitto you set up)</td>
+</tr>
+<tr>
+<td><code>cert=/path/client.pem&amp;key=/path/client.key</code></td>
+<td>Brokers that want a client certificate (AWS IoT Core, Azure IoT Hub, Mosquitto with <code>require_certificate true</code>)</td>
+</tr>
+</tbody></table></div><p>Paths with spaces or <code>&amp;</code> are percent-encoded (<code>%20</code>, <code>%26</code>). When TLS fails, the Devices pane says why in words: the
+CA is unknown (add <code>?ca=</code>), the certificate is for another host name or has expired, the broker wants a client
+certificate, or the port speaks plain MQTT. The device id comes from the payload (<code>id</code>, <code>device</code>, <code>sensor_id</code>, <code>tid</code>) or
+else from the topic (<code>sensors/aq-02</code> → <code>sensors-aq-02</code>). Supported payloads:</p>
+<ul>
+<li>the generic JSON above;</li>
+<li><strong>OwnTracks</strong> location messages (<code>_type: location</code>; <code>tst</code>, <code>acc</code>, <code>vel</code> in km/h, <code>batt</code>). A phone running the free
+OwnTracks app becomes a live device, with no GeoSpaX app on the phone.</li>
+</ul>
+<p>Messages that are not JSON objects are counted as ignored. The Devices pane shows each subscription&#39;s state, message
+count and last error, with passwords masked.</p>
+<h3 id="lorawan-sensors-the-things-stack-chirpstack"><a class="anchor" href="#lorawan-sensors-the-things-stack-chirpstack">#</a>LoRaWAN sensors (The Things Stack, ChirpStack)</h3>
+<p>LoRaWAN sensors talk to gateways, and the gateways forward to a network server. GeoSpaX subscribes to the network
+server&#39;s MQTT feed and recognises its uplink messages, so no adapter or mapping file is needed:</p>
+<div class="table"><table><thead><tr>
+<th>Network server</th>
+<th>Subscribe to</th>
+<th>Notes</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>The Things Stack</strong> (TTN v3, The Things Industries)</td>
+<td><code>mqtts://APP-ID@TENANT:API-KEY@eu1.cloud.thethings.network/v3/%2B/devices/%2B/up</code></td>
+<td>Username is the application id with <code>@ttn</code> on TTN; the password is an API key with &quot;read application traffic&quot;. Use your cluster (<code>eu1</code>, <code>nam1</code>, <code>au1</code>)</td>
+</tr>
+<tr>
+<td><strong>ChirpStack v4</strong></td>
+<td><code>mqtt://chirpstack-host/application/%2B/device/%2B/event/up</code></td>
+<td>JSON marshaler (the default)</td>
+</tr>
+<tr>
+<td><strong>ChirpStack v3</strong></td>
+<td><code>mqtt://chirpstack-host/application/%2B/device/%2B/rx</code></td>
+<td>JSON marshaler</td>
+</tr>
+</tbody></table></div><p>Or, without a broker: add a <strong>webhook</strong> integration in The Things Stack pointing at <code>https://your-geospax/api/devices/live</code>
+(uplink messages only). The same message format is understood over HTTP.</p>
+<p>What one uplink becomes:</p>
+<ul>
+<li><strong>Device:</strong> the device id (TTN) or device name (ChirpStack); the Devices pane shows <em>LoRaWAN · TTN</em> or
+<em>LoRaWAN · ChirpStack</em> as the source.</li>
+<li><strong>Values:</strong> every number in the decoded payload (<code>decoded_payload</code> or <code>object</code>, so set up a payload formatter or
+codec). One level of nesting is flattened (<code>battery.voltage</code> → <code>battery_voltage</code>). It also adds <code>rssi</code> and <code>snr</code> of
+the strongest gateway and <code>gateways</code> (how many heard it), which is handy for coverage maps.</li>
+<li><strong>Position</strong>, first that applies:<ol>
+<li>latitude/longitude in the decoded payload (GPS trackers);</li>
+<li>the location set for the device in the network console;</li>
+<li>the strongest receiving gateway&#39;s location, with an accuracy of 2,000 m. The sensor is somewhere near that
+gateway, which is enough to see which area a reading belongs to but not for a street-level map.</li>
+</ol>
+</li>
+<li><strong>Ignored:</strong> join, ack, downlink and status events (they carry no readings).</li>
+</ul>
+<p>Sensor triggers work as for any live sensor: <code>air-quality-alert</code> fires when a LoRaWAN node reports <code>pm2_5</code> above 35.</p>
+<h3 id="ogc-sensorthings-services"><a class="anchor" href="#ogc-sensorthings-services">#</a>OGC SensorThings services</h3>
+<p>The <a href="https://www.ogc.org/standards/sensorthings/" rel="noopener" target="_blank">OGC SensorThings API</a> is how many public sensor networks publish
+their data: air-quality and water-level networks, FROST servers, city IoT platforms. <code>--sta https://host/v1.1</code>
+(desktop: <code>GEOSPAX_STA=url1,url2</code>) polls a service; options go after <code>?</code>, joined with <code>&amp;</code>:</p>
+<div class="table"><table><thead><tr>
+<th>Option</th>
+<th>Default</th>
+<th>For</th>
+</tr>
+</thead><tbody><tr>
+<td><code>every=300</code></td>
+<td>60</td>
+<td>Seconds between polls (10 s to 1 day)</td>
+</tr>
+<tr>
+<td><code>bbox=minlon,minlat,maxlon,maxlat</code></td>
+<td>–</td>
+<td>Only stations in your area. Sent to the service as <code>st_intersects(Locations/location, geography&#39;POLYGON(…)&#39;)</code>, so the service does the filtering</td>
+</tr>
+<tr>
+<td><code>filter=ODATA</code></td>
+<td>–</td>
+<td>Any SensorThings <code>$filter</code> on Things, e.g. <code>filter=substringof(&#39;StadtRad&#39;,name)</code>. Encode <code>&amp;</code> as <code>%26</code> and a literal <code>+</code> as <code>%2B</code></td>
+</tr>
+<tr>
+<td><code>max=5000</code></td>
+<td>1,000</td>
+<td>Most stations per poll (100 to 10,000)</td>
+</tr>
+<tr>
+<td><code>name=hamburg</code></td>
+<td>from the host name</td>
+<td>The service part of station ids (<code>sta-hamburg-6211</code>), for triggers such as <code>device: &quot;sta-hamburg-*&quot;</code></td>
+</tr>
+</tbody></table></div><p>Big city platforms list tens of thousands of Things; use <code>bbox=</code> for the area you map instead of raising <code>max</code>.</p>
+<p>Tested against two public services (October 2026):</p>
+<div class="table"><table><thead><tr>
+<th>Service</th>
+<th>Command</th>
+<th>Result</th>
+</tr>
+</thead><tbody><tr>
+<td>Fraunhofer IOSB air-quality FROST (European stations)</td>
+<td><code>--sta https://airquality-frost.k8s.ilt-dmz.iosb.fraunhofer.de/v1.1</code></td>
+<td>988 stations with <code>no2</code>, <code>pm10</code>, <code>pm2_5</code>, <code>o3</code>, <code>co</code> …</td>
+</tr>
+<tr>
+<td>Hamburg urban data platform</td>
+<td><code>--sta &quot;https://iot.hamburg.de/v1.1?bbox=9.95,53.54,10.03,53.57&quot;</code></td>
+<td>293 stations in the bbox (traffic counters, bike-share stations) instead of the first 1,000 of the whole city; German names folded to ASCII (<code>anzahl_kfz_je_zahlstelle</code>)</td>
+</tr>
+</tbody></table></div><ul>
+<li>One request per 100 stations asks for each Thing&#39;s location and, per datastream, only the newest observation
+(<code>$expand=…Observations($orderby=phenomenonTime desc;$top=1)</code>). Pages follow <code>@iot.nextLink</code>.</li>
+<li>Each Thing with a point location becomes a live sensor <code>sta-&lt;service&gt;-&lt;id&gt;</code> with the Thing&#39;s name. The service part
+is <code>name=</code> or the telling part of the host name (<code>iot.hamburg.de</code> → <code>sta-hamburg-6211</code>), so two services never mix
+up their stations. Values are named after the
+observed property and its unit: <code>PM2.5</code> in µg/m³ → <code>pm2_5</code>, <code>Water level</code> in cm → <code>water_level</code>. Accented letters
+are folded (<code>Température</code> → <code>temperature</code>); two datastreams with the same name become <code>pm2_5</code> and <code>pm2_5_2</code>. Things
+without a location and non-numeric results are skipped.</li>
+<li>A station is updated only when its newest observation is newer than at the last poll, so readings are not
+duplicated and triggers fire once per real observation.</li>
+<li>The Devices pane shows each service with its number of stations, updates and the last poll time, or the error
+(<a href="https://github.com/jmozez/geospax/blob/main/bench/screenshots/42-sensor-networks-devices.png" rel="noopener" target="_blank">screenshot</a>).</li>
+</ul>
+<p>To try all of this without hardware, <code>scripts/demo-sensor-networks.py</code> serves a SensorThings service with stations in
+Port Moresby and publishes TTN and ChirpStack uplinks to a local broker:</p>
+<pre><code class="language-bash">python3 scripts/demo-sensor-networks.py --mqtt 127.0.0.1:1883 --topic sensors --sta-port 8140 &amp;
+geospax-server --mqtt &quot;mqtt://127.0.0.1:1883/sensors/#&quot; --sta &quot;http://127.0.0.1:8140/v1.1?every=10&amp;name=demo&quot; --auto air-quality-alert
+</code></pre>
+<h3 id="sensor-triggers"><a class="anchor" href="#sensor-triggers">#</a>Sensor triggers</h3>
+<pre><code class="language-yaml">triggers:
+  - sensor: { field: pm2_5, above: 35, cooldown: 30m }          # threshold, any live sensor
+  - sensor: { field: water_level, above: 2.4, device: &quot;gauge-*&quot; } # wildcard on the sensor id or name
+  - sensor: { inside: farm.parcels }                             # geofence: a phone/GNSS/sensor enters a polygon layer
+  - sensor: { field: temperature, below: 2, inside: farm.parcels, cooldown: 2h }   # frost inside the parcels
+</code></pre>
+<ul>
+<li><code>above:</code> / <code>below:</code> need a <code>field:</code>. A geofence alone fires on <strong>entering</strong> (outside → inside).</li>
+<li>With a field, a geofence restricts the threshold to readings inside the polygons.</li>
+<li><code>cooldown</code> (default 10 min) is per recipe and per device.</li>
+<li>The run gets <code>${trigger.device}</code>, <code>${trigger.value}</code>, <code>${trigger.threshold}</code>, <code>${trigger.lat}</code>, <code>${trigger.lon}</code>,
+<code>${trigger.text}</code> (e.g. &quot;AQ CI reported pm2_5 = 48 (above 35) at 08:41&quot;) and every value of the reading.</li>
+<li>Inputs named <code>device</code>, <code>lat</code> and <code>lon</code> are filled in.</li>
+</ul>
+<h3 id="sensor-steps"><a class="anchor" href="#sensor-steps">#</a>Sensor steps</h3>
+<ul>
+<li><strong><code>sensor.snapshot</code></strong> writes the last <code>minutes</code> of live readings to <code>&lt;recipe&gt;.live_readings</code>, each sensor&#39;s path
+as <code>&lt;recipe&gt;.live_tracks</code>, and its latest position (labelled with its name) as <code>&lt;recipe&gt;.live_latest</code>.</li>
+<li><strong><code>sensor.summary</code></strong> computes count, mean, 95th percentile and maximum per measurement, and flags air quality
+against the <strong>WHO 2021 global air quality guidelines</strong>: PM2.5 15 µg/m³ and PM10 45 µg/m³ (24-hour), NO₂ 25 µg/m³
+(24-hour), O₃ 100 µg/m³ (8-hour), SO₂ 40 µg/m³ (24-hour), CO 4 mg/m³ (24-hour).<ul>
+<li>It picks the field to map: a pollutant first, then heart rate, CO₂, noise, temperature …</li>
+<li>The report says plainly that single readings only indicate exposure and are not 24-hour means.</li>
+</ul>
+</li>
+<li><strong>AutoMap</strong> classes PM2.5 and PM10 at the guideline and the WHO interim targets.<ul>
+<li>PM2.5: 15 / 25 / 37.5 / 50 / 75 µg/m³. PM10: 45 / 50 / 75 / 100 / 150 µg/m³.</li>
+<li>Colours follow an air-quality index, from green (&quot;guideline met&quot;) to dark red (&quot;above IT-1&quot;).</li>
+<li>This replaces statistical breaks that mean nothing to a reader.</li>
+</ul>
+</li>
+</ul>
+<h2 id="5-privacy-and-safety"><a class="anchor" href="#5-privacy-and-safety">#</a>5. Privacy and safety</h2>
+<ul>
+<li>Location history and photo locations are personal data. <strong>Auto-import is off by default</strong>: the first time a device appears, GeoSpaX asks. Drop folders (§3) are the only exception, because you put the files there yourself.</li>
+<li>Live sharing from a phone needs an explicit <strong>Start</strong> on that phone and stops when the page closes. OwnTracks shares only what you configure in the app.</li>
+<li>The phone link (§3a) is off until you turn it on, needs the pairing code from the QR code on every request, uses HTTPS, and stays on your network.</li>
+<li>Everything stays on the machine (desktop) or your own server (web). Nothing goes to third parties; the MQTT broker is one you run or choose.</li>
+<li>MQTT credentials are never shown in the UI or logs. Use <code>mqtts://</code> for any broker outside your LAN: certificates are always verified, and there is no &quot;insecure&quot; switch. API keys belong in the URL&#39;s password part, which is masked everywhere.</li>
+<li>Exports strip EXIF location unless you choose to keep it. Imports can be forgotten per device.</li>
+</ul>
+<h2 id="6-architecture"><a class="anchor" href="#6-architecture">#</a>6. Architecture</h2>
+<pre><code> device roots (mounts, gvfs, --watch dirs)        live sources
+        │  poll every 5 s                          phone page / sensors: POST /api/devices/live
+        ▼                                          MQTT/TLS subscriber (OwnTracks, sensor JSON, LoRaWAN)
+                                                   SensorThings poller
+  DeviceWatcher ──► scan (bounded walk, classifiers)  NMEA serial/TCP/file · gpsd
+        │            photos: EXIF GPS + DJI XMP                 │
+        │            tracks: GPX/KML (GDAL), NMEA, SRT          ▼
+        │            sensor logs: CSV/TSV/JSON, FIT       LiveStore (fixes + readings per device)
+        ▼                                                    │            │
+  import job (job registry) ──► &lt;state&gt;/devices/&lt;id&gt;.gpkg    │            └─► sensor hook ──► sensor triggers
+        │                photos · tracks · waypoints · readings              (threshold, geofence, cooldown)
+        ▼                                                    ▼
+  layers hot-registered in the engine ──► map, symbology,   GET /api/devices/live · /api/devices/readings
+                                          recipes, triggers
+</code></pre>
+<ul>
+<li>Code:<ul>
+<li><code>crates/engine/src/devices.rs</code>: discovery, scan, import, live store, NMEA/gpsd/SRT parsers.</li>
+<li><code>crates/engine/src/sensors.rs</code>: sensor CSV/JSON/FIT readers, live message parsing (including LoRaWAN uplinks), the MQTT client with TLS, WHO guideline levels.</li>
+<li><code>crates/engine/src/sta.rs</code>: OGC SensorThings polling.</li>
+<li><code>automation/mod.rs</code> (<code>on_sensor</code>): sensor triggers.</li>
+</ul>
+</li>
+<li><strong>Device trigger:</strong><ul>
+<li>With a device recipe on <strong>Auto</strong>, a new device runs that recipe: import → AutoMap → finished map → report.</li>
+<li>Without one, <code>--auto-import</code> (desktop: <code>GEOSPAX_AUTO_IMPORT=1</code>) still imports new devices without a click.</li>
+<li>Several devices at once queue one run per device (measured: phone, drone card and two GPS folders were mapped in 0.3 s after the first scan).</li>
+</ul>
+</li>
+<li><code>geospax run photos-to-map --input source=/media/$USER/PHONE</code> does the same from the command line. <code>source: auto</code>
+picks the connected device (phones and cameras first, sensor loggers last).</li>
+</ul>
+<h2 id="7-what-is-built-v1"><a class="anchor" href="#7-what-is-built-v1">#</a>7. What is built (v1)</h2>
+<p><strong>API</strong></p>
+<div class="table"><table><thead><tr>
+<th>Method</th>
+<th>Path</th>
+<th></th>
+</tr>
+</thead><tbody><tr>
+<td>GET</td>
+<td><code>/api/devices</code></td>
+<td>Detected devices with scan summary (photos, tracks, waypoints, readings and their fields, <code>point_clouds</code> and <code>cloud_points</code>), watched roots, live devices with latest values, MQTT subscriptions (<code>mqtt</code>), SensorThings services (<code>sta</code>)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/devices/rescan</code></td>
+<td>Scan now</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/devices/{id}/import</code></td>
+<td>Import as layers (a job; 202 + job id)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/devices/live</code></td>
+<td>Live positions (with latest sensor values) + recent tracks as GeoJSON</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/devices/live</code></td>
+<td>Push a fix or a sensor reading (phone page, sensors, gateways)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/phone</code></td>
+<td>Phone link state: running, address, QR code (SVG), drop folder</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/phone/enable</code> · <code>/api/phone/disable</code> · <code>/api/phone/reset</code></td>
+<td>Turn the phone link on or off, or make a new pairing code</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/devices/readings?minutes=60&amp;device=aq-*</code></td>
+<td>Live sensor readings as GeoJSON points</td>
+</tr>
+</tbody></table></div><p><strong>Options</strong> (server flags; desktop environment variables)</p>
+<div class="table"><table><thead><tr>
+<th>Server</th>
+<th>Desktop</th>
+<th>Meaning</th>
+</tr>
+</thead><tbody><tr>
+<td><code>--watch DIR</code> (repeatable)</td>
+<td><code>GEOSPAX_WATCH=dir1:dir2</code></td>
+<td>Extra folders to treat as devices (e.g. a synced phone folder, a logger&#39;s export folder)</td>
+</tr>
+<tr>
+<td><code>--inbox DIR</code> (repeatable)</td>
+<td><code>~/GeoSpaX/Inbox</code> (built in)</td>
+<td>Drop folders: the matching device recipe maps whatever lands there, no Auto switch needed</td>
+</tr>
+<tr>
+<td><code>--auto-import</code></td>
+<td><code>GEOSPAX_AUTO_IMPORT=1</code></td>
+<td>Import new devices automatically (when no device recipe is on Auto)</td>
+</tr>
+<tr>
+<td><code>--auto photos-to-map,sensor-log-to-map,air-quality-alert</code></td>
+<td><code>GEOSPAX_AUTO=…</code></td>
+<td>Recipes on Auto: plug in (or a sensor reports) → finished map + report</td>
+</tr>
+<tr>
+<td><code>--gps SOURCE</code> (repeatable)</td>
+<td><code>GEOSPAX_GPS=src1,src2</code></td>
+<td>Live GNSS: <code>/dev/ttyUSB0</code>, <code>serial:///dev/ttyACM0?baud=9600</code>, <code>tcp://host:port</code>, <code>gpsd://host:2947</code>, <code>file:///path/log.nmea[?rate=10]</code></td>
+</tr>
+<tr>
+<td><code>--mqtt URL</code> (repeatable)</td>
+<td><code>GEOSPAX_MQTT=url1,url2</code></td>
+<td>Live sensors, OwnTracks phones and LoRaWAN uplinks from an MQTT broker: <code>mqtt://[user:pass@]host[:1883]/topic/#</code>, <code>mqtts://…[:8883]/…[?ca=…&amp;cert=…&amp;key=…]</code></td>
+</tr>
+<tr>
+<td><code>--sta URL</code> (repeatable)</td>
+<td><code>GEOSPAX_STA=url1,url2</code></td>
+<td>OGC SensorThings services to poll: <code>https://host/v1.1[?every=60&amp;bbox=minlon,minlat,maxlon,maxlat&amp;filter=…&amp;max=1000]</code></td>
+</tr>
+<tr>
+<td><code>--phone</code>, <code>--phone-port N</code></td>
+<td>Devices → <em>Send from phone</em> (<code>GEOSPAX_PHONE=1</code>, <code>GEOSPAX_PHONE_PORT</code> for tests)</td>
+<td>Phone link (§3a), default port 8765</td>
+</tr>
+</tbody></table></div><p>Imported devices persist: their GeoPackages are re-registered at startup. A device with point clouds imports a
+<code>point_clouds</code> layer: one footprint per LAS/LAZ file with its points, coordinate system, LAS version and height range
+(a tile index). Measured results: <a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md" rel="noopener" target="_blank">bench/RESULTS.md §10</a> (devices), §13 (sensors),
+§17 (sensor networks) and §18 (LiDAR).</p>
+<p>The UI has a <strong>Devices</strong> section in Contents. It lists detected devices with photo, track, reading and point-cloud counts (and the
+measurements), live devices with their tracks, live sensors with their latest values, MQTT status and SensorThings services.
+<strong>Import &amp; map</strong> styles the new layers with AutoMap (<code>GET /api/layers/{id}/autostyle</code>), the same choice a recipe
+makes: readings come out coloured by their main measurement, PM in WHO classes. <strong>Send from phone</strong> (§3a) shows the QR code for the phone link; the
+phone page it opens sends files, geotagged camera photos and live location.
+<code>scripts/demo-sensor-feed.py</code> simulates two walking air-quality sensors (HTTP or MQTT) for demos.</p>
+<p><strong>Next:</strong> BLE sensors, GoPro GPMF, thermal and multispectral frames, SensorThings MQTT extension (push instead of polling).</p>
+</article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#1-what-geospax-reads">1. What GeoSpaX reads</a><a href="#2-connections-by-edition-and-os">2. Connections by edition and OS</a><a href="#3-automatic-workflows">3. Automatic workflows</a><a href="#3a-send-from-phone-phone-link">3a. Send from phone (phone link)</a><a href="#4-sensors-in-detail">4. Sensors in detail</a><a href="#5-privacy-and-safety">5. Privacy and safety</a><a href="#6-architecture">6. Architecture</a><a href="#7-what-is-built-v1">7. What is built (v1)</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/DEVICES.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>

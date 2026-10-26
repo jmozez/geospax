@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Web edition and servers · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX web edition and servers: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy" aria-current="page">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="deploying-geospax"><a class="anchor" href="#deploying-geospax">#</a>Deploying GeoSpaX</h1>
+<p>Two parts, hosted separately:</p>
+<div class="table"><table><thead><tr>
+<th>Part</th>
+<th>What it is</th>
+<th>Where</th>
+</tr>
+</thead><tbody><tr>
+<td>Home page (<code>site/</code>)</td>
+<td>Static page: screenshots, plugins, downloads</td>
+<td>Vercel (or any static host)</td>
+</tr>
+<tr>
+<td>Web edition</td>
+<td>The GeoSpaX app in a browser: a server with GDAL and storage</td>
+<td>Fly.io (or any container host)</td>
+</tr>
+</tbody></table></div><h2 id="home-page-on-vercel"><a class="anchor" href="#home-page-on-vercel">#</a>Home page on Vercel</h2>
+<ol>
+<li><strong>Add New › Project</strong>, import the repository.</li>
+<li><strong>Root Directory:</strong> <code>site</code>. Framework Preset: <strong>Other</strong>. No build command.</li>
+<li><strong>Settings › Domains:</strong> add your domain (for example <code>geospax.in4metrix.dev</code>) and create the DNS record Vercel shows.</li>
+</ol>
+<p>The download buttons read the newest GitHub release by themselves. Once the web edition is online, set
+<code>WEBAPP_URL</code> at the top of <code>site/main.js</code> if visitors should get an &quot;Open the web app&quot; button.</p>
+<h2 id="web-edition-on-flyio"><a class="anchor" href="#web-edition-on-flyio">#</a>Web edition on Fly.io</h2>
+<p>The web edition is <strong>one workspace</strong>: everyone signed in with the access token sees and changes the same
+layers and projects, and the token gives full control. Host it as your own GeoSpaX in the browser, not as an
+open site for anonymous visitors.</p>
+<p>Install <code>flyctl</code> (<a href="https://fly.io/docs/flyctl/install/" rel="noopener" target="_blank">https://fly.io/docs/flyctl/install/</a>), sign in with <code>fly auth login</code>, then from the
+repository folder:</p>
+<pre><code class="language-sh">fly launch --copy-config --no-deploy          # creates the app from fly.toml; choose a unique name if asked
+fly volumes create geospax_data --size 10 --region syd
+fly secrets set GEOSPAX_TOKEN=$(openssl rand -hex 24)
+fly deploy
+</code></pre>
+<p>Open <code>https://&lt;app&gt;.fly.dev/?token=&lt;your token&gt;</code> once; the browser remembers it. Keep the token private.</p>
+<p><strong>Your own subdomain:</strong> <code>fly certs add app.geospax.in4metrix.dev</code>, then add the CNAME record it shows
+(to <code>&lt;app&gt;.fly.dev</code>) at your DNS provider.</p>
+<p><strong>Updates:</strong> <code>fly deploy</code> pulls the newest release image (<code>ghcr.io/jmozez/geospax:latest</code>). Data, runs and
+settings stay on the volume.</p>
+<p><strong>Size and cost:</strong> <code>fly.toml</code> asks for a shared 2-CPU machine with 2 GB of memory that <strong>stops when idle</strong> and
+starts again on the next visit (a few seconds&#39; wait), so you pay mostly while you use it; the volume is billed
+all the time. Recipes, triggers and downloads run only while the machine is up: to keep it running, set
+<code>auto_stop_machines = &quot;off&quot;</code> and <code>min_machines_running = 1</code>. Large rasters need more memory:
+<code>fly scale memory 4096</code>.</p>
+<h2 id="flathub-the-linux-app-store"><a class="anchor" href="#flathub-the-linux-app-store">#</a>Flathub (the Linux app store)</h2>
+<p>The Flatpak (<code>packaging/flatpak/io.github.jmozez.GeoSpaX.yml</code>) is built and checked in CI. Flathub builds every
+app on its own servers without network access, so its copy of the manifest lists the Rust crates and npm
+packages as sources. To submit:</p>
+<ol>
+<li>The offline manifest and both lists are ready in <code>packaging/flatpak/flathub/</code>, pointing at tag <code>v3.0.3</code>.
+For a later release, change the tag and regenerate the lists with the Flatpak builder tools
+(<a href="https://github.com/flatpak/flatpak-builder-tools" rel="noopener" target="_blank">https://github.com/flatpak/flatpak-builder-tools</a>):
+<code>flatpak-cargo-generator Cargo.lock -o packaging/flatpak/flathub/cargo-sources.json</code> and
+<code>flatpak-node-generator npm web/package-lock.json -o packaging/flatpak/flathub/node-sources.json</code>.</li>
+<li>Once the tag exists, add <code>commit: &lt;sha of the tag&gt;</code> under the <code>tag:</code> line (Flathub requires both).</li>
+<li>Follow <a href="https://docs.flathub.org/docs/for-app-authors/submission" rel="noopener" target="_blank">https://docs.flathub.org/docs/for-app-authors/submission</a>: fork <code>flathub/flathub</code>, add the three
+files from <code>packaging/flatpak/flathub/</code> on a branch named after the app ID, and open the pull request. Flathub reviews it; the
+app ID <code>io.github.jmozez.GeoSpaX</code> is verified from the <code>jmozez</code> GitHub account.</li>
+</ol>
+<p>After that, each GeoSpaX release is a small pull request to the app&#39;s Flathub repository (new tag and commit).</p>
+<h2 id="publishing-a-release-without-pushing-a-tag"><a class="anchor" href="#publishing-a-release-without-pushing-a-tag">#</a>Publishing a release without pushing a tag</h2>
+<p>Actions → ci → <strong>Run workflow</strong> on <code>main</code>, with <em>release_tag</em> set to the new version (for example <code>v3.0.2</code>).
+The run builds every package and the release job creates the tag and the GitHub release with all files.
+Add the <code>TAURI_SIGNING_PRIVATE_KEY</code> and Android keystore secrets first, so the update feed and the APK are
+signed with the permanent keys.</p>
+</article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#home-page-on-vercel">Home page on Vercel</a><a href="#web-edition-on-flyio">Web edition on Fly.io</a><a href="#flathub-the-linux-app-store">Flathub (the Linux app store)</a><a href="#publishing-a-release-without-pushing-a-tag">Publishing a release without pushing a tag</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/DEPLOY.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>

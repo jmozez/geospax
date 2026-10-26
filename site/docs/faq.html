@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FAQ · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX faq: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq" aria-current="page">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="frequently-asked-questions"><a class="anchor" href="#frequently-asked-questions">#</a>Frequently asked questions</h1>
+<h2 id="getting-started"><a class="anchor" href="#getting-started">#</a>Getting started</h2>
+<h3 id="how-do-i-install-geospax"><a class="anchor" href="#how-do-i-install-geospax">#</a>How do I install GeoSpaX?</h3>
+<p>Download the installer for your system from the <a href="https://github.com/jmozez/geospax/releases" rel="noopener" target="_blank">releases page</a>:</p>
+<ul>
+<li><strong>Windows 10 or 11:</strong> <code>GeoSpaX_&lt;version&gt;_x64-setup.exe</code>. It installs for you only, so no administrator
+password is needed. A portable ZIP is there too.</li>
+<li><strong>Android (GeoSpaX Field):</strong> <code>GeoSpaX-Field-&lt;version&gt;.apk</code>. Open it on the phone and allow <em>install unknown apps</em> for your browser once. It records points, lines, areas, tracks and photos offline; <em>Send</em> pairs with <strong>Devices › Phone link</strong> on your computer (scan its QR code) and uploads them over Wi-Fi.</li>
+<li><strong>Any Linux:</strong> <code>GeoSpaX-&lt;version&gt;-x86_64.AppImage</code>: make it executable (<code>chmod +x</code>, or <em>Properties › Allow executing</em>) and run it. No installing, no admin rights; it updates itself.</li>
+<li><strong>Linux from Flathub:</strong> <code>flatpak install flathub io.github.jmozez.GeoSpaX</code> (or GNOME Software / KDE Discover).</li>
+<li><strong>Any system with Docker:</strong> the web edition, <code>docker compose up -d</code>.</li>
+</ul>
+<p>Start <strong>GeoSpaX</strong> from the Start menu or the applications menu. The <a href="/docs/guide">user guide</a> has the details.</p>
+<h3 id="why-is-the-map-empty-when-geospax-starts"><a class="anchor" href="#why-is-the-map-empty-when-geospax-starts">#</a>Why is the map empty when GeoSpaX starts?</h3>
+<p>GeoSpaX opens on a clean map, showing the globe, like a new map in ArcGIS Pro. Add data with
+<strong>Data › Add files</strong>, by dropping files on the window, from the <strong>Explorer</strong> pane, or try <strong>Data › Sample
+data</strong>. Files you keep in the <code>Data</code> folder (<code>~/GeoSpaX/Data</code>, or <code>%USERPROFILE%\GeoSpaX\Data</code> on Windows)
+are put on the map automatically.</p>
+<h3 id="does-sample-data-stay-on-my-map"><a class="anchor" href="#does-sample-data-stay-on-my-map">#</a>Does sample data stay on my map?</h3>
+<p>No. Sample data opens for the current session only and is not copied into your <code>Data</code> folder, so the next
+start is a clean map again.</p>
+<h3 id="how-do-i-take-a-layer-off-the-map"><a class="anchor" href="#how-do-i-take-a-layer-off-the-map">#</a>How do I take a layer off the map?</h3>
+<p>Use the <strong>✕</strong> on the layer (Pro: in its row; Lazy: on its card), press <strong>Delete</strong> with the layer selected in
+Contents, right-click it and choose <strong>Remove from map</strong>, or use <strong>Remove</strong> on the <strong>Layer</strong> ribbon tab. The
+file itself is never deleted. The layer stays off the map at the next start until you add it again from the
+<strong>Explorer</strong> pane.</p>
+<h3 id="how-do-i-browse-other-folders"><a class="anchor" href="#how-do-i-browse-other-folders">#</a>How do I browse other folders?</h3>
+<p>In the <strong>Explorer</strong> pane (left, next to Contents) press <strong>Connect a folder…</strong> (or <strong>Data › Connect folder</strong>, or
+right-click in the Explorer), choose a folder anywhere on your computer and press <strong>Connect this folder</strong>. It
+appears under <em>Folders</em>, stays there the next time you start GeoSpaX, and its files go on the map with a
+double-click or <strong>+</strong>. The <strong>✕</strong> next to it removes the connection; the folder and its files are not touched.
+When the web edition is opened to other devices with <code>--restricted</code> (for a class or a group), folders cannot
+be connected from the app; start it with <code>--data &lt;folder&gt;</code> instead.</p>
+<h3 id="how-do-i-add-a-wms-wmts-wfs-or-arcgis-service"><a class="anchor" href="#how-do-i-add-a-wms-wmts-wfs-or-arcgis-service">#</a>How do I add a WMS, WMTS, WFS or ArcGIS service?</h3>
+<p>In the <strong>Explorer</strong>, under <em>Web services</em>, press <strong>＋ Add</strong>, choose the type and paste the address (a WMS or
+WFS address, a WMTS capabilities URL, an XYZ template with <code>{z}/{x}/{y}</code>, an OGC API landing page, or an
+ArcGIS <code>…/MapServer</code> or <code>…/FeatureServer</code>). Open it to see its layers. A map-image layer goes on the map as a
+<strong>web layer</strong> (Contents › Web layers, with opacity); a feature layer is downloaded for the map view and becomes
+a normal layer you can style, analyse and export. The ✕ next to a service removes the connection.</p>
+<h3 id="how-do-i-find-satellite-imagery-sentinel-2-landsat-for-my-area"><a class="anchor" href="#how-do-i-find-satellite-imagery-sentinel-2-landsat-for-my-area">#</a>How do I find satellite imagery (Sentinel-2, Landsat) for my area?</h3>
+<p>In the <strong>Explorer</strong>, under <em>Web services</em>, press <strong>＋ Add</strong> and pick one of the public STAC catalogs (Earth
+Search, Planetary Computer, Copernicus Data Space), or paste another STAC API address. Open it and click a
+collection: a search panel opens beside the map. Choose the map view or draw a box, set the dates and the most
+cloud you accept, and press <strong>Search</strong>. Click a result to see its bands: <strong>Stream</strong> puts a band on the map
+without copying it (good for a look); <strong>Download</strong> saves it cut to your area (<code>~/GeoSpaX/Data/.geospax/stac/</code>
+on a desktop), with a progress gauge. Large scenes stream far faster than they download.</p>
+<h3 id="can-i-open-data-from-an-s3-google-cloud-or-azure-bucket"><a class="anchor" href="#can-i-open-data-from-an-s3-google-cloud-or-azure-bucket">#</a>Can I open data from an S3, Google Cloud or Azure bucket?</h3>
+<p>Yes. In the <strong>Explorer</strong>, under <em>Web services</em>, press <strong>＋ Add</strong>, choose <strong>Cloud storage</strong> and type the address:
+<code>s3://bucket/folder</code>, <code>gs://bucket</code>, <code>az://container</code> or a web folder <code>https://…/</code>. Leave <strong>Public</strong> ticked for
+open data (for example Sentinel or NAIP buckets); untick it to use this computer&#39;s own sign-in (your AWS profile
+or <code>AWS_*</code> variables, <code>gcloud auth application-default login</code>, <code>az login</code>). GeoSpaX never stores your keys. For
+MinIO or other S3-compatible storage, fill in the endpoint. Open the folders and click a file: GeoTIFFs are read
+in place (only the part on screen is fetched), vector files become layers.</p>
+<p>Under the cloud fields, <strong>Or open data in the cloud</strong> connects well-known public data in one click:
+<strong>Source Cooperative</strong> (<a href="https://source.coop" rel="noopener" target="_blank">source.coop</a>, type the account and repository shown there, as in
+<code>s3://account/repository</code>), <strong>Sentinel-2 COGs</strong>, <strong>Copernicus DEM 30 m</strong> and the raw <strong>Overture Maps</strong> files.</p>
+<h3 id="how-do-i-get-buildings-roads-or-places-for-my-study-area"><a class="anchor" href="#how-do-i-get-buildings-roads-or-places-for-my-study-area">#</a>How do I get buildings, roads or places for my study area?</h3>
+<p>Zoom the map to your area (up to about 50 km across), then in the <strong>Explorer</strong> open <strong>GeoSpaX › Overture
+Maps</strong> and click a theme: Buildings, Roads and paths, Places, Water, Land use, Land cover, Boundaries or
+Addresses. GeoSpaX reads the newest <a href="https://overturemaps.org" rel="noopener" target="_blank">Overture Maps</a> release straight from its public
+cloud storage, fetching only the parts that cover your area, and adds the layer to Contents (saved under
+<code>~/GeoSpaX/Data/.geospax/overture/</code>). Overture data is open (ODbL for most themes, CDLA for some); cite it
+as &quot;© OpenStreetMap contributors, Overture Maps Foundation&quot;.</p>
+<h3 id="can-i-open-data-or-recipes-from-a-github-repository"><a class="anchor" href="#can-i-open-data-or-recipes-from-a-github-repository">#</a>Can I open data or recipes from a GitHub repository?</h3>
+<p>Yes. In the <strong>Explorer</strong>, under <em>Web services</em>, press <strong>＋ Add</strong>, choose <strong>GitHub repository</strong> and type
+<code>owner/repository</code> (or paste its github.com link, also to a branch or a folder). Open its folders and click a
+file: GeoTIFFs are read in place, vector files are copied and added as layers, and a recipe (<code>.yaml</code>) is added
+to <strong>GeoSpaX › Recipes</strong>. A recipe that runs Python or R code asks first: only add those from people you
+trust. Without a token GitHub allows about 60 folder listings an hour; for more, and for private
+repositories, start GeoSpaX with <code>GITHUB_TOKEN</code> set (for example <code>GITHUB_TOKEN=$(gh auth token)</code>).</p>
+<h3 id="can-geospax-read-from-a-postgis-database"><a class="anchor" href="#can-geospax-read-from-a-postgis-database">#</a>Can GeoSpaX read from a PostGIS database?</h3>
+<p>Yes. In the <strong>Explorer</strong>, under <em>Web services</em>, press <strong>＋ Add</strong>, choose <strong>PostGIS database</strong> and type
+<code>postgresql://user@host:5432/dbname</code> (add <code>?sslmode=require</code> for a cloud database). Put the password in
+<code>~/.pgpass</code> (one line: <code>host:port:dbname:user:password</code>, then <code>chmod 600 ~/.pgpass</code>), the same file psql and
+QGIS use; GeoSpaX never stores passwords and refuses an address that contains one. Open the connection to
+see the spatial tables and click one to put it on the map: it is copied into a GeoPackage under
+<code>~/GeoSpaX/Data/.geospax/databases/</code>, so it keeps working offline and can be styled, analysed and exported.</p>
+<h3 id="which-r-and-python-does-geospax-use-and-how-do-i-change-it"><a class="anchor" href="#which-r-and-python-does-geospax-use-and-how-do-i-change-it">#</a>Which R and Python does GeoSpaX use, and how do I change it?</h3>
+<p>Open <strong>Explorer › GeoSpaX › R &amp; Python</strong>. <em>R</em> shows the version and, for each kit (spatial data, maps,
+statistics…), which packages are installed; <em>Install or update packages…</em> opens R setup. <em>Python</em> lists every
+Python found on this computer: the system one, conda/mamba environments, pyenv versions, virtual environments
+(<code>~/.virtualenvs</code>, <code>~/venvs</code>) and a project&#39;s <code>.venv</code> in a data folder. Open one to see its geospatial packages
+(geopandas, rasterio, shapely…), and press <strong>Use for Python steps</strong> to run recipes with it; GeoSpaX remembers
+the choice. Installed something new? Press Refresh at the top of the Explorer.</p>
+<h3 id="lazy-or-pro"><a class="anchor" href="#lazy-or-pro">#</a>Lazy or Pro?</h3>
+<p><strong>Lazy</strong> shows layer cards, a task bar (&quot;What do you want to do?&quot;) and plain-language next steps. <strong>Pro</strong> shows
+the full ribbon, a layer tree like ArcGIS Pro&#39;s Contents pane and every pane. Switch at any time with the
+switch at the top right; nothing is lost.</p>
+<h2 id="maps"><a class="anchor" href="#maps">#</a>Maps</h2>
+<h3 id="why-is-the-map-a-globe-can-i-have-a-flat-map"><a class="anchor" href="#why-is-the-map-a-globe-can-i-have-a-flat-map">#</a>Why is the map a globe? Can I have a flat map?</h3>
+<p>The map starts as a globe (as in GeoLibre and Google Earth): zoom in and it flattens naturally. For a flat map
+choose <strong>View › Projection › Mercator</strong>; GeoSpaX remembers the choice.</p>
+<h3 id="which-projection-do-exported-maps-use"><a class="anchor" href="#which-projection-do-exported-maps-use">#</a>Which projection do exported maps use?</h3>
+<p>World and continental maps are exported in <strong>Equal Earth</strong>, an equal-area projection, so countries keep their
+true relative sizes. Smaller maps use Web Mercator, like the web map. Choose either in <strong>Finish my map ›
+Projection</strong>.</p>
+<h3 id="how-do-i-change-colours-symbols-and-labels"><a class="anchor" href="#how-do-i-change-colours-symbols-and-labels">#</a>How do I change colours, symbols and labels?</h3>
+<p>Select the layer, then <strong>Symbology</strong> (Pro: right pane; Lazy: the card&#39;s <strong>⋯</strong>). Points can be circles, squares,
+stars and more, sized by a field; lines can be dashed with a casing; polygons can be hollow; labels have font,
+size, halo and placement. Rasters have their own <strong>Symbology</strong> (⚙ on the raster): stretch, classes, RGB, ramp
+and opacity. <strong>AutoMap</strong> chooses a good style for you and says why.</p>
+<h3 id="can-i-work-without-internet"><a class="anchor" href="#can-i-work-without-internet">#</a>Can I work without internet?</h3>
+<p>Yes. The offline world basemap, all analysis, maps, reports and exports work without a connection. Online
+data (climate, species, elevation …), online basemaps, R package downloads and the update check need one.</p>
+<h2 id="analysis-plugins-and-r"><a class="anchor" href="#analysis-plugins-and-r">#</a>Analysis, plugins and R</h2>
+<h3 id="where-are-the-conservation-and-biodiversity-gsx-tools"><a class="anchor" href="#where-are-the-conservation-and-biodiversity-gsx-tools">#</a>Where are the conservation and biodiversity (GSX) tools?</h3>
+<p>On the <strong>Plugins</strong> tab, under <strong>Domain plugins (GSX)</strong>: Agriculture, Biodiversity, Climate, Conservation and
+the rest. Each opens its tools and its ready-made analyses (kits). <strong>Plugins › Manage</strong> lists every plugin,
+including the GSX tool library they share.</p>
+<h3 id="how-do-i-install-r-packages"><a class="anchor" href="#how-do-i-install-r-packages">#</a>How do I install R packages?</h3>
+<p><strong>R &amp; Python › R setup</strong> lists what is installed (✓) and what is missing (○). Tick what you need and press <strong>Install
+selected</strong>. A log shows each step as it happens: which package is downloaded, which were already installed,
+and the exact reason when one fails (most often no internet connection or a proxy). Packages go into GeoSpaX&#39;s
+own library, so your R setup is not changed.</p>
+<h3 id="r-says-a-package-is-installed-but-i-never-installed-it"><a class="anchor" href="#r-says-a-package-is-installed-but-i-never-installed-it">#</a>R says a package is installed, but I never installed it</h3>
+<p>GeoSpaX uses every package R can find, including those installed by you or your system (for example
+<code>r-cran-sf</code> on Debian). The setup log says &quot;was already installed&quot; for those, with the version found.</p>
+<h3 id="can-i-add-my-own-tools"><a class="anchor" href="#can-i-add-my-own-tools">#</a>Can I add my own tools?</h3>
+<p>Yes: plugins from GeoSpaX, RustGIS, GeoLibre, QGIS and ArcGIS Pro manifests. See <a href="/docs/plugins">Plugins</a>.</p>
+<h3 id="how-do-i-delete-a-finished-map-or-a-run-from-the-history"><a class="anchor" href="#how-do-i-delete-a-finished-map-or-a-run-from-the-history">#</a>How do I delete a finished map or a run from the history?</h3>
+<p>Point at the map on the start screen and press its <strong>✕</strong>, or use the <strong>✕</strong> next to a run in <strong>Activity</strong>
+(Lazy) or <strong>History</strong> (Pro). <strong>Clear history</strong> in Pro removes every finished run at once. Each deletes the
+map, report and log of that run; layers it put on the map stay until you remove them.</p>
+<h3 id="where-are-downloaded-online-data-saved"><a class="anchor" href="#where-are-downloaded-online-data-saved">#</a>Where are downloaded online data saved?</h3>
+<p>In GeoSpaX&#39;s results folder, under <code>.geospax/outputs/online-data/</code> in your Data folder (for example
+<code>~/GeoSpaX/Data/.geospax/outputs/online-data/</code> on Linux, <code>%USERPROFILE%\GeoSpaX\Data\.geospax\outputs\online-data\</code>
+on Windows): GeoTIFFs for rasters, GeoPackages for vectors. Select a layer and its details show the exact
+folder (<strong>Saved in</strong>). The folder starts with a dot, so file managers hide it: show hidden files (Ctrl+H in
+most Linux file managers). Downloading the same data again replaces the file of the same name.</p>
+<h3 id="can-i-download-data-for-just-part-of-the-map"><a class="anchor" href="#can-i-download-data-for-just-part-of-the-map">#</a>Can I download data for just part of the map?</h3>
+<p>Yes. In <strong>Online data</strong>, under <strong>Area</strong>, choose the map view, <strong>draw a box on the map</strong>, or use <strong>a layer&#39;s
+points, lines or polygons</strong> (with a margin in km; for polygons, <strong>Only inside the polygons</strong> cuts rasters
+to their outline). While it downloads, a gauge shows the size, the speed and the time left.</p>
+<h2 id="settings-updates-and-privacy"><a class="anchor" href="#settings-updates-and-privacy">#</a>Settings, updates and privacy</h2>
+<h3 id="where-are-the-settings"><a class="anchor" href="#where-are-the-settings">#</a>Where are the settings?</h3>
+<p><strong>Home › Settings</strong> (or the ⚙ at the top right) opens one place for theme, mode, map, units, automation,
+the assistant and R.</p>
+<h3 id="how-do-i-update-geospax"><a class="anchor" href="#how-do-i-update-geospax">#</a>How do I update GeoSpaX?</h3>
+<p>The desktop app looks for a new version once a day when it starts and shows a bar at the top when one is
+out; <strong>Help › About GeoSpaX › Check for updates</strong> looks at any time.</p>
+<ul>
+<li><strong>Windows (installed with the setup program) and the AppImage:</strong> press <strong>Install and restart</strong>. The update is downloaded,
+its signature is checked against the key built into GeoSpaX, and it installs over your copy; your data and
+settings stay. (Versions before 3.0.2 cannot do this yet: install 3.0.2 or later once by hand.)</li>
+<li><strong>Flatpak, the Windows portable ZIP and the web edition:</strong> Flathub updates come with your system&#39;s
+updates; otherwise the bar links to the release: unpack the new ZIP
+over the old folder.</li>
+</ul>
+<p><strong>Later</strong> hides the bar until the next version after that one.</p>
+<h3 id="does-geospax-send-my-data-anywhere"><a class="anchor" href="#does-geospax-send-my-data-anywhere">#</a>Does GeoSpaX send my data anywhere?</h3>
+<p>No. Everything runs on your computer. The web edition answers only this computer unless you start it with
+<code>--host 0.0.0.0</code>, and then only with an access token. See <a href="https://github.com/jmozez/geospax/blob/main/SECURITY.md" rel="noopener" target="_blank">Security</a>.</p>
+<h3 id="how-do-i-open-geospax-on-my-phone"><a class="anchor" href="#how-do-i-open-geospax-on-my-phone">#</a>How do I open GeoSpaX on my phone?</h3>
+<p>On the computer, start the web edition open to the Wi-Fi with a password of your choice:</p>
+<pre><code class="language-sh">geospax-server --host 0.0.0.0 --token pick-a-password
+</code></pre>
+<p>Find the computer&#39;s address (<code>hostname -I</code> on Linux, <code>ipconfig</code> on Windows) and open
+<code>http://&lt;address&gt;:8080/?token=pick-a-password</code> on the phone, on the same Wi-Fi (on Fedora, allow the port once
+with <code>sudo firewall-cmd --add-port=8080/tcp</code>). With the password the phone can do everything the computer can:
+Explorer folders, web services, cloud storage, STAC and Overture downloads. Sharing it with a class? Add
+<code>--restricted</code> to turn those off. To send photos and tracks from the phone, use <strong>Data › Phone over Wi-Fi</strong>.</p>
+<h3 id="something-does-not-work-how-do-i-report-it"><a class="anchor" href="#something-does-not-work-how-do-i-report-it">#</a>Something does not work. How do I report it?</h3>
+<p>Open an issue at <a href="https://github.com/jmozez/geospax/issues" rel="noopener" target="_blank">https://github.com/jmozez/geospax/issues</a> with what you did, what you expected and what
+happened. <strong>Help › Engine diagnostics</strong> shows details worth including.</p>
+</article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#getting-started">Getting started</a><a href="#maps">Maps</a><a href="#analysis-plugins-and-r">Analysis, plugins and R</a><a href="#settings-updates-and-privacy">Settings, updates and privacy</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/FAQ.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>

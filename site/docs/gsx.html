@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GSX tools · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX gsx tools: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx" aria-current="page">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="gsx-tools"><a class="anchor" href="#gsx-tools">#</a>GSX tools</h1>
+<p>The GSX tools bring the conservation, biodiversity and environmental analysis into GeoSpaX 3. They are
+<strong>twelve default plugins</strong>, one per domain, each with its tools:</p>
+<div class="table"><table><thead><tr>
+<th>Plugin</th>
+<th>Tools</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Conservation</strong></td>
+<td>overlay, hot spot grid, DBSCAN, local Moran&#39;s I, priority sites, representation, species distribution, suitability, protection gap, fragmentation, connectivity, change</td>
+</tr>
+<tr>
+<td><strong>Agriculture</strong></td>
+<td>spectral index, suitability, distance decay, slope zones, raster change, change</td>
+</tr>
+<tr>
+<td><strong>Biodiversity</strong></td>
+<td>diversity, nearest neighbour, DBSCAN, local Moran&#39;s I, hot spot grid, species distribution, priority sites, protection gap</td>
+</tr>
+<tr>
+<td><strong>Environment</strong></td>
+<td>slope zones, spectral index, raster change, overlay, elevation profile</td>
+</tr>
+<tr>
+<td><strong>Forestry</strong></td>
+<td>spectral index, fragmentation, connectivity, raster change, change, protection gap</td>
+</tr>
+<tr>
+<td><strong>Marine</strong></td>
+<td>diversity, nearest neighbour, DBSCAN, species distribution, spectral index, suitability, hot spot grid, priority sites, protection gap</td>
+</tr>
+<tr>
+<td><strong>Climate</strong></td>
+<td>spectral index, suitability, distance decay, raster change, change</td>
+</tr>
+<tr>
+<td><strong>Disaster</strong></td>
+<td>suitability, slope zones, spectral index, distance decay, priority sites, raster change, change, hot spot grid, local Moran&#39;s I</td>
+</tr>
+<tr>
+<td><strong>Geoscience</strong></td>
+<td>slope zones, spectral index, suitability, overlay, raster change, change, elevation profile</td>
+</tr>
+<tr>
+<td><strong>Hydrology</strong></td>
+<td>spectral index, slope zones, suitability, distance decay, overlay, raster change, change, elevation profile</td>
+</tr>
+<tr>
+<td><strong>Land use and land cover</strong></td>
+<td>spectral index, raster change, change, overlay, suitability</td>
+</tr>
+<tr>
+<td><strong>Soil</strong></td>
+<td>spectral index, suitability, distance decay, overlay, raster change, change</td>
+</tr>
+</tbody></table></div><p>They ship with GeoSpaX and are on the <strong>Plugins</strong> tab (one group per domain), in the <strong>Toolbox</strong> under
+<em>Plugins › <domain></em> and in the plugin manager marked <em>default plugin</em>. They are not on the Analysis,
+Imagery or Modelling tabs, which hold GeoSpaX&#39;s own tools. All twelve run the same code, the shared
+<strong>GSX library</strong> in <code>plugins/gsx</code> (<code>library: true</code>: not listed, but recipes, the API and MCP call its
+tools as <code>gsx/&lt;tool&gt;</code>, so a tool gives the same answer from every domain).</p>
+<p>A tool&#39;s dialog opens with its inputs already chosen, as in ArcGIS Pro&#39;s geoprocessing pane:</p>
+<ul>
+<li><strong>Layers:</strong> the layer selected in Contents when it fits, unless another layer fits the input better
+by name (a <em>habitat</em> layer for &quot;Habitat&quot;, a layer with a species column for diversity). Points,
+lines and polygons go only to inputs that take them; a second input (B, protected areas) gets a
+different layer, and the second date of a pair the layer&#39;s later version (habitat → habitat_2024).</li>
+<li><strong>Fields:</strong> a field of the right type from that layer, its name matching the input&#39;s
+(<code>dist_to_road_km</code> for &quot;Distance field&quot;, <code>species</code> for &quot;Species&quot;); identifiers such as <code>site</code> are
+never taken as values. Optional inputs (a constraint field, a second layer) stay empty unless their
+own name names the field, since a wrong constraint would change the result.</li>
+<li><strong>Rasters:</strong> a multiband image for &quot;Image&quot;, a raster named as a DEM for &quot;Elevation&quot; (never a
+temperature or other surface), the earlier and later of two dated rasters for change, and the
+climate rasters as species-model covariates.</li>
+<li><strong>Never earlier results</strong>, unless you select one: a tool starts from your data.
+When nothing fits, the input stays empty and the tool says what it needs (&quot;Choose a DEM&quot;).</li>
+</ul>
+<p>The analysis code (<code>plugins/gsx/src/analysis</code>, about 5,000 lines of TypeScript on Turf and proj4) is
+<code>@geospax/analysis</code>, unchanged, so its golden-value tests run as they did (103 of them,
+in CI). It needs <strong>Node.js 18+</strong> and nothing else; no tool here goes online.</p>
+<h2 id="the-tools-phase-a"><a class="anchor" href="#the-tools-phase-a">#</a>The tools (phase A)</h2>
+<div class="table"><table><thead><tr>
+<th>Tool</th>
+<th>Toolbox</th>
+<th>What it gives you</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Polygon overlay</strong></td>
+<td>Analysis › Overlay</td>
+<td>Intersect, erase (difference) or union of two polygon layers</td>
+</tr>
+<tr>
+<td><strong>Weighted suitability (WLC)</strong></td>
+<td>Conservation Planning</td>
+<td>Weighted linear combination of fields, each rescaled 0–1 (<code>field:weight</code>, <code>:-</code> when lower is better), with an optional constraint field</td>
+</tr>
+<tr>
+<td><strong>Distance-decay suitability</strong></td>
+<td>Conservation Planning</td>
+<td>Exponential decay from a distance field: 1 at zero, 0.5 at the half-life</td>
+</tr>
+<tr>
+<td><strong>Unprotected priority sites</strong></td>
+<td>Conservation Planning</td>
+<td>High-score habitat points outside every protected area</td>
+</tr>
+<tr>
+<td><strong>Protection gap</strong></td>
+<td>Conservation Planning</td>
+<td>Protected and unprotected habitat in hectares (equal-area by default), as two layers</td>
+</tr>
+<tr>
+<td><strong>Minimum-cost representation (SCP)</strong></td>
+<td>Conservation Planning</td>
+<td>Cheapest planning units that meet each <code>field:target</code>; exact branch-and-bound for ≤ 28 units, greedy above</td>
+</tr>
+<tr>
+<td><strong>Weighted hotspot grid</strong></td>
+<td>Conservation Planning</td>
+<td>Hexagon or square grid scored from up to three weighted layers (descriptive; for statistical hot spots use <em>Hot spots</em>, Getis-Ord Gi*)</td>
+</tr>
+<tr>
+<td><strong>Fragmentation and patch metrics</strong></td>
+<td>Landscape Ecology</td>
+<td>NP, CA, LPI, TE, ED, MSI, core area and CAI, ENN; core-area polygons</td>
+</tr>
+<tr>
+<td><strong>Patch connectivity</strong></td>
+<td>Landscape Ecology</td>
+<td>Components of patches linked within a threshold distance; link lines</td>
+</tr>
+<tr>
+<td><strong>Two-date change</strong></td>
+<td>Landscape Ecology</td>
+<td>Loss, gain, persistence and the annual rate between two extents</td>
+</tr>
+<tr>
+<td><strong>DBSCAN clusters</strong></td>
+<td>Spatial Statistics › Point patterns</td>
+<td>Density clusters of up to 2,000 points; radius automatic or set</td>
+</tr>
+<tr>
+<td><strong>Occurrence pattern (Clark–Evans)</strong></td>
+<td>Spatial Statistics › Point patterns</td>
+<td>Nearest-neighbour ratio R, z-score: clustered, random-like or dispersed</td>
+</tr>
+<tr>
+<td><strong>Richness and diversity</strong></td>
+<td>Biodiversity</td>
+<td>Richness, Shannon H′, Simpson, Pielou evenness; optionally per area</td>
+</tr>
+</tbody></table></div><p>Every tool shows its results in its dialog (a table, plus the method&#39;s caveats) and adds its layers to
+the map, styled by AutoMap. Areas are in hectares and equal-area (an auto-centred Lambert azimuthal
+projection) unless you choose spherical. Each result layer records the tool, its parameters and the
+2.0 provenance stamp.</p>
+<p>Layers in any format work: the plugin asks for GeoJSON (<code>geojson: true</code> in its <code>plugin.yaml</code>), so
+GeoSpaX hands it each layer the tool uses as GeoJSON, whatever the source (GeoPackage, Shapefile,
+FlatGeobuf …).</p>
+<h2 id="rasters-and-species-distribution-phase-b"><a class="anchor" href="#rasters-and-species-distribution-phase-b">#</a>Rasters and species distribution (phase B)</h2>
+<div class="table"><table><thead><tr>
+<th>Tool</th>
+<th>Toolbox</th>
+<th>What it gives you</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Spectral index and extent (Otsu)</strong></td>
+<td>Image Analysis › Spectral indices</td>
+<td>NDVI, NDWI, NDBI, NBR or any band pair; an automatic Otsu threshold (or yours); the index raster, the extent as a class raster and its area; the band-assignment caveat on every result</td>
+</tr>
+<tr>
+<td><strong>Raster change (two dates)</strong></td>
+<td>Image Analysis › Change detection</td>
+<td>After − before, Otsu thresholds for loss and gain, a loss / no change / gain raster and the areas</td>
+</tr>
+<tr>
+<td><strong>Slope zones</strong></td>
+<td>Terrain › Slope zones</td>
+<td>Horn slope from a DEM and three zones (default breaks 8° and 20°) with their areas; warns when the DEM is too coarse for slope</td>
+</tr>
+<tr>
+<td><strong>Species distribution model</strong></td>
+<td>Species Distribution</td>
+<td>Occurrences + environmental rasters (all their bands) → suitability (0–1) and the predicted range at the max-TSS threshold. BIOCLIM, Mahalanobis or presence-background logistic; seeded background sample; spatially blocked cross-validation with AUC, max TSS and the Boyce index</td>
+</tr>
+</tbody></table></div><p>The rasters come from the map (Data › Climate gives WorldClim or CHELSA; Data › Elevation the
+Copernicus DEM; Imagery the latest Sentinel-2 bands), and results go back to the map styled for what
+they are: suitability on a fixed 0–1 Viridis scale, change on a diverging red–blue scale centred on
+zero, classes with their own colours. Several environmental rasters are resampled onto the first
+one&#39;s grid.</p>
+<p><strong>Cross-validation.</strong> Points are grouped in square lon/lat blocks (automatic size: about a sixth of the
+study area; or set it). Blocks that hold presences are dealt to the folds first, so every held-out fold
+has presences even when occurrences are clustered; when there are fewer such blocks than folds, the
+number of folds drops to match and the result says so. Report the cross-validated scores: training
+AUC is optimistic, and suitability from presence-background data is relative, not a probability of
+presence.</p>
+<p>Checked against synthetic data with known answers (<code>tests/rastertools.test.ts</code>): an image whose west
+half is vegetated (NDVI extent 50.0 %), a planted loss strip (found cell for cell), a 10° ramp (mean
+slope 10° ± 0.2) and a species confined to one climate corner (cross-validated AUC above 0.85 for
+Mahalanobis and logistic, above 0.7 for BIOCLIM).</p>
+<h2 id="from-earlier-geospax-phase-c"><a class="anchor" href="#from-earlier-geospax-phase-c">#</a>From earlier GeoSpaX (phase C)</h2>
+<div class="table"><table><thead><tr>
+<th>Tool</th>
+<th>Toolbox</th>
+<th>What it gives you</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Local Moran&#39;s I (clusters and outliers, LISA)</strong></td>
+<td>Spatial Statistics › Clusters and outliers</td>
+<td>Each feature as a high-high or low-low cluster, a high-low or low-high outlier, or not significant (Anselin 1995), in the conventional red/blue colours; the global Moran&#39;s I with its permutation p-value and the Moran scatterplot. Neighbours: touching polygons (queen), k nearest or a distance band, row-standardised; conditional permutations with a seed (same seed, same answer); optional Benjamini–Hochberg false discovery rate</td>
+</tr>
+<tr>
+<td><strong>Elevation profile</strong></td>
+<td>Terrain › Profiles</td>
+<td>The terrain along each line over a DEM (bilinear samples every half cell), or through points with an elevation field, one profile per group (e.g. transect) and sorted by a field: the chart, length, lowest and highest point, total climb and descent, steepest stretch</td>
+</tr>
+<tr>
+<td><strong>Calculate field</strong></td>
+<td>Edit › Fields, attribute table</td>
+<td>SQL expressions and geodesic geometry measures (<a href="/docs/guide#5a-edit-and-query-data">USER_GUIDE §5a</a>)</td>
+</tr>
+</tbody></table></div><p>Tool results can now carry charts (<code>figures</code> in the plugin answer, drawn as images so a plugin&#39;s SVG
+cannot run scripts). <strong>Checked</strong> (<code>tests/legacytools.test.ts</code>): a two-block pattern is strongly clustered
+with high-high and low-low on the right sides and no outliers; a checkerboard with rook neighbours gives
+Moran&#39;s I = −1 exactly; the global I equals the textbook double sum; a north-facing ramp DEM gives the
+profile length (11.1 km for 0.1° of latitude) and climb (1,000 m) it should. On the sample
+transects, species richness gives I = 0.82 with 8 neighbours (the earlier guide expects about 0.8).</p>
+<p><strong>Sample data</strong> (Data › Sample data) brings back the Papua New Guinea set: the survey transects,
+birdwing butterflies and their host vines, forest patches, a habitat grid, streams, WorldClim
+temperature and rainfall and tree cover (<a href="https://github.com/jmozez/geospax/blob/main/samples/png/README.md" rel="noopener" target="_blank">samples/png/README.md</a>). <strong>1.4.2
+<code>.gspx</code> and 2.0 <code>.geolibre.json</code> projects</strong> open like any file: their embedded layers come onto the map
+(styles and layers that only point at outside files are not carried over).</p>
+<h2 id="from-scripts"><a class="anchor" href="#from-scripts">#</a>From scripts</h2>
+<pre><code class="language-bash">curl -X POST localhost:8080/api/plugins/gsx/tools/fragmentation/run \
+  -d &#39;{&quot;params&quot;: {&quot;patches&quot;: &quot;forest.gpkg&quot;, &quot;edge_m&quot;: 100}}&#39;
+</code></pre>
+<p><code>scripts/test-gsx.mjs</code> runs every tool this way. Recipe steps that call plugin tools (so the domain
+kits can chain them) come with the domain kits.</p>
+<h2 id="building-the-plugin"><a class="anchor" href="#building-the-plugin">#</a>Building the plugin</h2>
+<p><code>plugins/gsx</code> ships its built file (<code>run.mjs</code>) so it runs without a build step. To change it:</p>
+<pre><code class="language-bash">cd plugins/gsx
+npm ci
+npm test            # the analysis tests
+npm run build       # src/ → run.mjs
+node gen-manifest.mjs   # src/tools.ts → plugin.yaml
+</code></pre>
+<p>CI checks that <code>run.mjs</code> and <code>plugin.yaml</code> match the source.</p>
+<h2 id="domain-kits"><a class="anchor" href="#domain-kits">#</a>Domain kits</h2>
+<p>Ready-made recipes that chain online data, the tools above, a finished map and a report. They are in
+<strong>Analysis › Recipes</strong> (grouped by domain), the <strong>Toolbox</strong> under <em>Ready-made analyses</em>, and Lazy mode&#39;s
+<strong>Find patterns</strong>; each takes a few inputs and runs to the end by itself.</p>
+<div class="table"><table><thead><tr>
+<th>Kit</th>
+<th>Recipe</th>
+<th>In → out</th>
+</tr>
+</thead><tbody><tr>
+<td>Biodiversity</td>
+<td><strong>Species distribution model (GBIF + WorldClim)</strong></td>
+<td>A species name and an area → occurrences (GBIF, OBIS or iNaturalist), bioclim layers, a model with spatial cross-validation, suitability and range maps</td>
+</tr>
+<tr>
+<td>Biodiversity</td>
+<td><strong>Survey diversity and clustering</strong></td>
+<td>Point records with a species field → richness, Shannon and Simpson per hexagon, DBSCAN clusters, the Clark–Evans test</td>
+</tr>
+<tr>
+<td>Climate</td>
+<td><strong>Range shift under future climate (CMIP6)</strong></td>
+<td>The same model on present climate, projected onto a CMIP6 model, SSP and period → present and future suitability, range lost, stable and gained, the net change</td>
+</tr>
+<tr>
+<td>Conservation</td>
+<td><strong>Protection gaps</strong></td>
+<td>Habitat and protected areas → protected and unprotected hectares, the share protected, a gap map</td>
+</tr>
+<tr>
+<td>Forestry</td>
+<td><strong>Forest fragmentation and connectivity</strong></td>
+<td>Forest patches → landscape metrics, core areas, patches linked within a dispersal distance</td>
+</tr>
+<tr>
+<td>Land use and land cover</td>
+<td><strong>Land cover change (two dates)</strong></td>
+<td>Two extents (mangrove, forest, wetland …) → loss, gain, persistence, annual rate</td>
+</tr>
+<tr>
+<td>Agriculture and environment</td>
+<td><strong>Vegetation change (two rasters)</strong></td>
+<td>Two NDVI rasters → the difference, loss and gain with their areas</td>
+</tr>
+<tr>
+<td>Disaster and geoscience</td>
+<td><strong>Steep slopes</strong></td>
+<td>An area → Copernicus 30 m DEM, slope zones (default 15° and 30°, landslide screening), relief</td>
+</tr>
+<tr>
+<td>Soil</td>
+<td><strong>Topsoil properties (SoilGrids)</strong></td>
+<td>An area → pH, organic carbon and clay at a chosen depth</td>
+</tr>
+</tbody></table></div><p>Every kit is an ordinary recipe (<code>recipes/kit-*.yaml</code>): open it in the Automate pane to see each step,
+change a default, or save a copy with your own steps. Kits call the tools with the <strong><code>tool</code></strong> step
+(<a href="/docs/automation#2-recipe-format-v1-as-implemented">AUTOMATION §2</a>).</p>
+<p><strong>Checked:</strong> <code>scripts/test-kits.py</code> runs all nine against data with known answers
+(<code>scripts/test-kits-data.R</code>): 25 % protected, 12 patches, net land-cover change of zero, 12 species in
+3 clusters, the planted vegetation-loss strip, and a future range that is both lost and gained. Kits
+that download data run with the downloads swapped for local test rasters, so their tools, maps and
+reports run for real; the downloads need internet and are covered by the <code>data.fetch</code> tests.</p>
+<h2 id="online-data-from-the-20-catalogue"><a class="anchor" href="#online-data-from-the-20-catalogue">#</a>Online data from the 2.0 catalogue</h2>
+<p>earlier GeoSpaX listed these sources; 3.0 fetches them, for the area on the map, with their citations
+(Data › Online data and Data › Check species names; steps in <a href="/docs/automation">AUTOMATION.md</a>):</p>
+<div class="table"><table><thead><tr>
+<th>Source</th>
+<th>What you get</th>
+<th>Licence and credit</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>GEBCO 2026 Grid</strong></td>
+<td>Sea depth and land height in one surface at 15″ (~450 m), drawn with the colours changing at sea level; optionally how each depth was obtained (GEBCO&#39;s Type Identifier: multibeam, single beam, satellite gravity, interpolation …) with its share of the area</td>
+<td>Public domain; <em>not for navigation</em>. GEBCO Compilation Group (2026) GEBCO 2026 Grid, doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa. Read from the cloud-optimised copy on Source Cooperative (giswqs/gebco-bathymetry), checked cell for cell</td>
+</tr>
+<tr>
+<td><strong>Hansen Global Forest Change v1.13</strong></td>
+<td>Tree canopy cover in 2000 (%), year of forest loss 2001–2025, gain 2000–2012, land/water mask, at 1″ (~30 m), for areas up to 2° a side. Maps draw loss (pink 2001 → purple 2025) over tree cover</td>
+<td>CC-BY 4.0; <em>Source: Hansen/UMD/Google/USGS/NASA</em>; Hansen et al. 2013, <em>Science</em> 342. The authors&#39; caveat goes into the methods: a relative indicator of loss; do not estimate areas from pixel counts</td>
+</tr>
+<tr>
+<td><strong>RESOLVE Ecoregions 2017</strong></td>
+<td>The 846 terrestrial ecoregions (updated WWF ecoregions), clipped to the area, with biome, realm, Nature Needs Half category and geodesic area, in RESOLVE&#39;s colours</td>
+<td>CC-BY 4.0; Dinerstein et al. 2017, <em>BioScience</em> 67: 534–545. The 149 MB file is downloaded once into <code>&lt;state&gt;/catalog/</code></td>
+</tr>
+<tr>
+<td><strong>WoRMS</strong></td>
+<td>Names checked: AphiaID, status, accepted name, classification, habitat and a verdict per name</td>
+<td>WoRMS Editorial Board, World Register of Marine Species, doi:10.14284/170 (citation with the access date in the methods)</td>
+</tr>
+</tbody></table></div><p><strong>Not yet:</strong> coral reef extent, mangroves and the SPREP Pacific layers. The SPREP Inform portal refuses
+automated requests (a Cloudflare browser challenge), so it needs another route.</p>
+<h2 id="coming-next"><a class="anchor" href="#coming-next">#</a>Coming next</h2>
+<ul>
+<li><strong>More kits:</strong> marine (OBIS with ocean covariates), hydrology (watersheds and stream networks with the
+raster tools), ecosystem services.</li>
+</ul>
+<h2 id="credits"><a class="anchor" href="#credits">#</a>Credits</h2>
+<p>The GSX analysis and its tests: <strong>in4metrix</strong>, MIT. Turf (MIT) and proj4js
+(MIT) are bundled into <code>run.mjs</code>.</p>
+</article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#the-tools-phase-a">The tools (phase A)</a><a href="#rasters-and-species-distribution-phase-b">Rasters and species distribution (phase B)</a><a href="#from-earlier-geospax-phase-c">From earlier GeoSpaX (phase C)</a><a href="#from-scripts">From scripts</a><a href="#building-the-plugin">Building the plugin</a><a href="#domain-kits">Domain kits</a><a href="#online-data-from-the-20-catalogue">Online data from the 2.0 catalogue</a><a href="#coming-next">Coming next</a><a href="#credits">Credits</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/GSX.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>

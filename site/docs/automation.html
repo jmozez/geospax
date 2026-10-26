@@ -1,0 +1,1208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Automation and recipes · GeoSpaX</title>
+  <meta name="description" content="GeoSpaX automation and recipes: the open-source GIS where maps make themselves." />
+  <meta name="theme-color" content="#07090c" />
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs">
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/"><img src="/img/geospax-logo.png" alt="" width="28" height="28" /> GeoSpaX <span class="crumb">Docs</span></a>
+      <nav aria-label="Sections"><a href="/#platform">Platform</a><a href="/#plugins">Plugins</a><a href="/docs/guide">Docs</a></nav>
+      <div class="nav-cta"><a class="btn small primary" href="/#download">Download</a></div>
+    </div>
+  </header>
+  <div class="wrap doc-layout">
+    <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation" aria-current="page">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
+    <article class="prose"><h1 id="automation-recipes-triggers-and-the-autopilot"><a class="anchor" href="#automation-recipes-triggers-and-the-autopilot">#</a>Automation: recipes, triggers and the autopilot</h1>
+<p>GeoSpaX&#39;s power is in automation (<a href="https://github.com/jmozez/geospax/blob/main/VISION.md" rel="noopener" target="_blank">VISION.md</a>). This document specifies the <strong>recipe</strong> format, the
+<strong>triggers</strong> that start recipes, the <strong>autopilot</strong> (AutoMap) that fills in parameters and explains them, and the
+engine that runs recipes on desktop, web and the command line.</p>
+<p><strong>Status (October 2026): automation engine v0 is built, with rasters, remote sensing, providers and sensors.</strong> It includes:</p>
+<ul>
+<li>recipes (YAML) and a dependency-ordered runner;</li>
+<li>27 built-in steps (32 names with aliases), among them device and sensor import, live sensor snapshots and summaries, AutoMap styling, automatic layout and PNG/SVG/PDF export, an HTML report with an auto-written methods section, SQL, buffer, hexbin, cross-validated IDW, terrain, Sentinel-2 indices, GRASS, SAGA, and R and Python steps;</li>
+<li>device, folder, schedule, <code>after</code>, <code>stac</code>, <code>webhook</code> and <strong><code>sensor</code></strong> triggers (threshold and geofence, from HTTP, MQTT or GNSS);</li>
+<li>a command line, an HTTP API and an <em>Automate</em> panel;</li>
+<li>thirteen gallery recipes, including terrain (Copernicus DEM), latest cloud-free NDVI (Sentinel-2), GRASS landforms, SAGA wetness, a sensor log to map and a live air-quality alert.</li>
+</ul>
+<p>Measurements are in <a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md#11-automation-engine-v0" rel="noopener" target="_blank">bench/RESULTS.md §11–13</a>. Code:
+<code>crates/engine/src/automation/</code>, recipes: <a href="https://github.com/jmozez/geospax/blob/main/recipes" rel="noopener" target="_blank"><code>recipes/</code></a>.</p>
+<pre><code class="language-bash">geospax run photos-to-map --input source=/media/$USER/PHONE   # the desktop binary (or geospax-server)
+geospax check my-recipe.yaml                                   # validate + show the plan
+geospax watch --watch ~/Field/inbox                            # triggers on, no window
+</code></pre>
+<h2 id="1-concepts"><a class="anchor" href="#1-concepts">#</a>1. Concepts</h2>
+<div class="table"><table><thead><tr>
+<th>Concept</th>
+<th>What it is</th>
+<th>State</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Step</strong></td>
+<td>One operation: import, analyse, style, lay out, export, a GRASS/SAGA tool, or an R/Python script (later: Whitebox, OTB, SNAP, ODM providers)</td>
+<td>✅ 27 built-in steps</td>
+</tr>
+<tr>
+<td><strong>Recipe</strong></td>
+<td>A small YAML (or JSON) file: inputs, triggers, steps, outputs. Versioned, diffable, shareable</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Trigger</strong></td>
+<td>What starts a recipe without a click: device connected, folder changed, schedule, another recipe finishing, new satellite pass, webhook call, live sensor threshold or geofence</td>
+<td>✅ device, folder, schedule, after, stac, webhook, sensor</td>
+</tr>
+<tr>
+<td><strong>Run</strong></td>
+<td>One execution: per-step status, timing and &quot;why&quot; lines, cancel, artifacts, provenance. Listed in the job registry as kind <code>recipe</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Autopilot / AutoMap</strong></td>
+<td>Rules plus data profiling that choose styles, classes, colours, labels, CRS, page and parameters, and explain each choice</td>
+<td>✅ v0 rules (§4)</td>
+</tr>
+<tr>
+<td><strong>Artifact</strong></td>
+<td>A run output: map PNG/SVG, report, data files in <code>&lt;state&gt;/runs/&lt;run-id&gt;/</code>; result layers in <code>&lt;state&gt;/outputs/&lt;recipe&gt;/</code></td>
+<td>✅</td>
+</tr>
+</tbody></table></div><h2 id="2-recipe-format-v1-as-implemented"><a class="anchor" href="#2-recipe-format-v1-as-implemented">#</a>2. Recipe format (v1, as implemented)</h2>
+<p>The gallery recipe that turns a plugged-in phone into a finished map (<a href="https://github.com/jmozez/geospax/blob/main/recipes/photos-to-map.yaml" rel="noopener" target="_blank"><code>recipes/photos-to-map.yaml</code></a>):</p>
+<pre><code class="language-yaml">recipe: photos-to-map
+version: 1
+title: Photos and tracks → finished map
+triggers:
+  - device: { kinds: [phone, camera, folder], has: [photos] }
+inputs:
+  source: { type: device, default: auto, description: device id, mounted device or folder }
+steps:
+  - id: import
+    use: devices.import
+    with: { source: &quot;${inputs.source}&quot; }
+  - id: style
+    use: automap.style                    # picks symbology for each layer and records why
+    with: { layers: &quot;${import.layers}&quot; }
+  - id: map
+    use: export.map                       # page layout + PNG/SVG
+    needs: [style]
+    with: { layers: &quot;${import.layers}&quot;, title: &quot;Field photos · ${import.device}&quot;, format: [png, svg] }
+  - id: report
+    use: export.report                    # map + numbers + methods + decisions + provenance
+    needs: [map]
+    with: { title: &quot;Field report · ${import.device} · ${run.date}&quot; }
+outputs: [import, map, report]
+</code></pre>
+<div class="table"><table><thead><tr>
+<th>Key</th>
+<th>Meaning</th>
+</tr>
+</thead><tbody><tr>
+<td><code>recipe</code></td>
+<td>Id: <code>a-z 0-9 - _</code>, ≤ 64 characters</td>
+</tr>
+<tr>
+<td><code>version</code>, <code>title</code>, <code>description</code></td>
+<td>Shown in the gallery and the report</td>
+</tr>
+<tr>
+<td><code>triggers</code></td>
+<td>List of <code>device</code>, <code>folder</code>, <code>schedule</code>, <code>after</code> (§3). No triggers = run by hand, from the CLI or the API</td>
+</tr>
+<tr>
+<td><code>inputs</code></td>
+<td><code>name: { type, default, description }</code>. Missing inputs without a default are an error before anything runs</td>
+</tr>
+<tr>
+<td><code>steps[]</code></td>
+<td><code>id</code>, <code>use</code> (step name), <code>with</code> (parameters), optional <code>needs</code> (extra ordering), <code>when</code> (run only if truthy), <code>title</code></td>
+</tr>
+<tr>
+<td><code>outputs</code></td>
+<td>Step ids whose outputs are the run&#39;s outputs (all steps if omitted)</td>
+</tr>
+</tbody></table></div><p><strong>Expressions:</strong></p>
+<ul>
+<li><code>${inputs.x}</code>, <code>${step.key}</code> and <code>${step.list.0}</code>;</li>
+<li><code>${run.date}</code>, <code>${run.time}</code>, <code>${run.datetime}</code>, <code>${run.id}</code>, <code>${run.dir}</code> and <code>${recipe}</code>;</li>
+<li><code>${trigger.kind}</code>, <code>${trigger.text}</code>, <code>${trigger.device}</code>, <code>${trigger.root}</code>, <code>${trigger.path}</code> and <code>${trigger.files}</code>;</li>
+<li>a fallback with <code>${inputs.title ?? Field map}</code>.</li>
+</ul>
+<p>A string that is exactly one <code>${…}</code> keeps the referenced type, so <code>layers: &quot;${import.layers}&quot;</code> is a list. Otherwise the values are interpolated as text.</p>
+<p><strong>Order:</strong> steps run in declaration order, except that a step always runs after every step it references or
+<code>needs</code>. Cycles are rejected. A skipped step (<code>when:</code> false) records <code>{ skipped: true }</code>.</p>
+<p><strong>Validation reports every problem at once, before anything runs</strong> (<code>geospax check</code>, <code>POST /api/recipes/validate</code>):</p>
+<pre><code>✗ broken.yaml has 4 problem(s):
+  - these steps depend on each other in a circle: b, c
+  - step &#39;d&#39; refers to ${nowhere.x}, but there is no step or input called &#39;nowhere&#39;
+  - step &#39;a&#39;: unknown step &#39;export.mapp&#39; (did you mean &#39;export.map&#39;? `geospax steps` lists them all)
+  - step &#39;b&#39;: &#39;vector.buffer&#39; needs &#39;distance&#39;
+</code></pre>
+<p>Planned control steps: <code>for_each</code> (files, features, dates, devices), <code>parallel</code> and <code>ask</code> (one question with a recommended answer, only when the autopilot&#39;s confidence is low).</p>
+<h3 id="step-catalogue-built"><a class="anchor" href="#step-catalogue-built">#</a>Step catalogue (built)</h3>
+<div class="table"><table><thead><tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Borrowed from</th>
+</tr>
+</thead><tbody><tr>
+<td><code>devices.import</code> (+ <code>devices.import_photos</code>, <code>devices.import_tracks</code>)</td>
+<td>Geotagged photos (EXIF, HEIC, DJI XMP), GPX/KML, NMEA, DJI <code>.SRT</code>, <strong>sensor logs</strong> (CSV/TSV/JSON with coordinates; units from headers) and <strong>FIT</strong> activities from a phone, camera, drone card, GPS unit, watch, sensor logger or folder → layers (<code>photos</code>, <code>tracks</code>, <code>waypoints</code>, <code>readings</code>); <code>source: auto</code> = the triggering or connected device</td>
+<td>ArcGIS Geotagged Photos To Points, QGIS ImportPhotos, MapInfo drone add-in, Garmin Connect / Strava FIT import</td>
+</tr>
+<tr>
+<td><code>sensor.snapshot</code></td>
+<td>Live sensor readings of the last <code>minutes</code> (HTTP pushes, MQTT, phones) → <code>live_readings</code> points, <code>live_tracks</code> (each sensor&#39;s path) and <code>live_latest</code> (where each sensor is now, labelled); <code>device:</code> filters with <code>*</code> wildcards</td>
+<td>ArcGIS Velocity / GeoEvent Server, QGIS live GPS tracking</td>
+</tr>
+<tr>
+<td><code>sensor.summary</code></td>
+<td>Count, mean, 95th percentile and maximum per measurement; air quality against the WHO 2021 guidelines (share of readings above); picks the measurement to map (<code>${summary.main}</code>)</td>
+<td>ArcGIS Velocity summaries, R <code>openair</code>, pandas <code>describe</code></td>
+</tr>
+<tr>
+<td><code>io.open</code></td>
+<td>Layers by id or file path; <code>auto</code> picks a suitable layer (<code>kind</code>, <code>prefer: largest|samples|incidents</code>)</td>
+<td>ArcGIS Add Data, QGIS Data Source Manager</td>
+</tr>
+<tr>
+<td><code>vector.sql</code></td>
+<td>SQLite-dialect SQL with SpatiaLite functions; <code>@input</code> is the layer&#39;s table; rows without geometry come back as values</td>
+<td>MapInfo SQL Select, QGIS virtual layers, ArcGIS Make Query Layer</td>
+</tr>
+<tr>
+<td><code>vector.buffer</code></td>
+<td>Buffer in metres in the data&#39;s UTM zone (picked from the extent), optional dissolve, area in m²/ha</td>
+<td>ArcGIS Buffer, QGIS Buffer, GRASS <code>v.buffer</code>, SAGA</td>
+</tr>
+<tr>
+<td><code>aggregate.hexbin</code></td>
+<td>Points → hexagons (count, sum or mean of a field), auto-sized for ~25 cells across; streams any number of points</td>
+<td>ArcGIS Generate Tessellation + Summarize Within, QGIS Count points in polygon</td>
+</tr>
+<tr>
+<td><code>interpolate.idw</code></td>
+<td>IDW surface clipped to the samples&#39; hull; power chosen by leave-one-out cross-validation; RMSE/MAE reported</td>
+<td>ArcGIS IDW, QGIS IDW, GRASS <code>v.surf.idw</code>, SAGA</td>
+</tr>
+<tr>
+<td><code>interpolate.auto</code></td>
+<td>Automatic geostatistics: variogram fitted with three models, ordinary kriging with the best, cross-validated against IDW (lower error wins); prediction and standard-error GeoTIFFs, variogram chart (§6e)</td>
+<td>ArcGIS Geostatistical Wizard, R gstat + automap <code>autoKrige</code>, GRASS <code>v.krige</code>, SAGA Ordinary Kriging</td>
+</tr>
+<tr>
+<td><code>stats.hotspots</code></td>
+<td>Getis-Ord Gi* hot and cold spots with every setting from the data: incidents counted in auto-sized hexagons, distance band from incremental spatial autocorrelation, false-discovery-rate correction, global Moran&#39;s I (§6e)</td>
+<td>ArcGIS Optimized Hot Spot Analysis, GeoDa, PySAL <code>esda</code>, R spdep <code>localG</code></td>
+</tr>
+<tr>
+<td><code>automap.style</code></td>
+<td>Chooses symbology for each layer (§4), explains it, writes it to the project</td>
+<td>ArcGIS smart mapping, Felt AI auto-style</td>
+</tr>
+<tr>
+<td><code>style.apply</code></td>
+<td>Applies saved styles exactly (what &quot;Save as recipe&quot; records)</td>
+<td>ArcGIS layer files, QGIS QML</td>
+</tr>
+<tr>
+<td><code>overviews.build</code></td>
+<td>PMTiles overview pyramid for a dense layer; skipped when not needed</td>
+<td>ArcGIS Build Pyramids, GDAL <code>gdaladdo</code></td>
+</tr>
+<tr>
+<td><code>layout.auto</code></td>
+<td>Page defaults (title, subtitle, size) for later exports</td>
+<td>ArcGIS Pro layouts, QGIS Print Layout</td>
+</tr>
+<tr>
+<td><code>export.map</code> (+ <code>export.png</code>, <code>export.svg</code>, <code>export.pdf</code>)</td>
+<td>Finished page: title, subtitle, legend with class counts, ramps and class swatches, scale bar, north arrow, graticule, labels, credits; rasters under the vectors (relief shading multiplied on top); the automatic page takes the data&#39;s shape, so raster maps are neither cropped nor padded; PNG (resvg), SVG and vector PDF (krilla, selectable text)</td>
+<td>ArcGIS Export Layout, QGIS Print Layout, MapInfo Layout Designer</td>
+</tr>
+<tr>
+<td><code>export.series</code></td>
+<td>Binds every map this run laid out (a map series: index page + sheets) into one multi-page vector PDF; <code>export.map</code> <code>frames: [{extent, label}]</code> outlines the sheets on the index map</td>
+<td>ArcGIS Pro Map Series export, QGIS Atlas</td>
+</tr>
+<tr>
+<td><code>export.map</code> multi-panel</td>
+<td><code>panels: [{extent?, title?, layers?}]</code> (R patchwork) or <code>facet: field</code> + <code>facet_layer</code> (ggplot2 <code>facet_wrap</code>); <code>ncol</code>, <code>legends: collect|keep|auto</code>, <code>tags: a|A|1|i|none</code>; each panel shows exactly its extent; <code>exact: true</code> does the same for a single map</td>
+<td>R patchwork, ggplot2 facets, tmap <code>tm_facets</code></td>
+</tr>
+<tr>
+<td><code>export.map</code> furniture</td>
+<td><code>dpi</code> (150–1200, written into the PNG), <code>scale_bar: pill|checker|line|ruler|none</code>, <code>units: metric|imperial|both</code>, <code>north_arrow: needle|compass|rose|minimal|none</code>, <code>legend: right|inside|none</code>, <code>legend_title</code>, <code>legend_edit: {layer: {title, hide, labels: {old: new}}}</code>, <code>legend_order</code>, <code>inset: none|auto|tl|tr|bl|br</code>, and <code>*_at</code> corners (<code>auto</code> = where the data is not)</td>
+<td>ArcGIS Pro layout elements, QGIS print layout items</td>
+</tr>
+<tr>
+<td><code>data.fetch</code></td>
+<td>Online data for the area, no API keys: <code>source: worldclim</code> (bioclim, <code>variables</code>, <code>resolution</code> 10m/5m/2.5m/30s), <code>worldclim-monthly</code> (<code>variable</code>, <code>months</code>), <code>worldclim-future</code> (<code>gcm</code>, <code>ssp</code>, <code>period</code>), <code>chelsa</code>, <code>soilgrids</code> (<code>property</code>, <code>depth</code>), <code>gbif</code> / <code>obis</code> / <code>inat</code> (<code>species</code>, <code>limit</code>), <code>gadm</code> (<code>country</code>, <code>level</code>), <code>gebco</code> (<code>layers</code>: elevation, tid; GEBCO 2026 at 15″), <code>hansen</code> (<code>layers</code>: treecover, lossyear, gain, datamask; Hansen GFC v1.13 at 1″, areas up to 2° a side; loss as years 2001–2025), <code>worldcover</code> (ESA WorldCover 2021 v200 at 10 m, eleven classes in ESA&#39;s colours with their share of the area, areas up to 2° a side), <code>ecoregions</code> (RESOLVE 2017, clipped, with geodesic areas and RESOLVE&#39;s colours; downloaded once to <code>&lt;state&gt;/catalog/</code>). Rasters are windows of the provider&#39;s grid read over HTTP; <code>base:</code> points at a mirror. The citation goes into the methods</td>
+<td>R geodata, rgbif, robis, rinat; ArcGIS Living Atlas</td>
+</tr>
+<tr>
+<td><code>taxa.worms</code></td>
+<td>Check a layer&#39;s scientific names against WoRMS (<code>layer</code>, <code>field</code>, <code>within</code> a group to settle homonyms, <code>base</code> a mirror): adds AphiaID, match type, status, accepted name and ID, rank, kingdom to family, habitat, extinct, address and a verdict (ok, synonym, check spelling, ambiguous, not in WoRMS); names are kept; answers cached 30 days</td>
+<td>WoRMS Taxon match; worrms <code>wm_records_names</code>; obistools <code>match_taxa</code></td>
+</tr>
+<tr>
+<td><code>tool</code></td>
+<td>Runs any Toolbox tool in a recipe: <code>tool: gsx/sdm</code> (plugin/tool), <code>params:</code> its parameters, with layers and rasters by id or by this recipe&#39;s own names (<code>climate.raster_ids</code>, <code>dem</code>). Outputs <code>layers</code>, <code>layer</code>, <code>rasters</code>, <code>raster</code> (first), <code>message</code> and <code>table</code>; the table and notes go into the methods. The domain kits use it (<a href="/docs/gsx#domain-kits">GSX.md</a>)</td>
+<td>ArcGIS ModelBuilder tool calls, QGIS graphical modeler</td>
+</tr>
+<tr>
+<td><code>POST /api/preview/map</code></td>
+<td><code>{map: &lt;export.map parameters&gt;, styles?, dpi?}</code> → a low-resolution PNG of the first page, made in a temporary folder; no run is recorded (Finish my map&#39;s live preview)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>export.report</code></td>
+<td>Self-contained HTML: map, headline numbers, &quot;How this map was made&quot;, every automatic decision, run log, provenance</td>
+<td>ArcGIS Pro reports, R Markdown / Quarto</td>
+</tr>
+<tr>
+<td><code>export.data</code></td>
+<td>GeoPackage, GeoJSON, CSV, FlatGeobuf, KML or Shapefile (EPSG:4326)</td>
+<td>ArcGIS Export Features, QGIS Save As, ogr2ogr</td>
+</tr>
+<tr>
+<td><code>python</code>, <code>r</code> (+ <code>script.python</code>, <code>script.r</code>)</td>
+<td>User code in a sidecar process (§6)</td>
+<td>ArcPy, PyQGIS, GRASS Python; R sf/gstat/terra</td>
+</tr>
+<tr>
+<td><code>dem.fetch</code></td>
+<td>Elevation for the area of interest: Copernicus GLO-30 (or GLO-90, or any DEM file/URL) read as cloud-optimised GeoTIFF windows over HTTP, mosaicked and reprojected to the local UTM zone</td>
+<td>ArcGIS Living Atlas terrain, QGIS SRTM Downloader, GRASS <code>r.in.srtm</code></td>
+</tr>
+<tr>
+<td><code>ai.detect</code></td>
+<td>Your own ONNX model over an image in tiles, on this computer (tract, pure Rust): object detection (YOLOv5/v8/v11 layouts, NMS) → polygon layer with <code>class</code>, <code>score</code>, <code>area_m2</code>; segmentation → class raster with areas. <code>model</code> (name in Imagery › Models or a path), <code>raster</code>, <code>threshold</code>, <code>iou</code>, <code>bands</code>, <code>scale</code>, <code>mean</code>, <code>std</code>, <code>tile</code>, <code>overlap</code>, <code>format</code>; the model&#39;s licence goes into the methods (<a href="/docs/ai#4-your-own-model-object-detection-and-segmentation">AI.md §4</a>)</td>
+<td>ArcGIS Pro Detect Objects / Classify Pixels Using Deep Learning, QGIS Deepness, ERDAS IMAGINE deep learning</td>
+</tr>
+<tr>
+<td><code>embeddings.fetch</code></td>
+<td>AlphaEarth Foundations annual satellite embeddings (Google DeepMind, CC-BY 4.0; 2017–2025): 64 numbers per 10 m pixel summarising a year of observations, read for the area of interest from the public copy on Source Cooperative (VRT windows over HTTP; areas over ~20 km are read coarser to stay under 4 million pixels). Which files cover an area is cached per UTM zone in <code>&lt;state&gt;/aef/</code> (<a href="/docs/ai#3-satellite-embeddings">AI.md §3</a>)</td>
+<td>Earth Engine <code>GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL</code></td>
+</tr>
+<tr>
+<td><code>embeddings.similar</code></td>
+<td>Cosine similarity of every pixel to the mean embedding of sample points (or one <code>point</code>): places like these; the area at ≥ <code>threshold</code> reported</td>
+<td>Earth Engine similarity search, ArcGIS one-class classification, QGIS SCP spectral angle mapping</td>
+</tr>
+<tr>
+<td><code>embeddings.cluster</code></td>
+<td>Spherical k-means (k-means++, fixed seed) into <code>classes</code> groups of alike landscape, no samples needed</td>
+<td>ArcGIS Iso Cluster, GRASS <code>i.cluster</code>, Earth Engine <code>wekaKMeans</code></td>
+</tr>
+<tr>
+<td><code>embeddings.classify</code></td>
+<td>Classes from labelled sample points (<code>field</code>), cosine k-nearest neighbours; leave-one-out accuracy and area per class reported</td>
+<td>ArcGIS Train/Classify, QGIS Semi-Automatic Classification Plugin, Earth Engine <code>ee.Classifier</code></td>
+</tr>
+<tr>
+<td><code>embeddings.change</code></td>
+<td>1 − cosine similarity of each pixel&#39;s embeddings in two years (<code>before</code>, <code>after</code>, same grid); the area at ≥ <code>threshold</code> reported</td>
+<td>ArcGIS Change Detection Wizard, GRASS <code>i.change</code></td>
+</tr>
+<tr>
+<td><code>terrain.derive</code></td>
+<td>Hillshade (multidirectional, auto z-factor), slope, aspect, TRI, TPI, roughness via GDAL DEM processing; geographic DEMs are reprojected first; mean slope, steep share and dominant aspect reported</td>
+<td>ArcGIS Surface toolset, QGIS terrain analysis, GRASS <code>r.slope.aspect</code>, SAGA, gdaldem</td>
+</tr>
+<tr>
+<td><code>terrain.contours</code></td>
+<td>Contours with an automatic interval (≈ 12 levels), index contours, Chaikin smoothing; DEMs finer than 2 m (LiDAR, drone) are traced on a 2 m average so measurement noise does not break lines into loops; drawn thin and brown with bolder index lines</td>
+<td>ArcGIS Contour, QGIS Contour, GRASS <code>r.contour</code>, MapInfo Vertical Mapper</td>
+</tr>
+<tr>
+<td><code>hydro.network</code></td>
+<td>A DEM → streams (Strahler order, length, upstream area), drainage basins and a flow-accumulation raster: priority-flood filling with an epsilon gradient, D8 routing and accumulation in loops, never recursion, so DEMs of any size and with wide flats (sea, valley floors) work. <code>threshold_km2</code> (default 1) sets where streams start; the sea at 0 m is no data unless <code>sea_is_nodata: false</code></td>
+<td>ArcGIS Fill + Flow Direction + Flow Accumulation + Stream Order + Basin, GRASS <code>r.watershed</code> + <code>r.stream.order</code>, WhiteboxTools <code>FillDepressions</code>/<code>D8Pointer</code>/<code>StrahlerStreamOrder</code>/<code>Basins</code>, TauDEM</td>
+</tr>
+<tr>
+<td><code>lidar.grid</code></td>
+<td>LAS/LAZ point clouds (one file, a folder of tiles or a device) → bare-earth terrain (DTM), surface (DSM) and canopy height (CHM) rasters, building outlines with roof heights and tree tops with heights, in one streaming pass (§6c)</td>
+<td>ArcGIS LAS Dataset to Raster + Classify LAS Ground + Extract Buildings/Trees, ERDAS IMAGINE point-cloud tools, PDAL <code>filters.smrf</code>, lidR <code>rasterize_terrain</code>/<code>locate_trees</code>, LAStools <code>lasground</code>/<code>las2dem</code>, GRASS <code>r.in.pdal</code></td>
+</tr>
+<tr>
+<td><code>scene.3d</code></td>
+<td>A DEM (plus the run&#39;s buildings, trees and point-cloud sample) → a 3D scene: terrain block diagram draped with its map colours and relief shading or imagery, vector layers painted on, extruded buildings, modelled trees, the point cloud; saved as glTF 2.0 (<code>scene.glb</code>), a self-contained offline viewer (<code>scene.html</code>) and a rendered picture for the report (§6d)</td>
+<td>ArcGIS Pro local scenes + Export to glTF, QGIS 3D map view + Qgis2threejs, ERDAS IMAGINE VirtualGIS, GRASS NVIZ, SAGA 3D View, MapInfo 3DMap, CloudCompare, CesiumJS</td>
+</tr>
+<tr>
+<td><code>raster.classify</code></td>
+<td>Labelled classes with areas (ha, %); automatic schemes for slope, NDVI/SAVI/EVI, NDWI/NDMI, NBR and elevation, or your breaks</td>
+<td>ArcGIS Reclassify + Tabulate Area, GRASS <code>r.reclass</code>/<code>r.report</code>, ERDAS Recode</td>
+</tr>
+<tr>
+<td><code>raster.sample</code></td>
+<td>Raster values at points as new fields (elevation, slope, NDVI…), plus the strongest Pearson correlation with a measured field</td>
+<td>ArcGIS Extract Multi Values to Points, QGIS Sample raster values, GRASS <code>v.what.rast</code></td>
+</tr>
+<tr>
+<td><code>rs.search</code></td>
+<td>STAC search (Earth Search, Sentinel-2 L2A by default): newest first, cloud-filtered, prefers the tile that covers the whole area</td>
+<td>Octave Imagine (ERDAS) search, Earth Engine filters, QGIS STAC plugin</td>
+</tr>
+<tr>
+<td><code>rs.index</code></td>
+<td>NDVI, NDWI, NBR, NDMI, SAVI or EVI at 10 m from the newest scene that is <strong>clear over the area</strong> (scene classification checked first; clouds, shadows, cirrus masked); falls back to older dates</td>
+<td>ERDAS Indices, ArcGIS NDVI function, GRASS <code>i.vi</code>, Earth Engine <code>normalizedDifference</code></td>
+</tr>
+<tr>
+<td><code>rs.fetch</code></td>
+<td>True-colour image (or any band) of the chosen scene for the area</td>
+<td>ArcGIS imagery basemaps, ERDAS Subset</td>
+</tr>
+<tr>
+<td><code>grass</code></td>
+<td>GRASS modules in a temporary project (<code>grass --tmp-project … --exec</code>); inputs imported, outputs exported back; categorical outputs keep GRASS&#39;s class labels and colours</td>
+<td>GRASS, QGIS Processing&#39;s GRASS provider</td>
+</tr>
+<tr>
+<td><code>saga</code></td>
+<td>A SAGA tool through <code>saga_cmd</code>; outputs come back as rasters</td>
+<td>SAGA, QGIS Processing&#39;s SAGA provider</td>
+</tr>
+</tbody></table></div><h3 id="step-catalogue-planned"><a class="anchor" href="#step-catalogue-planned">#</a>Step catalogue (planned)</h3>
+<div class="table"><table><thead><tr>
+<th>Family</th>
+<th>Examples</th>
+<th>Engine</th>
+</tr>
+</thead><tbody><tr>
+<td>Data</td>
+<td>Landsat / Sentinel-1 in <code>rs.*</code>, OGC SensorThings and LoRaWAN feeds in <code>sensor.*</code></td>
+<td>native</td>
+</tr>
+<tr>
+<td>Clean</td>
+<td><code>clean.auto</code> (validity, duplicates, encoding, empty geometries), <code>crs.auto</code> as a step (UTM selection already exists inside <code>vector.buffer</code>)</td>
+<td>native / GDAL</td>
+</tr>
+<tr>
+<td>Vector</td>
+<td><code>overlay</code>, <code>nearby</code>, <code>summarize_within</code>, <code>dissolve</code>, <code>join.auto</code></td>
+<td>native (geo, DuckDB)</td>
+</tr>
+<tr>
+<td>Raster / RS</td>
+<td><code>composite.cloudfree</code> (median of several passes), <code>classify.auto</code> (unsupervised/supervised land cover), <code>change.detect</code>, <code>ortho.drone</code>, zonal statistics</td>
+<td>native / OTB / GRASS / SNAP / ODM</td>
+</tr>
+<tr>
+<td>Terrain / hydro</td>
+<td><code>watersheds</code>, <code>viewshed</code>, <code>solar</code> as native steps (today: through the <code>grass</code>/<code>saga</code> steps)</td>
+<td>Whitebox / GRASS / SAGA</td>
+</tr>
+<tr>
+<td>Stats / geostats</td>
+<td><code>clusters</code> (local Moran&#39;s I outliers, DBSCAN), <code>hotspots.spacetime</code>, <code>regression.spatial</code> (GWR), kriging with a trend or anisotropy</td>
+<td>native + R/Python</td>
+</tr>
+<tr>
+<td>Cartography</td>
+<td><code>labels.auto</code> for lines and polygons, <code>atlas</code></td>
+<td>native</td>
+</tr>
+<tr>
+<td>Output</td>
+<td><code>export.webmap</code> (PMTiles + MapLibre site), multi-page atlas PDF</td>
+<td>native</td>
+</tr>
+<tr>
+<td>Code</td>
+<td><code>wasm:</code> plugin steps</td>
+<td>wasmtime</td>
+</tr>
+</tbody></table></div><h2 id="3-triggers"><a class="anchor" href="#3-triggers">#</a>3. Triggers</h2>
+<div class="table"><table><thead><tr>
+<th>Trigger</th>
+<th>Example</th>
+<th>State</th>
+</tr>
+</thead><tbody><tr>
+<td><code>device</code></td>
+<td><code>device: { kinds: [phone, camera], has: [photos] }</code></td>
+<td>✅ From the device hub (<a href="/docs/devices">DEVICES.md</a>) on every new or changed device with geodata; the run gets <code>source</code> = the device folder. A recipe that takes the device supersedes the plain <code>--auto-import</code>. Drop folders (<code>--inbox</code>, desktop <code>~/GeoSpaX/Inbox</code>) run their recipe without Auto. A device left plugged in is not re-run after a restart unless its content changed (<code>&lt;state&gt;/devices/seen.json</code>)</td>
+</tr>
+<tr>
+<td><code>folder</code></td>
+<td><code>folder: { path: /data/inbox, pattern: &quot;*.gpx&quot; }</code></td>
+<td>✅ Polled every 4 s (2 levels deep); fires when new or changed files appear and the listing is stable across two polls (copies finished); <code>${trigger.files}</code> lists them</td>
+</tr>
+<tr>
+<td><code>schedule</code></td>
+<td><code>schedule: { every: 6h }</code> or <code>{ cron: &quot;0 6 * * MON&quot; }</code></td>
+<td>✅ <code>every:</code> (s/m/h/d/w) and five-field cron in local time; <code>on_start: true</code> fires at start</td>
+</tr>
+<tr>
+<td><code>after</code></td>
+<td><code>after: photos-to-map</code></td>
+<td>✅ Runs when that recipe succeeds; <code>${trigger.outputs}</code> holds its outputs</td>
+</tr>
+<tr>
+<td><code>stac</code></td>
+<td><code>stac: { every: 12h, area: auto, max_cloud: 50 }</code></td>
+<td>✅ Polls the STAC API (Earth Search by default) on its own thread; fires when a pass <strong>newer than the one the last run used</strong> appears over the area. <code>area: auto</code> = the area of the last successful run (kept in <code>&lt;state&gt;/memo/&lt;recipe&gt;.json</code>); a recipe that never ran fires once to settle it. One fire per new date</td>
+</tr>
+<tr>
+<td><code>webhook</code></td>
+<td><code>webhook: { token: &lt;≥ 16 chars&gt; }</code> → <code>POST /api/hooks/&lt;token&gt;</code></td>
+<td>✅ The JSON body&#39;s keys that match declared inputs become the run&#39;s inputs; the whole body is <code>${trigger.payload}</code>. 404 for unknown tokens, 409 while the recipe&#39;s Auto switch is off</td>
+</tr>
+<tr>
+<td><code>sensor</code></td>
+<td><code>sensor: { field: pm2_5, above: 35, cooldown: 30m }</code> · <code>sensor: { inside: farm.parcels }</code> · both together</td>
+<td>✅ Every live position or reading (HTTP push, MQTT, phone page, GNSS) is checked against the enabled recipes. Thresholds use <code>above:</code>/<code>below:</code> on a field; <code>device:</code> filters by id or name (wildcards). <code>inside: &lt;polygon layer&gt;</code> alone fires when a device <strong>enters</strong> the polygons; with a field it limits the threshold to readings inside. <code>cooldown</code> (default 10 min) per recipe and device. The run gets <code>${trigger.device}</code>, <code>.value</code>, <code>.threshold</code>, <code>.lat</code>, <code>.lon</code>, <code>.text</code> and the reading&#39;s values (<a href="/docs/devices#4-sensors-in-detail">DEVICES.md §4</a>)</td>
+</tr>
+</tbody></table></div><p><strong>Auto switches.</strong> Triggers fire only for recipes whose <strong>Auto</strong> switch is on. The switches persist in
+<code>&lt;state&gt;/automation.json</code>. Turn them on with the UI switch, <code>geospax-server --auto id,id|all</code>,
+<code>GEOSPAX_AUTO</code> (desktop) or <code>PUT /api/recipes/{id}/auto</code>. <code>geospax watch</code> turns all of them on (or <code>--only id,id</code>).</p>
+<p><strong>One run per recipe at a time.</strong> A trigger that fires while its recipe is busy is queued. Requests with different
+inputs (two devices) run one after the other; identical requests merge.</p>
+<h2 id="4-autopilot-automap-smart-defaults-that-explain-themselves"><a class="anchor" href="#4-autopilot-automap-smart-defaults-that-explain-themselves">#</a>4. Autopilot (AutoMap): smart defaults that explain themselves</h2>
+<p>Every automatic choice comes with a one-line reason. The reason appears in the run log, the report&#39;s &quot;Automatic
+decisions&quot; table and the UI.</p>
+<div class="table"><table><thead><tr>
+<th>Decision</th>
+<th>Rule (v0, built)</th>
+<th>Borrowed from</th>
+</tr>
+</thead><tbody><tr>
+<td>Symbology type</td>
+<td>Text with 2–12 categories → unique values; numeric → graduated; ids, names, paths and constants skipped; field names score (<code>pop</code>, <code>value</code>, <code>ph</code>, <code>type</code>, <code>class</code>, …)</td>
+<td>ArcGIS smart mapping, QGIS</td>
+</tr>
+<tr>
+<td>Classification method</td>
+<td>Skewness g1: |g1| &lt; 0.5 → equal intervals; &lt; 2 → natural breaks (ckmeans); ≥ 2 → quantiles</td>
+<td>Jenks/ckmeans, MapInfo thematic wizards</td>
+</tr>
+<tr>
+<td>Number of classes</td>
+<td>5; 3–5 for small samples (Sturges)</td>
+<td>Cartographic practice</td>
+</tr>
+<tr>
+<td>Colour ramp</td>
+<td>Diverging when values straddle 0 in a balanced way; Blues for water/rain/moisture, Greens for vegetation, Viridis for elevation, pH and predictions, Yellow-Orange-Red otherwise; Tableau 10 / Bold for categories; all colour-blind-safe</td>
+<td>ColorBrewer practice</td>
+</tr>
+<tr>
+<td>Device layers</td>
+<td>Photos: bold orange with a white ring and camera-direction wedges; tracks: magenta over a white casing; waypoints: labelled</td>
+<td>Field-app conventions</td>
+</tr>
+<tr>
+<td>Single colours</td>
+<td>Distinct from the other layers on the same map; points over a coloured surface turn white with a dark ring</td>
+<td>Cartographic practice</td>
+</tr>
+<tr>
+<td>Polygons</td>
+<td>1–3 areas over other data are see-through; layers with more than 400 polygons drop outlines; the step that made a layer can hint (IDW: no outlines; hexbins: outlines)</td>
+<td>Cartographic practice</td>
+</tr>
+<tr>
+<td>Label field</td>
+<td><code>name</code>, <code>title</code>, <code>label</code>, <code>site</code>, <code>*_name</code>; photo file names never labelled</td>
+<td>QGIS/ArcGIS label defaults</td>
+</tr>
+<tr>
+<td>CRS for analysis</td>
+<td>UTM zone from the data&#39;s centre (buffers)</td>
+<td>PROJ</td>
+</tr>
+<tr>
+<td>Interpolation</td>
+<td>IDW power from leave-one-out cross-validation over {1, 1.5, 2, 3}; kriging via the R step (gstat fits Sph/Exp/Gau and keeps the best). Automatic IDW-vs-kriging choice: planned</td>
+<td>gstat, ArcGIS Geostatistical Analyst</td>
+</tr>
+<tr>
+<td>Raster styles</td>
+<td>DEM → hypsometric tint stretched 2–98 %; hillshade → grey at 50 % with multiply blending over the colour layer; slope 0–45° pale yellow → dark red; aspect → colour wheel; NDVI/SAVI/EVI → red–yellow–green with a <strong>fixed</strong> −0.2…0.9 range (dates compare); NDWI/NDMI brown → blue; wetness → blues; classes → their own colours (GRASS&#39;s for GRASS outputs); RGB → 2–98 % stretch + gamma 0.75</td>
+<td>✅ <code>raster.rs</code></td>
+</tr>
+<tr>
+<td>Raster maps</td>
+<td>One thematic raster per map (the newest) with relief shading on top; the frame is filled with data (no empty margins); rasters render at native resolution (1–2× the page)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Scene choice</td>
+<td>Newest pass first; a scene must be ≥ 70 % clear <strong>over the area</strong> (scene classification), not just on average; same-day tiles: the one covering the whole area</td>
+<td>✅ <code>rs.index</code></td>
+</tr>
+<tr>
+<td>Contour interval</td>
+<td>Round step (1, 2, 2.5, 5 × 10ⁿ) giving ≈ 12 levels; every 5th is an index contour</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Air-quality classes</td>
+<td>PM2.5 and PM10 are classed at the WHO 2021 24-hour guideline and interim targets (PM2.5: 15 / 25 / 37.5 / 50 / 75 µg/m³), green &quot;guideline met&quot; to dark red &quot;above IT-1&quot;, instead of statistical breaks; also offered as <strong>WHO guideline</strong> in the symbology panel</td>
+<td>✅ <code>automap.rs</code></td>
+</tr>
+<tr>
+<td>Sensor field to map</td>
+<td>A pollutant first (PM2.5, PM10, NO₂, O₃ …), then heart rate, CO₂, noise, temperature, humidity; units from the logger&#39;s headers or common defaults</td>
+<td>✅ <code>sensor.summary</code></td>
+</tr>
+<tr>
+<td>Spectral index</td>
+<td>Sensor metadata → valid indices (Landsat, PlanetScope)</td>
+<td>planned</td>
+</tr>
+<tr>
+<td>Overview pyramid</td>
+<td>Layer too dense to tile live → build automatically (<code>overviews.build</code>, <code>overview_suggested</code>)</td>
+<td>✅</td>
+</tr>
+</tbody></table></div><p><strong>Layout rules (<code>export.map</code>):</strong></p>
+<ul>
+<li><strong>Page:</strong> landscape or portrait from the data&#39;s shape, or A4, A3 or Letter at 150 dpi. The extent fits all the mapped data with a margin and is at least 400 m across.</li>
+<li><strong>Title and subtitle:</strong> automatic (device, what was found, date).</li>
+<li><strong>Map elements:</strong><ul>
+<li>a legend built from the styles, with class counts;</li>
+<li>a scale bar with round numbers;</li>
+<li>a north arrow;</li>
+<li>a graticule with round steps;</li>
+<li>point labels with collision avoidance (four candidate positions).</li>
+</ul>
+</li>
+<li><strong>Context layers:</strong> land, roads and rivers are added automatically when loaded.</li>
+<li><strong>Large point layers:</strong> above 30,000 points, a density grid replaces individual points.</li>
+<li><strong>Credits:</strong> sources and the recipe.</li>
+</ul>
+<h2 id="5-three-ways-to-write-a-recipe-all-lazy"><a class="anchor" href="#5-three-ways-to-write-a-recipe-all-lazy">#</a>5. Three ways to write a recipe, all lazy</h2>
+<ol>
+<li><p><strong>Record.</strong> ✅ v0: <strong>&quot;Save this map as a recipe&quot;</strong> in the Automate panel turns the visible layers and their exact styles into a recipe (<code>io.open</code> → <code>style.apply</code> → <code>export.map</code> → <code>export.report</code>) that redraws and re-exports the map on demand, or on a trigger once you add one. Planned: recording the session log, where literal paths become inputs and repeated actions become <code>for_each</code>.</p>
+</li>
+<li><p><strong>Pick from the gallery.</strong> ✅ Fifteen built recipes (<a href="https://github.com/jmozez/geospax/blob/main/recipes" rel="noopener" target="_blank"><code>recipes/</code></a>):</p>
+<div class="table"><table><thead><tr>
+<th>Recipe</th>
+<th>Trigger</th>
+<th>What you get</th>
+<th>Time (RESULTS §11)</th>
+</tr>
+</thead><tbody><tr>
+<td><code>photos-to-map</code></td>
+<td>phone / camera / folder with photos</td>
+<td>Styled map of photos (with camera direction), tracks and waypoints; PNG + SVG + report</td>
+<td>0.17 s</td>
+</tr>
+<tr>
+<td><code>track-to-map</code></td>
+<td>GPS unit with tracks</td>
+<td>Map + KML (Google Earth) + GeoJSON + report</td>
+<td>0.11 s</td>
+</tr>
+<tr>
+<td><code>drone-flight-report</code></td>
+<td>drone card</td>
+<td>Flight path, photo positions, dissolved ground coverage (ha) in UTM, report</td>
+<td>0.11 s</td>
+</tr>
+<tr>
+<td><code>points-to-hexbins</code></td>
+<td>by hand</td>
+<td>Auto-sized hexagon density map from any point layer (1M points)</td>
+<td>0.65 s</td>
+</tr>
+<tr>
+<td><code>points-to-hotspots</code></td>
+<td>by hand (add a folder trigger)</td>
+<td>Hot and cold spots of incidents (or of a value) at 90/95/99 % confidence, every setting chosen from the data; map (PNG/SVG/PDF) + report with Moran&#39;s I and the distance search (§6e)</td>
+<td>0.30 s (RESULTS §20)</td>
+</tr>
+<tr>
+<td><code>interpolate-samples</code></td>
+<td>by hand (add a folder trigger)</td>
+<td>Kriging or IDW, whichever cross-validates better: surface map, uncertainty map (kriging standard error), variogram chart, RMSE (§6e)</td>
+<td>1.0 s (RESULTS §20)</td>
+</tr>
+<tr>
+<td><code>python-spatial-stats</code></td>
+<td>by hand</td>
+<td>Mean centre, standard distance, deviational ellipse, Clark–Evans nearest-neighbour index (Python)</td>
+<td>0.19 s</td>
+</tr>
+<tr>
+<td><code>r-kriging</code></td>
+<td>by hand</td>
+<td>Ordinary kriging with an auto-fitted variogram and cross-validation (R gstat)</td>
+<td>4.2 s</td>
+</tr>
+<tr>
+<td><code>terrain-report</code></td>
+<td>by hand</td>
+<td>Copernicus 30 m DEM for the area → shaded relief + contours map (PNG/SVG/PDF), slope-class map with hectares, elevation and slope sampled at your points</td>
+<td>6.1 s</td>
+</tr>
+<tr>
+<td><code>lidar-to-terrain</code></td>
+<td>a drive or drop folder with LAS/LAZ (<code>has: [point-clouds]</code>)</td>
+<td>Bare-earth terrain map with relief shading, contours and buildings; canopy map with tree tops and buildings over surface relief (PNG/SVG/PDF); canopy-height classes with hectares; report with points, density, canopy cover, tree and building counts</td>
+<td>2.3 s for 0.7 M points, 12 s for 10.7 M (RESULTS §18)</td>
+</tr>
+<tr>
+<td><code>latest-ndvi</code></td>
+<td><code>stac</code> (new pass)</td>
+<td>Newest Sentinel-2 pass that is clear over the area → NDVI map, vegetation classes with hectares, true-colour map, NDVI at your points</td>
+<td>5.5 s</td>
+</tr>
+<tr>
+<td><code>landforms-grass</code></td>
+<td>by hand</td>
+<td>GRASS <code>r.geomorphon</code>: ten landforms over relief shading, GRASS colours, share of each</td>
+<td>5.0 s</td>
+</tr>
+<tr>
+<td><code>wetness-saga</code></td>
+<td>by hand</td>
+<td>SAGA Wetness Index (<code>ta_hydrology 15</code>) over relief shading; wetness sampled at your points</td>
+<td>6.2 s</td>
+</tr>
+<tr>
+<td><code>sensor-log-to-map</code></td>
+<td>sensor logger plugged in</td>
+<td>Every geotagged reading coloured by the main measurement (WHO classes for PM), the logger&#39;s track, statistics per measurement, GeoJSON, report</td>
+<td>0.12 s (RESULTS §13)</td>
+</tr>
+<tr>
+<td><code>air-quality-alert</code></td>
+<td><code>sensor</code> (PM2.5 &gt; 35)</td>
+<td>Snapshot of every live sensor&#39;s last two hours → alert map + report naming the sensor and value</td>
+<td>0.26 s from the reading (RESULTS §13)</td>
+</tr>
+</tbody></table></div><p>Times include reading the DEM and imagery over HTTP (about 2.8 s and 1.8 s here). Planned gallery entries: <code>field-week-report</code>, <code>what-changed</code>, <code>flood-extent</code> and <code>drone-to-ortho</code>.</p>
+</li>
+<li><p><strong>Ask (optional AI).</strong> Planned. A local model (llama.cpp/Ollama) or your own provider turns a request into recipe YAML, constrained by the step catalogue (<code>GET /api/steps</code>) and checked by the validator. GeoSpaX shows the plan first; recipes that write outside the state folder, use the network or run code need explicit approval. An MCP server would expose recipes and steps to external agents.</p>
+</li>
+</ol>
+<h2 id="6-r-and-python-steps-built"><a class="anchor" href="#6-r-and-python-steps-built">#</a>6. R and Python steps (built)</h2>
+<pre><code class="language-yaml">  - id: krige
+    use: r
+    with:
+      inputs: { samples: &quot;${samples.layer}&quot; }   # arrives as an sf object (path if sf is missing)
+      params: { field: &quot;${inputs.field}&quot; }      # becomes the R list `params`
+      packages: [sf, gstat]                     # checked before running, with install hints
+      code: |
+        library(sf); library(gstat)
+        pts &lt;- st_transform(samples, 32755)
+        model &lt;- fit.variogram(variogram(ph ~ 1, pts), vgm(c(&quot;Sph&quot;, &quot;Exp&quot;, &quot;Gau&quot;)))
+        ...
+        result(model = as.character(model$model[2]), cv_rmse = rmse)   # numbers -&gt; run log + report
+        list(prediction = st_transform(grid, 4326))                    # returned sf objects -&gt; layers
+</code></pre>
+<div class="table"><table><thead><tr>
+<th></th>
+<th>Python</th>
+<th>R</th>
+</tr>
+</thead><tbody><tr>
+<td>Inputs</td>
+<td>Variables named after <code>inputs</code> (GeoDataFrame if geopandas is installed, else a GeoJSON dict); <code>inputs[name]</code> is the GeoJSON path; <code>params</code> dict</td>
+<td>Variables named after <code>inputs</code>: layers as sf objects (the path if sf is missing), rasters as terra SpatRasters; <code>params</code> list</td>
+</tr>
+<tr>
+<td>Layers out</td>
+<td><code>save(name, obj)</code> (GeoDataFrame, FeatureCollection dict or list of features) or <code>OUTPUTS = {name: obj}</code></td>
+<td>Return a named list of sf objects (or call <code>save_layer(name, obj)</code>)</td>
+</tr>
+<tr>
+<td>Rasters, figures, tables out</td>
+<td>GeoTIFF, PNG/PDF/SVG and CSV files written to <code>outputs_dir</code></td>
+<td>Return SpatRasters (rasters), ggplot/tmap objects (figures) and data frames (tables) in the list, or call <code>save_figure(name, plot)</code> / <code>save_table(name, df)</code> (<a href="/docs/r">R.md</a>)</td>
+</tr>
+<tr>
+<td>Numbers out</td>
+<td><code>result(key=value)</code> or <code>RESULT = {...}</code></td>
+<td><code>result(key = value)</code></td>
+</tr>
+<tr>
+<td>Interpreter</td>
+<td><code>python3</code>/<code>python</code> on PATH or <code>GEOSPAX_PYTHON</code> (Windows: <code>python</code>, then the <code>py</code> launcher)</td>
+<td><code>Rscript</code> on PATH or <code>GEOSPAX_RSCRIPT</code> (Windows: also <code>Program Files\R\R-*\bin</code> and <code>%LOCALAPPDATA%\Programs\R</code>, newest first; macOS: also the CRAN framework and Homebrew). Packages GeoSpaX installs (R › R setup) are in <code>&lt;state&gt;/r-library</code>, searched first</td>
+</tr>
+</tbody></table></div><p><strong>How a code step runs:</strong></p>
+<ul>
+<li><strong>Isolation:</strong><ul>
+<li>each step runs in its own process with a scrubbed environment (<code>PATH</code>, <code>HOME</code>, locale, R/Python library paths and PROJ/GDAL data only);</li>
+<li>its working directory is <code>steps/&lt;id&gt;/</code> inside the run folder;</li>
+<li>it has a timeout (<code>timeout_s</code>, default 600) and stops on the run&#39;s cancel button.</li>
+</ul>
+</li>
+<li><strong>Data exchange</strong> goes through files: GeoJSON in, GeoJSON or GeoPackage out. A crashing script cannot take the app down, and GPL code stays out of process.</li>
+<li><strong>Results:</strong> returned layers become <code>&lt;recipe&gt;.&lt;name&gt;</code> and appear on the map. A non-zero exit fails the step with the last lines of stderr.</li>
+</ul>
+<p>The <strong>R tab</strong> runs R steps from a console with templates for tmap, ggplot2, rayshader, terra,
+biomod2, MaxEnt, tidymodels, dbplyr and rgee, and <strong>R setup</strong> installs R and package kits
+(<a href="/docs/r">R.md</a>).</p>
+<p>Planned:</p>
+<ul>
+<li>Python environment management (<code>uv</code>/<code>pixi</code>);</li>
+<li>Arrow/GeoParquet and COG exchange;</li>
+<li>&quot;Show me the code&quot; (built-in steps exported as equivalent R or Python);</li>
+<li>webR and Pyodide for light steps in the web edition.</li>
+</ul>
+<h2 id="6b-rasters-remote-sensing-and-providers-built"><a class="anchor" href="#6b-rasters-remote-sensing-and-providers-built">#</a>6b. Rasters, remote sensing and providers (built)</h2>
+<p><strong>Rasters are first-class.</strong> GeoTIFF, VRT, JPEG 2000, ERDAS IMAGINE (<code>.img</code>), ASCII grid and SRTM <code>.hgt</code> files in
+the data folders are catalogued at start; recipe outputs are added as they are made and restored after a restart.
+Each raster has statistics, a guessed kind (DEM, hillshade, slope, NDVI, classes, RGB…), an automatic style with a
+reason (§4) and a legend. A small sidecar (<code>&lt;file&gt;.gsx.json</code>) keeps what the step that made it knew: kind, title,
+class labels and colours, units and attribution.</p>
+<div class="table"><table><thead><tr>
+<th>Where</th>
+<th>How rasters appear</th>
+</tr>
+</thead><tbody><tr>
+<td>Web and desktop map</td>
+<td><strong>Rasters</strong> panel: switch on/off, opacity, legend (ramp or classes), zoom to. Each raster is a MapLibre <code>image</code> source rendered by the engine in Web Mercator (<code>GET /api/rasters/{id}/overlay.png</code>, cached per style), drawn above land and below every vector layer. After a run, its rasters appear the way the map composer shows them</td>
+</tr>
+<tr>
+<td>Map composer</td>
+<td>The raster is warped to the page frame (GDAL) and embedded as PNG under the vectors; relief shading is multiplied on top; the legend gets a colour ramp with units or class swatches with shares; credits carry the data attribution</td>
+</tr>
+<tr>
+<td>PDF</td>
+<td><code>format: pdf</code> or <code>export.pdf</code>: vector PDF through krilla (text stays selectable; rasters embedded)</td>
+</tr>
+</tbody></table></div><p><strong>Remote data without downloads.</strong> <code>dem.fetch</code>, <code>embeddings.fetch</code>, <code>rs.search</code>, <code>rs.index</code> and <code>rs.fetch</code> read only the area of interest:
+Copernicus DEM tiles and Sentinel-2 bands are cloud-optimised GeoTIFFs on AWS open data, so GDAL fetches byte ranges
+(<code>/vsicurl/</code>), and STAC searches go through GDAL&#39;s own HTTP client (proxy settings such as <code>GDAL_HTTP_PROXY</code>
+apply). For the 11 × 9 km test area, the DEM takes about 2.8 s; the cloud check plus two 10 m bands, about 1.8 s.</p>
+<p><strong>Providers.</strong> <code>grass</code> and <code>saga</code> steps run the installed GRASS (<code>grass --tmp-project &lt;first input&gt; --exec</code>) and
+SAGA (<code>saga_cmd</code>) headless. GeoSpaX imports the inputs, runs the script or tool, exports the outputs back as GeoTIFF
+or GeoPackage, and registers them like any other result. GRASS class labels and colours (<code>r.category</code>, <code>r.colors.out</code>) become the legend. Both
+binaries are looked up on <code>PATH</code>, in the usual install folders or via <code>GEOSPAX_GRASS</code> / <code>GEOSPAX_SAGA</code>;
+<code>GET /api/providers</code> reports what is available. Like code steps, they need <code>?approve=code</code> when saved through the
+API. Whitebox, Orfeo ToolBox and SNAP providers are next.</p>
+<h2 id="6c-lidar-point-clouds-built"><a class="anchor" href="#6c-lidar-point-clouds-built">#</a>6c. LiDAR point clouds (built)</h2>
+<p><code>lidar.grid</code> (and the <code>lidar-to-terrain</code> recipe around it) turns point clouds into the products surveyors and
+foresters make first, with no settings to choose.</p>
+<div class="table"><table><thead><tr>
+<th></th>
+<th>What GeoSpaX does</th>
+</tr>
+</thead><tbody><tr>
+<td>Input</td>
+<td>LAS 1.0–1.4 and LAZ (including COPC), any point format, one file or a folder of tiles (sub-folders searched), read with the pure-Rust <code>las</code> + <code>laz-rs</code> crates (MIT / Apache-2.0; LAZ chunks decompressed in parallel), so the Windows build needs nothing extra. Withheld points and the noise classes (7, 18) are left out</td>
+</tr>
+<tr>
+<td>Coordinates</td>
+<td>From the file: WKT (LAS 1.4) or GeoTIFF keys. Metric projected files stay in their CRS; files in longitude/latitude or in feet (US State Plane, Oregon Lambert…) are gridded in their UTM zone with heights converted to metres. Files without a coordinate system stop with a message asking for <code>epsg:</code> (a recipe input)</td>
+</tr>
+<tr>
+<td>Cell size</td>
+<td>About 2–3 points per cell (<code>1.6 / √density</code>, snapped to 5, 10, 20, 25, 50 cm, 1, 2, 2.5, 5 … m), coarsened until the area fits 6 million cells; or <code>resolution:</code></td>
+</tr>
+<tr>
+<td>Ground (DTM)</td>
+<td>The data&#39;s own classes when at least 0.5 % of points are ground (class 2; water, class 9, counts too, as in USGS 3DEP DEMs), else <strong>SMRF</strong>, the simple morphological filter of Pingel, Clarke &amp; McBride (2013) behind PDAL&#39;s <code>filters.smrf</code>: a minimum-elevation grid at 1 m, isolated low outliers removed, empty cells inpainted, progressive openings up to an 18 m radius (<code>window:</code>) with a 0.15 slope threshold, then every cell within 0.5 m + 1.25 × slope of the provisional surface is ground. Gaps (under buildings, water) are filled by GDAL&#39;s inverse-distance interpolation; a 3 × 3 mean takes out centimetre noise</td>
+</tr>
+<tr>
+<td>Surface (DSM)</td>
+<td>Highest return per cell; isolated spikes 5 m above all neighbours (birds, multipath) replaced by the neighbourhood; pinholes filled</td>
+</tr>
+<tr>
+<td>Canopy (CHM)</td>
+<td>Height of the vegetation classes (3–5) above the DTM when the data has them, so unclassified structures (stadium stands, towers, bridges) stay out; otherwise DSM − DTM. Buildings are removed in both cases</td>
+</tr>
+<tr>
+<td>Buildings</td>
+<td>The building class (6) when present, else planar roof regions: 3 × 3 plane fits with under 12 cm error, at least 2.5 m above the ground, joined into regions of at least 20 m² and 3 m across, grown 1 m over eaves and ridges. Outlined (GDAL polygonize, simplified) with <code>height_m</code> (90th percentile of the roof), <code>area_m2</code> and <code>ground_m</code></td>
+</tr>
+<tr>
+<td>Tree tops</td>
+<td>Local maxima of the smoothed CHM at least 3 m high (<code>min_tree:</code>) that are the highest point within the expected crown radius, <code>0.5 × (2.51503 + 0.00901 h²)</code> m (Popescu &amp; Wynne 2004), 1–8 m; points with <code>height_m</code> and an estimated <code>crown_m</code></td>
+</tr>
+<tr>
+<td>Outputs</td>
+<td><code>dtm</code>, <code>dsm</code>, <code>chm</code> GeoTIFFs (kinds <code>dem</code>, <code>dsm</code>, <code>chm</code>: hypsometric tint, and a yellow-to-dark-green canopy ramp that leaves bare cells clear over the relief), <code>trees</code> and <code>buildings</code> layers, statistics (points, density, area, classes, canopy cover, CHM median and 95th percentile, counts), a methods paragraph and plain-language reasons</td>
+</tr>
+<tr>
+<td>Devices</td>
+<td>A drive, card or folder with <code>.las</code>/<code>.laz</code> files is a <code>lidar</code> device (point clouds counted from their headers, footprints shown); a recipe with <code>device: { has: [point-clouds] }</code> starts on it; a plain import writes a <code>point_clouds</code> footprint layer (a tile index)</td>
+</tr>
+</tbody></table></div><p>Accuracy against a synthetic scene with known truth (<code>scripts/data-sample-lidar.py</code>: rolling ground with a hill,
+three buildings, 40 trees, birds and below-ground noise; <code>scripts/test-lidar.py</code>):</p>
+<div class="table"><table><thead><tr>
+<th></th>
+<th>Classified</th>
+<th>Unclassified (SMRF)</th>
+</tr>
+</thead><tbody><tr>
+<td>Terrain RMSE (all 285,844 cells)</td>
+<td>0.9 cm</td>
+<td>2.2 cm</td>
+</tr>
+<tr>
+<td>Under the buildings (interpolated)</td>
+<td>4.0 cm</td>
+<td>4.2 cm</td>
+</tr>
+<tr>
+<td>Trees found (within 1.5 m) / false</td>
+<td>40 of 40 / 0</td>
+<td>40 of 40 / 0</td>
+</tr>
+<tr>
+<td>Tree height error (mean)</td>
+<td>0.11 m</td>
+<td>0.11 m</td>
+</tr>
+<tr>
+<td>Buildings, footprint area, roof height</td>
+<td>3 of 3, within 1 %, within 0.1 m</td>
+<td>3 of 3, within 3 %, within 0.1 m</td>
+</tr>
+</tbody></table></div><p>On the real Autzen Stadium survey (PDAL sample data, 10.7 million points, LAS 1.4 point format 7, Oregon Lambert
+feet) the whole recipe takes 12 s: 1 m cells, ground and water from the vendor classes, 55 buildings, 4,393 trees up
+to 49 m (RESULTS §18).</p>
+<p>Limits: SMRF keeps buildings wider than about twice the window (warehouses: raise <code>window:</code>), and on steep forested
+slopes vendor ground classes are better; trees whose crowns merge into one dome count as one; full-waveform data,
+E57 and PLY are not read (convert with PDAL or CloudCompare).</p>
+<h2 id="6d-3d-scenes-built"><a class="anchor" href="#6d-3d-scenes-built">#</a>6d. 3D scenes (built)</h2>
+<p><code>scene.3d</code> makes the 3D view a GIS analyst would otherwise build by hand in ArcGIS Pro&#39;s scene view or QGIS&#39;s 3D map
+view. It runs inside <code>lidar-to-terrain</code> and <code>terrain-report</code>, and any recipe can add it after a DEM.</p>
+<div class="table"><table><thead><tr>
+<th></th>
+<th>What GeoSpaX does</th>
+</tr>
+</thead><tbody><tr>
+<td>Terrain</td>
+<td>The DEM as a mesh of at most 320 vertices along the longer side (<code>grid:</code>), averaged down from finer DEMs. Geographic, rotated or foot-based DEMs are warped to UTM first. Earth-coloured walls run down to a base along every edge where the data stops, so irregular surveys get a proper block diagram</td>
+</tr>
+<tr>
+<td>Drape</td>
+<td>The DEM in its own map style (hypsometric tint unless you restyled it); the run&#39;s imagery when there is some, or any rasters you name (<code>drape:</code>); vector layers painted on in their map colours (<code>overlay:</code>: contours with bolder index lines, boundaries, sample points); then relief shading from the north-west, stronger for gentle relief. Power-of-two JPEG, 256–2048 px a side</td>
+</tr>
+<tr>
+<td>Exaggeration</td>
+<td><code>auto</code>: relief about 10 % of the scene width, in half steps, at most 1.5× for surveys finer than 5 m (where buildings and trees carry the scene) and 3× for regional DEMs; or <code>exaggeration:</code>. Only the terrain is raised: buildings, trees and point heights above the ground stay true</td>
+</tr>
+<tr>
+<td>Buildings</td>
+<td><code>buildings:</code> (auto: a buildings layer from the run) extruded as flat-roofed blocks (LOD1) standing on the drawn terrain. Heights from <code>height_m</code>/<code>height</code>/<code>hgt</code>, or <code>building:levels × 3 m + 1 m</code>, or <code>height:</code>; roofs triangulated with their courtyards (earcut); largest first, at most 25,000</td>
+</tr>
+<tr>
+<td>Trees</td>
+<td><code>trees:</code> (auto: a tree-top layer from the run): a trunk and a rounded crown from 32 % of the height to the top, crown width from <code>crown_m</code> or Popescu &amp; Wynne; tallest first, at most 40,000</td>
+</tr>
+<tr>
+<td>Point cloud</td>
+<td><code>cloud: auto</code> uses the sample <code>lidar.grid</code> kept during its single read (every n-th point; no second read), or name a LAS/LAZ file or folder. About 250,000 points (<code>points:</code>), coloured by the file&#39;s own RGB, else by class, else by elevation</td>
+</tr>
+<tr>
+<td>Light</td>
+<td>Baked into the colours with the hillshade&#39;s sun; every material is unlit (<code>KHR_materials_unlit</code>), so the scene looks the same in Blender, Windows 3D Viewer, ArcGIS Pro, CesiumJS and the built-in viewer</td>
+</tr>
+<tr>
+<td>Outputs</td>
+<td><code>scene.glb</code> (glTF 2.0, metres from an origin, X east, Y up, Z south; CRS, origin and exaggeration in <code>asset.extras.geospax</code>), <code>scene.html</code> (the viewer with the model inside, no network), <code>scene.png</code> (rendered on the CPU: perspective from the south-south-west at 35° by default, <code>azimuth:</code>/<code>elevation:</code>, z-buffer, 2 × 2 supersampling, sky, haze, north arrow) and a 3D section in the report</td>
+</tr>
+<tr>
+<td>Viewer</td>
+<td>Plain WebGL 2 (falls back to WebGL 1), no libraries: drag to turn, right-drag or Shift-drag to move, scroll or pinch to zoom, compass to face north, double-click to reset, a switch per layer, spin. It opens framed to the window. In the app, the run card&#39;s 🧊 3D button shows it in a sandboxed frame</td>
+</tr>
+</tbody></table></div><pre><code class="language-yaml">- id: scene
+  use: scene.3d
+  with: { dem: dem, overlay: [&quot;${contours.layer}&quot;, &quot;${area.layer}&quot;], title: Terrain in 3D }
+</code></pre>
+<p>Measured on the Autzen survey (10.7 million points): the scene adds 0.9 s to the recipe and holds 55 buildings,
+4,391 trees and 250,000 true-colour points in 327,000 triangles. The Khronos glTF-Validator reports no errors or
+warnings for any test scene (<a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md#19-3d-scenes" rel="noopener" target="_blank">RESULTS §19</a>).</p>
+<p>Limits: buildings are flat-roofed blocks (no roof shapes yet); trees are stylised, not species models; the model is
+one level of detail, so very large areas are coarser (raise <code>grid:</code> up to 2048); I3S and 3D Tiles are not written yet
+(glTF is the payload of both, so this is the next step).</p>
+<h2 id="6e-spatial-statistics-built"><a class="anchor" href="#6e-spatial-statistics-built">#</a>6e. Spatial statistics (built)</h2>
+<p>Two native steps cover what analysts most often open R, Python or ArcGIS&#39;s Spatial Statistics toolbox for. Every
+setting is chosen from the data and explained in the report. They run on every OS without R or Python, and
+<code>scripts/test-stats.py</code> checks them against R&#39;s spdep and gstat (<a href="https://github.com/jmozez/geospax/blob/main/bench/RESULTS.md#20-spatial-statistics" rel="noopener" target="_blank">RESULTS §20</a>).</p>
+<p><strong><code>stats.hotspots</code>: where do things cluster more than chance would explain?</strong></p>
+<div class="table"><table><thead><tr>
+<th></th>
+<th>What GeoSpaX does</th>
+</tr>
+</thead><tbody><tr>
+<td>Input</td>
+<td>Incident points (counted), or features with a value (<code>field:</code>; polygons use their centroids). <code>auto</code> picks the most incident-like point layer (names such as incidents, crimes, cases, crashes, calls)</td>
+</tr>
+<tr>
+<td>Aggregation</td>
+<td>Incidents are collapsed to unique locations and counted in hexagons (<code>aggregation: fishnet</code> for squares). The cell is twice the larger of the average and median nearest-neighbour distance, or 1/100 of the extent when the incidents are dense. Locational outliers (nearest-neighbour distance above the mean + 3 SD) are ignored for the sizing; empty cells are left out. Needs 60 incidents and 30 filled cells</td>
+</tr>
+<tr>
+<td>Scale</td>
+<td>Incremental spatial autocorrelation: global Moran&#39;s I at 10 distances from the largest nearest-neighbour distance. The first significant peak (z &gt; 1.96) sets the distance band. Without a peak: the average distance to k neighbours (5 % of the features, 3–30), at most one standard distance. If some feature would get 500 or more neighbours: the average distance to 30</td>
+</tr>
+<tr>
+<td>Statistic</td>
+<td>Getis-Ord Gi* on a fixed distance band, binary weights, each feature its own neighbour</td>
+</tr>
+<tr>
+<td>Significance</td>
+<td>False discovery rate (Benjamini–Hochberg) at 90, 95 and 99 % confidence, as <code>gi_bin</code> −3…3</td>
+</tr>
+<tr>
+<td>Outputs</td>
+<td>A layer with <code>count</code> (or the value), <code>gi_z</code>, <code>gi_p</code>, <code>gi_bin</code>, <code>gi_class</code> and <code>neighbors</code>, mapped with the conventional red–blue classes; report cards (hot, cold, band, Moran&#39;s I), the distance-search chart and global Moran&#39;s I with its z-score</td>
+</tr>
+</tbody></table></div><p><strong><code>interpolate.auto</code>: the best surface the samples support</strong></p>
+<div class="table"><table><thead><tr>
+<th></th>
+<th>What GeoSpaX does</th>
+</tr>
+</thead><tbody><tr>
+<td>Variogram</td>
+<td>Empirical semivariogram with gstat&#39;s defaults (cutoff a third of the diagonal, 15 lags). Spherical, exponential and Gaussian models are fitted by weighted least squares (weights = pairs / distance², gstat&#39;s default): a global search over the range with nugget and partial sill solved exactly (both ≥ 0), then golden-section refinement. The lowest weighted error wins (<code>model:</code> to force one)</td>
+</tr>
+<tr>
+<td>Kriging</td>
+<td>Ordinary kriging in the local UTM zone: with all samples up to 200 (one factorisation), else the 32 nearest (<code>neighbours:</code>). Coincident samples are averaged</td>
+</tr>
+<tr>
+<td>Choice</td>
+<td>Leave-one-out cross-validation of kriging (Dubrule&#39;s closed form when all samples are used) and of IDW at powers 1, 1.5, 2 and 3. The lower RMSE wins (<code>method: auto</code>; or <code>kriging</code>, <code>idw</code>). With fewer than 10 samples or a flat variogram (pure nugget), IDW</td>
+</tr>
+<tr>
+<td>Outputs</td>
+<td><code>surface</code> GeoTIFF (prediction, Viridis) and, for kriging, <code>surface_se</code> (standard error: pale near samples, dark where the map is a guess), both clipped to the samples&#39; hull; RMSE, MAE, mean error and RMSSE; the variogram chart in the report. A variogram that never levels off within the data is reported as a trend, not as a range</td>
+</tr>
+</tbody></table></div><pre><code class="language-yaml">- id: hot
+  use: stats.hotspots
+  with: { layer: incidents.geojson, name: hotspots }   # cell, band and FDR chosen from the data
+- id: surface
+  use: interpolate.auto
+  with: { layer: &quot;${samples.layer}&quot;, field: ph }       # ${surface.raster}, ${surface.se}, ${surface.method}
+</code></pre>
+<p>Checked on every release: every planted incident cluster is a 99 % hot spot and no hot spot lies elsewhere; Gi*,
+Moran&#39;s I and the whole distance search equal spdep; the empirical variogram equals gstat&#39;s, the fitted models fit at
+least as well as <code>fit.variogram</code>, and predictions, standard errors and cross-validation equal <code>krige</code> and <code>krige.cv</code>
+for both global and 32-neighbour kriging. Against the known surfaces, kriging&#39;s error is about half of IDW&#39;s.</p>
+<p>Limits: fixed distance bands only (no k-nearest or contiguity weights yet); no study-area boundary for zero-count
+cells yet; ordinary kriging only (no trend model, anisotropy or block kriging). For those, the <code>r</code> step with spdep or
+gstat is one line away, and the <code>r-kriging</code> recipe shows how.</p>
+<h2 id="7-execution-engine-built"><a class="anchor" href="#7-execution-engine-built">#</a>7. Execution engine (built)</h2>
+<ul>
+<li><p><strong>Runs</strong> each get their own thread, not a pool worker, so a step can wait for heavy work (overview builds) without starving the shared pools. They are also listed in the job registry (<code>kind: recipe</code>) with progress and cancel.</p>
+</li>
+<li><p><strong>Run folder</strong> <code>&lt;state&gt;/runs/&lt;run-id&gt;/</code>:</p>
+<ul>
+<li><code>run.json</code> (steps, status, timings, why lines, outputs, artifacts, trigger, inputs);</li>
+<li><code>recipe.yaml</code> (an exact copy);</li>
+<li>the maps, the report and data exports;</li>
+<li><code>steps/&lt;id&gt;/</code> for code steps (generated script, stdout, stderr, inputs, outputs).</li>
+</ul>
+<p>History survives restarts.</p>
+</li>
+<li><p><strong>Result layers:</strong></p>
+<ul>
+<li>Each one is written to <code>&lt;state&gt;/outputs/&lt;recipe&gt;/&lt;name&gt;.gpkg</code> with an atomic replace, registered as <code>&lt;recipe&gt;.&lt;name&gt;</code> and restored at startup.</li>
+<li>A re-run replaces the layer in place, so the map updates itself.</li>
+<li>Device imports keep the device hub&#39;s ids (<code>&lt;device&gt;.photos</code>, …).</li>
+</ul>
+</li>
+<li><p><strong>Provenance:</strong> the report lists the recipe id and its FNV-1a fingerprint, run id, trigger, inputs, GeoSpaX and GDAL versions and the generation time. The run folder holds the exact recipe copy.</p>
+</li>
+<li><p><strong>Failures:</strong></p>
+<ul>
+<li>A failing step stops the run; later steps are marked &quot;not run&quot; with the reason.</li>
+<li>Panics inside a step are caught and reported as step errors.</li>
+<li>Partial artifacts are kept.</li>
+</ul>
+</li>
+<li><p><strong>Planned:</strong></p>
+<ul>
+<li>a content-addressed step cache, hashing input fingerprints, step version and resolved parameters (the overview pyramid already works this way);</li>
+<li>parallel branches;</li>
+<li>providers (GRASS, SAGA, Whitebox, OTB, SNAP, ODM, PDAL) chosen by a benchmark table.</li>
+</ul>
+</li>
+</ul>
+<h2 id="8-safety-and-trust"><a class="anchor" href="#8-safety-and-trust">#</a>8. Safety and trust</h2>
+<div class="table"><table><thead><tr>
+<th>Rule</th>
+<th>State</th>
+</tr>
+</thead><tbody><tr>
+<td>Recipes with <code>python</code>/<code>r</code>/<code>grass</code>/<code>saga</code> steps saved through the API are refused unless the request carries <code>?approve=code</code> (gallery and your own recipe folder are trusted; the CLI runs what you ask it to)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Webhook tokens are at least 16 characters; webhooks only start recipes whose Auto switch is on</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Code steps: separate process, scrubbed environment, own folder, timeout, cancel</td>
+<td>✅ (a process boundary, not a sandbox)</td>
+</tr>
+<tr>
+<td>Artifact downloads are confined to the run folder (<code>..</code> and <code>/</code> rejected)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Result layers are written to new files; inputs are never modified</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Permission manifests (filesystem scopes, network hosts, devices) and signed gallery recipes, same model as WASM plugins (TECH_STACK §4.11)</td>
+<td>planned</td>
+</tr>
+</tbody></table></div><h2 id="9-interfaces-built"><a class="anchor" href="#9-interfaces-built">#</a>9. Interfaces (built)</h2>
+<div class="table"><table><thead><tr>
+<th>Surface</th>
+<th>Use</th>
+</tr>
+</thead><tbody><tr>
+<td>UI (Lazy)</td>
+<td><strong>Next for <layer></strong> in the task bar, the buttons on a layer card and in the Inspector, and <strong>Ideas for your data</strong> in Activity run the recipes that fit a layer <em>on that layer</em> (<code>{&quot;inputs&quot;: {&quot;layer&quot;: …}}</code>); <strong>Activity</strong> lists every run with <strong>Open report</strong>. <strong>Toolbox → Ready-made analyses</strong> shows any recipe&#39;s inputs as a form. A run&#39;s styles dress the layers it made; a layer already styled by hand or by AutoMap keeps its look</td>
+</tr>
+<tr>
+<td>Finish my map</td>
+<td>Task bar / <strong>Home → Finish my map</strong>: the visible layers and their exact styles, the area on screen, saved as the recipe <code>finished-map</code> (<code>io.open</code> → <code>style.apply</code> with <code>save: false</code> → <code>export.map</code> with <code>format: [png, pdf(, svg)]</code>, <code>extent</code>, <code>size</code>, <code>title</code>, <code>subtitle</code> → <code>export.report</code>) and run; the report opens when it is done. <code>export.map</code> draws Natural Earth land and borders underneath when no context layers are loaded</td>
+</tr>
+<tr>
+<td>UI (Pro)</td>
+<td><strong>Automate</strong> panel (bottom dock): the gallery and your recipes, <strong>Run</strong>, an <strong>Auto</strong> switch per recipe, live step progress, the finished map and report in a viewer, &quot;Save this map as a recipe&quot;. When a run finishes, its layers, rasters and styles appear on the map and the view moves to them. <strong>Rasters</strong> panel: overlays with opacity and legends</td>
+</tr>
+<tr>
+<td>CLI</td>
+<td><code>geospax run &lt;recipe.yaml|id&gt; [--input k=v]… [--data DIR]… [--state-dir DIR] [--json]</code> · <code>geospax check &lt;recipe&gt;</code> · <code>geospax watch [--only ids] [--watch DIR]…</code> · <code>geospax recipes</code> · <code>geospax steps</code>. The same commands work with <code>geospax-server</code>. Exit codes: 0 done, 1 failed or invalid, 2 usage</td>
+</tr>
+<tr>
+<td>API</td>
+<td><code>GET /api/recipes</code> · <code>GET /api/recipes/{id}</code> (YAML + plan) · <code>POST /api/recipes</code> (YAML body; <code>?approve=code</code> for code steps) · <code>POST /api/recipes/validate</code> · <code>DELETE /api/recipes/{id}</code> · <code>POST /api/recipes/{id}/run</code> (<code>{&quot;inputs&quot;: {…}}</code>) · <code>PUT /api/recipes/{id}/auto</code> · <code>GET /api/runs</code> · <code>GET /api/runs/{id}</code> · <code>POST /api/runs/{id}/cancel</code> · <code>GET /api/runs/{id}/files/{name}</code> · <code>GET /api/steps</code> · <code>GET /api/layers/{id}/autostyle</code> (AutoMap&#39;s style + reason for one layer) · <code>GET /api/rasters</code> · <code>GET /api/rasters/{id}</code> · <code>GET /api/rasters/{id}/overlay.png?max=</code> · <code>PUT /api/rasters/{id}/style</code> · <code>POST /api/hooks/{token}</code> · <code>GET /api/providers</code></td>
+</tr>
+<tr>
+<td>Server flags</td>
+<td><code>--recipes DIR</code> (extra recipe folder), <code>--auto id,id|all</code>, <code>--no-triggers</code>, <code>--inbox DIR</code> (drop folder); live sensors: <code>--mqtt mqtt://host:1883/topic/#</code>; desktop: <code>GEOSPAX_RECIPES</code>, <code>GEOSPAX_AUTO</code>, <code>GEOSPAX_MQTT</code></td>
+</tr>
+<tr>
+<td>MCP</td>
+<td>planned: recipes and steps as tools for external agents, with the same approval rules</td>
+</tr>
+</tbody></table></div><h2 id="10-status"><a class="anchor" href="#10-status">#</a>10. Status</h2>
+<div class="table"><table><thead><tr>
+<th>Piece</th>
+<th>State</th>
+</tr>
+</thead><tbody><tr>
+<td>Job registry (progress, cancel, duplicate protection)</td>
+<td>✅ <code>jobs.rs</code></td>
+</tr>
+<tr>
+<td>Classification engine (natural breaks, quantile, equal interval, unique values)</td>
+<td>✅ <code>classify.rs</code></td>
+</tr>
+<tr>
+<td>Control-plane lane (fast job polling under load)</td>
+<td>✅ <code>Engine::dispatch</code></td>
+</tr>
+<tr>
+<td>Recipe parser + validator (YAML/JSON, expressions, every problem at once)</td>
+<td>✅ <code>automation/recipe.rs</code></td>
+</tr>
+<tr>
+<td>Runner (dependency order, <code>needs</code>, <code>when</code>, run folder, history, queueing)</td>
+<td>✅ <code>automation/mod.rs</code></td>
+</tr>
+<tr>
+<td>Triggers: device, folder, schedule (every + cron), after, stac, webhook, sensor (threshold, geofence, cooldown); Auto switches</td>
+<td>✅ <code>automation/triggers.rs</code>, device hub hooks, <code>Automation::on_sensor</code>, <code>router.rs</code></td>
+</tr>
+<tr>
+<td>Sensor hub v1: logger CSV/JSON and FIT readings, live readings over HTTP and MQTT (OwnTracks too), WHO guideline checks</td>
+<td>✅ <code>sensors.rs</code>, <code>devices.rs</code>, <code>sensor.*</code> steps</td>
+</tr>
+<tr>
+<td>Rasters: catalogue, statistics, auto-style, Web Mercator overlays, GDAL warp/translate/DEM/HTTP in-process</td>
+<td>✅ <code>raster.rs</code>, <code>web/src/rasters.ts</code></td>
+</tr>
+<tr>
+<td>Terrain, raster and remote-sensing steps (Copernicus DEM, Sentinel-2 via STAC)</td>
+<td>✅ <code>automation/raster_steps.rs</code></td>
+</tr>
+<tr>
+<td>LiDAR: LAS/LAZ → DTM (classes or SMRF), DSM, CHM, buildings, tree tops; <code>lidar</code> devices</td>
+<td>✅ <code>lidar.rs</code>, <code>automation/lidar_steps.rs</code></td>
+</tr>
+<tr>
+<td>3D scenes: terrain block diagrams, extruded buildings, trees, point clouds → glTF, offline viewer, rendered picture</td>
+<td>✅ <code>scene3d.rs</code>, <code>automation/scene_steps.rs</code>, <code>assets/scene-viewer.html</code></td>
+</tr>
+<tr>
+<td>Providers: GRASS, SAGA</td>
+<td>✅ <code>automation/providers.rs</code></td>
+</tr>
+<tr>
+<td>AutoMap style engine (§4)</td>
+<td>✅ <code>automation/automap.rs</code></td>
+</tr>
+<tr>
+<td>Automatic layout + PNG/SVG/PDF export (rasters, ramps, class legends)</td>
+<td>✅ <code>automation/cartography.rs</code> (resvg, krilla)</td>
+</tr>
+<tr>
+<td>HTML report with methods, decisions, provenance</td>
+<td>✅ <code>automation/report.rs</code></td>
+</tr>
+<tr>
+<td>Analysis steps: SQL, buffer (UTM), hexbin, IDW + cross-validation</td>
+<td>✅ <code>automation/steps.rs</code></td>
+</tr>
+<tr>
+<td>Spatial statistics: Gi* hot spots (incremental spatial autocorrelation, FDR, Moran&#39;s I), automatic kriging (variogram fitting, ordinary kriging, cross-validation against IDW), report charts</td>
+<td>✅ <code>geostats.rs</code>, <code>automation/stats_steps.rs</code>, <code>automation/charts.rs</code></td>
+</tr>
+<tr>
+<td>R / Python sidecar steps</td>
+<td>✅ <code>automation/sidecar.rs</code> (environment management planned)</td>
+</tr>
+<tr>
+<td>CLI (<code>run</code>, <code>check</code>, <code>watch</code>, <code>recipes</code>, <code>steps</code>) in both binaries</td>
+<td>✅ <code>automation/cli.rs</code></td>
+</tr>
+<tr>
+<td>API + Automate panel + &quot;Save as recipe&quot;</td>
+<td>✅ <code>router.rs</code>, <code>web/src/automate.ts</code></td>
+</tr>
+<tr>
+<td>Gallery: 15 recipes</td>
+<td>✅ <code>recipes/</code></td>
+</tr>
+<tr>
+<td>Tests</td>
+<td>✅ 89 engine unit tests (incl. sensor parsers, MQTT wire format, WHO classes, LiDAR filters, 3D scenes, Gi*, FDR, Moran&#39;s I, variogram fitting, kriging), <code>scripts/test-stats.py</code> (hot spots and kriging against known truth and R spdep/gstat), <code>scripts/test-automation.py</code> (235 checks: all recipes incl. live DEM/Sentinel-2/GRASS/SAGA, the sensor log, the hot spots and the kriged surface, the 3D scene files, all trigger types incl. stac, webhook, sensor threshold + cooldown, geofence, MQTT through Mosquitto, raster API, safety), <code>scripts/test-web-automation.mjs</code> (incl. raster overlays), <code>scripts/test-web-devices.mjs</code> (incl. live sensor values), <code>scripts/test-lidar.py</code> (terrain, tree and building accuracy against known truth, real LAS/LAZ, drop-folder trigger, the 3D scene of every run), <code>scripts/test-web-scene.mjs</code> (the 3D viewer in Chromium), <code>scripts/validate-gltf.mjs</code> (Khronos glTF-Validator)</td>
+</tr>
+<tr>
+<td>Web-map export, <code>for_each</code>/<code>parallel</code>, content-addressed cache, zonal statistics, cloud-free composites</td>
+<td>Phase 2 (next)</td>
+</tr>
+<tr>
+<td>Providers (OTB, SNAP, ODM, Whitebox)</td>
+<td>Phase 2 → 4</td>
+</tr>
+<tr>
+<td>Optional AI recipe writer, MCP server</td>
+<td>Phase 2 → 6</td>
+</tr>
+</tbody></table></div></article>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#1-concepts">1. Concepts</a><a href="#2-recipe-format-v1-as-implemented">2. Recipe format (v1, as implemented)</a><a href="#3-triggers">3. Triggers</a><a href="#4-autopilot-automap-smart-defaults-that-explain-themselves">4. Autopilot (AutoMap): smart defaults that explain themselves</a><a href="#5-three-ways-to-write-a-recipe-all-lazy">5. Three ways to write a recipe, all lazy</a><a href="#6-r-and-python-steps-built">6. R and Python steps (built)</a><a href="#6b-rasters-remote-sensing-and-providers-built">6b. Rasters, remote sensing and providers (built)</a><a href="#6c-lidar-point-clouds-built">6c. LiDAR point clouds (built)</a><a href="#6d-3d-scenes-built">6d. 3D scenes (built)</a><a href="#6e-spatial-statistics-built">6e. Spatial statistics (built)</a><a href="#7-execution-engine-built">7. Execution engine (built)</a><a href="#8-safety-and-trust">8. Safety and trust</a><a href="#9-interfaces-built">9. Interfaces (built)</a><a href="#10-status">10. Status</a></aside>
+  </div>
+  <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/AUTOMATION.md" rel="noopener">Edit this page</a></div></footer>
+</body>
+</html>
