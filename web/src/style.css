@@ -1506,7 +1506,7 @@ body.layout-page { margin: 0; height: 100vh; display: flex; flex-direction: colu
 .dock-tabs button { display: inline-flex; align-items: center; gap: 6px; }
 .dock-tabs button svg { flex: none; opacity: .8; }
 .dock-tabs button.on svg { opacity: 1; color: var(--accent); }
-@container (max-width: 230px) { .dock-tabs button span { display: none; } .dock-tabs button { padding: 6px 9px; } }
+@container (max-width: 270px) { .dock-tabs button span { display: none; } .dock-tabs button { padding: 6px 9px; } }
 .dock.collapsed .dock-tabs button span { display: none; }
 #dock-left.collapsed .dock-tabs button, #dock-right.collapsed .dock-tabs button { writing-mode: horizontal-tb; transform: none; justify-content: center; padding: 9px 0; }
 

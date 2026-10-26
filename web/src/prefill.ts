@@ -25,6 +25,8 @@ export function wantGeometry(p: PParam): string[] {
 const ROLE: [RegExp, RegExp][] = [
   [/protect|reserve|\bmpa\b|park/, /protect|reserve|mpa|park|conserv/],
   [/habitat|range/, /habitat|forest|range|cover|patch/],
+  // occurrences are records of the animal or plant itself, not of what it lives on
+  [/occurrence|presence|record|sighting/, /presence|occurrence|record|sighting|observ/],
 ];
 
 function score(p: PParam, l: PLayer): number {

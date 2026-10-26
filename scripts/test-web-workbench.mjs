@@ -3,6 +3,7 @@
 // Verifies the desktop-GIS structure is really on screen and that no console error
 // fires while using it: ribbon tabs, dock tabs, splitters, attribute table rows,
 // command palette, catalog tree, history rows and the status bar.
+import { runCmd, commandIds, openPluginTool } from './lib/ui.mjs';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -58,7 +59,7 @@ ok('analyze carries the recipes behind one dropdown', behindButton > 5, `${behin
 await page.screenshot({ path: `${out}/workbench-02-analyze.png` });
 
 console.log('\n3 · dock tabs');
-for (const [dock, tab] of [['left', 'catalog'], ['right', 'attributes'], ['bottom', 'history'], ['bottom', 'log']]) {
+for (const [dock, tab] of [['left', 'catalog'], ['right', 'toolbox'], ['right', 'layer'], ['bottom', 'attributes'], ['bottom', 'history'], ['bottom', 'log']]) {
   await page.click(`#dock-${dock} .dock-tabs [data-tab="${tab}"]`);
   await page.waitForTimeout(300);
   const visible = await page.$eval(`#dock-${dock} .dock-body section[data-tab="${tab}"]`, (el) => el.classList.contains('on'));
@@ -79,7 +80,7 @@ await page.waitForTimeout(200);
 ok('fields view', (await page.$$('#attributes table.fields tbody tr')).length > 0);
 await page.click('#attributes [data-view="chart"]');
 await page.waitForTimeout(300);
-ok('chart view', (await page.$$('#attributes .bar-row')).length > 0);
+ok('chart view (ggplot2-style chart)', (await page.$$('#attributes .chart-box svg rect')).length > 0);
 await page.click('#attributes [data-view="table"]');
 await page.waitForTimeout(200);
 await page.screenshot({ path: `${out}/workbench-04-attributes.png` });
@@ -115,7 +116,7 @@ await page.waitForTimeout(200);
 ok('pane reopens', !(await page.$eval('#dock-right', (el) => el.classList.contains('collapsed'))));
 
 console.log('\n7 · layout survives a reload');
-await page.click('#dock-right .dock-tabs [data-tab="attributes"]');
+await page.click('#dock-bottom .dock-tabs [data-tab="attributes"]');
 await page.reload();
 await page.waitForFunction(() => window.map && (typeof window.map?.loaded === 'function' && window.map.loaded()), null, { timeout: 120_000, polling: 500 });
 await page.waitForTimeout(1200);
@@ -123,15 +124,16 @@ ok('attributes tab restored', await page.$eval('#attributes', (el) => el.closest
 await page.screenshot({ path: `${out}/workbench-06-final.png` });
 
 console.log('\n8 · plugins pane (docs/PLUGINS.md)');
-await page.click('#ribbon-tabs .rb-tab[data-tab="plugins"]');
-await page.click('[data-cmd="plugins.manage"]');
+await runCmd(page, 'plugins.manage');
 await page.waitForSelector('#plugins .plugin', { timeout: 15_000 });
 const cards = await page.$$eval('#plugins .plugin .p-name', (els) => els.map((e) => e.textContent.trim()));
 ok('plugins listed', cards.length >= 2, cards.join(' · '));
 ok('tools listed', (await page.$$('#plugins .tool-row button')).length >= 2, `${(await page.$$('#plugins .tool-row button')).length} tools`);
 ok('source badges shown', (await page.$$('#plugins .badge')).length >= 2);
 // an added plugin's tool that runs as it opens (the default domain plugins: test-domain-plugins.py)
-ok('the twelve default plugins listed first', (await page.$$('#plugins .plugin .p-keep')).length >= 12 && cards[0] === 'Agriculture', cards.slice(0, 3).join(' · '));
+// the default domain plugins are installed by the packages; a dev server with --plugins lists them as extras
+const defaults = ((await (await fetch(`${base}/api/plugins`)).json()).plugins ?? []).filter((p) => p.default).length;
+ok('the default plugins listed first (when installed)', defaults === 0 || (defaults >= 12 && cards[0] === 'Agriculture'), `${defaults} default · ${cards.slice(0, 3).join(' · ')}`);
 const firstRun = await page.$('#plugins .plugin:not(:has(.p-keep:text-is("default plugin"))) .tool-row button:not([disabled])');
 if (firstRun) {
   await firstRun.click();
@@ -239,15 +241,9 @@ const installed = await api('POST', 'api/plugins/import', { path: fixture });
 ok('the engine installs a plugin from a folder', installed.status === 200, installed.json?.plugin?.name ?? installed.status);
 await page.reload({ waitUntil: 'load' });
 await page.waitForFunction(() => window.map && (typeof window.map?.loaded === 'function' && window.map.loaded()), null, { timeout: 120_000, polling: 500 });
-await page.click('#ribbon-tabs [data-tab="plugins"]');
-await page.waitForTimeout(800);
-
-const pluginCombo = '#ribbon-body [data-menu^="plugin:many-tools"]';
-await page.click(pluginCombo);
-await page.waitForSelector('.rb-menu', { timeout: 5000 });
-const toolRows = await page.$$eval('.rb-menu .rb-menu-row', (els) => els.map((e) => e.querySelector('.rm-name')?.textContent?.trim()));
-ok('the plugin list shows its tools', toolRows.length === 5, `${toolRows.length}: ${toolRows.slice(0, 3).join(', ')}…`);
-await page.locator('.rb-menu .rb-menu-row').first().click();
+const toolRows = await page.evaluate(() => window.toolbox.tools?.filter((t) => t.key.startsWith('p:many-tools/')).map((t) => t.key.slice('p:many-tools/'.length)) ?? []);
+ok('the Toolbox lists the plugin\'s tools', toolRows.length === 5, `${toolRows.length}: ${toolRows.slice(0, 3).join(', ')}…`);
+await openPluginTool(page, 'many-tools', toolRows[0]);
 await page.waitForSelector('#plugin-modal:not([hidden])', { timeout: 8000 });
 ok('picking a tool opens its dialog', /Run/.test(await page.textContent('#plugin-modal')));
 // a tool with no declared parameters used to crash openTool()
@@ -263,8 +259,7 @@ await page.keyboard.press('Escape');
 await page.screenshot({ path: `${out}/workbench-11-plugin-dropdown.png` });
 
 // uninstall, from the pane (two-step) and from the API
-await page.click('#ribbon-tabs .rb-tab[data-tab="plugins"]');
-await page.click('[data-cmd="plugins.manage"]');
+await runCmd(page, 'plugins.manage');
 await page.waitForSelector('.plugin .p-del');
 const del = page.locator('.plugin', { hasText: 'Many tools' }).locator('.p-del');
 await del.click();

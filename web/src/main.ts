@@ -73,6 +73,8 @@ void import("./ggchart").then((m) => m.loadChartStyle(backend));
     };
   }
   (window as unknown as { __clientLog: typeof send }).__clientLog = send;
+  // anything the Content Security Policy blocks goes to the log (it would otherwise fail silently)
+  document.addEventListener('securitypolicyviolation', (e) => send('warn', `CSP blocked ${e.violatedDirective}: ${e.blockedURI || 'inline'}`));
 }
 const params = new URLSearchParams(location.search);
 const wanted = params.get('transport') as Transport | null;
@@ -2542,6 +2544,7 @@ async function main() {
     renderContents();
   }
   (window as unknown as { workbench: Workbench | null }).workbench = workbench;
+  (window as unknown as { toolbox: Toolbox }).toolbox = toolbox;
   if (startEmpty) intro && setTimeout(() => map.easeTo({ zoom: globeZoom(), duration: 2000 }), 500);
   else if (fitOnLoad) intro ? setTimeout(() => fitAll(3000), 700) : fitAll();
   else if (intro) setTimeout(() => map.flyTo({ center: view.center, zoom: view.zoom, duration: 3000, essential: true }), 700);

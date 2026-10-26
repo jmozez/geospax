@@ -733,6 +733,16 @@ export class Workbench {
     return rows || kitRows ? head + rows + kitRows : head + '<div class="rb-menu-empty">no tools</div>';
   }
 
+  /** Run a command by id, as the ribbon, Explorer and Ctrl+K do (also for test scripts). */
+  command(id: string) {
+    return this.run(id);
+  }
+
+  /** Ids of every command (Ctrl+K lists them all, wherever they sit). */
+  commandIds() {
+    return COMMANDS.map((c) => c.id);
+  }
+
   private async run(id: string) {
     const c = COMMANDS.find((x) => x.id === id);
     if (!c) return;

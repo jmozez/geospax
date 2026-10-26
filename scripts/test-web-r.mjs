@@ -2,6 +2,7 @@
 // terra and ggplot2) and shows what comes back: layers and rasters on the map, figures, tables,
 // printed output, and an "Install …" button when a package is missing.
 //   PW=/path/to/node_modules/playwright node scripts/test-web-r.mjs [base]
+import { runCmd, commandIds, openPluginTool } from './lib/ui.mjs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -25,12 +26,11 @@ page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(`${base}/?mode=pro`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
 
-await page.click('#ribbon-tabs .rb-tab[data-tab="r"]');
-const cmds = await page.locator('#ribbon [data-cmd^="r."]').evaluateAll((els) => els.map((e) => e.getAttribute('data-cmd')));
-ok('the R tab has its commands', ['r.console', 'r.setup', 'r.tmap', 'r.ggplot', 'r.rayshader', 'r.terrain', 'r.biomod2', 'r.maxent', 'r.tidymodels', 'r.dbplyr', 'r.gee'].every((c) => cmds.includes(c)), `${cmds.length}`);
+const cmds = (await commandIds(page)).filter((c) => c.startsWith('r.'));
+ok('the R commands are there (Explorer › R & Python and Ctrl+K)', ['r.console', 'r.setup', 'r.tmap', 'r.ggplot', 'r.rayshader', 'r.terrain', 'r.biomod2', 'r.maxent', 'r.tidymodels', 'r.dbplyr', 'r.gee'].every((c) => cmds.includes(c)), `${cmds.length}`);
 
 // R setup
-await page.click('[data-cmd="r.setup"]');
+await runCmd(page, 'r.setup');
 await page.waitForSelector('#rconsole .rc-kit', { timeout: 30000 });
 const lead = await page.locator('#rconsole .fin-lead').innerText();
 ok('R setup finds R', /R \d/.test(lead), lead.slice(0, 60));
@@ -40,8 +40,7 @@ await page.click('#rconsole footer [data-close]');
 
 const run = async (template, code, layer, raster) => {
   if (await page.locator('#rconsole').isVisible()) await page.click('#rconsole footer [data-close]');
-  await page.click('#ribbon-tabs .rb-tab[data-tab="r"]');
-  await page.click('[data-cmd="r.console"]');
+  await runCmd(page, 'r.console');
   await page.waitForSelector('#rconsole textarea');
   if (template !== 'blank') {
     await page.selectOption('#rconsole [name=template]', template);
@@ -55,6 +54,12 @@ const run = async (template, code, layer, raster) => {
   await page.waitForFunction(() => /Done|Failed|rror/.test(document.querySelector('#rc-msg')?.textContent ?? ''), null, { timeout: 120000 });
   return page.locator('#rconsole .rc-out');
 };
+
+// a small layer to work on (GeoSpaX ships no sample data any more)
+const pts = { type: 'FeatureCollection', features: [[147.0, -6.72, 'Lae'], [145.78, -5.22, 'Madang'], [143.21, -9.08, 'Daru'], [147.18, -9.44, 'Port Moresby']].map(([x, y, name]) => ({ type: 'Feature', properties: { name }, geometry: { type: 'Point', coordinates: [x, y] } })) };
+await fetch(`${base}/api/upload?name=settlements.geojson`, { method: 'POST', body: JSON.stringify(pts) });
+await page.reload({ waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
 
 // printed output from a layer
 let out = await run('blank', 'print(nrow(layer))\nresult(features = nrow(layer))', 'settlements.geojson');

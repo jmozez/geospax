@@ -10,6 +10,7 @@
 //!                                                  (docs/AUTOMATION.md §9)
 
 mod auth;
+mod ratelimit;
 
 use axum::body::{to_bytes, Body};
 use axum::extract::{Request, State};
@@ -450,6 +451,7 @@ async fn serve(args: Args) {
         .with_state(engine)
         .fallback_service(static_files)
         .layer(axum::middleware::from_fn(cache_policy))
+        .layer(axum::middleware::from_fn_with_state(Arc::new(ratelimit::Limits::new(args.public)), ratelimit::middleware))
         .layer(axum::middleware::from_fn_with_state(auth, auth::middleware));
     if args.gzip {
         // Gzip vector tiles and JSON, but not Arrow: float64 coordinates barely
@@ -476,6 +478,10 @@ async fn serve(args: Args) {
         .unwrap();
 }
 
+/// The web pages' Content Security Policy: scripts only from this site (MapLibre's workers from blob:),
+/// map tiles, imagery and data from anywhere, no plugins, no other site may frame the app.
+const CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; media-src 'self' blob: https:; connect-src 'self' data: blob: https: http: wss: ws:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+
 /// Security headers on every reply; then caching: built files under /assets carry a content hash and never change; everything else of the page
 /// (index.html first) is checked with the server on every load, so browsers (phones above all)
 /// never keep running an old version after an update.
@@ -492,5 +498,10 @@ async fn cache_policy(req: axum::extract::Request, next: axum::middleware::Next)
     }
     let value = if path.starts_with("/assets/") { "public, max-age=31536000, immutable" } else { "no-cache" };
     res.headers_mut().insert(axum::http::header::CACHE_CONTROL, axum::http::HeaderValue::from_static(value));
+    // pages run only the app's own scripts: an injected <script> or onerror= never runs, even if some
+    // data got into the page unescaped (the same policy as the desktop app's tauri.conf.json)
+    if res.headers().get(axum::http::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|t| t.starts_with("text/html")) {
+        res.headers_mut().insert(axum::http::HeaderName::from_static("content-security-policy"), axum::http::HeaderValue::from_static(CSP));
+    }
     res
 }

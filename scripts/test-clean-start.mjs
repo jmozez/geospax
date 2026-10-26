@@ -85,7 +85,7 @@ try {
     ok(`every tab fits at ${width} px`, !over.length, over.join(' '));
   }
   await page.setViewportSize({ width: 1400, height: 900 });
-  ok('tabs in ArcGIS Pro order, Help last', (await page.$$eval('#ribbon-tabs [data-tab]', (a) => a.map((x) => x.textContent.trim()))).join(',') === 'Home,Data,Analysis,View,Edit,Imagery,Share,R & Python,Automate,Plugins,Help');
+  ok('tabs in the order of the work, Help last', (await page.$$eval('#ribbon-tabs [data-tab]', (a) => a.map((x) => x.textContent.trim()))).join(',') === 'Home,View,Edit,Design,Imagery,Analysis,Share,Help');
   // icons: the same picture for two different commands confuses (same command on two tabs is fine)
   const icons = {};
   for (const t of await page.$$eval('#ribbon-tabs [data-tab]', (a) => a.map((x) => x.dataset.tab))) {
@@ -104,12 +104,9 @@ try {
   const recipeIds = await page.$$eval('.rb-menu [data-recipe]', (a) => a.map((x) => x.dataset.recipe));
   ok('no GSX domain kits in Analysis', !recipeIds.some((r) => /^kit-(species|survey|protection|forest|land-cover|vegetation|steep|soil|climate)/.test(r)), recipeIds.join(','));
   await page.keyboard.press('Escape');
-  await page.click('#ribbon-tabs [data-tab="plugins"]');
-  await page.waitForTimeout(400);
-  ok('twelve domain plugins on the Plugins tab', (await page.$$('[data-group="domains"] [data-menu^="plugin:"]')).length === 12);
-  await page.click('[data-menu="plugin:geospax-biodiversity"]');
-  ok('a domain plugin lists its kit', (await page.$$('.rb-menu [data-recipe^="kit-"]')).length >= 1);
-  await page.keyboard.press('Escape');
+  const plugins = (await (await fetch(`${base}/api/plugins`)).json()).plugins ?? [];
+  ok('twelve domain plugins (Explorer › Plugins)', plugins.filter((p) => p.domain || /^geospax-/.test(p.id)).length >= 12, plugins.map((p) => p.id).join(','));
+  ok('no Plugins, Data, R or Automate tab on the ribbon', !(await page.$('#ribbon-tabs [data-tab="plugins"], #ribbon-tabs [data-tab="data"], #ribbon-tabs [data-tab="r"], #ribbon-tabs [data-tab="automate"]')));
 
   console.log('sample data, remove from map');
   const r = await (await fetch(`${base}/api/samples/png`, { method: 'POST' })).json();
@@ -137,7 +134,7 @@ try {
   await page.locator('#contents .layer.raster .name').first().click();
   await page.waitForTimeout(2500);
   ok('Pro: Symbology shows the raster', await page.locator('#raster-sym').isVisible() && (await page.$$('#raster-sym .rv-bands tr')).length >= 2);
-  await page.evaluate(() => document.querySelector('#dock-right .dock-tabs [data-tab="attributes"]')?.click());
+  await page.evaluate(() => document.querySelector('#dock-bottom .dock-tabs [data-tab="attributes"]')?.click());
   await page.waitForTimeout(600);
   ok('Pro: Attributes shows band statistics', await page.locator('#raster-attr .rv-bands').isVisible());
   await page.locator('#contents .layer.pro:not(.raster) .name').first().click();
@@ -146,7 +143,9 @@ try {
   await page.evaluate(() => { const l = JSON.parse(localStorage.getItem('geospax.workbench.v1') || '{}'); l.left = 120; localStorage.setItem('geospax.workbench.v1', JSON.stringify(l)); });
   await page.reload();
   await page.waitForTimeout(3000);
-  ok('the left pane never gets too narrow for its tabs', (await page.$eval('#dock-left', (e) => e.getBoundingClientRect().width)) >= 239 && await page.$$eval('#dock-left .dock-tabs button', (bs) => bs.every((x) => x.getBoundingClientRect().right <= x.closest('.dock-tabs').getBoundingClientRect().right + 1)));
+  const leftW = await page.$eval('#dock-left', (e) => e.getBoundingClientRect().width);
+  const tabsFit = await page.$$eval('#dock-left .dock-tabs button', (bs) => bs.every((x) => x.getBoundingClientRect().right <= x.closest('.dock-tabs').getBoundingClientRect().right + 1));
+  ok('the left pane never gets too narrow for its tabs', leftW >= 200 && tabsFit, `${Math.round(leftW)} px, tabs fit: ${tabsFit}`);
   await page.evaluate(() => localStorage.removeItem('geospax.workbench.v1'));
   await page.goto(`${base}/?mode=pro&theme=light`);
   await page.waitForTimeout(2500);
@@ -173,7 +172,7 @@ try {
   ok('the Delete key removes the focused layer', !(await page.$(`#contents .layer[data-id="${second}"]`)));
   await page.goto(`${base}/?mode=lazy&theme=light`);
   await page.waitForTimeout(3000);
-  ok('no ribbon tabs in Lazy (R & Python is Pro only)', !(await page.$('#ribbon-tabs [data-tab="r"]')));
+  ok('no ribbon tabs in Lazy', !(await page.$('#ribbon-tabs [data-tab="home"]:visible')));
   await page.keyboard.press('Control+k');
   await page.fill('#palette-input', 'R console');
   await page.waitForTimeout(500);

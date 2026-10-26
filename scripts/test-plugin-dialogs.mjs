@@ -3,6 +3,7 @@
 // each either runs or asks in plain words for what it lacks (no crash, no stack trace); no earlier
 // result is taken as input unasked; and the samples get the inputs they are made for.
 //   node scripts/test-plugin-dialogs.mjs BASE_URL [OUT_DIR]   (server on samples/png, fresh state)
+import { runCmd, commandIds, openPluginTool } from './lib/ui.mjs';
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 
@@ -30,10 +31,7 @@ const seen = {};
 for (const p of plugins) {
   console.log(p.name);
   for (const t of p.tools) {
-    await page.click('#ribbon-tabs .rb-tab[data-tab="plugins"]');
-    await page.click(`[data-menu="plugin:${p.id}:${p.name}"]`);
-    await page.waitForTimeout(150);
-    await page.click(`[data-plugin-tool="${p.id}/${t.id}"]:visible`);
+    await openPluginTool(page, p.id, t.id);
     await page.waitForSelector('#plugin-modal:not([hidden])');
     const inputs = Object.fromEntries(await page.$$eval('#plugin-modal select[data-p]', (els) => els.map((e) => [e.dataset.p, e.multiple ? [...e.selectedOptions].map((o) => o.value) : e.value])));
     if (p.id === 'geospax-environment' && t.id === 'elevation-profile') await page.screenshot({ path: `${out}/plugin-dialog-prefilled.png` });
