@@ -1,0 +1,25 @@
+name: deploy web app
+# Put a released web-edition image on geospax.fly.dev by hand (Actions > deploy web app > Run workflow).
+# Releases already do this from ci.yml; this is for redeploying or catching up. Needs FLY_API_TOKEN.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "image tag to deploy, e.g. 3.0.3 or latest"
+        default: latest
+        required: true
+
+jobs:
+  fly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          flyctl deploy -a geospax --config fly.toml --ha=false --image "ghcr.io/jmozez/geospax:${VERSION#v}"
+          sleep 20
+          curl -sf https://geospax.fly.dev/api/health
