@@ -42,6 +42,68 @@ export async function watchPosition(onFix: (f: Fix) => void, onError: (msg: stri
   return () => navigator.geolocation.clearWatch(id);
 }
 
+/**
+ * Cleans the raw fixes before they are used. Phones hand out a cached last position when the app wakes, a
+ * cell-tower or Wi-Fi guess before the GPS locks on, and now and then a jump of hundreds of metres; a
+ * point saved from one of those lands in the wrong place. So a fix is only used when it is
+ *  - fresh (taken after the app started following the position, not a cached one from before),
+ *  - not a coarse network guess (accuracy 100 m or better), and
+ *  - not a jump faster than 70 m/s (250 km/h) from the last good fix, unless it is much more accurate
+ *    (three such jumps in a row are taken as real: the last good fix was the wrong one).
+ * `best()` then averages the good fixes from the 10 s up to the latest one, weighted by 1/accuracy², which
+ * steadies a point taken while standing still; the accuracy it reports is the best single fix's, never
+ * better. (Some phones only report a new fix when the position changes, so the window ends at the latest
+ * fix rather than now; after 2 minutes without one there is no position.)
+ */
+export class FixFilter {
+  private recent: Fix[] = [];
+  private jumps = 0;
+  last: Fix | null = null;
+
+  private since: number;
+
+  /** `since`: when the app started asking for the position (a fix from before that is a cached one). */
+  constructor(since = Date.now()) {
+    this.since = since;
+  }
+
+  /** Returns the fix when it is good enough to use, otherwise null. */
+  add(f: Fix): Fix | null {
+    if (!Number.isFinite(f.lon) || !Number.isFinite(f.lat) || !Number.isFinite(f.acc)) return null;
+    if (f.t < this.since - 5_000 || f.acc > 100) return null;
+    const p = this.last;
+    if (p && f.t > p.t) {
+      const speed = metres([p.lon, p.lat], [f.lon, f.lat]) / ((f.t - p.t) / 1000);
+      if (speed > 70 && f.acc > p.acc / 2) {
+        if (++this.jumps < 3) return null;
+        this.recent = []; // moved for real: the fixes before do not belong in the average
+      }
+    }
+    this.jumps = 0;
+    if (p && f.t <= p.t) return null; // the same fix again, or an older one
+    this.last = f;
+    this.recent = [...this.recent.filter((r) => f.t - r.t <= 10_000), f];
+    return f;
+  }
+
+  /** The steadiest position for saving a point now, or null with no good fix in the last 2 minutes. */
+  best(now = Date.now()): Fix | null {
+    if (!this.last || now - this.last.t > 120_000) return null;
+    const rs = this.recent;
+    const top = Math.min(...rs.map((r) => r.acc));
+    // only fixes close to the best one: one poor fix does not pull a good average away
+    const use = rs.filter((r) => r.acc <= Math.max(top * 2, 5));
+    let w = 0, lon = 0, lat = 0, ele = 0, we = 0;
+    for (const r of use) {
+      const k = 1 / Math.max(r.acc, 1) ** 2;
+      w += k; lon += r.lon * k; lat += r.lat * k;
+      if (r.ele != null) { ele += r.ele * k; we += k; }
+    }
+    const lastT = use[use.length - 1].t;
+    return { lon: lon / w, lat: lat / w, acc: top, ele: we ? ele / we : null, t: lastT };
+  }
+}
+
 /** Distance in metres (haversine). */
 export function metres(a: [number, number], b: [number, number]): number {
   const R = 6371008.8, rad = Math.PI / 180;

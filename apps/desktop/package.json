@@ -1,7 +1,7 @@
 {
   "name": "geospax-desktop",
   "private": true,
-  "version": "3.0.5",
+  "version": "3.0.6",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
