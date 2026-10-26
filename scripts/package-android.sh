@@ -33,6 +33,10 @@ grep -q 'android.hardware.location.gps' "$MANIFEST" || \
   sed -i 's|<application|<uses-feature android:name="android.hardware.location.gps" android:required="false" />\n    <application|' "$MANIFEST"
 
 echo "== APK (aarch64 + armv7)"
+# one Rust build at a time: in parallel, the two targets' Tauri plugin build scripts copy the same
+# tauri-api build folder at once and one fails ("failed to copy tauri-api to the plugin project")
+export GRADLE_OPTS="${GRADLE_OPTS:-} -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false"
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-$(nproc)}"
 npx tauri android build --apk --target aarch64 armv7 --ci
 APK=$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -1)
 [ -n "$APK" ] || { echo "no APK built"; exit 1; }
