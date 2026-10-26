@@ -5,6 +5,26 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+## [3.0.6] — 2026-10-26
+
+### Security — web demo (geospax.fly.dev) and the apps
+- Rate limits on the public demo, per visitor address: 40 requests a second (bursts up to 600, enough for a
+  map full of tiles) and 1 upload or other change a second (bursts up to 30); past that the demo answers
+  `429 Too Many Requests` with `Retry-After`. Only with `--public`; a GeoSpaX on your own computer has none.
+- A Content Security Policy on the web edition, the desktop app and GeoSpaX Field: scripts only from the
+  app itself, no plugins or framing by other sites. Nothing in the apps is blocked by it (checked in CI).
+
+### GeoSpaX Field — more accurate positions
+- Positions the phone hands out before the GPS has locked on are no longer used: a cached position from
+  before the app started, a coarse network guess (worse than ±100 m), or a jump faster than 250 km/h from
+  the last good fix. The status chip says *Waiting for GPS* until a good fix arrives.
+- A point (and *Add my position* while drawing) is placed at the average of the last 10 seconds' good fixes,
+  weighted by their accuracy, instead of the latest single fix: standing still, the scatter of a few metres
+  averages out. The accuracy shown is the best single fix's, never better.
+- Tested on an Android emulator in CI on every change: GPS fixes set on the emulator must reach the app to
+  within a metre, and the app pairs with a GeoSpaX phone link and sends a point that arrives at the same
+  coordinates.
+
 ## [3.0.5] — 2026-10-26
 
 ### Security — public guest demo (audit and attack tests)

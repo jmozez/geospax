@@ -6,7 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import { allRecords, deleteRecord, newId, putRecord, type Kind, type Photo, type Rec, type Vertex } from './db';
-import { metres, watchPosition, type Fix } from './geo';
+import { FixFilter, metres, watchPosition, type Fix } from './geo';
 import { BASEMAPS, installTileCache, type Basemap } from './tiles';
 import { hello, parseLink, saveLink, savedLink, scanLink, send } from './sync';
 import { inApp } from './geo';
@@ -16,6 +16,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const LABEL: Record<Kind, string> = { point: 'Point', line: 'Line', area: 'Area', track: 'Track' };
 
 let fix: Fix | null = null;
+const fixes = new FixFilter();
 let records: Rec[] = [];
 let draft: { kind: 'line' | 'area'; coords: Vertex[] } | null = null;
 let track: Rec | null = null;
@@ -119,7 +120,13 @@ function showGps(text: string, cls: string) {
 }
 showGps('Finding GPS…', 'wait');
 void watchPosition(
-  (f) => {
+  (raw) => {
+    const f = fixes.add(raw);
+    if (!f) {
+      // a cached, coarse or jumping fix: say so while there is no good one yet, otherwise keep the last
+      if (!fix) showGps(`Waiting for GPS (±${Math.round(raw.acc)} m)`, 'wait');
+      return;
+    }
     const first = !fix;
     fix = f;
     showGps(`GPS ±${Math.round(f.acc)} m`, f.acc <= 10 ? 'good' : f.acc <= 30 ? 'fair' : 'poor');
@@ -142,7 +149,18 @@ $('#locate').addEventListener('click', () => {
   if (fix) map.easeTo({ center: [fix.lon, fix.lat], zoom: Math.max(map.getZoom(), 16) });
 });
 
-const here = (): Vertex | null => (fix ? [fix.lon, fix.lat, fix.ele, Date.now(), fix.acc] : null);
+// a point is placed at the average of the last seconds' good fixes, not at the latest single one
+const here = (): Vertex | null => {
+  const b = fixes.best();
+  return b ? [b.lon, b.lat, b.ele, Date.now(), b.acc] : null;
+};
+// for the emulator test in CI (scripts/test-field-emulator.mjs): what the app thinks its position is
+const cspBlocked: string[] = [];
+document.addEventListener('securitypolicyviolation', (e) => {
+  cspBlocked.push(`${e.effectiveDirective} ${e.blockedURI}`);
+  console.warn('blocked by the content security policy:', e.effectiveDirective, e.blockedURI);
+});
+(window as unknown as { __field: object }).__field = { cspBlocked, fix: () => fix, best: () => fixes.best(), here, parseLink, hello, send };
 function trackText(t: Rec) {
   let m = 0;
   for (let i = 1; i < t.coords.length; i++) m += metres([t.coords[i - 1][0], t.coords[i - 1][1]], [t.coords[i][0], t.coords[i][1]]);
@@ -213,7 +231,7 @@ function toast(text: string) {
 // ------------------------------------------------------------------ the recording bar
 $('#btnPoint').addEventListener('click', async () => {
   const v = here() ?? (() => { const c = map.getCenter(); return [c.lng, c.lat, null, Date.now(), null] as Vertex; })();
-  const r = await noteSheet(fix ? `Point at your position (±${Math.round(fix.acc)} m)` : 'Point at the map centre (no GPS yet)', true);
+  const r = await noteSheet(v[4] != null ? `Point at your position (±${Math.round(v[4])} m)` : 'Point at the map centre (no GPS yet)', true);
   if (r) await save('point', [v], r.note, r.photos);
 });
 

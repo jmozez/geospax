@@ -22,8 +22,8 @@ const PLUGINS = [
 const box = document.querySelector('[data-plugins]');
 if (box) {
   box.innerHTML = PLUGINS.map(([id, name, text]) => `
-    <figure class="shot plugin" tabindex="0" data-full="/img/plugin-${id}.webp?v=3.0.5">
-      <img loading="lazy" src="/img/plugin-${id}.webp?v=3.0.5" alt="GeoSpaX ${name} plugin" />
+    <figure class="shot plugin" tabindex="0" data-full="/img/plugin-${id}.webp?v=3.0.6">
+      <img loading="lazy" src="/img/plugin-${id}.webp?v=3.0.6" alt="GeoSpaX ${name} plugin" />
       <figcaption><b>${name}.</b> ${text}</figcaption>
     </figure>`).join('') + `
     <figure class="shot plugin" tabindex="0" data-full="/img/tour-landcover.webp">

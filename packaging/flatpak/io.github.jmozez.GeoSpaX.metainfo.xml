@@ -77,6 +77,9 @@
     <display_length compare="ge">900</display_length>
   </requires>
   <releases>
+    <release version="3.0.6" date="2026-10-26">
+      <description><p>Rate limits and a content security policy for the web demo; steadier GPS positions in GeoSpaX Field.</p></description>
+    </release>
     <release version="3.0.5" date="2026-10-26">
       <description><p>Security fixes for the public web demo: visitors kept apart, upload limits.</p></description>
     </release>
