@@ -2,7 +2,10 @@
 // running, its WebView's devtools forwarded to localhost:9222, and geospax-server on this computer with
 // the phone link on (PHONE_URL: its https://10.0.2.2:<port>/#t=<code> address as the emulator sees it).
 //
-// 1. GPS: sets fixes with `adb emu geo fix` and checks the app's position matches them to a metre.
+// 1. GPS: sets fixes with `adb emu geo fix` and checks the app's position matches them to a metre. The
+//    emulator, like some phones, may only report a fix when the position changes, so the move to the second
+//    place is a single fix the app's filter has to take on its own (it holds a jump back for up to 15 s),
+//    and the fixes after it are a few centimetres apart so that each one reaches the app.
 // 2. Pairing: the app asks the phone link hello through its HTTP plugin (self-signed certificate).
 // 3. Sending: a point at the averaged position goes to GeoSpaX and lands in its inbox at those coordinates.
 import { execFileSync } from 'node:child_process';
@@ -19,6 +22,9 @@ const metres = (a, b) => {
   return 2 * R * Math.asin(Math.sqrt(h));
 };
 const geoFix = (lon, lat) => execFileSync('adb', ['emu', 'geo', 'fix', String(lon), String(lat), '40']);
+// a fix a few centimetres off (at most 0.25 m), different each time
+let jig = 0;
+const jitter = (lon, lat) => { jig++; return [lon + ((jig % 5) - 2) * 0.000001, lat + ((jig % 3) - 1) * 0.000001]; };
 
 // The WebView's own DevTools protocol (no Playwright: emulator WebViews can be years older than it supports)
 let target;
@@ -33,7 +39,15 @@ await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
 let nextId = 1;
 const pending = new Map();
 ws.onmessage = (m) => { const d = JSON.parse(m.data); pending.get(d.id)?.(d); pending.delete(d.id); };
-const cdp = (method, params = {}) => new Promise((res) => { const id = nextId++; pending.set(id, res); ws.send(JSON.stringify({ id, method, params })); });
+// the app can be killed under the test (on the emulator Google Play services sometimes restarts, and
+// Android stops apps that use its fonts provider): say so rather than wait for ever
+ws.onclose = () => { console.error('FAIL the app\'s page went away (app stopped or killed)'); process.exit(1); };
+const cdp = (method, params = {}) => new Promise((res, rej) => {
+  const id = nextId++;
+  const timer = setTimeout(() => { pending.delete(id); rej(new Error(`${method}: no answer from the app in 30 s`)); }, 30_000);
+  pending.set(id, (d) => { clearTimeout(timer); res(d); });
+  ws.send(JSON.stringify({ id, method, params }));
+});
 /** Run `fn` (a function, given `arg`) in the page and return its JSON result. */
 async function evaluate(fn, arg) {
   const r = await cdp('Runtime.evaluate', { expression: `(${fn})(${JSON.stringify(arg ?? null)})`, awaitPromise: true, returnByValue: true });
@@ -48,14 +62,16 @@ ok(await evaluate(() => !!window.__field), 'app started (window.__field)');
 for (const [lon, lat] of [[147.1503, -6.7219], [147.1812, -6.7344]]) {
   const t0 = Date.now();
   let fix = null;
-  while (Date.now() - t0 < 60_000) {
-    geoFix(lon, lat);
+  // one fix, then wait: the app must take it without more (again every 20 s in case one got lost)
+  for (let i = 0; Date.now() - t0 < 60_000; i++) {
+    if (i % 20 === 0) geoFix(...jitter(lon, lat));
     await sleep(1000);
     fix = await page.evaluate(() => window.__field.fix());
     if (fix && metres([fix.lon, fix.lat], [lon, lat]) < 1) break;
   }
-  ok(fix && metres([fix.lon, fix.lat], [lon, lat]) < 1, `GPS fix ${lon}, ${lat} → app has ${fix?.lon}, ${fix?.lat} (±${fix?.acc} m)`);
-  for (let i = 0; i < 4; i++) { geoFix(lon, lat); await sleep(1000); }
+  ok(fix && metres([fix.lon, fix.lat], [lon, lat]) < 1, `GPS fix ${lon}, ${lat} → app has ${fix?.lon}, ${fix?.lat} (±${fix?.acc} m) after ${Math.round((Date.now() - t0) / 1000)} s`);
+  // standing there: fixes a few centimetres apart, each a new one for the emulator to report
+  for (let i = 0; i < 4; i++) { geoFix(...jitter(lon, lat)); await sleep(1000); }
   const here = await page.evaluate(() => window.__field.here());
   ok(here && metres([here[0], here[1]], [lon, lat]) < 1, `point position (averaged) within 1 m: ${here?.[0]}, ${here?.[1]}`);
   ok(here[2] != null && Math.abs(here[2] - 40) < 1, `elevation from the fix: ${here[2]} m`);
@@ -97,5 +113,6 @@ if (PHONE_URL) {
 }
 const shot = await cdp('Page.captureScreenshot', { format: 'png' });
 if (shot.result?.data) writeFileSync(process.env.SHOT ?? 'field-emulator.png', Buffer.from(shot.result.data, 'base64'));
+ws.onclose = null;
 ws.close();
 console.log('field app on the emulator: all checks passed');
