@@ -86,6 +86,15 @@ jobs:
           for i in $(seq 30); do curl -fs http://127.0.0.1:18122/api/health >/dev/null && break; sleep 1; done
           PW=/tmp/pw/node_modules/playwright node scripts/test-ribbon-critical.mjs http://127.0.0.1:18122 /tmp/rc/shots || { cat /tmp/rc/server.log; exit 1; }
           kill "$pid"
+      - name: Ribbon audit (every item on every tab clicked, effect and highlighting checked)
+        timeout-minutes: 45
+        run: |
+          rm -rf /tmp/ra && python3 scripts/test-edit-data.py /tmp/ra/data
+          ./target/release/geospax-server --data /tmp/ra/data --state-dir /tmp/ra/state --web web/dist --port 18125 --no-device-mounts --no-triggers > /tmp/ra/server.log 2>&1 &
+          pid=$!
+          for i in $(seq 30); do curl -fs http://127.0.0.1:18125/api/health >/dev/null && break; sleep 1; done
+          PW=/tmp/pw/node_modules/playwright node scripts/test-ribbon-audit.mjs http://127.0.0.1:18125 /tmp/ra/out --strict || { tail -50 /tmp/ra/server.log; exit 1; }
+          kill "$pid"
       - name: Field app GPS filter
         run: node --experimental-strip-types --no-warnings scripts/test-field-gps.mjs
       - name: Assistant (Ollama, OpenAI-compatible and Claude wire formats, scripted model) and MCP server
