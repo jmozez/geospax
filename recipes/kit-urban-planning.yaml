@@ -1,0 +1,34 @@
+# Urban planning kit: zoning, density and access to green space.
+recipe: kit-urban-planning
+version: 1
+kit: Urban planning
+title: Zoning, density and green space access
+description: >-
+  Zoning polygons, building or household points and parks in: the area and feature count of each
+  zone class, a density grid, and the share of homes within walking distance of green space,
+  mapped and reported.
+inputs:
+  zones: { type: layer, default: auto, description: zoning or land use polygons }
+  zone_field: { type: field, default: "", description: zone class field }
+  homes: { type: layer, default: "", description: buildings or households (points) }
+  parks: { type: layer, default: "", description: parks and green space (polygons) }
+  walk_m: { type: number, default: 400, description: walking distance in metres }
+steps:
+  - id: zoning
+    use: tool
+    with: { tool: gsx/zoning-summary, params: { zones: "${inputs.zones}", zone_field: "${inputs.zone_field}", features: "${inputs.homes}" } }
+  - id: density
+    use: tool
+    with: { tool: gsx/density-grid, params: { points: "${inputs.homes}" } }
+  - id: green
+    use: tool
+    when: "${inputs.parks}"
+    with: { tool: gsx/green-access, params: { homes: "${inputs.homes}", parks: "${inputs.parks}", walk_m: "${inputs.walk_m}" } }
+  - id: map
+    use: export.map
+    with: { name: urban-density, layers: ["${density.layers}", "${inputs.zones}"], title: "Density and zoning" }
+  - id: report
+    use: export.report
+    needs: [map, zoning]
+    with: { title: "Urban planning · ${run.date}" }
+outputs: [map, report]

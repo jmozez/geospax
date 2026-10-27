@@ -1,0 +1,34 @@
+# Forestry kit: logging coupes netted down for stream buffers and steep ground.
+recipe: kit-harvest-planning
+version: 1
+kit: Forestry
+title: Harvest coupes (net area and haul road route)
+description: >-
+  Coupe polygons and streams in: the Copernicus DEM, the net harvestable area of each coupe after
+  stream buffers and slopes over the limit are taken out (as the PNG Logging Code of Practice asks),
+  and an optional least-cost haul road between two points, mapped and reported.
+inputs:
+  coupes: { type: layer, default: auto, description: logging coupes or set-ups (polygons) }
+  streams: { type: layer, default: "", description: "streams (lines; optional)" }
+  buffer_m: { type: number, default: 50, description: stream buffer in metres }
+  max_slope_deg: { type: number, default: 30, description: steepest harvestable slope in degrees }
+  ends: { type: layer, default: "", description: "two points for a haul road, start then end (optional)" }
+steps:
+  - id: dem
+    use: dem.fetch
+    with: { aoi: "${inputs.coupes}", buffer: 500 }
+  - id: net
+    use: tool
+    with: { tool: gsx/harvest-coupes, params: { coupes: "${inputs.coupes}", streams: "${inputs.streams}", dem: dem, buffer_m: "${inputs.buffer_m}", max_slope_deg: "${inputs.max_slope_deg}" } }
+  - id: road
+    use: tool
+    when: "${inputs.ends}"
+    with: { tool: gsx/route-suitability, params: { surface: dem, ends: "${inputs.ends}" } }
+  - id: map
+    use: export.map
+    with: { name: harvest-coupes, layers: ["${net.layers}", "${inputs.coupes}"], title: "Net harvest area (slopes under ${inputs.max_slope_deg}°, ${inputs.buffer_m} m stream buffers)" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Harvest planning · ${run.date}" }
+outputs: [map, report]

@@ -1,0 +1,35 @@
+# Energy and utilities kit: a power line, pipeline or other corridor checked for encroachment and vegetation.
+recipe: kit-power-corridor
+version: 1
+kit: Energy and utilities
+title: Corridor encroachment and vegetation clearance
+description: >-
+  Lines (power lines or pipelines), nearby features and a canopy height raster in: easement,
+  clearance and consultation zones with the features inside each, canopy cells that breach the
+  conductor clearance, and a span check of the towers, mapped and reported.
+inputs:
+  lines: { type: layer, default: auto, description: the power lines or pipelines }
+  features: { type: layer, default: "", description: "buildings, gardens or other features to check (optional)" }
+  zones: { type: text, default: "easement:20, clearance:50, consultation:100", description: "zones as name:metres from the centreline" }
+  chm: { type: raster, default: "", description: "canopy height raster (from lidar; optional)" }
+  towers: { type: layer, default: "", description: "tower or pole points (optional)" }
+steps:
+  - id: zones
+    use: tool
+    with: { tool: gsx/corridor-zones, params: { lines: "${inputs.lines}", features: "${inputs.features}", zones: "${inputs.zones}" } }
+  - id: clearance
+    use: tool
+    when: "${inputs.chm}"
+    with: { tool: gsx/lidar-clearance, params: { chm: "${inputs.chm}", lines: "${inputs.lines}" } }
+  - id: towers
+    use: tool
+    when: "${inputs.towers}"
+    with: { tool: gsx/tower-inventory, params: { towers: "${inputs.towers}" } }
+  - id: map
+    use: export.map
+    with: { name: corridor, layers: ["${zones.layers}", "${inputs.lines}"], title: "Corridor zones (${inputs.zones})" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Corridor check · ${run.date}" }
+outputs: [map, report]

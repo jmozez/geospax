@@ -1,4 +1,4 @@
-// Every tool of the twelve default domain plugins, opened from the Plugins tab on the PNG samples and
+// Every tool of the default domain plugins, opened from the Plugins tab on the PNG samples and
 // run as it opens (inputs pre-selected, web/src/prefill.ts), like a user pressing Run straight away:
 // each either runs or asks in plain words for what it lacks (no crash, no stack trace); no earlier
 // result is taken as input unasked; and the samples get the inputs they are made for.
@@ -31,6 +31,9 @@ const seen = {};
 for (const p of plugins) {
   console.log(p.name);
   for (const t of p.tools) {
+    // a result the last run opened is the active layer and is meant to chain into the next tool:
+    // close it so each tool is judged on how it picks from your own data
+    await page.$$eval('[data-k="close"]', (els) => els.forEach((e) => e.offsetParent && e.click()));
     await openPluginTool(page, p.id, t.id);
     await page.waitForSelector('#plugin-modal:not([hidden])');
     const inputs = Object.fromEntries(await page.$$eval('#plugin-modal select[data-p]', (els) => els.map((e) => [e.dataset.p, e.multiple ? [...e.selectedOptions].map((o) => o.value) : e.value])));

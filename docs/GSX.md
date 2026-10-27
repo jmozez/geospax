@@ -1,7 +1,7 @@
 # GSX tools
 
-The GSX tools bring the conservation, biodiversity and environmental analysis into GeoSpaX 3. They are
-**twelve default plugins**, one per domain, each with its tools:
+The GSX tools bring conservation, biodiversity, environmental and industry analysis (surveying, energy, oil and gas, mining, forestry, maritime, aeronautical, transport, urban, rural, assets and ENSO) into GeoSpaX 3. They are
+**22 default plugins**, one per domain, each with its tools:
 
 | Plugin | Tools |
 | --- | --- |
@@ -9,18 +9,28 @@ The GSX tools bring the conservation, biodiversity and environmental analysis in
 | **Agriculture** | spectral index, suitability, distance decay, slope zones, raster change, change |
 | **Biodiversity** | diversity, nearest neighbour, DBSCAN, local Moran's I, hot spot grid, species distribution, priority sites, protection gap |
 | **Environment** | slope zones, spectral index, raster change, overlay, elevation profile |
-| **Forestry** | spectral index, fragmentation, connectivity, raster change, change, protection gap |
+| **Forestry** | spectral index, fragmentation, connectivity, raster change, change, protection gap, harvest coupe net area, least-cost route, corridor zones |
 | **Marine** | diversity, nearest neighbour, DBSCAN, species distribution, spectral index, suitability, hot spot grid, priority sites, protection gap |
-| **Climate** | spectral index, suitability, distance decay, raster change, change |
+| **Climate** | ENSO index (ONI, Niño 3.4, SOI), rainfall anomaly, El Niño drought and frost risk, seasonal outlook classes, spectral index, suitability, distance decay, raster change, change |
 | **Disaster** | suitability, slope zones, spectral index, distance decay, priority sites, raster change, change, hot spot grid, local Moran's I |
 | **Geoscience** | slope zones, spectral index, suitability, overlay, raster change, change, elevation profile |
 | **Hydrology** | spectral index, slope zones, suitability, distance decay, overlay, raster change, change, elevation profile |
 | **Land use and land cover** | spectral index, raster change, change, overlay, suitability |
 | **Soil** | spectral index, suitability, distance decay, overlay, raster change, change |
+| **Asset management** | asset register, asset change alerts, corridor and clearance zones, transmission tower inventory |
+| **Aeronautical** | obstacle limitation surfaces, elevation profile, slope zones |
+| **Energy and utilities** | corridor and clearance zones, liDAR vegetation and obstacle clearance, transmission tower inventory, least-cost route, tenure check, asset register, slope zones, elevation profile |
+| **Maritime** | vessel track density, vessel loitering and AIS gaps, weighted hotspot grid, DBSCAN clusters |
+| **Mining** | cut and fill volumes, tenure check, least-cost route, corridor and clearance zones, spectral index and extent, raster change, two-date change, slope zones |
+| **Oil and gas** | well sites, tenure check, least-cost route, corridor and clearance zones, raster change, elevation profile |
+| **Rural planning** | access to services, weighted suitability, slope zones, distance-decay suitability, zoning summary, building and population density |
+| **Surveying and cartography** | datum and projection transformation, traverse adjustment, bearings and distances, survey plan sheet, map grid and graticule |
+| **Transport and logistics** | service areas, delivery route optimisation, access to services, corridor and clearance zones, least-cost route |
+| **Urban planning** | zoning summary, building and population density, green space access, service areas, weighted suitability, asset register |
 
 They ship with GeoSpaX and are in the **Explorer** under **Plugins** (one per domain), in the **Tools** tab under
 *Plugins › <domain>* and in the plugin manager marked *default plugin*. They are not on the Analysis,
-Imagery or Modelling tabs, which hold GeoSpaX's own tools. All twelve run the same code, the shared
+Imagery or Modelling tabs, which hold GeoSpaX's own tools. All 22 run the same code, the shared
 **GSX library** in `plugins/gsx` (`library: true`: not listed, but recipes, the API and MCP call its
 tools as `gsx/<tool>`, so a tool gives the same answer from every domain).
 
@@ -159,6 +169,18 @@ Ready-made recipes that chain online data, the tools above, a finished map and a
 | Agriculture and environment | **Vegetation change (two rasters)** | Two NDVI rasters → the difference, loss and gain with their areas |
 | Disaster and geoscience | **Steep slopes** | An area → Copernicus 30 m DEM, slope zones (default 15° and 30°, landslide screening), relief |
 | Soil | **Topsoil properties (SoilGrids)** | An area → pH, organic carbon and clay at a chosen depth |
+| Surveying and cartography | **Traverse adjustment and survey plan** | Traverse legs (bearing, distance) → Bowditch adjustment with misclosure and accuracy ratio, bearings and distances, a plan sheet with grid, north point and scale bar |
+| Energy and utilities | **Corridor encroachment and vegetation clearance** | Power lines or pipelines, structures and a canopy raster → clearance zones, encroachments, LiDAR clearance breaches, tower inventory |
+| Oil and gas | **Licences, well spacing and pipeline route** | Licences, wells and two route ends → licence areas and expiry, wells outside their licence or too close, a least-cost pipeline route |
+| Mining | **Tenement check and cut and fill volumes** | Tenements and two DEMs → tenement areas and expiry, cut and fill volumes and a cut and fill map |
+| Forestry | **Harvest coupes (net area and haul road route)** | Coupes, streams and a DEM → net harvestable area after stream buffers and steep slopes, a haul road route |
+| Maritime | **Vessel traffic, loitering and AIS gaps** | AIS points (MMSI, time) → track density, loitering events and AIS gaps per vessel |
+| Aeronautical | **Aerodrome obstacle limitation surfaces** | A runway line and obstacles → approach, take-off, transitional and inner horizontal surfaces, obstacles that penetrate them |
+| Transport and logistics | **Service areas and delivery routes** | Roads, a depot and stops → network service areas, the shortest delivery tour and its length |
+| Urban planning | **Zoning, density and green space access** | Zones, buildings and parks → zoning summary, building and population density, distance to green space |
+| Rural planning | **Distance to services and gardening land** | Villages, services (clinics, schools) and a DEM → distance to services, slope classes for gardening land |
+| Asset management | **Asset condition, risk and changes** | An asset register, optionally an earlier one → overdue inspections, assets past design life, risk scores, added, removed and moved assets |
+| Climate | **El Niño drought and frost risk (ENSO)** | An area, optionally observed rainfall → the latest ONI and SOI from NOAA (or an offline file), rainfall percent of normal, drought and highland frost risk |
 
 Every kit is an ordinary recipe (`recipes/kit-*.yaml`): open it in the Automate pane to see each step,
 change a default, or save a copy with your own steps. Kits call the tools with the **`tool`** step
@@ -168,7 +190,14 @@ change a default, or save a copy with your own steps. Kits call the tools with t
 (`scripts/test-kits-data.R`): 25 % protected, 12 patches, net land-cover change of zero, 12 species in
 3 clusters, the planted vegetation-loss strip, and a future range that is both lost and gained. Kits
 that download data run with the downloads swapped for local test rasters, so their tools, maps and
-reports run for real; the downloads need internet and are covered by the `data.fetch` tests.
+reports run for real; the downloads need internet and are covered by the `data.fetch` tests. The
+12 industry and El Niño kits run the same way in `scripts/test-domain-plugins.py`.
+
+**Limits of the industry tools:** the ENSO indices and DEMs download from the internet unless you give an
+offline file or a mirror; AGD66 to GDA94 uses a 7-parameter shift (about 1 m), not NTv2 grids; the
+obstacle limitation surfaces cover non-instrument runways only; LiDAR clearance assumes one conductor
+height; least-cost routes follow cell centres; date-typed fields in a layer are dropped, so give expiry
+and inspection dates as text (`1 Jan 2026`) and AIS times as epoch seconds.
 
 ## Online data from the 2.0 catalogue
 
