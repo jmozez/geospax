@@ -23,7 +23,7 @@ grep -q "^MAINTAINER=\"\${MAINTAINER:-$PUB " scripts/package-linux.sh && echo "o
 grep -q "^Copyright: .*$PUB" scripts/package-linux.sh && echo "ok    deb copyright" || { echo "FAIL  deb copyright does not name $PUB"; fail=1; }
 # the old publisher may only appear where old installs are recognised or removed, in the license and in the history
 # ("in4metrix ... and GeoSpaX contributors", the LICENSE's copyright line, is fine anywhere)
-old=$(git ls-files | python3 -c '
+old=$(git -c safe.directory="$PWD" ls-files | python3 -c '
 import re, sys
 skip = {"CHANGELOG.md", "LICENSE", "packaging/windows/installer-hooks.nsh", "scripts/check-publisher.sh",
         "scripts/test-windows-upgrade.ps1", "docs/FAQ.md"}  # the old registry key, named to remove it
