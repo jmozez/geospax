@@ -135,7 +135,7 @@ T('view.swipe', 'swipe');
 T('view.spyglass', 'spyglass');
 T('home.identify', 'identify');
 for (const m of ['distance', 'area']) { T(`measure.${m}`, `measure:${m}`); T(`edit.measure.${m}`, `measure:${m}`); }
-for (const t of ['point', 'line', 'polygon', 'select', 'box', 'vertices', 'lasso']) T(`edit.${t}`, `edit:${t}`);
+for (const t of ['point', 'line', 'polygon', 'select', 'box', 'vertices', 'lasso', 'split', 'cut', 'reshape', 'copyalong']) T(`edit.${t}`, `edit:${t}`);
 T('home.lasso', 'edit:lasso');
 for (const t of ['line', 'polyline', 'polygon', 'rect', 'circle', 'arc', 'ellipse', 'point', 'text', 'offset', 'road', 'move', 'copy', 'rotate', 'scale', 'mirror',
   'trim', 'extend', 'fillet', 'array', 'arraypolar', 'divide', 'measure', 'block', 'insert', 'lock', 'union', 'subtract', 'intersect', 'explode', 'join', 'break',

@@ -513,20 +513,30 @@ export class Editor {
   private clipboard: { geometry: Geometry; properties: Record<string, unknown>; kind: string }[] = [];
 
   /** Draw a temporary line or area (for split, cut, reshape, copy along a line); null if cancelled. */
-  sketch(kind: 'line' | 'polygon', text: string): Promise<Geometry | null> {
+  sketch(kind: 'line' | 'polygon', text: string, op = 'sketch'): Promise<Geometry | null> {
     if (this.sketchDone) this.sketchDone(null);
     return new Promise((resolve) => {
       void this.setTool('idle').then(() => {
+        // the sketch holds the map like any tool: its ribbon button stays pressed, Esc or another tool ends it
+        const name = `edit:${op}`;
+        const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') cancel(); };
+        const done = (g: Geometry | null) => {
+          document.removeEventListener('keydown', esc);
+          if (this.sketchDone === done) this.sketchDone = null;
+          releaseMapTool(name);
+          resolve(g);
+        };
+        const cancel = () => {
+          if (this.sketchDone !== done) return;
+          done(null);
+          if (this.tool === 'sketch') void this.setTool('idle');
+        };
         this.tool = 'sketch';
         document.body.dataset.editTool = 'sketch';
-        this.sketchDone = resolve;
+        this.sketchDone = done;
         this.ensureDraw().setMode(kind === 'line' ? 'linestring' : 'polygon');
+        claimMapTool(name, cancel);
         this.status(`${text} Double-click to finish; Esc cancels.`, 12000);
-        const esc = (e: KeyboardEvent) => {
-          if (e.key !== 'Escape') return;
-          document.removeEventListener('keydown', esc);
-          if (this.sketchDone === resolve) { this.sketchDone = null; resolve(null); }
-        };
         document.addEventListener('keydown', esc);
       });
     });
@@ -616,7 +626,7 @@ export class Editor {
     let sketch: Geometry | null = null;
     if (op !== 'merge') {
       const what = { split: 'Draw a line across the selected features to split them.', cut: 'Draw the area to cut out of the selected polygons.', reshape: 'Draw the new boundary: start and end on the polygon\'s edge.' }[op];
-      sketch = await this.sketch(op === 'cut' ? 'polygon' : 'line', what);
+      sketch = await this.sketch(op === 'cut' ? 'polygon' : 'line', what, op);
       if (!sketch) return this.status(`${op} cancelled`);
     }
     try {
@@ -675,7 +685,7 @@ export class Editor {
     const src = await this.getFeature(id, fids[0]);
     if (!src.geometry) return this.status('That feature has no geometry.');
     const srcGeom = src.geometry;
-    const line = await this.sketch('line', 'Draw the line to place the copies along (it starts at the feature).');
+    const line = await this.sketch('line', 'Draw the line to place the copies along (it starts at the feature).', 'copyalong');
     if (!line || line.type !== 'LineString') return;
     const total = pathMetres(line.coordinates);
     const v = await dialog('Copy along line', `<p class="dim">The line is ${total.toFixed(1)} m long.</p>

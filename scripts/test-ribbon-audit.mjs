@@ -45,8 +45,8 @@ const EXPECT = {
   // Edit
   'edit.point': 'tool:edit:point', 'edit.line': 'tool:edit:line', 'edit.polygon': 'tool:edit:polygon', 'edit.trace': 'state', 'edit.gps': 'status',
   'edit.select': 'tool:edit:select', 'edit.box': 'tool:edit:box', 'edit.vertices': 'tool:edit:vertices|dialog', 'edit.attributes': 'dialog', 'edit.delete': 'dialog|state',
-  'edit.lasso': 'tool:edit:lasso', 'edit.split': 'tool:edit:sketch|dialog', 'edit.merge': 'dialog|state', 'edit.cut': 'tool:edit:sketch|dialog', 'edit.reshape': 'tool:edit:sketch|dialog',
-  'edit.copy': 'status', 'design.copyFeatures': 'status|clipboard', 'design.pasteFeatures': 'status|dialog|state', 'edit.paste': 'status|dialog', 'edit.copyalong': 'dialog|tool:edit:sketch|status',
+  'edit.lasso': 'tool:edit:lasso', 'edit.split': 'tool:edit:split|dialog', 'edit.merge': 'dialog|state|status', 'edit.cut': 'tool:edit:cut|dialog', 'edit.reshape': 'tool:edit:reshape|dialog',
+  'edit.copy': 'status', 'design.copyFeatures': 'status|clipboard', 'design.pasteFeatures': 'status|dialog|state', 'edit.paste': 'status|dialog', 'edit.copyalong': 'dialog|tool:edit:copyalong|status',
   'edit.calculate': 'dialog', 'edit.addField': 'dialog', 'edit.table': 'pane', 'edit.defquery': 'dialog', 'edit.rules': 'dialog',
   'edit.undo': 'status', 'edit.redo': 'status', 'edit.snap': 'state', 'edit.new': 'dialog', 'edit.discard': 'dialog|status', 'edit.topology': 'pane',
   'edit.sel.attributes': 'dialog', 'edit.sel.location': 'dialog', 'edit.sel.zoom': 'view', 'edit.sel.clear': 'state',
@@ -61,6 +61,7 @@ const EXPECT = {
   'help.tutorials': 'dialog', 'help.search': 'overlay|dialog', 'help.guide': 'docs', 'help.faq': 'docs', 'help.automation': 'docs', 'help.whatsnew': 'docs', 'help.matrix': 'docs',
   'help.updates': 'docs', 'help.report': 'popup', 'help.keys': 'dialog|docs|overlay', 'help.credits': 'docs', 'help.about': 'docs', 'help.diagnostics': 'pane', 'analyze.bench': 'status|pane|dialog', 'analyze.deck': 'status|state|view',
   // Layer (contextual)
+  'data.rasters': 'pane|status', 'analyze.gallery': 'pane|status',
   'layer.zoom': 'view', 'layer.table': 'pane',
 };
 // families by prefix
@@ -196,7 +197,8 @@ function effects(a, b, dl, ch) {
   if (bu.c > au.c) e.push('clipboard');
   if (bu.d > au.d) e.push('dialog');
   if (bu.f && !au.f) e.push('state');
-  if (JSON.parse(b.body).recipeRunId && JSON.parse(b.body).recipeRunId !== JSON.parse(a.body).recipeRunId) e.push('run');
+  { const ab = JSON.parse(a.body), bb = JSON.parse(b.body);
+    if ((bb.recipeRunId && bb.recipeRunId !== ab.recipeRunId) || (bb.recipeRun === 'running' && ab.recipeRun !== 'running')) e.push('run'); }
   const newStatus = b.status.slice(a.status.length).filter((t) => t && t !== 'Ready' && !/…$/.test(t));
   if (newStatus.length) e.push('status');
   return { e: [...new Set(e)], status: newStatus.slice(-1)[0] ?? '', modal: b.modals.filter((m) => !a.modals.includes(m)).join(' / ') };
