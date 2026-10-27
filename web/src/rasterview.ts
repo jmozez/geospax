@@ -24,7 +24,7 @@ export interface RasterValue {
 const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export const fmtVal = (v: number | null | undefined) =>
-  v === null || v === undefined || !Number.isFinite(v) ? '—' : Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('en-US') : String(+v.toPrecision(4));
+  v === null || v === undefined || !Number.isFinite(v) ? '–' : Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('en-US') : String(+v.toPrecision(4));
 const kindName = (k: string) => (k === 'raster' ? 'Raster' : k.toUpperCase() === k ? k : k[0].toUpperCase() + k.slice(1));
 
 /** The colour of a 0–1 position on the raster's legend ramp (its colours spread evenly). */

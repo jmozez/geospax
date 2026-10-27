@@ -316,7 +316,7 @@ export class AttributesPane {
   }
 
   private fmt(v: Value): string {
-    if (v == null) return '<i class="null">—</i>';
+    if (v == null) return '<i class="null">–</i>';
     if (typeof v === 'number') return esc(Number.isInteger(v) ? v.toLocaleString() : v.toPrecision(6));
     return esc(v.length > 60 ? `${v.slice(0, 60)}…` : v);
   }

@@ -3,6 +3,7 @@
 // the sphere (R = 6,371,008.8 m), the same formulas as Calculate geometry (crates/engine/src/edit.rs);
 // metric or imperial. Double-click (or Enter) finishes, Backspace removes the last point, Esc clears.
 import type * as maplibregl from 'maplibre-gl';
+import { claimMapTool, releaseMapTool } from './toolstate';
 
 const R = 6371008.8;
 const SRC = 'measure';
@@ -101,7 +102,9 @@ export class Measure {
 
   start(mode: Mode) {
     if (this.mode === mode) return this.stop();
+    if (this.mode) this.stop();
     this.mode = mode;
+    claimMapTool(`measure:${mode}`, () => { if (this.mode === mode) this.stop(); });
     this.pts = [];
     this.done = false;
     this.cursor = null;
@@ -112,6 +115,7 @@ export class Measure {
   }
 
   stop() {
+    if (this.mode) releaseMapTool(`measure:${this.mode}`);
     this.mode = null;
     this.pts = [];
     delete document.body.dataset.measure;

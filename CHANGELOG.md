@@ -7,13 +7,45 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 Planned as 3.0.7 (all version numbers already read 3.0.7).
 
+### Added
+- **Named projects (Home › Project)**: New project asks for a name (checked: not empty, no slashes or other
+  characters a file name cannot hold, not already used), and the name shows in the title bar and the status
+  bar. Open project lists the saved projects; the Save split holds Save, Save as (Ctrl+Shift+S) and Rename.
+  Save on an untitled project asks for a name first. Projects are kept as JSON under the state folder
+  (`/api/projects`), and a new project keeps the data folders connected but starts with an empty map.
+- **Share › Export map** split: PDF, PNG, SVG and Word report. **Share › Export data** split: GeoJSON,
+  Shapefile, CSV, GeoPackage, KML and GeoParquet (new). Every entry writes a file. The split lists open
+  with the arrow keys, run with Enter, close with Esc and always stay inside the window.
+- **Identify** (Home › Inquiry) is now a map tool: click a feature to see its attributes.
+
 ### Changed
+- **The ribbon, every tab**: regrouped the way ArcGIS Pro and Office lay out a ribbon. The most used
+  tool of each group is a large button; related tools sit behind one large split button (the main part
+  runs the item used last, the arrow lists the rest with a one-line description); the rest are small
+  buttons stacked three to a column, with no gaps. Every button has a tooltip naming what it does and
+  its shortcut.
 - The user guide, the feature list, the README and the home page describe the ribbon tools tab by tab, with
   new screenshots (Swipe, Time slider, the View tab) taken in headless Chromium by `scripts/shots-ribbon.sh`.
 - The download page and the guides no longer offer a Flathub install: GeoSpaX is not on Flathub yet, and
   the link led to a page that does not exist. The Flathub submission steps stay in DEPLOY.md.
 
 ### Fixed
+- **Swipe (View › Compare)**: the divider showed but could not be dragged and nothing was compared. The
+  map library's own stylesheet (`.maplibregl-map { position: relative }`) overrode the overlay's
+  absolute position, so the overlay had no height and caught no pointer. The overlay now pins itself to
+  the map; dragging the divider moves the clip edge.
+- **Spyglass (View › Compare)**: clicking it did nothing visible. Same stylesheet clash, and the lens
+  started as a circle of radius 0 until the pointer moved. The lens now shows at once and follows the
+  pointer.
+- **Ribbon highlighting**: tools that stay on (Swipe, Spyglass, Measure, Identify, Select, the drawing
+  and editing tools, Snap, Grid and the panes) now stay highlighted until clicked again. Only one map
+  tool is on at a time: choosing another releases the first, and Esc releases it. One-off commands
+  (Zoom in, Save, Export) never stay highlighted.
+- **View › Reset layout** did nothing: nothing listened for its event. It now restores the panes, their
+  sizes and the ribbon.
+- Undo, Redo, Refresh and Clear measurements now say in the status bar what they did.
+- Design › Copy features and Paste features shared an id with Copy, so one of them never ran.
+
 - **Phone as a GPS (web edition)**: the phone page did nothing in 3.0.6. The content security policy added
   in 3.0.6 blocks inline scripts, and the page's script was inline, so the pairing check and the position
   updates never ran. The script is now its own file (`phone.js`), and the phone link sends its page with a
@@ -30,6 +62,9 @@ Planned as 3.0.7 (all version numbers already read 3.0.7).
   name. The ribbon keeps the built-in one (no SAGA needed); the SAGA version stays in the Automate gallery.
 
 ### Tests
+- `scripts/test-ribbon-critical.mjs` (in CI): drags the Swipe divider and checks the map changes on
+  each side, checks the Spyglass lens, toggle highlighting and Esc, the Export split lists by keyboard,
+  and the whole project flow (New with bad and good names, Save, Save as, Rename, Open).
 - `scripts/test-web-ribbon.mjs` (the ribbon tools in a real browser) runs in CI and in `scripts/test-all.sh`.
   It now also fails when a ribbon group shows the same button twice.
 - `scripts/test-web-devices.mjs` opens the Devices pane where it now lives (the Explorer); it used a tab

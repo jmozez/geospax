@@ -7,6 +7,7 @@
 //   select   click, rectangle, by attributes (SQL WHERE), by location (another layer)
 //   history  undo / redo of whole edits (create, change, delete), across layers
 import type * as maplibregl from 'maplibre-gl';
+import { claimMapTool, releaseMapTool } from './toolstate';
 import { TerraDraw, TerraDrawFreehandMode, TerraDrawLineStringMode, TerraDrawPointMode, TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawSelectMode, type GeoJSONStoreFeatures } from 'terra-draw';
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter';
 import type { Backend, LayerInfo } from './backend';
@@ -266,7 +267,7 @@ export class Editor {
 
   async undo() {
     const op = this.undoStack.pop();
-    if (!op) return;
+    if (!op) return this.status('Nothing to undo');
     try {
       await this.apply(op, true);
       this.redoStack.push(op);
@@ -280,7 +281,7 @@ export class Editor {
 
   async redo() {
     const op = this.redoStack.pop();
-    if (!op) return;
+    if (!op) return this.status('Nothing to redo');
     try {
       await this.apply(op, false);
       this.undoStack.push(op);
@@ -367,7 +368,17 @@ export class Editor {
     return best;
   }
 
+  /** Start an edit tool (or 'idle'): one map tool at a time, see toolstate.ts. */
   async setTool(tool: EditTool) {
+    const prev = this.tool;
+    await this.setToolInner(tool);
+    if (prev !== 'idle' && prev !== this.tool) releaseMapTool(`edit:${prev}`);
+    const now = this.tool;
+    if (now !== 'idle') claimMapTool(`edit:${now}`, () => { if (this.tool === now) void this.setTool('idle'); });
+    document.body.dataset.editTool = this.tool;
+  }
+
+  private async setToolInner(tool: EditTool) {
     const map = this.h.map;
     if (this.tool === 'vertices' && tool !== 'vertices' && this.vertexEdit) await this.finishVertices(true);
     map.off('click', this.clickHandler);
