@@ -1288,7 +1288,8 @@ export const COMMANDS: Command[] = [
   recipeCmd('imagery.ndvi', 'imagery', 'Satellite', 'Latest NDVI', 'satellite', 'latest-ndvi', 'Newest cloud-free Sentinel-2 pass over the area → NDVI map', true),
   recipeCmd('imagery.terrain', 'imagery', 'Terrain', 'Terrain report', 'terrainReport', 'terrain-report', 'DEM → hillshade, slope, aspect, contours, map and report', true),
   recipeCmd('imagery.landforms', 'imagery', 'Terrain', 'Landforms', 'mountain', 'landforms-grass', 'Geomorphons landforms (GRASS r.geomorphon)'),
-  recipeCmd('imagery.wetness', 'imagery', 'Terrain', 'Wetness index', 'wetness', 'wetness-saga', 'Topographic wetness index (SAGA)'),
+  // The SAGA wetness index (recipe wetness-saga) stays in the Automate gallery: the Terrain group's one
+  // Wetness index is imagery.twi above, which runs built in and needs no SAGA install.
   recipeCmd('imagery.lidar', 'imagery', 'LiDAR', 'LiDAR → terrain', 'pointcloud', 'lidar-to-terrain', 'Point clouds → bare earth, canopy, buildings, trees', true),
   {
     id: 'imagery.rasterTools', tab: 'imagery', group: 'Raster tools', title: 'Raster tools', icon: 'rasterEdit', big: true,

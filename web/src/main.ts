@@ -821,6 +821,24 @@ function rasterRow(id: string, first: boolean, last: boolean, depth = 0): string
   </div>`;
 }
 
+/**
+ * Draw a run's map rasters where its exported map draws them (the map composer, cartography.rs): under
+ * every vector layer but the land polygons, so a DEM or relief shading does not hide the run's points,
+ * lines and contours. Rasters of a run without a map stay on top, like any new result.
+ */
+function placeUnderVectors(rasterIds: string[]) {
+  const move = new Set(rasterIds.map((id) => `r:${id}`));
+  const rest = project.order.filter((id) => !move.has(id));
+  const moved = project.order.filter((id) => move.has(id));
+  if (!moved.length) return;
+  const at = rest.findIndex((id) => !id.startsWith('r:') && !!layerById(id) && !isLand(id));
+  rest.splice(at < 0 ? rest.length : at, 0, ...moved);
+  if (rest.join('|') !== project.order.join('|')) {
+    project.order = rest;
+    saveProject();
+  }
+}
+
 /** Rasters loaded or changed (new results, a switch in either pane): keep the draw order and Contents in step. */
 let knownRasters: Set<string> | null = null;
 function onRastersChanged() {
@@ -1997,7 +2015,10 @@ async function main() {
         // the main (first) map of the run decides which rasters are shown, like the report
         const steps = (run as unknown as { steps?: { outputs?: { svg?: string; rasters?: string[] } }[] }).steps ?? [];
         const main = steps.find((s) => s.outputs?.svg && Array.isArray(s.outputs?.rasters))?.outputs?.rasters;
-        if (run.status === 'done') rasterPane.showRun(run.rasters, main);
+        if (run.status === 'done') {
+          rasterPane.showRun(run.rasters, main);
+          if (main?.length) placeUnderVectors(main);
+        }
       }
       // the run's styles dress the layers it made; a layer someone (or AutoMap) already styled keeps its look
       for (const [id, st] of Object.entries(run.styles ?? {})) {
