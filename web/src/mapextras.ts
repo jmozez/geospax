@@ -12,6 +12,7 @@ import * as maplibregl from 'maplibre-gl';
 import proj4 from 'proj4';
 import type { Backend, LayerInfo } from './backend';
 import { dialog } from './editing';
+import { claimMapTool, releaseMapTool, toolStateChanged } from './toolstate';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -183,34 +184,70 @@ export class MapExtras {
 
   // ------------------------------------------------------------------ swipe and spyglass
 
-  private compare: { map: maplibregl.Map; el: HTMLElement; bar?: HTMLElement; off: () => void; mode: 'swipe' | 'spyglass' } | null = null;
+  private compare: { map: maplibregl.Map; el: HTMLElement; bar?: HTMLElement; lens?: HTMLElement; tags: HTMLElement[]; off: () => void; mode: 'swipe' | 'spyglass' } | null = null;
 
-  /** View › Swipe / Spyglass. The selected layer is hidden in the overlay, so the divider or lens
-   *  shows what is under it. Clicking the same button again ends it. */
+  /** Which compare tool is on, if any (the ribbon keeps its button pressed). */
+  get compareMode(): 'swipe' | 'spyglass' | null { return this.compare?.mode ?? null; }
+
+  /** The layer Swipe and Spyglass compare: the selected one, else the top layer drawn on the map. */
+  private compareLayer(): LayerInfo | undefined {
+    const all = this.h.layers();
+    const id = this.h.activeId();
+    const picked = id ? all.find((x) => x.id === id) : undefined;
+    if (picked) return picked;
+    const drawn = this.h.map.getStyle().layers.map((x) => x.id.split('#')[0]);
+    for (let i = drawn.length - 1; i >= 0; i--) {
+      const l = all.find((x) => x.id === drawn[i]);
+      if (l) return l;
+    }
+    return undefined;
+  }
+
+  /** View › Swipe / Spyglass. The overlay is the map without the compared layer, so the divider or
+   *  the lens shows what is under it. Clicking the same button again (or Esc) ends it. */
   toggleCompare(mode: 'swipe' | 'spyglass') {
     const was = this.compare?.mode;
     this.endCompare();
     if (was === mode) return;
-    const id = this.h.activeId();
-    const l = id ? this.h.layers().find((x) => x.id === id) : undefined;
-    if (!id || !l) return this.h.setStatus('Pick the layer to compare in Contents first: the divider shows the map without it.', 6000);
+    const l = this.compareLayer();
+    if (!l) return this.h.setStatus(`${mode === 'swipe' ? 'Swipe' : 'Spyglass'} needs a layer on the map: add data first.`, 6000);
+    const id = l.id;
     const main = this.h.map;
     const host = main.getContainer();
     const el = document.createElement('div');
     el.className = `gx-compare gx-${mode}`;
+    el.dataset.layer = id;
     host.append(el);
     const style = structuredClone(main.getStyle());
     style.layers = style.layers.filter((x) => !(x.id === id || x.id.startsWith(`${id}#`)));
-    const map = new maplibregl.Map({ container: el, style, center: main.getCenter(), zoom: main.getZoom(), bearing: main.getBearing(), pitch: main.getPitch(), interactive: false, attributionControl: false });
+    const map = new maplibregl.Map({ container: el, style, center: main.getCenter(), zoom: main.getZoom(), bearing: main.getBearing(), pitch: main.getPitch(), interactive: false, attributionControl: false, fadeDuration: 0 });
+    // maplibre gives its container position: relative; the overlay must cover the whole map
+    el.style.position = 'absolute';
+    el.style.inset = '0';
+    map.resize();
     const sync = () => map.jumpTo({ center: main.getCenter(), zoom: main.getZoom(), bearing: main.getBearing(), pitch: main.getPitch() });
     main.on('move', sync);
+    const onResize = () => map.resize();
+    main.on('resize', onResize);
+    const tag = (text: string, cls: string) => {
+      const t = document.createElement('div');
+      t.className = `gx-compare-tag ${cls}`;
+      t.textContent = text;
+      host.append(t);
+      return t;
+    };
+    const tags: HTMLElement[] = [];
     let bar: HTMLElement | undefined;
+    let lens: HTMLElement | undefined;
     let offExtra = () => {};
     if (mode === 'swipe') {
+      tags.push(tag(`With ${l.name}`, 'left'), tag(`Without ${l.name}`, 'right'));
       bar = document.createElement('div');
       bar.className = 'gx-swipe-bar';
       bar.setAttribute('role', 'slider');
-      bar.setAttribute('aria-label', 'Swipe divider');
+      bar.setAttribute('aria-label', `Swipe divider: ${l.name}`);
+      bar.setAttribute('aria-valuemin', '0');
+      bar.setAttribute('aria-valuemax', '100');
       bar.tabIndex = 0;
       host.append(bar);
       let x = host.clientWidth / 2;
@@ -218,48 +255,69 @@ export class MapExtras {
         x = Math.max(0, Math.min(host.clientWidth, x));
         el.style.clipPath = `inset(0 0 0 ${x}px)`;
         bar!.style.left = `${x}px`;
-        bar!.setAttribute('aria-valuenow', String(Math.round((x / host.clientWidth) * 100)));
+        bar!.setAttribute('aria-valuenow', String(Math.round((x / Math.max(1, host.clientWidth)) * 100)));
       };
       place();
       const move = (e: PointerEvent) => { x = e.clientX - host.getBoundingClientRect().left; place(); };
-      const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-      bar.addEventListener('pointerdown', (e) => { e.preventDefault(); window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); });
+      const up = () => { bar!.classList.remove('dragging'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+      bar.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); bar!.classList.add('dragging'); window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); });
       bar.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowLeft') { x -= 20; place(); }
-        if (e.key === 'ArrowRight') { x += 20; place(); }
+        if (e.key === 'ArrowLeft') { x -= e.shiftKey ? 80 : 20; place(); e.preventDefault(); }
+        if (e.key === 'ArrowRight') { x += e.shiftKey ? 80 : 20; place(); e.preventDefault(); }
+        if (e.key === 'Home') { x = 0; place(); }
+        if (e.key === 'End') { x = host.clientWidth; place(); }
       });
       const resize = () => place();
       window.addEventListener('resize', resize);
-      offExtra = () => window.removeEventListener('resize', resize);
-      this.h.setStatus(`Swipe: left of the divider shows ${l.name}, right of it the map without it. Drag the divider; Swipe again ends it.`, 8000);
+      offExtra = () => { window.removeEventListener('resize', resize); up(); };
+      this.h.setStatus(`Swipe: left of the divider shows ${l.name}, right of it the map without it. Drag the divider; Swipe again or Esc ends it.`, 8000);
     } else {
+      tags.push(tag(`Lens: without ${l.name}`, 'left'));
+      lens = document.createElement('div');
+      lens.className = 'gx-lens';
+      host.append(lens);
       let r = 110;
-      el.style.clipPath = 'circle(0px at 0 0)';
+      let cx = host.clientWidth / 2, cy = host.clientHeight / 2;
+      const place = () => {
+        el.style.clipPath = `circle(${r}px at ${cx}px ${cy}px)`;
+        lens!.style.width = lens!.style.height = `${2 * r}px`;
+        lens!.style.left = `${cx - r}px`;
+        lens!.style.top = `${cy - r}px`;
+      };
+      place();
       const move = (e: MouseEvent) => {
         const b = host.getBoundingClientRect();
-        el.style.clipPath = `circle(${r}px at ${e.clientX - b.left}px ${e.clientY - b.top}px)`;
+        cx = e.clientX - b.left;
+        cy = e.clientY - b.top;
+        place();
       };
       const wheel = (e: WheelEvent) => {
         if (!e.shiftKey) return;
         e.preventDefault();
-        r = Math.max(40, Math.min(400, r - Math.sign(e.deltaY) * 15));
-        move(e);
+        e.stopPropagation();
+        r = Math.max(40, Math.min(400, r - Math.sign(e.deltaY || e.deltaX) * 15));
+        place();
       };
       host.addEventListener('mousemove', move);
-      host.addEventListener('wheel', wheel, { passive: false });
-      offExtra = () => { host.removeEventListener('mousemove', move); host.removeEventListener('wheel', wheel); };
-      this.h.setStatus(`Spyglass: the lens shows the map without ${l.name}. Shift+wheel sizes it; Spyglass again ends it.`, 8000);
+      host.addEventListener('wheel', wheel, { passive: false, capture: true });
+      offExtra = () => { host.removeEventListener('mousemove', move); host.removeEventListener('wheel', wheel, { capture: true }); };
+      this.h.setStatus(`Spyglass: the lens shows the map without ${l.name}. Move the pointer; Shift+wheel sizes it; Spyglass again or Esc ends it.`, 8000);
     }
-    this.compare = { map, el, bar, mode, off: () => { main.off('move', sync); offExtra(); } };
+    this.compare = { map, el, bar, lens, tags, mode, off: () => { main.off('move', sync); main.off('resize', onResize); offExtra(); } };
+    claimMapTool(mode, () => { if (this.compare?.mode === mode) this.endCompare(); });
   }
 
   endCompare() {
     if (!this.compare) return;
+    const mode = this.compare.mode;
     this.compare.off();
     this.compare.map.remove();
     this.compare.el.remove();
     this.compare.bar?.remove();
+    this.compare.lens?.remove();
+    for (const t of this.compare.tags) t.remove();
     this.compare = null;
+    releaseMapTool(mode);
   }
 
   // ------------------------------------------------------------------ time slider
@@ -345,6 +403,8 @@ export class MapExtras {
       }
     });
     this.time = { id, field, before, el, timer: 0 };
+    document.body.dataset.time = 'on';
+    toolStateChanged();
     void apply();
     this.h.setStatus(`Time slider on ${l.name}: ${periods.length} ${step}s from ${label(periods[0])} to ${label(periods[periods.length - 1])}.`, 6000);
   }
@@ -355,6 +415,8 @@ export class MapExtras {
     clearInterval(t.timer);
     t.el.remove();
     this.time = null;
+    delete document.body.dataset.time;
+    toolStateChanged();
     void this.h.backend.json(`api/layers/${encodeURIComponent(t.id)}/filter`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ where: t.before }) }).then(() => this.h.changed(t.id)).catch(() => {});
   }
 
@@ -365,6 +427,8 @@ export class MapExtras {
   /** View › Grid: latitude / longitude lines with labels, spacing by zoom. */
   toggleGrid() {
     this.grid = !this.grid;
+    document.body.dataset.grid = this.grid ? 'on' : 'off';
+    toolStateChanged();
     const map = this.h.map;
     if (this.grid) {
       this.drawGrid();
@@ -441,10 +505,14 @@ export class MapExtras {
       map.setMinZoom(this.locked[0]);
       map.setMaxZoom(this.locked[1]);
       this.locked = null;
+      delete document.body.dataset.scaleLock;
+      toolStateChanged();
       document.body.dataset.scaleLock = 'off';
       return this.h.setStatus('Scale unlocked');
     }
     this.locked = [map.getMinZoom(), map.getMaxZoom()];
+    document.body.dataset.scaleLock = 'on';
+    toolStateChanged();
     const z = map.getZoom();
     map.setMinZoom(z);
     map.setMaxZoom(z);

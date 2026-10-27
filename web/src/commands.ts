@@ -356,6 +356,11 @@ const GROUP_ORDER: Partial<Record<TabId, string[]>> = {
   r: ['R', 'R maps', 'R rasters', 'R species models', 'R machine learning', 'Python'],
 };
 
+/** Home › Project: New, Open, Save, Save as, Rename (projects.ts). */
+const project = (what: 'new' | 'open' | 'save' | 'saveAs' | 'rename') => () => {
+  document.dispatchEvent(new CustomEvent('geospax:project', { detail: what }));
+};
+
 /** A command that runs a gallery recipe by id. */
 const recipeCmd = (id: string, tab: TabId, group: string, title: string, icon: string, recipe: string, hint: string, big = false): Command => ({
   id,
@@ -398,7 +403,7 @@ const rCmd = (id: string, group: string, title: string, icon: string, what: stri
 
 // ---------------------------------------------------------------- commands
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export interface LayerStyleLite { symbology?: { kind?: string } }
 
@@ -466,8 +471,8 @@ const EXTRA_COMMANDS: Command[] = [
   { id: 'design.survey', tab: 'design', group: 'Survey', title: 'Survey points', icon: 'fileAdd', hint: 'Points from a CSV of id, easting, northing (any EPSG system)', run: xCmd('survey') },
   { id: 'design.areas', tab: 'design', group: 'Survey', title: 'Area table', icon: 'area', hint: 'Area and perimeter of each polygon, to copy or save', run: xCmd('areas') },
   { id: 'design.hatch', tab: 'design', group: 'Modify', title: 'Hatch', icon: 'hatch', hint: 'Fill pattern for the selected polygon layer', run: xCmd('hatch') },
-  { id: 'design.copy', tab: 'design', group: 'CAD exchange', title: 'Copy features', icon: 'copy', hint: 'Copy the selected features (GIS layer ↔ drawing)', run: editCmd('copy') },
-  { id: 'design.paste', tab: 'design', group: 'CAD exchange', title: 'Paste features', icon: 'paste', hint: 'Paste them into the selected layer', run: editCmd('paste') },
+  { id: 'design.copyFeatures', tab: 'design', group: 'CAD exchange', title: 'Copy features', icon: 'copy', hint: 'Copy the selected features between a GIS layer and the drawing', run: editCmd('copy') },
+  { id: 'design.pasteFeatures', tab: 'design', group: 'CAD exchange', title: 'Paste features', icon: 'paste', hint: 'Paste them into the selected layer', run: editCmd('paste') },
   // ---- Imagery
   tool('imagery.index', 'imagery', 'Indices', 'Spectral index', 'leaf', ['p:gsx/spectral-index', 'p:geospax-climate/spectral-index'], 'NDVI, NDWI, NDBI, NBR … with the extent (Otsu)', true),
   tool('imagery.ndi', 'imagery', 'Indices', 'Normalized difference', 'leaf', [geo('normalized_difference_index')], 'Any (A − B) / (A + B) of two bands'),
@@ -489,16 +494,28 @@ const EXTRA_COMMANDS: Command[] = [
   tool('analyze.closest', 'analyze', 'Network', 'Closest facility', 'nearby', [geo('closest_facility_network')], 'The nearest facility along roads from each incident'),
   tool('analyze.route', 'analyze', 'Network', 'Shortest path', 'navBack', [geo('shortest_path_network')], 'The shortest route between points'),
   // ---- Share
-  ...([['gpkg', 'GeoPackage'], ['shp', 'Shapefile'], ['kml', 'KML'], ['csv', 'CSV'], ['geojson', 'GeoJSON'], ['parquet', 'GeoParquet']] as [string, string][]).map(([f, t]): Command => (
-    { id: `share.data.${f}`, tab: 'share', group: 'Export data', title: t, icon: 'download', hint: `Save the selected layer as ${t}`, run: xCmd(`download:${f}`) })),
-  ...([['pdf', 'PDF'], ['svg', 'SVG'], ['png', 'PNG'], ['report', 'Word report']] as [string, string][]).map(([f, t]): Command => (
-    { id: `share.map.${f}`, tab: 'share', group: 'Export map', title: t, icon: f === 'report' ? 'book' : 'image', hint: `The map as ${t} (Finish my map)`, run: () => { document.dispatchEvent(new CustomEvent('geospax:finish', { detail: f })); } })),
+  ...([
+    ['geojson', 'GeoJSON', 'globe', 'GeoJSON: one text file, read by every web map and GIS'],
+    ['shp', 'Shapefile', 'package', 'Shapefile: the classic GIS format, zipped (.shp, .dbf, .shx, .prj)'],
+    ['csv', 'CSV', 'table', 'CSV: the attribute table for Excel, with WKT geometry'],
+    ['gpkg', 'GeoPackage', 'database', 'GeoPackage: one SQLite file, opens in ArcGIS Pro and QGIS'],
+    ['kml', 'KML', 'googleEarth', 'KML: for Google Earth and phones'],
+    ['parquet', 'GeoParquet', 'grid', 'GeoParquet: compact columns for big data, DuckDB and Python'],
+  ] as [string, string, string, string][]).map(([f, t, ic, hint]): Command => (
+    { id: `share.data.${f}`, tab: 'share', group: 'Export data', title: t, icon: ic, hint: `${hint}. Saves the selected layer`, run: xCmd(`download:${f}`) })),
+  ...([
+    ['pdf', 'PDF', 'print', 'PDF: a print-ready page with title, legend, scale bar and north arrow'],
+    ['png', 'PNG', 'image', 'PNG: a high-resolution picture for slides, email and the web'],
+    ['svg', 'SVG', 'shape', 'SVG: vector graphics to finish in Illustrator or Inkscape'],
+    ['report', 'Word report', 'book', 'Word report: a .docx with the map, legend and layer summary'],
+  ] as [string, string, string, string][]).map(([f, t, ic, hint]): Command => (
+    { id: `share.map.${f}`, tab: 'share', group: 'Export map', title: t, icon: ic, hint, run: () => { document.dispatchEvent(new CustomEvent('geospax:finish', { detail: f })); } })),
   { id: 'share.publish', tab: 'share', group: 'Publish', title: 'Web map', icon: 'web', big: true, hint: 'An interactive map in one HTML file to open anywhere or put on a website', run: xCmd('publish') },
   { id: 'share.package', tab: 'share', group: 'Publish', title: 'Package project', icon: 'package', hint: 'A .gspx file with the layers and styles, to send to a colleague', run: xCmd('package') },
   { id: 'share.print', tab: 'share', group: 'Publish', title: 'Print', icon: 'print', keys: 'Ctrl+P', hint: 'Print the map as it is on screen', run: xCmd('print') },
   // ---- Help
   { id: 'help.tutorials', tab: 'help', group: 'Learn', title: 'Tutorials', icon: 'start', big: true, hint: 'Short guided lessons with the sample data', run: () => { document.dispatchEvent(new CustomEvent('geospax:tutorials')); } },
-  { id: 'help.search', tab: 'help', group: 'Learn', title: 'Search commands', icon: 'search', keys: 'Ctrl+K', hint: 'Find any command by name', run: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); } },
+  { id: 'help.search', tab: 'help', group: 'Learn', title: 'Search commands', icon: 'search', keys: 'Ctrl+K', hint: 'Find any command by name', run: () => { document.dispatchEvent(new CustomEvent('geospax:palette')); } },
 ];
 
 export const COMMANDS: Command[] = [
@@ -622,16 +639,36 @@ export const COMMANDS: Command[] = [
   {
     id: 'home.refresh', tab: 'home', group: 'Project', title: 'Refresh', icon: 'refresh',
     hint: 'Re-read the data folder and rebuild the layer list', keys: 'F5',
-    run: (h) => { h.reload(); },
+    run: async (h) => { await h.reload(); h.setStatus('Layers refreshed from the data folders', 4000); },
   },
   {
-    id: 'home.save', tab: 'home', group: 'Project', title: 'Save project', icon: 'save', big: true,
-    hint: 'Styles, layer order and visibility are stored in the project file', keys: 'Ctrl+S',
-    run: (h) => { h.save(); h.setStatus('Project saved'); },
+    id: 'home.save', tab: 'home', group: 'Project', title: 'Save', icon: 'save', big: true,
+    hint: 'Save the project (layers, styles, order, view and bookmarks) under its name', keys: 'Ctrl+S',
+    run: project('save'),
+  },
+  {
+    id: 'home.new', tab: 'home', group: 'Project', title: 'New project', icon: 'fileAdd', big: true,
+    hint: 'Start an empty project: you give it a name, the data folders stay connected', keys: 'Ctrl+N',
+    run: project('new'),
+  },
+  {
+    id: 'home.open', tab: 'home', group: 'Project', title: 'Open project', icon: 'folder', big: true,
+    hint: 'Open one of your saved projects', keys: 'Ctrl+O',
+    run: project('open'),
+  },
+  {
+    id: 'home.saveAs', tab: 'home', group: 'Project', title: 'Save as', icon: 'save',
+    hint: 'Save a copy of the project under a new name and carry on in the copy', keys: 'Ctrl+Shift+S',
+    run: project('saveAs'),
+  },
+  {
+    id: 'home.rename', tab: 'home', group: 'Project', title: 'Rename', icon: 'form',
+    hint: 'Give the open project a new name',
+    run: project('rename'),
   },
   {
     id: 'home.contents', tab: 'home', group: 'Layer', title: 'Contents', icon: 'layers',
-    hint: 'Show the layer list', run: (h) => { h.showTab('left', 'contents'); },
+    hint: 'Show the layer list', run: (h) => { h.showTab('left', 'contents'); h.setStatus('Contents: the layer list is open on the left', 3000); },
   },
   {
     id: 'home.zoomLayer', tab: 'home', group: 'Layer', title: 'Zoom to layer', icon: 'zoomTo',
@@ -653,8 +690,8 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'home.identify', tab: 'home', group: 'Inquiry', title: 'Identify', icon: 'identify',
-    hint: 'Click the map to inspect a feature', keys: 'I',
-    run: (h) => h.setStatus('Click a feature on the map', 4000),
+    hint: 'Click features on the map to see their attributes; click again or press Esc to stop', keys: 'I',
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:identify-tool')); },
   },
   {
     id: 'home.finish', tab: 'share', group: 'Layout', title: 'Finish my map', icon: 'print', big: true,
@@ -721,7 +758,7 @@ export const COMMANDS: Command[] = [
   {
     id: 'data.rasters', tab: 'imagery', group: 'Rasters', title: 'Rasters', icon: 'image', big: true,
     hint: 'DEMs, hillshades, satellite indices',
-    run: (h) => { h.showTab('right', 'rasters'); },
+    run: (h) => { h.showTab('right', 'rasters'); h.setStatus('Rasters: DEMs and images are listed in Contents on the left, under the layers', 4000); },
   },
   {
     id: 'data.catalog', tab: 'data', group: 'Sources', title: 'Explorer', icon: 'folder',
@@ -744,7 +781,7 @@ export const COMMANDS: Command[] = [
   {
     id: 'style.panel', tab: 'home', group: 'Symbology', title: 'Symbology', icon: 'palette', big: true,
     hint: 'Renderer, field, colours, opacity, labels', keys: 'Ctrl+2',
-    run: (h) => { h.showTab('right', 'symbology'); },
+    run: (h) => { h.showTab('right', 'symbology'); h.setStatus('Symbology: style the active layer on the right', 3000); },
   },
   {
     id: 'style.auto', tab: 'home', group: 'Symbology', title: 'AutoMap', icon: 'wand',
@@ -767,11 +804,12 @@ export const COMMANDS: Command[] = [
   {
     id: 'style.attributes', tab: 'home', group: 'Symbology', title: 'Fields', icon: 'fields',
     hint: 'Field names and types of the active layer',
-    run: (h) => { h.showTab('right', 'attributes'); },
+    run: (h) => { h.showTab('right', 'attributes'); h.setStatus('Fields: the names and types of the active layer are on the right', 3000); },
   },
   {
     id: 'style.legend', tab: 'home', group: 'Symbology', title: 'Legend', icon: 'legend',
-    run: (h) => { h.showTab('left', 'contents'); },
+    hint: 'The legend of each layer, under its name in Contents',
+    run: (h) => { h.showTab('left', 'contents'); h.setStatus('Legend: each layer shows its legend under its name in Contents', 3000); },
   },
 
   // ---- Analyze
@@ -788,7 +826,7 @@ export const COMMANDS: Command[] = [
   {
     id: 'analyze.gallery', tab: 'analyze', group: 'Geoprocessing', title: 'Recipe gallery', icon: 'play', big: true,
     hint: 'One-click workflows: pick one, press Run', keys: 'Ctrl+R',
-    run: (h) => { h.showTab('bottom', 'automate'); },
+    run: (h) => { h.showTab('bottom', 'automate'); h.setStatus('Recipe gallery: pick a workflow in the Automate pane below and press Run', 4000); },
   },
   {
     id: 'analyze.toolbox', tab: 'analyze', group: 'Geoprocessing', title: 'Toolbox', icon: 'toolbox', big: true,
@@ -1329,10 +1367,11 @@ export const COMMANDS: Command[] = [
 ];
 
 /** Render one ribbon button (shared by the ribbon and the palette footer). */
+/** A ribbon button; `big` is decided by the tab's layout (ribbonlayout.ts), not the command. */
 export function commandHtml(c: Command, big = false): string {
-  const useBig = big || !!c.big;
+  const useBig = big;
   return `<button class="rb-btn${useBig ? ' big' : ' small'}" data-cmd="${c.id}" title="${esc(
-    `${c.title}${c.hint ? ' — ' + c.hint : ''}${c.keys ? ` (${c.keys})` : ''}`,
+    `${c.title}${c.hint ? ': ' + c.hint : ''}${c.keys ? ` (${c.keys})` : ''}`,
   )}">
     <span class="rb-ico">${icon(c.icon, useBig ? 28 : 16)}</span>
     <span class="rb-label">${esc(c.title)}</span>
