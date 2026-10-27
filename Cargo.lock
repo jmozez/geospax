@@ -1819,6 +1819,7 @@ dependencies = [
  "geospax-engine",
  "getrandom 0.2.17",
  "serde_json",
+ "tauri-winres",
  "tokio",
  "tower-http",
 ]
