@@ -515,7 +515,7 @@ const EXTRA_COMMANDS: Command[] = [
   { id: 'share.print', tab: 'share', group: 'Publish', title: 'Print', icon: 'print', keys: 'Ctrl+P', hint: 'Print the map as it is on screen', run: xCmd('print') },
   // ---- Help
   { id: 'help.tutorials', tab: 'help', group: 'Learn', title: 'Tutorials', icon: 'start', big: true, hint: 'Short guided lessons with the sample data', run: () => { document.dispatchEvent(new CustomEvent('geospax:tutorials')); } },
-  { id: 'help.search', tab: 'help', group: 'Learn', title: 'Search commands', icon: 'search', keys: 'Ctrl+K', hint: 'Find any command by name', run: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); } },
+  { id: 'help.search', tab: 'help', group: 'Learn', title: 'Search commands', icon: 'search', keys: 'Ctrl+K', hint: 'Find any command by name', run: () => { document.dispatchEvent(new CustomEvent('geospax:palette')); } },
 ];
 
 export const COMMANDS: Command[] = [
@@ -758,7 +758,7 @@ export const COMMANDS: Command[] = [
   {
     id: 'data.rasters', tab: 'imagery', group: 'Rasters', title: 'Rasters', icon: 'image', big: true,
     hint: 'DEMs, hillshades, satellite indices',
-    run: (h) => { h.showTab('right', 'rasters'); },
+    run: (h) => { h.showTab('right', 'rasters'); h.setStatus('Rasters: DEMs and images are listed in Contents on the left, under the layers', 4000); },
   },
   {
     id: 'data.catalog', tab: 'data', group: 'Sources', title: 'Explorer', icon: 'folder',
@@ -826,7 +826,7 @@ export const COMMANDS: Command[] = [
   {
     id: 'analyze.gallery', tab: 'analyze', group: 'Geoprocessing', title: 'Recipe gallery', icon: 'play', big: true,
     hint: 'One-click workflows: pick one, press Run', keys: 'Ctrl+R',
-    run: (h) => { h.showTab('bottom', 'automate'); },
+    run: (h) => { h.showTab('bottom', 'automate'); h.setStatus('Recipe gallery: pick a workflow in the Automate pane below and press Run', 4000); },
   },
   {
     id: 'analyze.toolbox', tab: 'analyze', group: 'Geoprocessing', title: 'Toolbox', icon: 'toolbox', big: true,
