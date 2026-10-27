@@ -66,7 +66,7 @@ cat > "$P/usr/share/doc/geospax/copyright" <<EOF
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: GeoSpaX
 Files: *
-Copyright: 2026 GeoSpaX contributors
+Copyright: 2026 in4metrix (https://www.in4metrix.dev) and GeoSpaX contributors
 License: MIT
  See /usr/share/doc/geospax/LICENSE.
  .
