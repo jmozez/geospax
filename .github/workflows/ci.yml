@@ -41,6 +41,8 @@ jobs:
             target
           key: cargo-trixie-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-trixie-
+      - name: Publisher is in4metrix in every package (Windows installer and version info, Flatpak, deb, rpm)
+        run: bash scripts/check-publisher.sh
       - name: Docs links and anchors
         run: python3 scripts/test-docs-links.py README.md CHANGELOG.md SECURITY.md bench/RESULTS.md docs/*.md
       - name: Web UI (type check + build)
@@ -374,10 +376,18 @@ jobs:
       run:
         shell: pwsh
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
       - uses: actions/download-artifact@v4
         with:
           name: geospax-windows
           path: dist
+      - name: Upgrades over 3.0.2 (old publisher), 3.0.6 and a half-removed install leave one GeoSpaX (clicked through and /P)
+        timeout-minutes: 45
+        run: |
+          $setup = Get-ChildItem dist -Recurse -Filter 'GeoSpaX_*_x64-setup.exe' | Select-Object -First 1
+          & ./scripts/test-windows-upgrade.ps1 -Setup $setup.FullName
       - name: Silent per-user install
         run: |
           $setup = Get-ChildItem dist -Recurse -Filter 'GeoSpaX_*_x64-setup.exe' | Select-Object -First 1
