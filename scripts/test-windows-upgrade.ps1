@@ -18,6 +18,7 @@ $OldKey = 'HKCU:\Software\GeoSpaX contributors'
 $Cache = Join-Path $env:RUNNER_TEMP 'geospax-old'
 New-Item -ItemType Directory -Force $Cache | Out-Null
 $summary = @("### Windows upgrade test (new installer $NewVersion)", '')
+function Note([string]$line) { Write-Host $line; $script:summary += $line }
 
 function Old-Setup([string]$v) {
   $f = Join-Path $Cache "GeoSpaX_${v}_x64-setup.exe"
@@ -78,14 +79,14 @@ function Assert-Upgraded([string]$from) {
 Install-Old '3.0.2'
 $rc = Run (Old-Setup '3.0.6') @('/P') 120
 $v = (Get-Item "$Inst\geospax.exe" -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
-$summary += "- control, published 3.0.6 over 3.0.2: installer exit '$rc', geospax.exe now '$v'" + $(if ($rc -eq 'hung') { ' (stuck on "unable to uninstall", the reported bug)' } else { '' })
+Note ("- control, published 3.0.6 over 3.0.2: installer exit '$rc', geospax.exe now '$v'" + $(if ($rc -eq 'hung') { ' (stuck on "unable to uninstall", the reported bug)' } else { '' }))
 
 foreach ($from in '3.0.2', '3.0.6') {
   Install-Old $from
   $rc = Run $Setup @('/P') 600
   if ($rc -ne 0) { throw "new installer over ${from}: exit '$rc' (hung = stuck on a message box such as 'unable to uninstall')" }
   Assert-Upgraded $from
-  $summary += "- upgrade from ${from}: ok (one entry, $NewVersion, publisher in4metrix, same folder)"
+  Note "- upgrade from ${from}: ok (one entry, $NewVersion, publisher in4metrix, same folder)"
 }
 
 Install-Old '3.0.2'
@@ -93,7 +94,7 @@ Remove-Item -Force "$Inst\uninstall.exe"
 $rc = Run $Setup @('/P') 600
 if ($rc -ne 0) { throw "new installer over 3.0.2 without its uninstaller: exit '$rc'" }
 Assert-Upgraded '3.0.2 without uninstall.exe'
-$summary += '- 3.0.2 with its uninstaller deleted: ok'
+Note '- 3.0.2 with its uninstaller deleted: ok'
 
 # the new uninstaller leaves nothing behind
 $rc = Run "$Inst\uninstall.exe" @('/S') 120
@@ -101,8 +102,9 @@ for ($i = 0; $i -lt 60 -and (Test-Path "$Inst\geospax.exe"); $i++) { Start-Sleep
 if (Test-Path "$Inst\geospax.exe") { throw 'the uninstaller left geospax.exe' }
 for ($i = 0; $i -lt 30 -and @(Uninstall-Entries).Count; $i++) { Start-Sleep 1 }
 if (@(Uninstall-Entries).Count) { throw 'the uninstaller left an Apps & features entry' }
-if ((Test-Path $NewKey) -or (Test-Path $OldKey)) { throw 'the uninstaller left a GeoSpaX registry key' }
-$summary += '- uninstall: no files, entries or registry keys left'
+if (Test-Path $OldKey) { throw "the uninstaller left the old 'GeoSpaX contributors' registry key" }
+# Tauri keeps Software\in4metrix\GeoSpaX (the install folder, for a later reinstall) unless "delete app data" is ticked
+if ((Test-Path $NewKey) -and (Get-ItemProperty $NewKey).'(default)' -ne $Inst) { throw 'the in4metrix key points elsewhere' }
+Note '- uninstall: no files, Apps & features entry or old registry key left'
 
-$summary | ForEach-Object { Write-Host $_ }
 if ($env:GITHUB_STEP_SUMMARY) { $summary | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY }
