@@ -273,6 +273,7 @@ try:
             answers.setdefault(tid, []).append(r.get("message"))
     print("industry and climate kits (downloads swapped for the test data)")
     fix = os.path.dirname(ENSO)
+    SHOTS = []
     KITS = {
         "kit-survey-plan": {"legs": "0 100\n90 100.02\n180 100\n270 100", "lots": L("patches")},
         "kit-power-corridor": {"lines": L("transect"), "features": L("buildings"), "chm": R("chm"), "towers": L("towers")},
@@ -314,7 +315,18 @@ try:
             time.sleep(0.5)
         arts = r.get("artifacts", [])
         bad = [f"{x['id']}: {'; '.join(x.get('why') or [])}" for x in r.get("steps", []) if x.get("status") == "failed"]
+        if os.environ.get("GX_SHOTS") and r.get("status") == "done":  # keep the maps (README screenshots)
+            os.makedirs(os.environ["GX_SHOTS"], exist_ok=True)
+            for root, _, files in os.walk(os.path.join(tmp, "state")):
+                for fn in files:
+                    if fn.endswith(".png") and run["id"] in root:
+                        shutil.copy(os.path.join(root, fn), os.path.join(os.environ["GX_SHOTS"], f"{kid}-{fn}"))
+            SHOTS.append({"kit": kid, "layers": r.get("layers", []), "rasters": r.get("rasters", [])})
         check(f"{kid} runs to its map and report", r.get("status") == "done" and "report.html" in arts and any(a.endswith(".png") for a in arts), (r.get("error") or "; ".join(bad) or ", ".join(arts))[:220])
+    if os.environ.get("GX_SHOTS") and SHOTS:  # the app itself, dark theme, Pro mode, one shot per kit
+        with open(os.path.join(tmp, "shots.json"), "w") as f:
+            json.dump(SHOTS, f)
+        subprocess.run(["node", "scripts/shots-industry.mjs", BASE, os.environ["GX_SHOTS"], os.path.join(tmp, "shots.json")])
     print("large rasters")
     s, j = call("POST", "api/plugins/geospax-forestry/tools/raster-change/run", {"params": {"before": R("big_2015"), "after": R("big_2024")}})
     msg = (j.get("result") or {}).get("message") or j.get("error", "")
