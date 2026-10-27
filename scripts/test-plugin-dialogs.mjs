@@ -31,6 +31,9 @@ const seen = {};
 for (const p of plugins) {
   console.log(p.name);
   for (const t of p.tools) {
+    // a result the last run opened is the active layer and is meant to chain into the next tool:
+    // close it so each tool is judged on how it picks from your own data
+    await page.$$eval('[data-k="close"]', (els) => els.forEach((e) => e.offsetParent && e.click()));
     await openPluginTool(page, p.id, t.id);
     await page.waitForSelector('#plugin-modal:not([hidden])');
     const inputs = Object.fromEntries(await page.$$eval('#plugin-modal select[data-p]', (els) => els.map((e) => [e.dataset.p, e.multiple ? [...e.selectedOptions].map((o) => o.value) : e.value])));
