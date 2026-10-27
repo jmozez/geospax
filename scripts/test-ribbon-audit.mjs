@@ -268,9 +268,10 @@ async function enumerate(tab) {
         const r = m.getBoundingClientRect();
         return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, w: innerWidth, h: innerHeight };
       });
+      const recipes = await page.evaluate(() => document.querySelectorAll('.rb-menu [data-recipe]').length);
       await page.keyboard.press('Escape');
       await page.evaluate(() => document.querySelectorAll('.rb-menu').forEach((m) => m.remove()));
-      res.push({ ...it, entries: entries.length, inWindow: inMenu ? inMenu.left >= 0 && inMenu.right <= inMenu.w && inMenu.top >= 0 && inMenu.bottom <= inMenu.h : null });
+      res.push({ ...it, entries: entries.length + recipes, inWindow: inMenu ? inMenu.left >= 0 && inMenu.right <= inMenu.w && inMenu.top >= 0 && inMenu.bottom <= inMenu.h : null });
       for (const en of entries) res.push({ group: it.group, label: en.label, kind: 'menu-entry', cmd: en.cmd, via: sel, parent: it.label, toggle: en.toggle, desc: en.desc });
     } else res.push(it);
   }
