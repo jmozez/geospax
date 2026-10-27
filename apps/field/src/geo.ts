@@ -48,8 +48,14 @@ export async function watchPosition(onFix: (f: Fix) => void, onError: (msg: stri
  * point saved from one of those lands in the wrong place. So a fix is only used when it is
  *  - fresh (taken after the app started following the position, not a cached one from before),
  *  - not a coarse network guess (accuracy 100 m or better), and
- *  - not a jump faster than 70 m/s (250 km/h) from the last good fix, unless it is much more accurate
- *    (three such jumps in a row are taken as real: the last good fix was the wrong one).
+ *  - not a jump faster than 70 m/s (250 km/h) from the last good fix, unless it is much more accurate.
+ * A jump is held back, not thrown away. It is taken as a real move (the last good fix was the wrong one,
+ * or the phone really went somewhere else) when
+ *  - three jumping fixes in a row agree with each other, or
+ *  - nothing has contradicted it for 15 s and it is good to 50 m or better: no fix back near the last good one has come in since. Some
+ *    phones (and the Android emulator) only report a new fix when the position changes, so after a move
+ *    the second and third fix may never come; `tick()` checks this between fixes.
+ * Any fix close to the last good one again cancels the held jump.
  * `best()` then averages the good fixes from the 10 s up to the latest one, weighted by 1/accuracy², which
  * steadies a point taken while standing still; the accuracy it reports is the best single fix's, never
  * better. (Some phones only report a new fix when the position changes, so the window ends at the latest
@@ -57,7 +63,10 @@ export async function watchPosition(onFix: (f: Fix) => void, onError: (msg: stri
  */
 export class FixFilter {
   private recent: Fix[] = [];
-  private jumps = 0;
+  /** jumping fixes held back, oldest first, all close to each other */
+  private held: Fix[] = [];
+  /** when the first held fix came in (the clock of the caller, so a phone's odd timestamps do not matter) */
+  private heldSince = 0;
   last: Fix | null = null;
 
   private since: number;
@@ -67,23 +76,50 @@ export class FixFilter {
     this.since = since;
   }
 
-  /** Returns the fix when it is good enough to use, otherwise null. */
-  add(f: Fix): Fix | null {
+  /** Returns the fix when it is good enough to use, otherwise null. `now`: when it came in. */
+  add(f: Fix, now = f.t): Fix | null {
     if (!Number.isFinite(f.lon) || !Number.isFinite(f.lat) || !Number.isFinite(f.acc)) return null;
     if (f.t < this.since - 5_000 || f.acc > 100) return null;
     const p = this.last;
-    if (p && f.t > p.t) {
+    if (p && f.t <= p.t) return null; // the same fix again, or an older one
+    if (p) {
       const speed = metres([p.lon, p.lat], [f.lon, f.lat]) / ((f.t - p.t) / 1000);
       if (speed > 70 && f.acc > p.acc / 2) {
-        if (++this.jumps < 3) return null;
-        this.recent = []; // moved for real: the fixes before do not belong in the average
+        const h = this.held[this.held.length - 1];
+        if (h && f.t <= h.t) return null;
+        // a jump to somewhere else than the held ones starts again from this one
+        if (!h || metres([h.lon, h.lat], [f.lon, f.lat]) > Math.max(50, 2 * Math.max(h.acc, f.acc))) {
+          this.held = [];
+          this.heldSince = now;
+        }
+        this.held.push(f);
+        if (this.held.length < 3) return this.tick(now);
+        return this.moved();
       }
     }
-    this.jumps = 0;
-    if (p && f.t <= p.t) return null; // the same fix again, or an older one
+    this.held = [];
     this.last = f;
     this.recent = [...this.recent.filter((r) => f.t - r.t <= 10_000), f];
     return f;
+  }
+
+  /**
+   * Call now and then between fixes (every second or so): a held jump that nothing has contradicted for
+   * 15 s becomes the position. Returns the new fix when that happens, otherwise null.
+   */
+  tick(now = Date.now()): Fix | null {
+    const h = this.held[this.held.length - 1];
+    if (!h || h.acc > 50 || now - this.heldSince < 15_000) return null;
+    return this.moved();
+  }
+
+  /** The held jump is a real move: the fixes before it do not belong in the average. */
+  private moved(): Fix {
+    const h = this.held;
+    this.held = [];
+    this.last = h[h.length - 1];
+    this.recent = h.filter((r) => this.last!.t - r.t <= 10_000);
+    return this.last;
   }
 
   /** The steadiest position for saving a point now, or null with no good fix in the last 2 minutes. */

@@ -5,6 +5,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+## [3.0.6] — 2026-10-27
+
 ### Added — the ribbon, tab by tab (reviewed against ArcGIS Pro 3.6, QGIS 4.0 and current tools)
 - **Panels**: a collapse / expand chevron at the end of each panel's tab strip (left, right, bottom).
 - **Home**: Lasso selection; Labels on/off for the selected layer; Coordinates in decimal degrees,
@@ -32,8 +34,6 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Tests: `scripts/test-ribbon-tools.py` (known answers for zonal statistics, topology, split / merge / cut /
   reshape, downloads; in CI) and `scripts/test-web-ribbon.mjs` (the tools in a browser).
 
-## [3.0.6] — 2026-10-26
-
 ### Security — web demo (geospax.fly.dev) and the apps
 - Rate limits on the public demo, per visitor address: 40 requests a second (bursts up to 600, enough for a
   map full of tiles) and 1 upload or other change a second (bursts up to 30); past that the demo answers
@@ -45,6 +45,10 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Positions the phone hands out before the GPS has locked on are no longer used: a cached position from
   before the app started, a coarse network guess (worse than ±100 m), or a jump faster than 250 km/h from
   the last good fix. The status chip says *Waiting for GPS* until a good fix arrives.
+- A jump is held back rather than thrown away. It becomes the position after three fixes that agree with
+  it, or after 15 seconds with no fix back near the old place. Some phones (and the Android emulator) only
+  report a fix when the position changes, so after a real move the second and third fix may never come;
+  before, the app could then stay at the old place.
 - A point (and *Add my position* while drawing) is placed at the average of the last 10 seconds' good fixes,
   weighted by their accuracy, instead of the latest single fix: standing still, the scatter of a few metres
   averages out. The accuracy shown is the best single fix's, never better.
