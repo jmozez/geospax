@@ -46,51 +46,68 @@ function Run([string]$exe, [string[]]$arguments, [int]$seconds) {
   }
   $p.ExitCode
 }
-Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
-$UIA = [System.Windows.Automation.AutomationElement]
-$Btn = New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty), ([System.Windows.Automation.ControlType]::Button)
-Add-Type -Namespace W32 -Name U -MemberDefinition '[DllImport("user32.dll")] public static extern bool PostMessage(System.IntPtr h, uint m, System.IntPtr w, System.IntPtr l);
+# Win32 window enumeration (UI Automation sees the setup window on the hosted runner but none of its buttons)
+Add-Type -Namespace W32 -Name U -MemberDefinition @'
+public delegate bool EnumProc(System.IntPtr h, System.IntPtr l);
+[DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, System.IntPtr l);
+[DllImport("user32.dll")] public static extern bool EnumChildWindows(System.IntPtr p, EnumProc f, System.IntPtr l);
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(System.IntPtr h, out uint pid);
+[DllImport("user32.dll")] public static extern bool IsWindowVisible(System.IntPtr h);
+[DllImport("user32.dll")] public static extern bool IsWindowEnabled(System.IntPtr h);
+[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(System.IntPtr h, System.Text.StringBuilder s, int n);
+[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(System.IntPtr h, System.Text.StringBuilder s, int n);
+[DllImport("user32.dll")] public static extern bool PostMessage(System.IntPtr h, uint m, System.IntPtr w, System.IntPtr l);
 [DllImport("user32.dll")] public static extern int GetDlgCtrlID(System.IntPtr h);
-[DllImport("user32.dll")] public static extern System.IntPtr GetParent(System.IntPtr h);'
-$Txt = New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty), ([System.Windows.Automation.ControlType]::Text)
+[DllImport("user32.dll")] public static extern System.IntPtr GetParent(System.IntPtr h);
+public static string Text(System.IntPtr h) { var s = new System.Text.StringBuilder(1024); GetWindowText(h, s, 1024); return s.ToString(); }
+public static string Class(System.IntPtr h) { var s = new System.Text.StringBuilder(256); GetClassName(h, s, 256); return s.ToString(); }
+public static System.Collections.Generic.List<System.IntPtr> Tops(uint[] pids) {
+  var r = new System.Collections.Generic.List<System.IntPtr>();
+  EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (IsWindowVisible(h) && System.Array.IndexOf(pids, p) >= 0) r.Add(h); return true; }, System.IntPtr.Zero);
+  return r;
+}
+public static System.Collections.Generic.List<System.IntPtr> Children(System.IntPtr top) {
+  var r = new System.Collections.Generic.List<System.IntPtr>();
+  EnumChildWindows(top, (h, l) => { if (IsWindowVisible(h)) r.Add(h); return true; }, System.IntPtr.Zero);
+  return r;
+}
+'@
 # Runs a setup without switches and clicks it through like a user: Next (the reinstall page keeps its default,
 # "Uninstall before installing"), the old uninstaller's Uninstall / Close, Install, Finish. A message box
 # is answered with OK and its text recorded. Returns @{ Exit = exit code, 'timeout' or 'no window'; Boxes = texts }.
 function Run-Gui([string]$exe, [int]$seconds) {
   $p = Start-Process $exe -PassThru
   $null = $p.Handle
-  $boxes = @(); $seen = $false; $script:trace = @(); $last = ''; $clicked = [datetime]::MinValue
+  $boxes = @(); $seen = $false; $script:trace = @(); $last = ''; $clicked = [datetime]::MinValue; $lastBox = ''
   $deadline = (Get-Date).AddSeconds($seconds)
   while (-not $p.HasExited -and (Get-Date) -lt $deadline) {
-    $ids = @($p.Id) + @(Get-Process uninstall, Un_*, Au_* -ErrorAction SilentlyContinue | ForEach-Object Id)
-    foreach ($w in $UIA::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)) {
-      try {
-        if ($ids -notcontains $w.Current.ProcessId) { continue }
-        $seen = $true
-        $buttons = @($w.FindAll([System.Windows.Automation.TreeScope]::Descendants, $Btn))
-        $names = $buttons | ForEach-Object { $_.Current.Name -replace '&', '' }
-        $target = $null
-        if (($names -contains 'OK') -and ($names -notcontains 'Cancel')) {
-          # a message box
-          $boxes += (@($w.FindAll([System.Windows.Automation.TreeScope]::Descendants, $Txt)) | ForEach-Object { $_.Current.Name }) -join ' '
-          $target = $buttons | Where-Object { ($_.Current.Name -replace '&', '') -eq 'OK' } | Select-Object -First 1
-        } else {
-          foreach ($want in 'Next >', 'Install', 'Uninstall', 'Finish', 'Close') {
-            $target = $buttons | Where-Object { ($_.Current.Name -replace '&', '') -eq $want -and $_.Current.IsEnabled } | Select-Object -First 1
-            if ($target) { break }
-          }
+    $ids = [uint32[]](@($p.Id) + @(Get-Process uninstall, Un_*, Au_* -ErrorAction SilentlyContinue | ForEach-Object Id))
+    foreach ($w in [W32.U]::Tops($ids)) {
+      $seen = $true
+      $kids = @([W32.U]::Children($w))
+      $buttons = @($kids | Where-Object { [W32.U]::Class($_) -eq 'Button' })
+      $name = { param($h) [W32.U]::Text($h) -replace '&', '' }
+      $names = @($buttons | ForEach-Object { & $name $_ })
+      $target = $null
+      if (($names -contains 'OK') -and ($names -notcontains 'Cancel')) {
+        # a message box: record its text once, press OK
+        $text = (@($kids | Where-Object { [W32.U]::Class($_) -eq 'Static' } | ForEach-Object { [W32.U]::Text($_) }) | Where-Object { $_ }) -join ' '
+        if ($text -ne $lastBox) { $boxes += $text; $lastBox = $text }
+        $target = $buttons | Where-Object { (& $name $_) -eq 'OK' } | Select-Object -First 1
+      } else {
+        foreach ($want in 'Next >', 'Install', 'Uninstall', 'Finish', 'Close') {
+          $target = $buttons | Where-Object { (& $name $_) -eq $want -and [W32.U]::IsWindowEnabled($_) } | Select-Object -First 1
+          if ($target) { break }
         }
-        $state = "[$($w.Current.Name)] " + (($buttons | ForEach-Object { ($_.Current.Name -replace '&', '') + $(if ($_.Current.IsEnabled) { '' } else { '(off)' }) }) -join ', ') + ' -> ' + $(if ($target) { $target.Current.Name -replace '&', '' } else { '-' })
-        $fresh = $state -ne $last
-        if ($fresh) { $script:trace += $state; $last = $state }
-        # WM_COMMAND/BN_CLICKED posted to the dialog, not UIA Invoke (which waits while the click opens a
-        # modal box); the same page is clicked again only after 5 s
-        if ($target -and ($fresh -or ((Get-Date) - $clicked).TotalSeconds -gt 5)) {
-          $h = [IntPtr]$target.Current.NativeWindowHandle
-          [W32.U]::PostMessage([W32.U]::GetParent($h), 0x0111, [IntPtr][W32.U]::GetDlgCtrlID($h), $h) | Out-Null
-          $clicked = Get-Date
-        }
-      } catch { }   # the window went away while being read
+      }
+      $state = "[$([W32.U]::Text($w))] " + (($buttons | ForEach-Object { (& $name $_) + $(if ([W32.U]::IsWindowEnabled($_)) { '' } else { '(off)' }) }) -join ', ') + ' -> ' + $(if ($target) { & $name $target } else { '-' })
+      $fresh = $state -ne $last
+      if ($fresh) { $script:trace += $state; $last = $state }
+      # WM_COMMAND/BN_CLICKED posted to the dialog; the same page is clicked again only after 5 s
+      if ($target -and ($fresh -or ((Get-Date) - $clicked).TotalSeconds -gt 5)) {
+        [W32.U]::PostMessage([W32.U]::GetParent($target), 0x0111, [IntPtr][W32.U]::GetDlgCtrlID($target), $target) | Out-Null
+        $clicked = Get-Date
+      }
     }
     if ($boxes.Count -ge 2) { break }   # the installer returns to its page after a message box; twice is enough
     Start-Sleep -Milliseconds 800
