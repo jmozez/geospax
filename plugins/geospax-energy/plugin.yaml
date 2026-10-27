@@ -68,6 +68,20 @@ tools:
       - { name: "warn_days", label: "Warn this many days before expiry", kind: number, default: 180 }
       - { name: "constraints", label: "Constraint areas (optional)", kind: layer }
       - { name: "as_of", label: "Check as of (date, blank = today)", kind: text, default: "" }
+  - id: "asset-register"
+    name: "Asset register (age, inspections, risk)"
+    summary: "For each asset (poles, pumps, bridges, culverts, pipes): age and remaining life, the next inspection and whether it is overdue, and a risk score from condition and criticality."
+    group: "Energy and utilities"
+    icon: database
+    params:
+      - { name: "assets", label: "Assets", kind: layer, required: true }
+      - { name: "installed_field", label: "Installed date or year field", kind: field }
+      - { name: "life_years", label: "Design life (years)", kind: number, default: 40 }
+      - { name: "inspected_field", label: "Last inspection date field", kind: field }
+      - { name: "interval_months", label: "Inspection interval (months)", kind: number, default: 12 }
+      - { name: "condition_field", label: "Condition field (1 very good to 5 very poor)", kind: field }
+      - { name: "criticality_field", label: "Criticality field (1 to 5)", kind: field }
+      - { name: "as_of", label: "As of (date, blank = today)", kind: text, default: "" }
   - id: "slope-zones"
     name: "Slope zones"
     summary: "Horn slope from a DEM in three zones (gentle, moderate, steep) with their areas; breaks in degrees."

@@ -15,6 +15,9 @@ import { bytesText, followJob } from './downloads';
 import { PRESSED, isResolvedSplit, rememberSplit, ribbonFor, setDockTests, splitCurrent, splitSpec, command as commandById, type ResolvedSplit } from './ribbonlayout';
 import { claimMapTool, isMapTool, releaseMapTool, stopMapTool } from './toolstate';
 
+/** default domain plugins shown in the Industry and planning group of the Plugins tab */
+const INDUSTRY_DOMAINS = new Set(['surveying', 'energy', 'petroleum', 'mining', 'maritime', 'aviation', 'transport', 'urban', 'rural', 'assets']);
+
 /** Public open data in cloud storage, one click in "＋ Add" (read without signing in). */
 const CLOUD_PRESETS: { title: string; url: string; endpoint?: string; region?: string; about: string; ask?: string }[] = [
   { title: 'Source Cooperative', url: 's3://', endpoint: 'https://data.source.coop', about: 'Open geospatial data shared by many organisations (source.coop)', ask: 'Type the account and repository after s3://, as shown on source.coop (for example s3://account/repository), then Connect.' },
@@ -504,15 +507,17 @@ export class Workbench {
     // tab go to the Plugins tab (like ArcGIS Pro's Add-In tab).
     const tab = this.layout.ribbon;
     const before = parts.length;
-    // the default domain plugins (GSX: Agriculture, Biodiversity …) are one grid of buttons, each
-    // opening its tools and its kit, so twelve domains fit the ribbon without scrolling
+    // the default domain plugins (GSX) are two grids of dropdown buttons, environment and science
+    // then industry and planning, each opening its tools and its kit, so every domain fits the
+    // ribbon without scrolling
     const domains = this.pluginTools().filter((p) => p.default && (p.tools[0]?.tab ?? 'plugins') === 'plugins');
     if (tab === 'plugins' && domains.length) {
-      const btns = domains
-        .map((p) => `<button class="rb-btn small" data-menu="plugin:${esc(p.id)}" title="${esc(p.name)}: ${p.tools.length} tools. ${esc(p.description)}" aria-haspopup="true">
-            <span class="rb-ico">${icon(pluginIcon(p), 16)}</span><span class="rb-label">${esc(p.name)}</span><span class="rb-caret">${icon('caret', 10)}</span></button>`)
-        .join('');
-      parts.push(`<div class="rb-group" data-group="domains"><div class="rb-items grid3">${btns}</div><div class="rb-title">Domain plugins (GSX)</div></div>`);
+      const btn = (p: PluginInfo) => `<button class="rb-btn small" data-menu="plugin:${esc(p.id)}" title="${esc(p.name)}: ${p.tools.length} tools. ${esc(p.description)}" aria-haspopup="true">
+            <span class="rb-ico">${icon(pluginIcon(p), 16)}</span><span class="rb-label">${esc(p.name)}</span><span class="rb-caret">${icon('caret', 10)}</span></button>`;
+      const industry = domains.filter((p) => INDUSTRY_DOMAINS.has(p.id.replace(/^geospax-/, '')));
+      const science = domains.filter((p) => !industry.includes(p));
+      if (science.length) parts.push(`<div class="rb-group" data-group="domains"><div class="rb-items grid3">${science.map(btn).join('')}</div><div class="rb-title">Environment and science (GSX)</div></div>`);
+      if (industry.length) parts.push(`<div class="rb-group" data-group="industry"><div class="rb-items grid3">${industry.map(btn).join('')}</div><div class="rb-title">Industry and planning (GSX)</div></div>`);
     }
     for (const p of this.pluginTools()) {
       if (tab === 'plugins' && domains.includes(p)) continue;
