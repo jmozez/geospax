@@ -289,7 +289,7 @@ export const SURVEY_TOOLS: Tool[] = [
       const fs = need(ctx, 'layer', 'lines or polygons');
       let crs = str(ctx, 'crs', 'auto');
       const c0 = coordsOf(fs[0].geometry)[0];
-      if (!c0) throw new Error('the layer has no coordinates');
+      if (!c0) throw new Error('The layer has no coordinates');
       if (crs === 'auto') crs = utmFor(c0[0], c0[1]);
       const conv = converter('EPSG:4326', crs);
       const sides: Feature[] = [];
@@ -312,7 +312,7 @@ export const SURVEY_TOOLS: Tool[] = [
           table.push([`Feature ${fi + 1} area`, a >= 10000 ? `${(a / 10000).toFixed(4)} ha` : `${a.toFixed(2)} m²`]);
         }
       });
-      if (!sides.length) throw new Error('the layer has no lines or polygon sides');
+      if (!sides.length) throw new Error('The layer has no lines or polygon sides');
       return {
         message: `${sides.length} side(s), ${total.toFixed(2)} m in all, on ${conv.to.name}`,
         layers: [{ name: `${ctx.layerName('layer')} bearings and distances`, features: sides }],
@@ -349,7 +349,7 @@ export const SURVEY_TOOLS: Tool[] = [
         const g = rings.map((r) => r.map((p) => conv.forward(p)));
         return { label: lf ? String(f.properties?.[lf] ?? `Lot ${i + 1}`) : `Lot ${i + 1}`, rings: g, areaM2: ringsArea(g) };
       }));
-      if (!lots.length) throw new Error('the layer has no polygons');
+      if (!lots.length) throw new Error('The layer has no polygons');
       const date = str(ctx, 'date') || new Date().toISOString().slice(0, 10);
       const p = planSvg({ lots, title: str(ctx, 'title', 'Survey plan'), planNo: str(ctx, 'plan_no', '-'), surveyor: str(ctx, 'surveyor', '-'), firm: str(ctx, 'firm', '-'), location: str(ctx, 'location', '-'), date, datum: `${conv.to.code} ${conv.to.name}`, sheet: '1 of 1' });
       return {
@@ -387,7 +387,7 @@ export const SURVEY_TOOLS: Tool[] = [
       const n = 40;
       for (let x = Math.ceil(x0 / step) * step; x <= x1 + 1e-9; x += step) lines.push(lineFeature(Array.from({ length: n + 1 }, (_, i) => conv.inverse([x, y0 + ((y1 - y0) * i) / n])), { axis: 'x', value: Number(x.toFixed(6)), label: label(x, 'x') }));
       for (let y = Math.ceil(y0 / step) * step; y <= y1 + 1e-9; y += step) lines.push(lineFeature(Array.from({ length: n + 1 }, (_, i) => conv.inverse([x0 + ((x1 - x0) * i) / n, y])), { axis: 'y', value: Number(y.toFixed(6)), label: label(y, 'y') }));
-      if (!lines.length) throw new Error('the interval is larger than the extent; choose a smaller one');
+      if (!lines.length) throw new Error('The interval is larger than the extent; choose a smaller one');
       return {
         message: `${lines.length} grid line(s) every ${step} ${geo ? '°' : 'm'} on ${conv.to.name}`,
         layers: [{ name: geo ? 'Graticule' : `Grid ${conv.to.code}`, features: lines }],

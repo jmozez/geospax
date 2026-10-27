@@ -82,7 +82,7 @@ export function pointOf(f: Feature): Position | null {
  *  0.1 % within a few hundred kilometres of the centre. */
 export function localMetric(features: Feature[] | Position[]) {
   const pts = (features as unknown[]).flatMap((x) => (Array.isArray(x) ? [x as Position] : coordsOf((x as Feature).geometry)));
-  if (!pts.length) throw new Error('the layer has no coordinates');
+  if (!pts.length) throw new Error('The layer has no coordinates');
   const lon0 = pts.reduce((a, p) => a + p[0], 0) / pts.length;
   const lat0 = pts.reduce((a, p) => a + p[1], 0) / pts.length;
   const conv = proj4('EPSG:4326', `+proj=aeqd +lat_0=${lat0} +lon_0=${lon0} +datum=WGS84 +units=m +no_defs`);
@@ -186,7 +186,7 @@ export function buildGraph(lines: Feature[], m: Metric, speedField = '', default
       }
     }
   });
-  if (!nodes.length) throw new Error('the network layer has no lines');
+  if (!nodes.length) throw new Error('The network layer has no lines');
   const nearest = (p: Position) => {
     const xy = m.fwd(p);
     let bi = 0, bd = Infinity;
@@ -281,7 +281,7 @@ export function leastCostPath(g: Grid, cost: Float32Array, from: number, to: num
   const push = (c: number, i: number) => { heap.push([c, i]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
   const pop = () => { const top = heap[0], last = heap.pop()!; if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let s = k; if (l < heap.length && heap[l][0] < heap[s][0]) s = l; if (r < heap.length && heap[r][0] < heap[s][0]) s = r; if (s === k) break; [heap[s], heap[k]] = [heap[k], heap[s]]; k = s; } } return top; };
   const ok = (i: number) => Number.isFinite(cost[i]);
-  if (!ok(from) || !ok(to)) throw new Error('the start or the end is on an impassable cell');
+  if (!ok(from) || !ok(to)) throw new Error('The start or the end is on an impassable cell');
   acc[from] = 0;
   push(0, from);
   const steps: [number, number, number][] = [[-1, 0, w], [1, 0, w], [0, -1, h], [0, 1, h], [-1, -1, Math.hypot(w, h)], [1, -1, Math.hypot(w, h)], [-1, 1, Math.hypot(w, h)], [1, 1, Math.hypot(w, h)]];
@@ -299,7 +299,7 @@ export function leastCostPath(g: Grid, cost: Float32Array, from: number, to: num
       if (nc < acc[v]) { acc[v] = nc; prev[v] = u; push(nc, v); }
     }
   }
-  if (!Number.isFinite(acc[to])) throw new Error('no passable route joins the start and the end');
+  if (!Number.isFinite(acc[to])) throw new Error('No passable route joins the start and the end');
   const cells = [to];
   while (prev[cells[cells.length - 1]] >= 0) cells.push(prev[cells[cells.length - 1]]);
   cells.reverse();

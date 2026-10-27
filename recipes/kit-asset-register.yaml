@@ -1,0 +1,33 @@
+# Asset management kit: condition, inspection and risk of an asset register, and what changed.
+recipe: kit-asset-register
+version: 1
+kit: Asset management
+title: Asset condition, risk and changes
+description: >-
+  An asset layer (poles, culverts, bridges, pumps, meters) in: inspections overdue, assets past
+  design life, a risk score from condition and criticality, and, given an earlier snapshot, the
+  assets added, removed, moved or changed, mapped and reported.
+inputs:
+  assets: { type: layer, default: auto, description: the asset register (points) }
+  installed_field: { type: field, default: "", description: installation date or year field }
+  inspected_field: { type: field, default: "", description: last inspection date field }
+  condition_field: { type: field, default: "", description: "condition field (1 good to 5 very poor)" }
+  criticality_field: { type: field, default: "", description: "criticality field (1 to 5)" }
+  before: { type: layer, default: "", description: "an earlier snapshot of the register (optional)" }
+  id_field: { type: field, default: "", description: asset id field (for the change check) }
+steps:
+  - id: register
+    use: tool
+    with: { tool: gsx/asset-register, params: { assets: "${inputs.assets}", installed_field: "${inputs.installed_field}", inspected_field: "${inputs.inspected_field}", condition_field: "${inputs.condition_field}", criticality_field: "${inputs.criticality_field}" } }
+  - id: changes
+    use: tool
+    when: "${inputs.before}"
+    with: { tool: gsx/change-alert, params: { before: "${inputs.before}", after: "${inputs.assets}", id_field: "${inputs.id_field}" } }
+  - id: map
+    use: export.map
+    with: { name: asset-risk, layers: ["${register.layers}"], title: "Asset risk and inspections" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Asset register · ${run.date}" }
+outputs: [map, report]

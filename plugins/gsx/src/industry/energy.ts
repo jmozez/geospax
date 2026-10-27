@@ -144,7 +144,7 @@ export const ENERGY_TOOLS: Tool[] = [
           if (pts.length < 20000) pts.push(pointFeature(ll, { height_m: Number(v.toFixed(2)), allowed_m: Number((hts[best] - clear).toFixed(2)), excess_m: Number(ex.toFixed(2)), offset_m: Number(bd.toFixed(1)), line: best + 1 }));
         }
       }
-      if (!inCorridor) throw new Error('no raster cell lies within the corridor: check that the raster covers the lines');
+      if (!inCorridor) throw new Error('Choose a canopy raster that covers the lines: no raster cell lies within the corridor');
       return {
         message: `${viol} of ${inCorridor} corridor cell(s) breach the ${clear} m clearance (${haText(viol * w * h)}); worst excess ${maxEx.toFixed(2)} m`,
         layers: [{ name: 'Clearance breaches', features: pts }],
@@ -219,7 +219,7 @@ export const ENERGY_TOOLS: Tool[] = [
     params: [layerP('tenures', 'Leases or tenements (polygons)'), fieldP('name_field', 'Name or number field', false), fieldP('expiry_field', 'Expiry date field', false), numP('warn_days', 'Warn this many days before expiry', 180), layerP('constraints', 'Constraint areas (optional)', false), textP('as_of', 'Check as of (date, blank = today)', '')],
     run(ctx) {
       const ts = need(ctx, 'tenures', 'lease or tenement polygons').filter((f) => polygonsOf(f.geometry).length);
-      if (!ts.length) throw new Error('the layer has no polygons');
+      if (!ts.length) throw new Error('The layer has no polygons');
       const nf = str(ctx, 'name_field'), ef = str(ctx, 'expiry_field');
       const now = str(ctx, 'as_of') ? timeOf(str(ctx, 'as_of')) : Date.now();
       const warn = num(ctx, 'warn_days', 180);
@@ -329,7 +329,7 @@ export const ENERGY_TOOLS: Tool[] = [
       if (avoid) avoid.forEach((v, i) => { if (v) cost[i] = NaN; });
       const pr = gridProj(g);
       const a = cellOf(g, pr.fromLL(pointOf(ends[0])!)), b = cellOf(g, pr.fromLL(pointOf(ends[ends.length - 1])!));
-      if (a < 0 || b < 0) throw new Error('the start or the end is outside the raster');
+      if (a < 0 || b < 0) throw new Error('The start or the end is outside the raster');
       const r = leastCostPath(g, cost, a, b);
       const coords = r.cells.map((i) => pr.toLL(cellCentre(g, i % g.width, Math.floor(i / g.width))));
       const grades = slope ? r.cells.map((i) => slope[i]) : [];
@@ -352,7 +352,7 @@ export const ENERGY_TOOLS: Tool[] = [
     params: [rasterP('before', 'DEM before'), rasterP('after', 'DEM after'), layerP('boundary', 'Boundary (optional)', false), numP('min_change_m', 'Ignore changes smaller than (m)', 0.1, 'Survey noise threshold.')],
     run(ctx) {
       const a = needRaster(ctx, 'before', 'the earlier DEM'), b = needRaster(ctx, 'after', 'the later DEM');
-      if (!sameGrid(a, b)) throw new Error('the two DEMs must share one grid (same size, cell and origin); resample one to the other first');
+      if (!sameGrid(a, b)) throw new Error('The two DEMs must share one grid (same size, cell and origin); resample one to the other first');
       const mask = maskInside(a, ctx.layer('boundary'));
       const tol = num(ctx, 'min_change_m', 0.1);
       const { w, h } = cellMetres(a);
@@ -368,7 +368,7 @@ export const ENERGY_TOOLS: Tool[] = [
         if (d <= -tol) { cut += -d * cell; cutA += cell; deepest = Math.min(deepest, d); }
         else if (d >= tol) { fill += d * cell; fillA += cell; }
       }
-      if (!n) throw new Error('no overlapping cells with data (inside the boundary)');
+      if (!n) throw new Error('No overlapping cells with data (inside the boundary)');
       const fmt = (v: number) => `${Math.round(v).toLocaleString('en-NZ')} m³`;
       return {
         message: `Cut ${fmt(cut)} over ${haText(cutA)}, fill ${fmt(fill)} over ${haText(fillA)}; net ${fmt(fill - cut)}`,

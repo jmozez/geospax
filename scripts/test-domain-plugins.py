@@ -132,6 +132,7 @@ vector("towers", [pt(100, 500, n=1), pt(300, 500, n=2), pt(500, 500, n=3), pt(70
 vector("tenures", [box(0, 0, 500, 500, name="PPL 1", expiry="1 Jan 2026"), box(400, 0, 900, 500, name="PPL 2", expiry="1 Jan 2027")])
 vector("wells", [pt(100, 100), pt(150, 100), pt(800, 100), pt(950, 950)])
 vector("ends", [pt(50, 500), pt(450, 500)])
+vector("ends_east", [pt(300, 500), pt(450, 500)])
 dem_after = np.tile(z, (N, 1))
 dem_after[40:50, 10:20] -= 2.0  # a 100 m × 100 m pit, 2 m deep: 20,000 m³ cut
 raster("dem_after", dem_after)
@@ -151,12 +152,13 @@ vector("assets", [pt(100, 900, id=1, installed=1980, inspected="1 Jan 2025", con
 vector("assets_2026", [pt(150, 900, id=1, installed=1980, inspected="1 Jan 2025", condition=4, criticality=4), pt(300, 900, id=3, installed=2000, inspected="", condition=3, criticality=3), pt(400, 900, id=4, installed=2026, inspected="", condition=1, criticality=3)])
 raster("rain_obs", np.where(west, 100.0, 30.0))
 raster("rain_norm", np.full((N, N), 100.0))
-ENSO = os.path.abspath("plugins/gsx/tests/fixtures/enso/oni.ascii.txt")
+ENSO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "plugins", "gsx", "tests", "fixtures", "enso", "oni.ascii.txt")
 
 PORT = 18099
 srv = subprocess.Popen([BIN, "--data", data, "--state-dir", os.path.join(tmp, "state"), "--port", str(PORT), "--web", "web/dist", "--no-device-mounts", "--no-triggers"],
                        stdout=subprocess.DEVNULL, stderr=open(os.path.join(tmp, "server.log"), "w"))
 BASE = f"http://127.0.0.1:{PORT}"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def call(method, path, body=None):
@@ -269,6 +271,50 @@ try:
                 right = False
             check(f"{tid}", right, msg)
             answers.setdefault(tid, []).append(r.get("message"))
+    print("industry and climate kits (downloads swapped for the test data)")
+    fix = os.path.dirname(ENSO)
+    KITS = {
+        "kit-survey-plan": {"legs": "0 100\n90 100.02\n180 100\n270 100", "lots": L("patches")},
+        "kit-power-corridor": {"lines": L("transect"), "features": L("buildings"), "chm": R("chm"), "towers": L("towers")},
+        "kit-petroleum-leases": {"tenures": L("tenures"), "name_field": "name", "expiry_field": "expiry", "constraints": L("protected"), "wells": L("wells"), "ends": L("ends_east")},
+        "kit-mine-volumes": {"before": R("dem"), "after": R("dem_after"), "tenements": L("tenures"), "expiry_field": "expiry"},
+        "kit-harvest-planning": {"coupes": L("habitat"), "streams": L("streams"), "ends": L("ends")},
+        "kit-maritime-watch": {"pings": L("ais"), "vessel_field": "mmsi", "time_field": "t", "cell_m": 200},
+        "kit-aerodrome-safeguarding": {"runway": L("runway"), "code": "1", "obstacles": L("obstacles"), "top_field": "top"},
+        "kit-delivery-routes": {"network": L("roads"), "facilities": L("depot"), "bands": "300, 650", "speed_kmh": 0, "stops": L("stops")},
+        "kit-urban-planning": {"zones": L("units"), "zone_field": "cost", "homes": L("sites"), "parks": L("patches"), "walk_m": 200},
+        "kit-rural-access": {"settlements": L("sites"), "services": L("clinic"), "thresholds": "0.2, 0.5"},
+        "kit-asset-register": {"assets": L("assets_2026"), "installed_field": "installed", "inspected_field": "inspected", "condition_field": "condition", "criticality_field": "criticality", "before": L("assets"), "id_field": "id"},
+        "kit-el-nino-drought": {"area": L("habitat"), "observed": R("rain_obs"), "normal": R("rain_norm")},
+    }
+    for kid, inputs in KITS.items():
+        text = open(os.path.join(ROOT, "recipes", f"{kid}.yaml"), encoding="utf-8").read()
+        text = re.sub(r"\n  - id: dem\n    use: dem\.fetch\n(    when: [^\n]*\n)?    with: [^\n]*\n", "\n", text)
+        text = text.replace("dem: dem", f"dem: {R('dem')}").replace("surface: dem", f"surface: {R('dem')}")
+        text = text.replace("params: { index: oni }", f"params: {{ index: oni, file: {json.dumps(ENSO)} }}")
+        text = text.replace("params: { index: soi }", f"params: {{ index: soi, file: {json.dumps(os.path.join(fix, 'soi_monthly.txt'))} }}")
+        text = text.replace("gsx/drought-risk, params: { ", "gsx/drought-risk, params: { oni: 2.16, ")
+        rid = kid + "-offline"
+        text = re.sub(r"^recipe: .*$", f"recipe: {rid}", text, flags=re.M)
+        req = urllib.request.Request(f"{BASE}/api/recipes?approve=code", data=text.encode(), method="POST", headers={"Content-Type": "text/yaml"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as rr:
+                j = json.loads(rr.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            j = json.loads(e.read() or b"{}")
+        if "error" in j:
+            check(f"{kid} loads", False, str(j["error"])[:200])
+            continue
+        s, run = call("POST", f"api/recipes/{rid}/run", {"inputs": inputs})
+        r = {"status": "failed", "error": run.get("error")}
+        for _ in range(300 if "id" in run else 0):
+            r = call("GET", f"api/runs/{run['id']}")[1]
+            if r.get("status") in ("done", "failed"):
+                break
+            time.sleep(0.5)
+        arts = r.get("artifacts", [])
+        bad = [f"{x['id']}: {'; '.join(x.get('why') or [])}" for x in r.get("steps", []) if x.get("status") == "failed"]
+        check(f"{kid} runs to its map and report", r.get("status") == "done" and "report.html" in arts and any(a.endswith(".png") for a in arts), (r.get("error") or "; ".join(bad) or ", ".join(arts))[:220])
     print("large rasters")
     s, j = call("POST", "api/plugins/geospax-forestry/tools/raster-change/run", {"params": {"before": R("big_2015"), "after": R("big_2024")}})
     msg = (j.get("result") or {}).get("message") or j.get("error", "")

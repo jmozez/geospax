@@ -1,0 +1,27 @@
+# Aeronautical kit: obstacle limitation surfaces around a runway and the obstacles that break them.
+recipe: kit-aerodrome-safeguarding
+version: 1
+kit: Aeronautical
+title: Aerodrome obstacle limitation surfaces
+description: >-
+  A runway centreline and obstacle points in: the ICAO Annex 14 approach, take-off climb, transitional,
+  inner horizontal and conical surfaces for a non-instrument runway, and the obstacles that penetrate
+  them with the height by which they do, mapped and reported.
+inputs:
+  runway: { type: layer, default: auto, description: "runway centreline (a line from threshold to threshold)" }
+  code: { type: text, default: "2", description: "aerodrome reference code number (1 to 4)" }
+  elevation: { type: number, default: 0, description: aerodrome elevation in metres }
+  obstacles: { type: layer, default: "", description: "obstacles (points; optional)" }
+  top_field: { type: field, default: "", description: obstacle top elevation field (metres) }
+steps:
+  - id: ols
+    use: tool
+    with: { tool: gsx/ols-surfaces, params: { runway: "${inputs.runway}", code: "${inputs.code}", elevation: "${inputs.elevation}", obstacles: "${inputs.obstacles}", top_field: "${inputs.top_field}" } }
+  - id: map
+    use: export.map
+    with: { name: obstacle-surfaces, layers: ["${ols.layers}", "${inputs.runway}"], title: "Obstacle limitation surfaces (code ${inputs.code})" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Aerodrome safeguarding · ${run.date}" }
+outputs: [map, report]

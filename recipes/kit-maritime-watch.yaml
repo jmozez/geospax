@@ -1,0 +1,30 @@
+# Maritime kit: vessel traffic density, loitering and AIS gaps from position reports.
+recipe: kit-maritime-watch
+version: 1
+kit: Maritime
+title: Vessel traffic, loitering and AIS gaps
+description: >-
+  AIS position reports in: a traffic density grid, vessels that loiter in one place, and gaps in
+  reporting (a common sign of dark activity such as illegal fishing), optionally only inside a zone
+  of interest such as a marine protected area, mapped and reported.
+inputs:
+  pings: { type: layer, default: auto, description: AIS positions (points) }
+  vessel_field: { type: field, default: mmsi, description: vessel id field (MMSI) }
+  time_field: { type: field, default: time, description: time field }
+  zone: { type: layer, default: "", description: "zone of interest (optional)" }
+  cell_m: { type: number, default: 1000, description: density cell size in metres }
+steps:
+  - id: density
+    use: tool
+    with: { tool: gsx/ais-density, params: { pings: "${inputs.pings}", vessel_field: "${inputs.vessel_field}", cell_m: "${inputs.cell_m}" } }
+  - id: events
+    use: tool
+    with: { tool: gsx/ais-loitering, params: { pings: "${inputs.pings}", vessel_field: "${inputs.vessel_field}", time_field: "${inputs.time_field}", zone: "${inputs.zone}" } }
+  - id: map
+    use: export.map
+    with: { name: maritime-watch, layers: ["${events.layers}", "${density.layers}"], title: "Vessel traffic and events" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Maritime watch · ${run.date}" }
+outputs: [map, report]
