@@ -50,6 +50,7 @@
 // Distances and bearings are worked out on a local plane around the first point (metres east and
 // north), which is accurate to a few centimetres over a town; the layers stay in WGS 84.
 import type * as maplibregl from 'maplibre-gl';
+import { claimMapTool, releaseMapTool, toolStateChanged } from './toolstate';
 import type { Backend, LayerInfo } from './backend';
 import type { CadBlock, CadInsert } from './symbology';
 import { align, breakAt, chamfer, divide, stretch, extend, fillet, join, lengthen, lengthOf, mapGeometry, measure, mirror, nearestVertex, rotate, scale, translate, trim } from './cadmodify';
@@ -307,6 +308,7 @@ export class CadDesigner {
     this.bar.className = 'cad-bar';
     this.bar.hidden = true;
     document.querySelector('#map')?.parentElement?.appendChild(this.bar);
+    this.syncFlags();
     document.addEventListener('geospax:cad', (e) => {
       const what = (e as CustomEvent<string>).detail;
       if (what === 'traverse') return void this.traverseDialog();
@@ -339,10 +341,20 @@ export class CadDesigner {
     });
   }
 
+  /** Snap, Ortho and Polar as pressed ribbon buttons (body data-cad-snap and so on). */
+  private syncFlags() {
+    const ds = document.body.dataset;
+    ds.cadSnap = this.snap ? 'on' : 'off';
+    ds.cadOrtho = this.ortho ? 'on' : 'off';
+    ds.cadPolar = this.polar ? 'on' : 'off';
+    toolStateChanged();
+  }
+
   // ---------------------------------------------------------------- tools
   async start(tool: CadTool) {
     this.stop();
     this.tool = tool;
+    claimMapTool(`cad:${tool}`, () => { if (this.tool === tool) this.stop(); });
     this.pts = [];
     this.plane = null;
     this.picked = null;
@@ -375,6 +387,7 @@ export class CadDesigner {
   }
 
   stop() {
+    if (this.tool) releaseMapTool(`cad:${this.tool}`);
     const m = this.h.map;
     m.off('mousemove', this.onMove);
     m.off('click', this.onClick);
@@ -440,6 +453,7 @@ export class CadDesigner {
   }
 
   private renderBar() {
+    this.syncFlags();
     if (!this.tool) return;
     const live = this.liveText();
     const prev = this.bar.querySelector<HTMLInputElement>('input')?.value ?? '';

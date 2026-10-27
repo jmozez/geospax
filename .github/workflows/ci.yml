@@ -80,6 +80,14 @@ jobs:
           for i in $(seq 30); do curl -fs http://127.0.0.1:18120/api/health >/dev/null && break; sleep 1; done
           PW=/tmp/pw/node_modules/playwright node scripts/test-web-ribbon.mjs http://127.0.0.1:18120 /tmp/rb/shots || { cat /tmp/rb/server.log; exit 1; }
           kill "$pid"
+      - name: Ribbon critical behaviour (swipe drag, spyglass, toggle highlighting, Export splits, named projects)
+        run: |
+          rm -rf /tmp/rc && python3 scripts/test-edit-data.py /tmp/rc/data
+          ./target/release/geospax-server --data /tmp/rc/data --state-dir /tmp/rc/state --web web/dist --port 18122 --no-device-mounts --no-triggers > /tmp/rc/server.log 2>&1 &
+          pid=$!
+          for i in $(seq 30); do curl -fs http://127.0.0.1:18122/api/health >/dev/null && break; sleep 1; done
+          PW=/tmp/pw/node_modules/playwright node scripts/test-ribbon-critical.mjs http://127.0.0.1:18122 /tmp/rc/shots || { cat /tmp/rc/server.log; exit 1; }
+          kill "$pid"
       - name: Field app GPS filter
         run: node --experimental-strip-types --no-warnings scripts/test-field-gps.mjs
       - name: Assistant (Ollama, OpenAI-compatible and Claude wire formats, scripted model) and MCP server

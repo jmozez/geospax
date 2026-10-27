@@ -1330,9 +1330,13 @@ impl Engine {
             "parquet" | "geoparquet" => ("Parquet", "parquet", "application/vnd.apache.parquet", false, &[]),
             f => return Err(format!("unknown format '{f}' (gpkg, shp, kml, csv, geojson, parquet)")),
         };
-        if DriverManager::get_driver_by_name(driver).is_err() {
+        // GeoParquet without GDAL's Parquet driver (the builds GeoSpaX ships with have none):
+        // a WGS 84 GeoPackage first, then the parquet crate writes the file
+        let native_parquet = driver == "Parquet" && DriverManager::get_driver_by_name(driver).is_err();
+        if !native_parquet && DriverManager::get_driver_by_name(driver).is_err() {
             return Err(format!("this GDAL has no {driver} driver"));
         }
+        let (driver, ext_gdal, wgs) = if native_parquet { ("GPKG", "gpkg", true) } else { (driver, ext, wgs) };
         let stem = {
             let s = catalog::sanitize(&l.info.name).replace('.', "_");
             if s.trim_matches('_').is_empty() { "layer".to_string() } else { s }
@@ -1341,7 +1345,7 @@ impl Engine {
         let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!("geospax-dl-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        let out = dir.join(format!("{stem}.{ext}"));
+        let out = dir.join(format!("{stem}.{ext_gdal}"));
         let mut args: Vec<String> = vec!["-f".into(), driver.into(), "-nln".into(), stem.clone()];
         if wgs {
             args.extend(["-t_srs".into(), "EPSG:4326".into()]);
@@ -1366,6 +1370,10 @@ impl Engine {
                     z.finish().map_err(|e| e.to_string())?;
                 }
                 Ok((buf.into_inner(), format!("{stem}.zip"), ctype))
+            } else if native_parquet {
+                let pq = dir.join(format!("{stem}.parquet"));
+                crate::geoparquet::write_file(&out, Some(&stem), &pq)?;
+                Ok((std::fs::read(&pq).map_err(|e| e.to_string())?, format!("{stem}.parquet"), ctype))
             } else {
                 Ok((std::fs::read(&out).map_err(|e| e.to_string())?, format!("{stem}.{ext}"), ctype))
             }

@@ -1594,7 +1594,12 @@ body.layout-page { margin: 0; height: 100vh; display: flex; flex-direction: colu
 .gx-compare { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .gx-swipe-bar { position: absolute; top: 0; bottom: 0; width: 4px; margin-left: -2px; background: var(--accent); z-index: 3; cursor: ew-resize; box-shadow: 0 0 0 1px rgba(0,0,0,.25); touch-action: none; }
 .gx-swipe-bar::after { content: '⇆'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 15px; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
-.gx-spyglass { box-shadow: inset 0 0 0 3px var(--accent); }
+.gx-compare.maplibregl-map { position: absolute; inset: 0; overflow: hidden; }
+.gx-swipe-bar.dragging, .gx-swipe-bar:focus-visible { outline: 2px solid #fff; outline-offset: 0; }
+.gx-lens { position: absolute; z-index: 3; pointer-events: none; border-radius: 50%; border: 3px solid var(--accent); box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 2px 12px rgba(0,0,0,.35); box-sizing: border-box; }
+.gx-compare-tag { position: absolute; top: 10px; z-index: 3; pointer-events: none; padding: 3px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600; background: rgba(20,24,28,.78); color: #fff; }
+.gx-compare-tag.left { left: 10px; }
+.gx-compare-tag.right { right: 10px; }
 /* View › Time slider */
 .gx-time { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25); width: min(560px, calc(100% - 24px)); }
 .gx-time input[type=range] { flex: 1; accent-color: var(--accent); }
@@ -1623,3 +1628,47 @@ table.rules input:not([type=checkbox]) { width: 100%; }
 .tut-card p { margin: 0 0 10px; line-height: 1.45; }
 .tut-head { display: flex; justify-content: space-between; align-items: center; color: var(--muted); }
 .tut-nav { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---- ribbon: pressed tools and on/off states (aria-pressed), split buttons, keyboard menus ---- */
+/* a tool or setting that is on stays visibly pressed until it is clicked again (or Esc for tools) */
+.rb-btn[aria-pressed='true'], .rb-btn.on[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  border-color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.rb-btn[aria-pressed='true'] .rb-ico { color: var(--accent); }
+.rb-btn[aria-pressed='true'] .rb-label { font-weight: 600; }
+.rb-btn:focus-visible, .rb-split-arrow:focus-visible, .rb-menu-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* split button: the main part runs the last-used item, the arrow lists them all (no gaps between) */
+.rb-split { display: flex; border: 1px solid transparent; border-radius: 4px; }
+.rb-split:hover { border-color: var(--line); }
+.rb-split.has-on { border-color: var(--accent); }
+.rb-split .rb-btn { border-radius: 0; }
+.rb-split .rb-btn:hover { border-color: transparent; }
+.rb-split.big { flex-direction: column; height: 72px; }
+.rb-split.big .rb-btn.big { height: 56px; padding: 3px 6px 1px; gap: 1px; justify-content: flex-start; border-radius: 4px 4px 0 0; }
+.rb-split.big .rb-btn.big .rb-label { -webkit-line-clamp: 1; line-height: 13px; }
+.rb-split.big .rb-sub { font-size: 10px; line-height: 12px; color: var(--muted); white-space: nowrap; max-width: 88px; overflow: hidden; text-overflow: ellipsis; }
+.rb-split.big .rb-split-arrow { height: 16px; width: 100%; border-top: 1px solid transparent; border-radius: 0 0 4px 4px; }
+.rb-split.big:hover .rb-split-arrow { border-top-color: var(--line); }
+.rb-split.small { flex-direction: row; height: 22px; }
+.rb-split.small .rb-btn.small { border-radius: 4px 0 0 4px; flex: 1 1 auto; }
+.rb-split.small .rb-split-arrow { width: 16px; height: 22px; border-left: 1px solid transparent; border-radius: 0 4px 4px 0; }
+.rb-split.small:hover .rb-split-arrow { border-left-color: var(--line); }
+.rb-split-arrow { display: flex; align-items: center; justify-content: center; padding: 0; margin: 0; background: none; border: 0; color: var(--muted); cursor: pointer; }
+.rb-split-arrow:hover, .rb-split-arrow.on, .rb-split-arrow[aria-expanded='true'] { background: var(--line); color: var(--accent); }
+.rb-menu .rb-split-list { gap: 0; padding: 2px; min-width: 260px; }
+.rb-menu-row { width: 100%; cursor: pointer; }
+.rb-menu-row:focus { background: var(--line); outline: none; }
+.rb-menu-row.current .rm-name::after { content: ' (default)'; font-weight: 400; color: var(--muted); }
+.rb-menu-row[aria-pressed='true'] { box-shadow: inset 2px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.rb-menu-row kbd { font-size: 9.5px; color: var(--muted); font-family: inherit; font-weight: 400; margin-left: 6px; }
+/* Home › Project */
+#sb-project { font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sb-project.unnamed { font-weight: 400; color: var(--muted); font-style: italic; }
+.pj-list { display: grid; gap: 2px; max-height: 50vh; overflow: auto; }
+.pj-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.pj-row:hover, .pj-row:has(input:checked) { background: var(--line); }
+.dlg-field { display: grid; gap: 4px; font-weight: 600; }
+.dlg-field input { font-weight: 400; padding: 6px 8px; }
+.dlg-field input[aria-invalid='true'] { border-color: var(--danger, #c0392b); }

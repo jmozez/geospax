@@ -1,3 +1,4 @@
+import { wireProjects } from './projects';
 import { startupCheck } from './updates';
 import * as maplibregl from 'maplibre-gl';
 import { AutomatePane, type RunInfo } from './automate';
@@ -14,10 +15,11 @@ import { runBenchmark, type BenchReport } from './bench';
 import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
 import { MapExtras } from './mapextras';
-import { ShareExtras } from './shareextras';
+import { ShareExtras, saveBlob } from './shareextras';
 import { Tutorials } from './tutorials';
 import { Editor } from './editing';
 import { Measure } from './measure';
+import { toolStateChanged } from './toolstate';
 import { onContextMenu, showMenu, type MenuItem } from './contextmenu';
 import { BASEMAPS, basemapDef, checkTileUrl, onlineBasemap } from './basemaps';
 import { Workbench } from './workbench';
@@ -182,11 +184,22 @@ function mergeProject(saved: Project | null): Project {
 }
 
 let saveTimer: number | undefined;
+/** true while New or Open switches projects: nothing may overwrite the one about to load */
+let saveHeld = false;
+/** Write the open project now (Home › Save, Save as, Rename, before New and Open). */
+async function flushProject() {
+  clearTimeout(saveTimer);
+  if (map) project.view = { center: map.getCenter().toArray() as [number, number], zoom: map.getZoom() };
+  await backend.json('api/project', { method: 'PUT', body: JSON.stringify(project), headers: { 'content-type': 'application/json' } });
+  document.body.dataset.saved = String(Date.now());
+  projectPane?.touchSaved();
+}
 /** Finish my map, once the UI is up: a live layout window follows every change saved here */
 let finishMap: FinishMap | null = null;
 function saveProject() {
   finishMap?.mapChanged();
   clearTimeout(saveTimer);
+  if (saveHeld) return;
   saveTimer = window.setTimeout(async () => {
     if (map) project.view = { center: map.getCenter().toArray() as [number, number], zoom: map.getZoom() };
     try {
@@ -504,7 +517,20 @@ function setBasemap(b: Basemap) {
   workbench?.setStatus(d ? `Basemap: ${d.title}${b === 'offline' || b === 'none' ? '' : ` · ${d.terms}`}` : 'Basemap off', 7000);
 }
 
+/** States the ribbon shows as pressed (basemap, theme, 3D terrain, labels of the selected layer). */
+function syncStateFlags() {
+  const ds = document.body.dataset;
+  // not data-basemap: Contents buttons carry that attribute, and a click looks for the nearest one
+  ds.baseMap = project.basemap ?? 'offline';
+  ds.terrain3d = terrain3d ? 'on' : 'off';
+  ds.themePref = theme;
+  const id = panel?.current;
+  ds.labels = id && project.layers[id]?.labels?.on ? 'on' : 'off';
+  toolStateChanged();
+}
+
 function applyStyle() {
+  syncStateFlags();
   const style = buildStyle();
   // hatch patterns must exist before the layer: a tile parsed while its pattern is missing stays
   // unhatched (styleimagemissing alone races the tiles)
@@ -2003,11 +2029,34 @@ async function main() {
       // Finish my map: show the result as soon as it is ready
       if ((run as unknown as { recipe?: string }).recipe === FINISH_RECIPE) {
         finishMap?.runFinished(run.status === 'done', (run as unknown as { error?: string }).error);
-        if (run.status === 'done') {
+        const want = finishMap?.wanted ?? null;
+        if (finishMap) finishMap.wanted = null;
+        if (run.status === 'done' && want) {
+          // Share › Export map › PDF, PNG, SVG or Word report: save that file straight away
+          const ext = { pdf: '.pdf', png: '.png', svg: '.svg', report: '.docx' }[want];
+          const name = run.artifacts.find((a) => a.toLowerCase().endsWith(ext));
+          if (name) {
+            try {
+              const { bytes, headers } = await backend.binary(`api/runs/${encodeURIComponent(run.id)}/files/${encodeURIComponent(name)}`);
+              saveBlob(name, new Blob([bytes], { type: headers.get('Content-Type') ?? 'application/octet-stream' }));
+              workbench?.setStatus(`${name} saved (Share › Export map)`, 8000);
+            } catch (e) {
+              workbench?.setStatus(`The map was made but ${name} could not be saved: ${e instanceof Error ? e.message : e}`, 10000);
+              void openRunReport(run.id);
+            }
+          } else {
+            workbench?.setStatus('The map is finished: the report has the files', 8000);
+            void openRunReport(run.id);
+          }
+        } else if (run.status === 'done') {
           workbench?.setStatus('Your map is finished: the report has the map, the PDF and the files', 8000);
           void openRunReport(run.id);
         } else workbench?.setStatus(`The map could not be finished: ${(run as unknown as { error?: string }).error ?? run.status}`, 10000);
         return;
+      }
+      if (run.status === 'failed') {
+        const why = (run as unknown as { error?: string }).error;
+        workbench?.setStatus(`${run.title || run.recipe || 'The run'} did not finish${why ? `: ${why}` : ''}. The run log in Automate has the details`, 10000);
       }
       await reloadLayers();
       if (rasterPane && run.rasters?.length) {
@@ -2332,6 +2381,17 @@ async function main() {
     },
   });
   workbench.mount();
+  wireProjects({
+    backend,
+    get: () => project,
+    layerIds: () => layers.map((l) => l.id),
+    flush: flushProject,
+    hold: () => { saveHeld = true; clearTimeout(saveTimer); },
+    setStatus: (t, ms) => workbench?.setStatus(t, ms),
+    guest: guestMode,
+    // ?fresh (UI tests) ignores the saved project: open the switched-to one without it
+    reloadUrl: () => { const u = new URL(location.href); u.searchParams.delete('fresh'); u.hash = ''; return u.toString(); },
+  });
   editor = new Editor({
     map,
     backend,
@@ -2653,7 +2713,7 @@ async function main() {
   const measure = new Measure(map);
   document.addEventListener('geospax:measure', (e) => {
     const m = (e as CustomEvent<string>).detail;
-    if (m === 'clear') return measure.stop();
+    if (m === 'clear') { measure.stop(); workbench?.setStatus('Measurements cleared', 3000); return; }
     void editor?.setTool('idle'); // one map tool at a time
     measure.start(m as 'distance' | 'area');
   });

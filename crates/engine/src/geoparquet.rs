@@ -485,6 +485,124 @@ pub fn open_file(engine: &Arc<Engine>, path: &str, area: Option<[f64; 4]>) -> Re
     Ok(json!({ "layers": ids, "rasters": [], "features": w.features }))
 }
 
+// ---------------------------------------------------------------- writing
+
+/// One layer of a vector file (GeoPackage, GeoJSON …) as GeoParquet 1.1: the attributes as typed
+/// columns, the geometry as WKB in `geometry`. Coordinates are written as they are in the source:
+/// pass a file in WGS 84 (lon/lat) for the default OGC:CRS84. Returns the number of rows.
+pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, String> {
+    use arrow_array::builder::{BinaryBuilder, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder};
+    use arrow_schema::{Field, Schema};
+    use gdal::vector::{FieldValue, LayerAccess, OGRFieldType};
+    use parquet::arrow::ArrowWriter;
+    use parquet::basic::{Compression, ZstdLevel};
+    use parquet::file::properties::WriterProperties;
+    let gerr = |e: gdal::errors::GdalError| e.to_string();
+    let ds = gdal::Dataset::open(src).map_err(gerr)?;
+    let mut lyr = match layer {
+        Some(n) => ds.layer_by_name(n).map_err(gerr)?,
+        None => ds.layer(0).map_err(gerr)?,
+    };
+    #[derive(Clone, Copy)]
+    enum K { Int, Real, Bool, Text }
+    let fields: Vec<(String, K)> = lyr
+        .defn()
+        .fields()
+        .map(|f| {
+            let k = match f.field_type() {
+                OGRFieldType::OFTInteger | OGRFieldType::OFTInteger64 => {
+                    if f.name().is_empty() { K::Text } else { K::Int }
+                }
+                OGRFieldType::OFTReal => K::Real,
+                _ => K::Text,
+            };
+            (f.name(), k)
+        })
+        .collect();
+    let _ = K::Bool; // booleans arrive as integers from GDAL; kept for completeness
+    let mut cols: Vec<Field> = fields
+        .iter()
+        .map(|(n, k)| Field::new(n, match k { K::Int => DataType::Int64, K::Real => DataType::Float64, K::Bool => DataType::Boolean, K::Text => DataType::Utf8 }, true))
+        .collect();
+    cols.push(Field::new("geometry", DataType::Binary, true));
+    // bounds and geometry types for the "geo" metadata
+    let mut bbox = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
+    let mut types: std::collections::BTreeSet<String> = Default::default();
+    let mut ints: Vec<Int64Builder> = Vec::new();
+    let mut reals: Vec<Float64Builder> = Vec::new();
+    let mut bools: Vec<BooleanBuilder> = Vec::new();
+    let mut texts: Vec<StringBuilder> = Vec::new();
+    let mut slot = Vec::with_capacity(fields.len());
+    for (_, k) in &fields {
+        slot.push(match k {
+            K::Int => { ints.push(Int64Builder::new()); ints.len() - 1 }
+            K::Real => { reals.push(Float64Builder::new()); reals.len() - 1 }
+            K::Bool => { bools.push(BooleanBuilder::new()); bools.len() - 1 }
+            K::Text => { texts.push(StringBuilder::new()); texts.len() - 1 }
+        });
+    }
+    let mut geoms = BinaryBuilder::new();
+    let mut n = 0u64;
+    for f in lyr.features() {
+        for (i, (_, k)) in fields.iter().enumerate() {
+            let v = f.field(i).ok().flatten();
+            let j = slot[i];
+            match k {
+                K::Int => ints[j].append_option(match v { Some(FieldValue::IntegerValue(x)) => Some(x as i64), Some(FieldValue::Integer64Value(x)) => Some(x), _ => None }),
+                K::Real => reals[j].append_option(match v { Some(FieldValue::RealValue(x)) => Some(x), Some(FieldValue::IntegerValue(x)) => Some(x as f64), _ => None }),
+                K::Bool => bools[j].append_option(match v { Some(FieldValue::IntegerValue(x)) => Some(x != 0), _ => None }),
+                K::Text => texts[j].append_option(v.map(|v| match v {
+                    FieldValue::StringValue(s) => s,
+                    FieldValue::DateValue(d) => d.to_string(),
+                    FieldValue::DateTimeValue(d) => d.to_rfc3339(),
+                    other => format!("{other:?}"),
+                })),
+            }
+        }
+        match f.geometry() {
+            Some(g) => {
+                let e = g.envelope();
+                bbox = [bbox[0].min(e.MinX), bbox[1].min(e.MinY), bbox[2].max(e.MaxX), bbox[3].max(e.MaxY)];
+                types.insert(g.geometry_name().to_ascii_lowercase());
+                geoms.append_value(g.wkb().map_err(gerr)?);
+            }
+            None => geoms.append_null(),
+        }
+        n += 1;
+    }
+    let names: Vec<String> = types
+        .iter()
+        .map(|t| match t.as_str() {
+            "point" => "Point", "linestring" => "LineString", "polygon" => "Polygon", "multipoint" => "MultiPoint",
+            "multilinestring" => "MultiLineString", "multipolygon" => "MultiPolygon", _ => "GeometryCollection",
+        }.to_string())
+        .collect();
+    let mut col = json!({ "encoding": "WKB", "geometry_types": names });
+    if bbox[0].is_finite() {
+        col["bbox"] = json!(bbox);
+    }
+    let geo = json!({ "version": "1.1.0", "primary_column": "geometry", "columns": { "geometry": col } });
+    let schema = Arc::new(Schema::new(cols).with_metadata([("geo".to_string(), geo.to_string())].into_iter().collect::<std::collections::HashMap<_, _>>()));
+    let mut arrays: Vec<ArrayRef> = Vec::with_capacity(fields.len() + 1);
+    for (i, (_, k)) in fields.iter().enumerate() {
+        let j = slot[i];
+        arrays.push(match k {
+            K::Int => Arc::new(ints[j].finish()),
+            K::Real => Arc::new(reals[j].finish()),
+            K::Bool => Arc::new(bools[j].finish()),
+            K::Text => Arc::new(texts[j].finish()),
+        });
+    }
+    arrays.push(Arc::new(geoms.finish()));
+    let batch = RecordBatch::try_new(schema.clone(), arrays).map_err(|e| e.to_string())?;
+    let props = WriterProperties::builder().set_compression(Compression::ZSTD(ZstdLevel::default())).build();
+    let file = std::fs::File::create(out).map_err(|e| e.to_string())?;
+    let mut w = ArrowWriter::try_new(file, schema, Some(props)).map_err(|e| e.to_string())?;
+    w.write(&batch).map_err(|e| e.to_string())?;
+    w.close().map_err(|e| e.to_string())?;
+    Ok(n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

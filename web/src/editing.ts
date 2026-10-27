@@ -7,6 +7,7 @@
 //   select   click, rectangle, by attributes (SQL WHERE), by location (another layer)
 //   history  undo / redo of whole edits (create, change, delete), across layers
 import type * as maplibregl from 'maplibre-gl';
+import { claimMapTool, releaseMapTool } from './toolstate';
 import { TerraDraw, TerraDrawFreehandMode, TerraDrawLineStringMode, TerraDrawPointMode, TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawSelectMode, type GeoJSONStoreFeatures } from 'terra-draw';
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter';
 import type { Backend, LayerInfo } from './backend';
@@ -266,7 +267,7 @@ export class Editor {
 
   async undo() {
     const op = this.undoStack.pop();
-    if (!op) return;
+    if (!op) return this.status('Nothing to undo');
     try {
       await this.apply(op, true);
       this.redoStack.push(op);
@@ -280,7 +281,7 @@ export class Editor {
 
   async redo() {
     const op = this.redoStack.pop();
-    if (!op) return;
+    if (!op) return this.status('Nothing to redo');
     try {
       await this.apply(op, false);
       this.undoStack.push(op);
@@ -367,7 +368,17 @@ export class Editor {
     return best;
   }
 
+  /** Start an edit tool (or 'idle'): one map tool at a time, see toolstate.ts. */
   async setTool(tool: EditTool) {
+    const prev = this.tool;
+    await this.setToolInner(tool);
+    if (prev !== 'idle' && prev !== this.tool) releaseMapTool(`edit:${prev}`);
+    const now = this.tool;
+    if (now !== 'idle') claimMapTool(`edit:${now}`, () => { if (this.tool === now) void this.setTool('idle'); });
+    document.body.dataset.editTool = this.tool;
+  }
+
+  private async setToolInner(tool: EditTool) {
     const map = this.h.map;
     if (this.tool === 'vertices' && tool !== 'vertices' && this.vertexEdit) await this.finishVertices(true);
     map.off('click', this.clickHandler);
@@ -502,20 +513,30 @@ export class Editor {
   private clipboard: { geometry: Geometry; properties: Record<string, unknown>; kind: string }[] = [];
 
   /** Draw a temporary line or area (for split, cut, reshape, copy along a line); null if cancelled. */
-  sketch(kind: 'line' | 'polygon', text: string): Promise<Geometry | null> {
+  sketch(kind: 'line' | 'polygon', text: string, op = 'sketch'): Promise<Geometry | null> {
     if (this.sketchDone) this.sketchDone(null);
     return new Promise((resolve) => {
       void this.setTool('idle').then(() => {
+        // the sketch holds the map like any tool: its ribbon button stays pressed, Esc or another tool ends it
+        const name = `edit:${op}`;
+        const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') cancel(); };
+        const done = (g: Geometry | null) => {
+          document.removeEventListener('keydown', esc);
+          if (this.sketchDone === done) this.sketchDone = null;
+          releaseMapTool(name);
+          resolve(g);
+        };
+        const cancel = () => {
+          if (this.sketchDone !== done) return;
+          done(null);
+          if (this.tool === 'sketch') void this.setTool('idle');
+        };
         this.tool = 'sketch';
         document.body.dataset.editTool = 'sketch';
-        this.sketchDone = resolve;
+        this.sketchDone = done;
         this.ensureDraw().setMode(kind === 'line' ? 'linestring' : 'polygon');
+        claimMapTool(name, cancel);
         this.status(`${text} Double-click to finish; Esc cancels.`, 12000);
-        const esc = (e: KeyboardEvent) => {
-          if (e.key !== 'Escape') return;
-          document.removeEventListener('keydown', esc);
-          if (this.sketchDone === resolve) { this.sketchDone = null; resolve(null); }
-        };
         document.addEventListener('keydown', esc);
       });
     });
@@ -605,7 +626,7 @@ export class Editor {
     let sketch: Geometry | null = null;
     if (op !== 'merge') {
       const what = { split: 'Draw a line across the selected features to split them.', cut: 'Draw the area to cut out of the selected polygons.', reshape: 'Draw the new boundary: start and end on the polygon\'s edge.' }[op];
-      sketch = await this.sketch(op === 'cut' ? 'polygon' : 'line', what);
+      sketch = await this.sketch(op === 'cut' ? 'polygon' : 'line', what, op);
       if (!sketch) return this.status(`${op} cancelled`);
     }
     try {
@@ -664,7 +685,7 @@ export class Editor {
     const src = await this.getFeature(id, fids[0]);
     if (!src.geometry) return this.status('That feature has no geometry.');
     const srcGeom = src.geometry;
-    const line = await this.sketch('line', 'Draw the line to place the copies along (it starts at the feature).');
+    const line = await this.sketch('line', 'Draw the line to place the copies along (it starts at the feature).', 'copyalong');
     if (!line || line.type !== 'LineString') return;
     const total = pathMetres(line.coordinates);
     const v = await dialog('Copy along line', `<p class="dim">The line is ${total.toFixed(1)} m long.</p>
