@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the whole GeoSpaX test suite with one command and print a pass/fail summary
-# (engine, tiles, stress, web UI, devices + sensors, automation + sensor triggers, MQTT, sensor networks, LiDAR,
+# (engine, tiles, stress, web UI incl. the ribbon tools, devices + sensors, automation + sensor triggers, MQTT, sensor networks, LiDAR,
 # spatial statistics, desktop).
 #   scripts/test-all.sh [DATA_DIR] [OUT_DIR]
 # Expects: release binaries built (cargo build --release -p geospax-server [-p geospax ...]),
@@ -59,6 +59,17 @@ if [ -d "$PW" ]; then
   sleep 3
   run "web UI: start screen, drop a file, Finish my map" env PW="$PW" node scripts/test-web-start.mjs "http://127.0.0.1:$((PORT + 7))" "$START_FILES/field_samples.geojson" "$OUT"
   kill "$START_PID" 2>/dev/null || true
+  # the ribbon tools need the editing test data (survey points with dates, reserves polygons)
+  RIBBON_DATA=$(mktemp -d) RIBBON_STATE=$(mktemp -d)
+  python3 scripts/test-edit-data.py "$RIBBON_DATA/data" >/dev/null
+  ./target/release/geospax-server --data "$RIBBON_DATA/data" --state-dir "$RIBBON_STATE" --host 127.0.0.1 --port $((PORT + 8)) --web web/dist \
+    --no-device-mounts --no-triggers >"$OUT/test-ribbon-server.log" 2>&1 &
+  RIBBON_PID=$!
+  for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$((PORT + 8))/api/health" >/dev/null && break; sleep 0.5; done
+  run "web UI: ribbon tools (panels, coordinates, swipe, time slider, lasso, edit tools, web map)" env PW="$PW" \
+    node scripts/test-web-ribbon.mjs "http://127.0.0.1:$((PORT + 8))" "$OUT"
+  kill "$RIBBON_PID" 2>/dev/null || true
+  rm -rf "$RIBBON_DATA" "$RIBBON_STATE"
   run "phone link (QR, HTTPS, send, camera, live track, map on the phone)" env PW="$PW" PORT="$((PORT + 21))" \
     node scripts/test-phone-link.mjs target/release/geospax-server "$SAMPLES" "$OUT"
 else

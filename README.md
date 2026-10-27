@@ -31,6 +31,11 @@ away.
   Share; on the left **Project · Explorer · Contents** (files, online data, recipes, R & Python, plugins
   and devices live in the Explorer); on the right **Layer · Tools · Ask** (the selected layer's style,
   labels, fields and source; the Toolbox; the assistant); under the map the attribute table and the runs.
+- **Every ribbon tab does real work.** Swipe and Spyglass to compare a layer with the map under it, a time
+  slider for any date or year field, a map grid, split, merge, cut and reshape, attribute rules and topology
+  checks, zonal statistics with exact cell coverage, network routes and service areas, and a web map in a
+  single HTML file. The [user guide](docs/USER_GUIDE.md#the-ribbon-tools-tab-by-tab) goes through them tab
+  by tab.
 - **Maps that style themselves.** AutoMap picks the field, classes and colours and says why; full
   symbology for points, lines, polygons, labels and rasters when you want your own.
 - **Finished maps and reports.** Layout with legend, scale bar, north arrow and inset; Equal Earth for world
@@ -53,6 +58,17 @@ away.
 - **Private by default.** Everything runs on your computer and works offline.
 
 ## Tours
+
+**Compare and play through time.** *Swipe* (View tab) shows the selected layer on one side of a divider and
+the map without it on the other; *Time slider* plays a layer through its dates, and tools and exports see
+the same features as the map.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/ribbon-swipe.webp" alt="GeoSpaX Swipe: the reserves layer on the left of the divider only, with the map grid on" /></td>
+<td width="50%"><img src="docs/assets/ribbon-time.webp" alt="GeoSpaX time slider playing survey points by year" /></td>
+</tr>
+</table>
 
 **Design a subdivision.** A 76-lot estate east of Lae, Papua New Guinea, drawn with the Design tab over
 Esri World Imagery: two 12 m access roads and a 15 m collector, 20 × 30 m lots, a public reserve, a water
@@ -180,7 +196,6 @@ ranks cells rather than giving tonnes; built-up and water cells are left out.
 |---|---|
 | Windows 10 / 11 | [`GeoSpaX_<version>_x64-setup.exe`](https://github.com/jmozez/geospax/releases/latest) (no administrator rights needed) or the portable ZIP |
 | Any Linux | [`GeoSpaX-<version>-x86_64.AppImage`](https://github.com/jmozez/geospax/releases/latest): one file, no installing; `chmod +x GeoSpaX-*.AppImage`, then run it. Needs a 2024-or-newer distribution (glibc 2.39). |
-| Linux (Flathub) | `flatpak install flathub io.github.jmozez.GeoSpaX`, or GNOME Software / KDE Discover |
 | Any system (web edition) | `docker compose up -d`, then open the link printed by `docker compose logs geospax` |
 
 macOS is not packaged yet; use the web edition or [build from source](docs/DEVELOPMENT.md).
