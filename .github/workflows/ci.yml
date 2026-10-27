@@ -107,7 +107,7 @@ jobs:
           python3 scripts/test-embeddings.py target/release/geospax-server
       - name: Your own ONNX model (fixture models with known answers)
         run: python3 scripts/test-detect.py target/release/geospax-server
-      - name: The twelve default domain plugins against known answers
+      - name: The default domain plugins and industry kits against known answers
         run: python3 scripts/test-domain-plugins.py target/release/geospax-server
       - name: Plan-B data (GEBCO, Hansen forest change, ecoregions, WoRMS) against local mirrors with known answers
         run: python3 scripts/test-plan-b.py target/release/geospax-server
