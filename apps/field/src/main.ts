@@ -121,29 +121,38 @@ function showGps(text: string, cls: string) {
 showGps('Finding GPS…', 'wait');
 void watchPosition(
   (raw) => {
-    const f = fixes.add(raw);
+    const f = fixes.add(raw, Date.now());
     if (!f) {
       // a cached, coarse or jumping fix: say so while there is no good one yet, otherwise keep the last
       if (!fix) showGps(`Waiting for GPS (±${Math.round(raw.acc)} m)`, 'wait');
       return;
     }
-    const first = !fix;
-    fix = f;
-    showGps(`GPS ±${Math.round(f.acc)} m`, f.acc <= 10 ? 'good' : f.acc <= 30 ? 'fair' : 'poor');
-    drawMe();
-    if (first || follow) map.easeTo({ center: [f.lon, f.lat], zoom: first ? Math.max(map.getZoom(), 16) : map.getZoom(), duration: first ? 0 : 400 });
-    if (track) {
-      const last = track.coords[track.coords.length - 1];
-      // a new track point every 3 m, and only fixes good enough to draw a line with
-      if (f.acc <= 50 && (!last || metres([last[0], last[1]], [f.lon, f.lat]) >= 3)) {
-        track.coords.push([f.lon, f.lat, f.ele, f.t, f.acc]);
-        $('#trackInfo').textContent = trackText(track);
-        drawDraft();
-      }
-    }
+    useFix(f);
   },
   (msg) => showGps(msg.length > 40 ? 'No GPS' : msg, 'poor'),
 );
+// a jump the filter held back becomes the position once nothing has contradicted it for a while (phones
+// that only report a fix when the position changes send no second one after a move)
+setInterval(() => {
+  const f = fixes.tick(Date.now());
+  if (f) useFix(f);
+}, 1000);
+function useFix(f: Fix) {
+  const first = !fix;
+  fix = f;
+  showGps(`GPS ±${Math.round(f.acc)} m`, f.acc <= 10 ? 'good' : f.acc <= 30 ? 'fair' : 'poor');
+  drawMe();
+  if (first || follow) map.easeTo({ center: [f.lon, f.lat], zoom: first ? Math.max(map.getZoom(), 16) : map.getZoom(), duration: first ? 0 : 400 });
+  if (track) {
+    const last = track.coords[track.coords.length - 1];
+    // a new track point every 3 m, and only fixes good enough to draw a line with
+    if (f.acc <= 50 && (!last || metres([last[0], last[1]], [f.lon, f.lat]) >= 3)) {
+      track.coords.push([f.lon, f.lat, f.ele, f.t, f.acc]);
+      $('#trackInfo').textContent = trackText(track);
+      drawDraft();
+    }
+  }
+}
 $('#locate').addEventListener('click', () => {
   follow = true;
   if (fix) map.easeTo({ center: [fix.lon, fix.lat], zoom: Math.max(map.getZoom(), 16) });
