@@ -65,6 +65,10 @@ Planned as 3.0.7 (all version numbers already read 3.0.7).
 - `scripts/test-ribbon-critical.mjs` (in CI): drags the Swipe divider and checks the map changes on
   each side, checks the Spyglass lens, toggle highlighting and Esc, the Export split lists by keyboard,
   and the whole project flow (New with bad and good names, Save, Save as, Rename, Open).
+- `scripts/test-ribbon-audit.mjs` (in CI, strict): clicks every item on every ribbon tab, including the
+  entries of each split button and dropdown, and checks it does what it should (a dialog, pane, file, map
+  tool, setting, recipe run or status message). Map tools must stay highlighted until clicked again or
+  Esc, only one at a time; commands must never stay highlighted; menus must stay inside the window.
 - `scripts/test-web-ribbon.mjs` (the ribbon tools in a real browser) runs in CI and in `scripts/test-all.sh`.
   It now also fails when a ribbon group shows the same button twice.
 - `scripts/test-web-devices.mjs` opens the Devices pane where it now lives (the Explorer); it used a tab
