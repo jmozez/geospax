@@ -204,6 +204,29 @@ out; **Help › About GeoSpaX › Check for updates** looks at any time.
 
 **Later** hides the bar until the next version after that one.
 
+### Windows: the installer finds my old GeoSpaX but says it cannot uninstall it
+
+This happens with GeoSpaX 3.0.0 to 3.0.2 and the installers of 3.0.3 to 3.0.6, which look for the old copy
+under the new publisher name (in4metrix). Installers from 3.0.7 on find it and replace it. To remove a stuck
+copy by hand (your maps and settings in `%USERPROFILE%\GeoSpaX` are not touched):
+
+1. Close GeoSpaX and the GeoSpaX Web Server window (or end `geospax.exe` and `geospax-server.exe` in Task Manager).
+2. Open `%LOCALAPPDATA%\GeoSpaX` in Explorer and run `uninstall.exe`. If that fails or the file is missing,
+   delete the whole `%LOCALAPPDATA%\GeoSpaX` folder.
+3. Press Win+R, type `regedit`, and delete these keys if they are there:
+   `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\GeoSpaX`,
+   `HKEY_CURRENT_USER\Software\GeoSpaX contributors` and `HKEY_CURRENT_USER\Software\in4metrix\GeoSpaX`.
+4. Delete the shortcuts *GeoSpaX* and *GeoSpaX Web Server* from the desktop and from
+   `%APPDATA%\Microsoft\Windows\Start Menu\Programs`.
+5. Run the new `GeoSpaX_<version>_x64-setup.exe`.
+
+Or do steps 1 to 4 at once in PowerShell:
+
+```powershell
+Get-Process geospax, geospax-server -ErrorAction SilentlyContinue | Stop-Process -Force
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\GeoSpaX", 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GeoSpaX', 'HKCU:\Software\GeoSpaX contributors', 'HKCU:\Software\in4metrix\GeoSpaX', "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\GeoSpaX*.lnk", "$env:USERPROFILE\Desktop\GeoSpaX.lnk" -ErrorAction SilentlyContinue
+```
+
 ### Does GeoSpaX send my data anywhere?
 
 No. Everything runs on your computer. The web edition answers only this computer unless you start it with
