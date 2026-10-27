@@ -196,3 +196,4 @@ footer { border-top: 1px solid var(--line); padding: 64px 0 32px; }
 .dl.mine h3::after { content: none; }
 .dl.mine::before { content: "Your system"; align-self: flex-start; font: 500 11px var(--mono); color: var(--accent2); padding: 2px 9px; border: 1px solid rgba(255,122,69,.4); border-radius: 999px; margin-bottom: -4px; }
 .status { white-space: nowrap; }
+.demo-badge { margin-left: 8px; font: 500 11px var(--mono); color: var(--teal); padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; vertical-align: 3px; letter-spacing: .02em; }
