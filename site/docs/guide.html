@@ -47,15 +47,11 @@ This guide gets you from zero to a finished map in a few minutes.</p>
 </tr>
 </thead><tbody><tr>
 <td><strong>Windows 10 or 11</strong> (64-bit)</td>
-<td>Run <code>GeoSpaX_3.0.6_x64-setup.exe</code>. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start <strong>GeoSpaX</strong> from the Start menu. <strong>GeoSpaX Web Server</strong> in the same menu opens the web edition in your browser. The installer isn&#39;t code-signed yet, so Windows may say &quot;Windows protected your PC&quot;: click <em>More info → Run anyway</em>. Prefer no installer? Unzip <code>GeoSpaX-3.0.6-windows-x64.zip</code> anywhere and run <code>geospax.exe</code>.</td>
+<td>Run <code>GeoSpaX_3.0.7_x64-setup.exe</code>. It installs for you only, so no admin password is needed, and adds WebView2 if your PC lacks it (Windows 11 has it). Start <strong>GeoSpaX</strong> from the Start menu. <strong>GeoSpaX Web Server</strong> in the same menu opens the web edition in your browser. The installer isn&#39;t code-signed yet, so Windows may say &quot;Windows protected your PC&quot;: click <em>More info → Run anyway</em>. Prefer no installer? Unzip <code>GeoSpaX-3.0.7-windows-x64.zip</code> anywhere and run <code>geospax.exe</code>.</td>
 </tr>
 <tr>
 <td><strong>Any Linux</strong> (AppImage)</td>
-<td>Download <code>GeoSpaX-3.0.6-x86_64.AppImage</code>, make it executable (right-click › <em>Properties › Allow executing as program</em>, or <code>chmod +x GeoSpaX-*.AppImage</code>) and double-click it. Nothing is installed and no admin password is needed; it updates itself from inside the app. Works on distributions from 2024 onwards (Ubuntu 24.04, Fedora 40, Debian 13, Arch, openSUSE Tumbleweed …).</td>
-</tr>
-<tr>
-<td><strong>Linux via Flathub</strong></td>
-<td><code>flatpak install flathub io.github.jmozez.GeoSpaX</code>, or install GeoSpaX from GNOME Software or KDE Discover. Updates arrive with the rest of your system.</td>
+<td>Download <code>GeoSpaX-3.0.7-x86_64.AppImage</code>, make it executable (right-click › <em>Properties › Allow executing as program</em>, or <code>chmod +x GeoSpaX-*.AppImage</code>) and double-click it. Nothing is installed and no admin password is needed; it updates itself from inside the app. Works on distributions from 2024 onwards (Ubuntu 24.04, Fedora 40, Debian 13, Arch, openSUSE Tumbleweed …).</td>
 </tr>
 <tr>
 <td><strong>Android</strong> (field app)</td>
@@ -277,35 +273,35 @@ selected (zoom, attribute table, symbology, AutoMap and the same next steps):</p
 </tr>
 </thead><tbody><tr>
 <td><strong>Home</strong></td>
-<td>Project · Layer (add data, basemap, remove) · Navigate (previous/next extent, go to XY, bookmarks) · Selection · Inquiry (identify, find place, measure) · Symbology</td>
+<td>Project · Layer (add data, basemap, contents, zoom to layer) · Navigate (previous/next extent, go to XY, bookmarks) · Selection (by attributes, by location, lasso) · Inquiry (identify, find place, measure, coordinates) · Symbology (labels, AutoMap, legend)</td>
 </tr>
 <tr>
 <td><strong>View</strong></td>
-<td>Basemap · Projection (globe, flat, 3D terrain) · Theme · Windows</td>
+<td>Basemap · Projection (coordinate system, Mercator, globe, 3D terrain) · Compare (swipe, spyglass) · Time (time slider) · Map grid (grid, go to scale, lock scale) · Theme · Windows</td>
 </tr>
 <tr>
 <td><strong>Edit</strong></td>
-<td>Create · Modify · Selection · Fields · Measure · Manage edits (save, undo, discard)</td>
+<td>Create (point, line, polygon, trace, GPS point) · Modify (split, merge, cut, reshape) · Clipboard (copy, paste, copy along line) · Selection · Fields (attribute rules) · Measure · Manage edits (save, undo, discard, check topology)</td>
 </tr>
 <tr>
 <td><strong>Design</strong></td>
-<td>Precision (snapping, typed input) · Draw · Construct · Modify · Blocks · Survey · CAD exchange (DXF)</td>
+<td>Precision (snapping, typed input) · Draw · Construct · Modify (hatch and the CAD edits) · Blocks · Survey (traverse, survey points, area table) · CAD exchange (DXF, copy and paste features)</td>
 </tr>
 <tr>
 <td><strong>Imagery</strong></td>
-<td>Rasters · Satellite (latest NDVI) · Satellite embeddings · Terrain · LiDAR · Raster tools · AI models</td>
+<td>Rasters · Indices · Satellite (latest NDVI) · Satellite embeddings · Terrain · LiDAR · Raster tools (clip, mosaic, reproject, resample, change) · AI models</td>
 </tr>
 <tr>
 <td><strong>Analysis</strong></td>
-<td>Geoprocessing (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within) · Spatial statistics · Interpolation · Recipes · Tools · Assistant</td>
+<td>Geoprocessing · Recipes · Tools (buffer, clip, intersect, union, dissolve, merge, spatial join, near, summarize within, erase, zonal statistics) · Network · Spatial statistics · Interpolation · Assistant</td>
 </tr>
 <tr>
 <td><strong>Share</strong></td>
-<td>Layout (Finish my map) · Export</td>
+<td>Layout (Finish my map) · Export map · Export data · Export · Publish (web map, package project, print)</td>
 </tr>
 <tr>
 <td><strong>Help</strong></td>
-<td>Docs (user guide, FAQ, what&#39;s new) · Support · About · Diagnostics</td>
+<td>Learn (tutorials, search commands) · Docs (user guide, FAQ, what&#39;s new) · Support · About · Diagnostics</td>
 </tr>
 </tbody></table></div><p><strong>Data, R &amp; Python, recipes and plugins are in the Explorer</strong> (left panel), not on the ribbon:
 <strong>Online data</strong> (climate, future climate, soil, species, boundaries, elevation … and Check species
@@ -482,6 +478,47 @@ the bottom.</li>
 <td>Identify: its attributes in a popup</td>
 </tr>
 </tbody></table></div><p>Pane sizes, which tab is open and which panes are collapsed are remembered per browser/app.</p>
+<h3 id="the-ribbon-tools-tab-by-tab"><a class="anchor" href="#the-ribbon-tools-tab-by-tab">#</a>The ribbon tools, tab by tab</h3>
+<p><img src="/docs/assets/ribbon-view.webp" alt="The View tab of the GeoSpaX Pro ribbon: Basemap, Projection, Compare, Time, Map grid, Theme and Windows" loading="lazy" /></p>
+<p>Every panel (left, right and bottom) has a chevron at the end of its tab strip that folds it away and brings
+it back, so the map can take the whole window when you need it.</p>
+<ul>
+<li><strong>Home</strong>: <strong>Lasso</strong> selects features inside a shape you draw. <strong>Labels</strong> turns the selected layer&#39;s labels
+on and off. <strong>Coordinates</strong> shows the pointer position in decimal degrees, degrees-minutes-seconds, UTM,
+MGRS or any EPSG system you pick.</li>
+<li><strong>View</strong>: <strong>Swipe</strong> shows the map with the selected layer on one side of a divider and without it on the
+other; drag the divider to compare. <strong>Spyglass</strong> does the same inside a circle that follows the pointer.
+<strong>Time slider</strong> plays a layer that has a date or year field, by year, month or day, or adding up as it
+goes. It works through a definition query, so tools and exports see the same features as the map.
+<strong>Grid</strong> draws a labelled graticule. <strong>Go to scale</strong> zooms to a scale such as 1:50 000 and <strong>Lock scale</strong> keeps it while you pan.
+<strong>Coordinate system</strong> searches the EPSG registry, with the systems for the area on the map first.</li>
+<li><strong>Edit</strong>: <strong>Split</strong>, <strong>Merge</strong>, <strong>Cut</strong> and <strong>Reshape</strong> change shapes and keep their attributes, and each
+one can be undone. <strong>Copy</strong> and <strong>Paste</strong> (Ctrl+C and Ctrl+V) move features between layers; <strong>Copy along
+line</strong> places copies of the selected feature at equal steps along a line. <strong>Trace</strong> makes new edges follow existing features between snapped vertices.
+<strong>GPS point</strong> adds a point at the live position of a paired phone or GNSS receiver. <strong>Attribute rules</strong>
+set value lists, defaults and required fields. <strong>Check topology</strong> finds overlaps, gaps and invalid shapes
+and adds them as a layer.</li>
+<li><strong>Design</strong>: <strong>Survey points</strong> reads a CSV of points in any EPSG system. <strong>Area table</strong> lists the geodesic
+area and perimeter of each shape and saves it as CSV. <strong>Hatch</strong> gives the selected polygon layer a fill pattern.
+<strong>Copy features</strong> and <strong>Paste features</strong> move shapes between GIS layers and drawings.</li>
+<li><strong>Imagery</strong>: <strong>Indices</strong> makes a spectral index (or any normalised difference) and finds its extent with
+Otsu&#39;s threshold. <strong>Terrain</strong> makes a hillshade, slope, aspect, ruggedness, wetness index, viewshed or
+elevation profile from a DEM. <strong>Raster tools</strong> clip, mosaic, reproject, resample and compare rasters.</li>
+<li><strong>Analysis</strong>: every button in <strong>Tools</strong> opens its tool directly. <strong>Erase</strong> removes the parts of one layer
+that fall inside another. <strong>Zonal statistics</strong> weights each cell by the share of it inside the polygon,
+so thin and small polygons get correct values. <strong>Network</strong> finds service areas, the closest facility and
+the shortest path over a road layer.</li>
+<li><strong>Share</strong>: <strong>Export map</strong> saves PDF, SVG, PNG or a Word report. <strong>Export data</strong> saves GeoPackage,
+Shapefile, KML, CSV, GeoJSON or GeoParquet. <strong>Web map</strong> writes an interactive map in a single HTML file
+(layer switches, legend and pop-ups) that opens in any browser or web host. <strong>Package project</strong> saves a
+<code>.gspx</code> file that <strong>Open…</strong> reads back. <strong>Print</strong> prints the map.</li>
+<li><strong>Help</strong>: <strong>Tutorials</strong> are guided lessons on the real window. <strong>Search commands</strong> finds any command by
+name.</li>
+</ul>
+<p><img src="/docs/assets/ribbon-swipe.webp" alt="Swipe in GeoSpaX: the reserves layer on the left of the divider, the map without it on the right, with the map grid on" loading="lazy" /></p>
+<p><em>Swipe with the map grid on: the selected layer on one side of the divider only.</em></p>
+<p><img src="/docs/assets/ribbon-time.webp" alt="The GeoSpaX time slider playing a survey layer by year" loading="lazy" /></p>
+<p><em>Time slider: play a layer through its dates, by year, month or day.</em></p>
 <h3 id="the-toolbox-every-tool-in-one-place"><a class="anchor" href="#the-toolbox-every-tool-in-one-place">#</a>The Toolbox: every tool in one place</h3>
 <p>The <strong>Tools</strong> tab (right pane, both modes; <strong>All tools</strong> in the Lazy task bar, <strong>Analysis → Toolbox</strong> in
 Pro) lists every tool GeoSpaX can run, with one search box:</p>

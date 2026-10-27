@@ -1,4 +1,4 @@
-// The ribbon tools added in 3.1, in a real browser against a running server whose data folder is
+// The ribbon tools added in 3.0.6, in a real browser against a running server whose data folder is
 // made by scripts/test-edit-data.py (survey points with a `surveyed` date, reserves polygons).
 //
 //   node scripts/test-web-ribbon.mjs http://127.0.0.1:18120 OUT_DIR
