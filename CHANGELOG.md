@@ -14,6 +14,18 @@ Planned as 3.0.7 (all version numbers already read 3.0.7).
   the link led to a page that does not exist. The Flathub submission steps stay in DEPLOY.md.
 
 ### Fixed
+- **Windows upgrades from 3.0.0 to 3.0.2**: the installers of 3.0.3 to 3.0.6 found the older GeoSpaX but
+  stopped with "unable to uninstall". 3.0.3 changed the publisher from "GeoSpaX contributors" to "in4metrix",
+  and the installer looks up the install folder under the publisher's registry key, so for an older copy
+  the folder came back empty and its uninstaller removed nothing. The installer now finds the folder under
+  the old publisher (or from the Apps & features entry), uninstalls the older copy and removes the old key.
+  An Apps & features entry whose uninstaller is gone (a folder deleted by hand) no longer blocks the
+  install, and the installer and uninstaller also wait for a running GeoSpaX Web Server. The FAQ explains
+  how to remove a stuck copy by hand. CI installs 3.0.2, 3.0.6 and a half-removed 3.0.2 on a Windows
+  runner, upgrades each with the new installer and checks that exactly one GeoSpaX remains.
+- **Publisher "in4metrix" everywhere**: `geospax-server.exe` now has Windows version details (company
+  in4metrix, product GeoSpaX, version, icon) like `geospax.exe`; the field app's bundle, the .deb copyright
+  file and the rest already read in4metrix, and `scripts/check-publisher.sh` (run in CI) keeps it that way.
 - **Phone as a GPS (web edition)**: the phone page did nothing in 3.0.6. The content security policy added
   in 3.0.6 blocks inline scripts, and the page's script was inline, so the pairing check and the position
   updates never ran. The script is now its own file (`phone.js`), and the phone link sends its page with a
