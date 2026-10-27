@@ -4,7 +4,7 @@
 plugin: gsx
 version: 3.0.1
 title: GSX tool library
-description: "19 conservation, landscape and biodiversity tools shared by the twelve domain plugins. Runs on Node, offline."
+description: "31 conservation, landscape and biodiversity tools shared by the twelve domain plugins. Runs on Node, offline."
 author: in4metrix
 license: MIT
 homepage: https://github.com/jmozez/geospax
@@ -206,3 +206,137 @@ tools:
       - { name: "group_field", label: "One profile per (points)", kind: field, description: "e.g. transect" }
       - { name: "order_field", label: "Sort points by", kind: field, description: "e.g. site or distance along the transect; empty = the order in the layer" }
       - { name: "spacing_m", label: "Sample every (m)", kind: number, default: 0, description: "0 = half the DEM cell size" }
+  - id: "datum-transform"
+    name: "Datum and projection transformation"
+    summary: "Transform coordinates between datums and projections (WGS 84, UTM, PNG94/PNGMG94, AGD66/AMG66, GDA94/GDA2020, MGA, NZTM or any PROJ string), from a layer, its coordinate fields or typed coordinates."
+    group: "Surveying and cartography"
+    icon: earth
+    params:
+      - { name: "layer", label: "Points or features", kind: layer, description: "Leave empty to transform typed coordinates instead." }
+      - { name: "x_field", label: "Easting or longitude field", kind: field, description: "When the coordinates are in the attribute table (for example from a CSV) rather than the map position." }
+      - { name: "y_field", label: "Northing or latitude field", kind: field }
+      - { name: "coordinates", label: "Typed coordinates", kind: text, default: "", description: "One \"x y\" pair per line (easting northing, or longitude latitude), used when no layer is chosen." }
+      - { name: "source_crs", label: "From", kind: text, default: "EPSG:4326", description: "The system the coordinates are in. For a layer without coordinate fields this is EPSG:4326, its map position." }
+      - { name: "target_crs", label: "To", kind: text, default: "auto", description: "\"auto\" chooses the WGS 84 UTM zone of the data." }
+  - id: "traverse-adjust"
+    name: "Traverse adjustment (Bowditch, misclosure report)"
+    summary: "A traverse from a start point and its legs (bearing and distance): misclosure, precision ratio (1 in N), compass-rule (Bowditch) adjustment, adjusted coordinates and the enclosed area."
+    group: "Surveying and cartography"
+    icon: calc
+    params:
+      - { name: "legs", label: "Legs (bearing distance)", kind: text, default: "", description: "One leg per line: whole-circle bearing then distance in metres, for example \"45.3020 120.55\" (DDD.MMSS), \"45°30'20\\\" 120.55\" or \"N45°30'E 120.55\"." }
+      - { name: "start_e", label: "Start easting (m)", kind: number, default: 500000 }
+      - { name: "start_n", label: "Start northing (m)", kind: number, default: 9000000 }
+      - { name: "close_e", label: "Closing easting (blank = back to start)", kind: text, default: "" }
+      - { name: "close_n", label: "Closing northing (blank = back to start)", kind: text, default: "" }
+      - { name: "bearing_format", label: "Bearing format", kind: choice, default: "dms", description: "dms: DDD.MMSS when a bearing is a single number; decimal: decimal degrees.", choices: ["dms", "decimal"] }
+      - { name: "crs", label: "Coordinate system of the traverse", kind: text, default: "EPSG:32755", description: "Used to place the traverse on the map." }
+      - { name: "min_ratio", label: "Required precision (1 in N)", kind: number, default: 10000, description: "The traverse fails the check when its precision is worse than this (for example 1:10 000 for cadastral work)." }
+  - id: "bearing-distance"
+    name: "Bearings and distances (inverse)"
+    summary: "Grid bearing (DMS) and distance of every side of lines and polygons, and the area of each polygon, in a projected system: the figures for a survey plan or field book."
+    group: "Surveying and cartography"
+    icon: ruler
+    params:
+      - { name: "layer", label: "Lines or polygons", kind: layer, required: true }
+      - { name: "crs", label: "Grid (projected system)", kind: text, default: "auto", description: "\"auto\" uses the WGS 84 UTM zone of the data." }
+  - id: "survey-plan"
+    name: "Survey plan sheet (title block)"
+    summary: "An A3 survey plan of lot polygons: bearings and distances on every boundary, areas, numbered marks with a coordinate schedule, north arrow, scale bar and a title block with the surveyor's certificate."
+    group: "Surveying and cartography"
+    icon: print
+    params:
+      - { name: "lots", label: "Lot or parcel polygons", kind: layer, required: true }
+      - { name: "label_field", label: "Lot label field", kind: field }
+      - { name: "title", label: "Plan title", kind: text, default: "Survey plan" }
+      - { name: "plan_no", label: "Plan number", kind: text, default: "" }
+      - { name: "location", label: "Location", kind: text, default: "" }
+      - { name: "surveyor", label: "Surveyor", kind: text, default: "" }
+      - { name: "firm", label: "Firm", kind: text, default: "in4metrix" }
+      - { name: "date", label: "Date (blank = today)", kind: text, default: "" }
+      - { name: "crs", label: "Grid (projected system)", kind: text, default: "auto", description: "EPSG code (for example EPSG:32755, EPSG:5551 PNGMG94 zone 55, EPSG:20255 AMG66 zone 55) or a PROJ string." }
+  - id: "map-grid"
+    name: "Map grid and graticule (for layouts)"
+    summary: "Grid lines at a set interval over a layer's extent: a latitude and longitude graticule, or an easting and northing grid in any projected system, labelled for a map layout."
+    group: "Surveying and cartography"
+    icon: grid
+    params:
+      - { name: "layer", label: "Extent of", kind: layer, required: true }
+      - { name: "crs", label: "Grid system", kind: text, default: "EPSG:4326", description: "EPSG:4326 for a graticule, a projected system (or \"auto\" for UTM) for a grid." }
+      - { name: "interval", label: "Interval (degrees or metres)", kind: number, default: 0, description: "0 chooses about eight lines across." }
+  - id: "corridor-zones"
+    name: "Corridor and clearance zones (power lines, pipelines, roads)"
+    summary: "Nested zones either side of lines (easement, clearance, consultation …) as polygons with their areas, and every feature of a second layer that falls inside a zone (encroachments), with its distance."
+    group: "Energy and utilities"
+    icon: tBuffer
+    params:
+      - { name: "lines", label: "Lines (power lines, pipelines, roads)", kind: layer, required: true }
+      - { name: "zones", label: "Zones (name:half-width in metres)", kind: text, default: "easement:20, clearance:40, consultation:100", description: "Half-widths either side of the centre line, for example easement:20, clearance:40." }
+      - { name: "features", label: "Features to check (buildings, trees, wells …)", kind: layer }
+  - id: "lidar-clearance"
+    name: "LiDAR vegetation and obstacle clearance"
+    summary: "Cells of a canopy or obstacle height model (from LiDAR) inside a line corridor that rise closer than the required clearance to the conductor: where to trim, with the excess height and area."
+    group: "Energy and utilities"
+    icon: pointcloud
+    params:
+      - { name: "chm", label: "Canopy or obstacle height (m above ground)", kind: raster, required: true, description: "A height above ground raster, for example a LiDAR canopy height model (DSM minus DTM)." }
+      - { name: "lines", label: "Conductors or pipelines", kind: layer, required: true }
+      - { name: "height_field", label: "Conductor height field (m above ground)", kind: field, description: "The lowest conductor height (at maximum sag) on each line; blank uses the height below." }
+      - { name: "conductor_m", label: "Conductor height (m above ground)", kind: number, default: 12 }
+      - { name: "clearance_m", label: "Required clearance (m)", kind: number, default: 3, description: "The vegetation clearance the regulator or utility requires." }
+      - { name: "corridor_m", label: "Corridor half-width (m)", kind: number, default: 15 }
+  - id: "tower-inventory"
+    name: "Transmission tower inventory (spans and angles)"
+    summary: "Towers or poles in line order: span lengths, line deviation at each structure, a suggested structure type (suspension, angle, terminal) and spans longer than allowed."
+    group: "Energy and utilities"
+    icon: pin
+    params:
+      - { name: "towers", label: "Towers or poles (points)", kind: layer, required: true }
+      - { name: "line", label: "Line route (optional, orders the towers)", kind: layer }
+      - { name: "id_field", label: "Tower number field", kind: field }
+      - { name: "max_span_m", label: "Longest allowed span (m)", kind: number, default: 450 }
+      - { name: "angle_deg", label: "Deviation for an angle structure (°)", kind: number, default: 3 }
+      - { name: "terminal_deg", label: "Deviation for a terminal structure (°)", kind: number, default: 30 }
+  - id: "tenure-check"
+    name: "Tenure check (leases, licences, tenements)"
+    summary: "Areas of petroleum leases, mining tenements or other licences, overlaps between them, overlaps with constraint areas (protected or customary land) and licences expired or expiring."
+    group: "Tenure and leases"
+    icon: mapOutline
+    params:
+      - { name: "tenures", label: "Leases or tenements (polygons)", kind: layer, required: true }
+      - { name: "name_field", label: "Name or number field", kind: field }
+      - { name: "expiry_field", label: "Expiry date field", kind: field }
+      - { name: "warn_days", label: "Warn this many days before expiry", kind: number, default: 180 }
+      - { name: "constraints", label: "Constraint areas (optional)", kind: layer }
+      - { name: "as_of", label: "Check as of (date, blank = today)", kind: text, default: "" }
+  - id: "well-sites"
+    name: "Well sites (spacing and lease check)"
+    summary: "Wells or drill holes: the lease each is in, wells outside every lease, the distance to the nearest other well and wells closer than the minimum spacing."
+    group: "Tenure and leases"
+    icon: point
+    params:
+      - { name: "wells", label: "Wells or drill holes (points)", kind: layer, required: true }
+      - { name: "leases", label: "Leases (polygons, optional)", kind: layer }
+      - { name: "lease_name", label: "Lease name field", kind: field }
+      - { name: "min_spacing_m", label: "Minimum spacing (m)", kind: number, default: 400 }
+  - id: "route-suitability"
+    name: "Least-cost route (pipelines, haul and logging roads)"
+    summary: "The cheapest route between two points across a DEM (grade-limited) or a cost surface, avoiding no-go areas: for pipeline, haul road and logging road alignments, with length and grades."
+    group: "Route planning"
+    icon: roadCentre
+    params:
+      - { name: "surface", label: "DEM or cost surface", kind: raster, required: true }
+      - { name: "ends", label: "Start and end (points: first and last)", kind: layer, required: true }
+      - { name: "surface_kind", label: "The surface is", kind: choice, default: "dem", description: "dem: cost grows with slope and cells steeper than the maximum grade are impassable; cost: the raster values are the cost per metre.", choices: ["dem", "cost"] }
+      - { name: "max_grade_deg", label: "Maximum grade (°)", kind: number, default: 12, description: "For a DEM: cells steeper than this are impassable (haul roads are often 6 to 10 %, about 3.5 to 5.7°)." }
+      - { name: "avoid", label: "No-go areas (optional)", kind: layer, description: "Protected areas, villages, water bodies: never crossed." }
+  - id: "volume-change"
+    name: "Cut and fill volumes (open pit, stockpiles)"
+    summary: "Volume removed and added between two DEMs of the same grid (open pits, waste dumps, stockpiles, earthworks), within an optional boundary, with the change raster."
+    group: "Earthworks"
+    icon: cube
+    params:
+      - { name: "before", label: "DEM before", kind: raster, required: true }
+      - { name: "after", label: "DEM after", kind: raster, required: true }
+      - { name: "boundary", label: "Boundary (optional)", kind: layer }
+      - { name: "min_change_m", label: "Ignore changes smaller than (m)", kind: number, default: 0.1, description: "Survey noise threshold." }
