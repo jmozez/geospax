@@ -158,7 +158,7 @@ export const SECTOR_TOOLS: Tool[] = [
     run(ctx) {
       const pts = need(ctx, 'pings', 'AIS points');
       const vf = str(ctx, 'vessel_field'), tf = str(ctx, 'time_field');
-      if (!vf || !tf) throw new Error('choose the vessel id and time fields');
+      if (!vf || !tf) throw new Error('Choose the vessel id and time fields');
       const R = num(ctx, 'radius_m', 1000), minH = num(ctx, 'min_hours', 2), gapH = num(ctx, 'gap_hours', 6);
       const zone = (ctx.layer('zone') ?? []).flatMap((z) => polygonsOf(z.geometry));
       const inZone = (p: Position) => !zone.length || zone.some((r) => inRings(p, r));
@@ -204,7 +204,7 @@ export const SECTOR_TOOLS: Tool[] = [
     run(ctx) {
       const rw = need(ctx, 'runway', 'a runway line');
       const ln = linesOf(rw[0].geometry)[0];
-      if (!ln || ln.length < 2) throw new Error('the runway must be a line from one threshold to the other');
+      if (!ln || ln.length < 2) throw new Error('Choose a runway line drawn from one threshold to the other');
       const s = OLS[str(ctx, 'code', '3')] ?? OLS['3'];
       const elev = num(ctx, 'elevation_m', 0);
       const m = localMetric([ln[0], ln[ln.length - 1]]);
@@ -267,7 +267,7 @@ export const SECTOR_TOOLS: Tool[] = [
     run(ctx) {
       const net = need(ctx, 'network', 'road lines'), fac = need(ctx, 'facilities', 'facility points').filter((f) => pointOf(f));
       const bands = str(ctx, 'bands', '10, 20, 30').split(/[,;\s]+/).map(Number).filter((v) => v > 0).sort((a, b) => a - b);
-      if (!bands.length) throw new Error('give at least one band');
+      if (!bands.length) throw new Error('Give at least one band');
       const m = localMetric([...net, ...fac]);
       const g = buildGraph(net, m, str(ctx, 'speed_field'), num(ctx, 'speed_kmh', 40));
       const unit = g.timed ? 'min' : 'm';
@@ -301,8 +301,8 @@ export const SECTOR_TOOLS: Tool[] = [
     params: [layerP('stops', 'Stops (points; the first is the depot)'), layerP('network', 'Road network (optional)', false), choiceP('return', 'Return to the depot', ['yes', 'no']), fieldP('speed_field', 'Speed field (km/h)', false), numP('speed_kmh', 'Default speed (km/h, 0 = distance)', 0)],
     run(ctx) {
       const stops = need(ctx, 'stops', 'stop points').filter((f) => pointOf(f));
-      if (stops.length < 3) throw new Error('give a depot and at least two stops');
-      if (stops.length > 300) throw new Error('at most 300 stops');
+      if (stops.length < 3) throw new Error('Give a depot and at least two stops');
+      if (stops.length > 300) throw new Error('At most 300 stops');
       const back = str(ctx, 'return', 'yes') !== 'no';
       const net = ctx.layer('network');
       const m = localMetric(net?.length ? [...net, ...stops] : stops);
@@ -314,7 +314,7 @@ export const SECTOR_TOOLS: Tool[] = [
         const nodes = stops.map((s) => g.nearest(pointOf(s)!).node);
         const runs = nodes.map((nd) => dijkstra(g, [nd]));
         c = nodes.map((_, i) => nodes.map((nj) => runs[i].cost[nj]));
-        if (c.some((r) => r.some((v) => !Number.isFinite(v)))) throw new Error('some stops are on parts of the network not connected to the others');
+        if (c.some((r) => r.some((v) => !Number.isFinite(v)))) throw new Error('Some stops are on parts of the network not connected to the others');
         paths = (i, j) => runs[i].path(nodes[j]).map((k) => g.ll[k]);
       } else {
         const xy = stops.map((s) => m.fwd(pointOf(s)!));
@@ -350,7 +350,7 @@ export const SECTOR_TOOLS: Tool[] = [
     run(ctx) {
       const zones = need(ctx, 'zones', 'zone polygons');
       const zf = str(ctx, 'zone_field');
-      if (!zf) throw new Error('choose the zone field');
+      if (!zf) throw new Error('Choose the zone field');
       const feats = ctx.layer('features') ?? [];
       const m = localMetric(zones);
       const by = new Map<string, { ha: number; n: number }>();
@@ -399,7 +399,7 @@ export const SECTOR_TOOLS: Tool[] = [
       const walk = num(ctx, 'walk_m', 400), minHa = num(ctx, 'min_ha', 0.5), wf = str(ctx, 'weight_field');
       const m = localMetric([...homes, ...parks]);
       const mp = parks.flatMap((p) => polygonsOf(p.geometry)).map((r) => r.map((x) => x.map(m.fwd))).filter((r) => ringsArea(r) / 10000 >= minHa);
-      if (!mp.length) throw new Error(`no green space of ${minHa} ha or more`);
+      if (!mp.length) throw new Error(`No green space of ${minHa} ha or more`);
       let w = 0, wIn = 0;
       const out = homes.map((h) => {
         const d = polyDist(m.fwd(pointOf(h)!), mp);
@@ -481,7 +481,7 @@ export const SECTOR_TOOLS: Tool[] = [
     run(ctx) {
       const a = need(ctx, 'before', 'the earlier layer'), b = need(ctx, 'after', 'the later layer');
       const idf = str(ctx, 'id_field');
-      if (!idf) throw new Error('choose the id field');
+      if (!idf) throw new Error('Choose the id field');
       const fields = str(ctx, 'fields').split(',').map((s) => s.trim()).filter(Boolean);
       const mv = num(ctx, 'move_m', 1);
       const m = localMetric([...a, ...b]);

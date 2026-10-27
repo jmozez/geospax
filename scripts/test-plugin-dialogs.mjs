@@ -1,4 +1,4 @@
-// Every tool of the twelve default domain plugins, opened from the Plugins tab on the PNG samples and
+// Every tool of the default domain plugins, opened from the Plugins tab on the PNG samples and
 // run as it opens (inputs pre-selected, web/src/prefill.ts), like a user pressing Run straight away:
 // each either runs or asks in plain words for what it lacks (no crash, no stack trace); no earlier
 // result is taken as input unasked; and the samples get the inputs they are made for.

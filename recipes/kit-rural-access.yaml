@@ -1,0 +1,32 @@
+# Rural planning kit: how far villages are from services, and land suitability by slope.
+recipe: kit-rural-access
+version: 1
+kit: Rural planning
+title: Distance to services and gardening land
+description: >-
+  Settlements and services (health centres, schools, markets) in: the distance from each settlement
+  to its nearest service and the share beyond each threshold, and slope zones from the Copernicus
+  DEM for garden and road planning, mapped and reported.
+inputs:
+  settlements: { type: layer, default: auto, description: villages or households (points) }
+  services: { type: layer, default: "", description: "health centres, schools or markets (points)" }
+  thresholds: { type: text, default: "5, 10", description: "distance thresholds in km" }
+  breaks: { type: text, default: "8, 20", description: "slope breaks in degrees" }
+steps:
+  - id: access
+    use: tool
+    with: { tool: gsx/service-access, params: { settlements: "${inputs.settlements}", services: "${inputs.services}", thresholds: "${inputs.thresholds}" } }
+  - id: dem
+    use: dem.fetch
+    with: { aoi: "${inputs.settlements}", buffer: 2000 }
+  - id: slopes
+    use: tool
+    with: { tool: gsx/slope-zones, params: { dem: dem, breaks: "${inputs.breaks}" } }
+  - id: map
+    use: export.map
+    with: { name: service-access, layers: ["${access.layers}", "${slopes.rasters.1}"], title: "Distance to services (km)" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Rural access · ${run.date}" }
+outputs: [map, report]

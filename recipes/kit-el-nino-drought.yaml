@@ -1,0 +1,43 @@
+# Climate kit: the current ENSO state and El Niño drought and frost risk for an area.
+recipe: kit-el-nino-drought
+version: 1
+kit: Climate
+title: El Niño drought and frost risk (ENSO)
+description: >-
+  An area and, optionally, observed and normal rainfall rasters in: the latest Oceanic Niño Index
+  and Southern Oscillation Index (NOAA CPC and the Bureau of Meteorology), rainfall as a share of
+  normal, and drought risk combining the rainfall deficit, the ENSO phase and frost risk above
+  2200 m (as in the 1997 and 2015 El Niño droughts in the PNG highlands), mapped and reported.
+inputs:
+  area: { type: layer, default: auto, description: the area (any layer) }
+  observed: { type: raster, default: "", description: "observed rainfall for the season (optional)" }
+  normal: { type: raster, default: "", description: "long-term normal rainfall on the same grid (optional)" }
+steps:
+  - id: oni
+    use: tool
+    with: { tool: gsx/enso-index, params: { index: oni } }
+  - id: soi
+    use: tool
+    with: { tool: gsx/enso-index, params: { index: soi } }
+  - id: rain
+    use: tool
+    when: "${inputs.observed}"
+    with: { tool: gsx/rainfall-anomaly, params: { observed: "${inputs.observed}", normal: "${inputs.normal}" } }
+  - id: dem
+    use: dem.fetch
+    with: { aoi: "${inputs.area}", buffer: 500 }
+  - id: risk
+    use: tool
+    with: { tool: gsx/drought-risk, params: { dem: dem } }
+  - id: risk_rain
+    use: tool
+    when: "${inputs.observed}"
+    with: { tool: gsx/drought-risk, params: { rain_pct: "${rain.rasters.0}", dem: dem } }
+  - id: map
+    use: export.map
+    with: { name: drought-risk, layers: ["${risk.rasters.1}", "${inputs.area}"], title: "El Niño drought and frost risk" }
+  - id: report
+    use: export.report
+    needs: [map, oni, soi]
+    with: { title: "El Niño drought risk · ${run.date}" }
+outputs: [map, report]

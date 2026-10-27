@@ -1,0 +1,37 @@
+# Surveying and cartography kit: a closed traverse adjusted and the lots drawn as a survey plan.
+recipe: kit-survey-plan
+version: 1
+kit: Surveying and cartography
+title: Traverse adjustment and survey plan
+description: >-
+  Traverse legs (bearing and distance) and lot polygons in: the traverse closed by the compass
+  (Bowditch) rule with its misclosure and precision, the bearings and distances of every lot side,
+  a survey plan figure and a map grid, mapped and reported.
+inputs:
+  legs: { type: text, default: "0 100\n90 100\n180 100\n270 100", description: "one leg per line: bearing (DMS as 45.3020) then distance in metres" }
+  start_e: { type: number, default: 500000, description: easting of the starting station }
+  start_n: { type: number, default: 9000000, description: northing of the starting station }
+  crs: { type: text, default: "EPSG:32755", description: "the projected system of the survey (PNG94 / UTM 55S is EPSG:32755)" }
+  lots: { type: layer, default: auto, description: the lot polygons }
+  interval: { type: number, default: 100, description: map grid interval in metres }
+steps:
+  - id: traverse
+    use: tool
+    with: { tool: gsx/traverse-adjust, params: { legs: "${inputs.legs}", start_e: "${inputs.start_e}", start_n: "${inputs.start_n}", crs: "${inputs.crs}" } }
+  - id: sides
+    use: tool
+    with: { tool: gsx/bearing-distance, params: { layer: "${inputs.lots}", crs: "${inputs.crs}" } }
+  - id: plan
+    use: tool
+    with: { tool: gsx/survey-plan, params: { lots: "${inputs.lots}", crs: "${inputs.crs}" } }
+  - id: grid
+    use: tool
+    with: { tool: gsx/map-grid, params: { layer: "${inputs.lots}", crs: "${inputs.crs}", interval: "${inputs.interval}" } }
+  - id: map
+    use: export.map
+    with: { name: survey-plan, layers: ["${grid.layers}", "${sides.layers}", "${inputs.lots}"], title: "Survey plan (${inputs.crs})" }
+  - id: report
+    use: export.report
+    needs: [map, traverse, plan]
+    with: { title: "Survey plan · ${run.date}" }
+outputs: [map, report]

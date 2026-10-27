@@ -34,14 +34,14 @@ export function parseEnso(kind: string, text: string): EnsoPoint[] {
       if (m) out.push({ label: `${m[1]}-${m[2]}`, t: Date.UTC(+m[1], +m[2] - 1, 15), v: +m[3] });
     }
   }
-  if (!out.length) throw new Error(`no ${kind.toUpperCase()} values found in the data`);
+  if (!out.length) throw new Error(`No ${kind.toUpperCase()} values found in the data`);
   return out.sort((a, b) => a.t - b.t);
 }
 
 /** text of an index: a file the user gave, then GEOSPAX_ENSO_DIR (an offline mirror), then the web */
 export async function ensoText(kind: string, file = ''): Promise<{ text: string; source: string }> {
   const src = ENSO_SOURCES[kind];
-  if (!src) throw new Error(`unknown index ${kind}`);
+  if (!src) throw new Error(`Unknown index ${kind}`);
   if (file) return { text: readFileSync(file, 'utf8'), source: file };
   const dir = process.env.GEOSPAX_ENSO_DIR;
   if (dir && existsSync(join(dir, src.file))) return { text: readFileSync(join(dir, src.file), 'utf8'), source: join(dir, src.file) };
@@ -49,7 +49,7 @@ export async function ensoText(kind: string, file = ''): Promise<{ text: string;
   try {
     res = await fetch(src.url, { headers: { 'user-agent': 'GeoSpaX (ENSO index)' }, signal: AbortSignal.timeout(30000) });
   } catch (e) {
-    throw new Error(`could not download ${src.url} (${(e as Error).message}); download it in a browser and choose it as the data file`);
+    throw new Error(`Could not download ${src.url} (${(e as Error).message}); download it in a browser and choose it as the data file`);
   }
   if (!res.ok) throw new Error(`${src.url} answered ${res.status}; download it in a browser and choose it as the data file`);
   return { text: await res.text(), source: src.url };
@@ -135,7 +135,7 @@ export const ENSO_TOOLS: Tool[] = [
     params: [rasterP('observed', 'Observed rainfall (mm)'), rasterP('normal', 'Normal (long-term mean) rainfall (mm)')],
     run(ctx) {
       const o = needRaster(ctx, 'observed', 'observed rainfall'), n = needRaster(ctx, 'normal', 'normal rainfall');
-      if (!sameGrid(o, n)) throw new Error('the two rasters must share one grid; resample one to the other first');
+      if (!sameGrid(o, n)) throw new Error('The two rasters must share one grid; resample one to the other first');
       const p = new Float32Array(o.width * o.height);
       const counts = [0, 0, 0, 0, 0];
       const br = [50, 80, 120, 150];
@@ -145,7 +145,7 @@ export const ENSO_TOOLS: Tool[] = [
         p[i] = Number.isFinite(a) && Number.isFinite(b) && b > 0 ? (a / b) * 100 : NaN;
         if (Number.isFinite(p[i])) { counts[br.filter((x) => p[i] >= x).length]++; k++; sum += p[i]; }
       }
-      if (!k) throw new Error('no cells with both values');
+      if (!k) throw new Error('No cells with both values');
       const labels = ['Very much below normal (under 50 %)', 'Below normal (50 to 80 %)', 'Near normal (80 to 120 %)', 'Above normal (120 to 150 %)', 'Very much above normal (over 150 %)'];
       return {
         message: `Mean ${(sum / k).toFixed(0)} % of normal; ${((counts[0] + counts[1]) / k * 100).toFixed(1)} % of the area below 80 %`,
@@ -163,8 +163,8 @@ export const ENSO_TOOLS: Tool[] = [
     params: [rasterP('rain_pct', 'Rainfall (% of normal, optional)', false), rasterP('dem', 'DEM (optional, for frost)', false), { name: 'oni', label: 'ONI (°C, blank = latest from NOAA)', kind: 'number', description: 'Leave blank to download the latest Oceanic Niño Index.' }, { name: 'oni_file', label: 'ONI data file (optional, offline)', kind: 'file' }, numP('frost_m', 'Frost risk above (m)', 2200)],
     async run(ctx) {
       const rain = ctx.raster('rain_pct'), dem = ctx.raster('dem');
-      if (!rain && !dem) throw new Error('give a rainfall anomaly raster, a DEM, or both');
-      if (rain && dem && !sameGrid(rain, dem)) throw new Error('the rainfall and DEM rasters must share one grid; resample one to the other first');
+      if (!rain && !dem) throw new Error('Give a rainfall anomaly raster, a DEM, or both');
+      if (rain && dem && !sameGrid(rain, dem)) throw new Error('The rainfall and DEM rasters must share one grid; resample one to the other first');
       const like = (rain ?? dem)!;
       const oni = await latestOni(ctx);
       const ensoScore = oni.v >= 2 ? 3 : oni.v >= 1.5 ? 2.5 : oni.v >= 1 ? 2 : oni.v >= 0.5 ? 1 : 0;
@@ -208,7 +208,7 @@ export const ENSO_TOOLS: Tool[] = [
       const cnt = [0, 0, 0, 0, 0];
       let k = 0;
       p.forEach((v) => { if (Number.isFinite(v)) { cnt[br.filter((b) => v >= b).length]++; k++; } });
-      if (!k) throw new Error('the raster has no values');
+      if (!k) throw new Error('The raster has no values');
       return {
         message: `${((cnt[0] + cnt[1]) / k * 100).toFixed(1)} % of the area is likely drier than the median`,
         rasters: [classify(g, 'Seasonal outlook', p, br, labels, ['#8c510a', '#d8b365', '#f5f5f5', '#5ab4ac', '#01665e'], 'Chance of above-median rainfall, in classes')],

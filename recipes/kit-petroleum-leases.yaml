@@ -1,0 +1,41 @@
+# Oil and gas kit: petroleum licences, wells and a pipeline route.
+recipe: kit-petroleum-leases
+version: 1
+kit: Oil and gas
+title: Licences, well spacing and pipeline route
+description: >-
+  Licence polygons and well points in: licence areas, overlaps with each other and with
+  constraint areas, expiry status, well spacing and wells outside every licence, and a
+  least-cost pipeline route over the Copernicus DEM between two points, mapped and reported.
+inputs:
+  tenures: { type: layer, default: auto, description: petroleum licences or leases (polygons) }
+  name_field: { type: field, default: "", description: licence name or number field }
+  expiry_field: { type: field, default: "", description: expiry date field }
+  constraints: { type: layer, default: "", description: "protected areas, villages or other constraints (optional)" }
+  wells: { type: layer, default: "", description: well points (optional) }
+  ends: { type: layer, default: "", description: "two points for a pipeline route, start then end (optional)" }
+  min_spacing_m: { type: number, default: 400, description: minimum well spacing in metres }
+steps:
+  - id: tenure
+    use: tool
+    with: { tool: gsx/tenure-check, params: { tenures: "${inputs.tenures}", name_field: "${inputs.name_field}", expiry_field: "${inputs.expiry_field}", constraints: "${inputs.constraints}" } }
+  - id: wells
+    use: tool
+    when: "${inputs.wells}"
+    with: { tool: gsx/well-sites, params: { wells: "${inputs.wells}", leases: "${inputs.tenures}", lease_name: "${inputs.name_field}", min_spacing_m: "${inputs.min_spacing_m}" } }
+  - id: dem
+    use: dem.fetch
+    when: "${inputs.ends}"
+    with: { aoi: "${inputs.ends}", buffer: 2000 }
+  - id: route
+    use: tool
+    when: "${inputs.ends}"
+    with: { tool: gsx/route-suitability, params: { surface: dem, ends: "${inputs.ends}", avoid: "${inputs.constraints}" } }
+  - id: map
+    use: export.map
+    with: { name: petroleum-licences, layers: ["${tenure.layers}", "${inputs.tenures}"], title: "Petroleum licences and overlaps" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Oil and gas licences · ${run.date}" }
+outputs: [map, report]
