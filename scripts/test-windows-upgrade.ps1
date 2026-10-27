@@ -49,6 +49,9 @@ function Run([string]$exe, [string[]]$arguments, [int]$seconds) {
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $UIA = [System.Windows.Automation.AutomationElement]
 $Btn = New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty), ([System.Windows.Automation.ControlType]::Button)
+Add-Type -Namespace W32 -Name U -MemberDefinition '[DllImport("user32.dll")] public static extern bool PostMessage(System.IntPtr h, uint m, System.IntPtr w, System.IntPtr l);
+[DllImport("user32.dll")] public static extern int GetDlgCtrlID(System.IntPtr h);
+[DllImport("user32.dll")] public static extern System.IntPtr GetParent(System.IntPtr h);'
 $Txt = New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty), ([System.Windows.Automation.ControlType]::Text)
 # Runs a setup without switches and clicks it through like a user: Next (the reinstall page keeps its default,
 # "Uninstall before installing"), the old uninstaller's Uninstall / Close, Install, Finish. A message box
@@ -56,7 +59,7 @@ $Txt = New-Object System.Windows.Automation.PropertyCondition ([System.Windows.A
 function Run-Gui([string]$exe, [int]$seconds) {
   $p = Start-Process $exe -PassThru
   $null = $p.Handle
-  $boxes = @(); $seen = $false
+  $boxes = @(); $seen = $false; $script:trace = @(); $last = ''; $clicked = [datetime]::MinValue
   $deadline = (Get-Date).AddSeconds($seconds)
   while (-not $p.HasExited -and (Get-Date) -lt $deadline) {
     $ids = @($p.Id) + @(Get-Process uninstall, Un_*, Au_* -ErrorAction SilentlyContinue | ForEach-Object Id)
@@ -77,7 +80,16 @@ function Run-Gui([string]$exe, [int]$seconds) {
             if ($target) { break }
           }
         }
-        if ($target) { $target.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() }
+        $state = "[$($w.Current.Name)] " + (($buttons | ForEach-Object { ($_.Current.Name -replace '&', '') + $(if ($_.Current.IsEnabled) { '' } else { '(off)' }) }) -join ', ') + ' -> ' + $(if ($target) { $target.Current.Name -replace '&', '' } else { '-' })
+        $fresh = $state -ne $last
+        if ($fresh) { $script:trace += $state; $last = $state }
+        # WM_COMMAND/BN_CLICKED posted to the dialog, not UIA Invoke (which waits while the click opens a
+        # modal box); the same page is clicked again only after 5 s
+        if ($target -and ($fresh -or ((Get-Date) - $clicked).TotalSeconds -gt 5)) {
+          $h = [IntPtr]$target.Current.NativeWindowHandle
+          [W32.U]::PostMessage([W32.U]::GetParent($h), 0x0111, [IntPtr][W32.U]::GetDlgCtrlID($h), $h) | Out-Null
+          $clicked = Get-Date
+        }
       } catch { }   # the window went away while being read
     }
     if ($boxes.Count -ge 2) { break }   # the installer returns to its page after a message box; twice is enough
@@ -129,12 +141,13 @@ Install-Old '3.0.2'
 $r = Run-Gui (Old-Setup '3.0.6') 180
 $v = (Get-Item "$Inst\geospax.exe" -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
 Note "- control, published 3.0.6 setup (GUI) over 3.0.2: exit '$($r.Exit)', geospax.exe now '$v', message boxes: '$($r.Boxes -join ' | ')'"
+Write-Host ("  windows seen: " + ($trace -join ' || '))
 if ($r.Exit -eq 'no window') { throw 'no installer window seen: UI Automation cannot drive the setup on this runner' }
 
 foreach ($from in '3.0.2', '3.0.6') {
   Install-Old $from
   $r = Run-Gui $Setup 600
-  if ($r.Exit -ne 0 -or $r.Boxes) { throw "new setup (GUI) over ${from}: exit '$($r.Exit)', message boxes: '$($r.Boxes -join ' | ')'" }
+  if ($r.Exit -ne 0 -or $r.Boxes) { throw "new setup (GUI) over ${from}: exit '$($r.Exit)', message boxes: '$($r.Boxes -join ' | ')'; windows seen: $($trace -join ' || ')" }
   Assert-Upgraded "$from (GUI)"
   Note "- upgrade from ${from}, setup clicked through: ok (old copy uninstalled first; one entry, $NewVersion, publisher in4metrix, same folder)"
 
@@ -148,7 +161,7 @@ foreach ($from in '3.0.2', '3.0.6') {
 Install-Old '3.0.2'
 Remove-Item -Force "$Inst\uninstall.exe"
 $r = Run-Gui $Setup 600
-if ($r.Exit -ne 0 -or $r.Boxes) { throw "new setup (GUI) over 3.0.2 without its uninstaller: exit '$($r.Exit)', message boxes: '$($r.Boxes -join ' | ')'" }
+if ($r.Exit -ne 0 -or $r.Boxes) { throw "new setup (GUI) over 3.0.2 without its uninstaller: exit '$($r.Exit)', message boxes: '$($r.Boxes -join ' | ')'; windows seen: $($trace -join ' || ')" }
 Assert-Upgraded '3.0.2 without uninstall.exe (GUI)'
 Note '- 3.0.2 with its uninstaller deleted, setup clicked through: ok'
 
