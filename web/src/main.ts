@@ -2054,6 +2054,10 @@ async function main() {
         } else workbench?.setStatus(`The map could not be finished: ${(run as unknown as { error?: string }).error ?? run.status}`, 10000);
         return;
       }
+      if (run.status === 'failed') {
+        const why = (run as unknown as { error?: string }).error;
+        workbench?.setStatus(`${run.title || run.recipe || 'The run'} did not finish${why ? `: ${why}` : ''}. The run log in Automate has the details`, 10000);
+      }
       await reloadLayers();
       if (rasterPane && run.rasters?.length) {
         await rasterPane.reload();
