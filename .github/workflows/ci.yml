@@ -366,8 +366,8 @@ jobs:
         with:
           name: geospax-windows
           path: dist
-      - name: Upgrades over 3.0.2 (old publisher), 3.0.6 and a half-removed install leave one GeoSpaX
-        timeout-minutes: 30
+      - name: Upgrades over 3.0.2 (old publisher), 3.0.6 and a half-removed install leave one GeoSpaX (clicked through and /P)
+        timeout-minutes: 45
         run: |
           $setup = Get-ChildItem dist -Recurse -Filter 'GeoSpaX_*_x64-setup.exe' | Select-Object -First 1
           & ./scripts/test-windows-upgrade.ps1 -Setup $setup.FullName
