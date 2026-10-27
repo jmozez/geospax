@@ -1805,6 +1805,7 @@ dependencies = [
  "serde",
  "serde-saphyr",
  "serde_json",
+ "sha2",
  "tract-onnx",
  "webpki-roots",
  "zip 2.4.2",

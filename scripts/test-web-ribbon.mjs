@@ -43,6 +43,23 @@ for (const id of ['home.lasso', 'home.labels', 'home.coords', 'view.swipe', 'vie
 }
 ok('all new commands registered', !fails.length, `${ids.length} commands`);
 
+// No ribbon group shows the same button twice (3.0.6 had two 'Wetness index' buttons in Imagery › Terrain).
+const dupes = [];
+for (const tab of await page.$$eval('#ribbon-tabs .rb-tab', (b) => b.map((x) => x.dataset.tab))) {
+  await page.click(`#ribbon-tabs .rb-tab[data-tab="${tab}"]`);
+  await page.waitForTimeout(250);
+  dupes.push(...await page.$$eval('#ribbon .rb-group', (gs, tab) => gs.flatMap((g) => {
+    const seen = new Set();
+    const group = g.querySelector('.rb-title')?.textContent.trim();
+    return [...g.querySelectorAll('.rb-items .rb-label')].map((l) => l.textContent.trim()).filter((t) => {
+      const twice = seen.has(t); seen.add(t); return twice;
+    }).map((t) => `${tab} › ${group} › ${t}`);
+  }), tab));
+}
+ok('no ribbon group repeats a button', !dupes.length, dupes.join(', '));
+await page.click('#ribbon-tabs .rb-tab[data-tab="home"]');
+await page.waitForTimeout(250);
+
 console.log('\n2 · panels collapse and expand');
 for (const dock of ['left', 'right', 'bottom']) {
   await page.click(`[data-fold="${dock}"]`);

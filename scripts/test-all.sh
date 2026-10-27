@@ -4,7 +4,8 @@
 # spatial statistics, desktop).
 #   scripts/test-all.sh [DATA_DIR] [OUT_DIR]
 # Expects: release binaries built (cargo build --release -p geospax-server [-p geospax ...]),
-# web/dist built, sample data from scripts/data-fetch-samples.sh. Optional parts are skipped
+# web/dist built, sample data from scripts/data-fetch-samples.sh (the soil samples of
+# scripts/data-sample-field.py are added to DATA when missing). Optional parts are skipped
 # when their tools are missing: Playwright (PW=.../node_modules/playwright) for the web UI
 # tests, Xvfb + target/release/geospax for the desktop test.
 set -uo pipefail
@@ -26,6 +27,12 @@ run() {  # run NAME CMD...
 skip() { RESULTS+=("skip  $1 ($2)"); }
 
 run "engine unit tests" cargo test --release -q -p geospax-engine
+
+# The 60 soil samples the automation, statistics and plugin tests map ("area: auto" picks them)
+if [ ! -f "$DATA/field_samples.geojson" ]; then
+  echo "adding $DATA/field_samples.geojson (scripts/data-sample-field.py)"
+  python3 scripts/data-sample-field.py "$DATA" > /dev/null
+fi
 
 # Sample devices (phone, drone card, GPS, inbox, air-quality logger, FIT watch, live GNSS replay)
 # and an isolated state dir,

@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' gis: http://gis.localhost; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com gis: http://gis.localhost; img-src 'self' data: blob: gis: http://gis.localhost https: http:; media-src 'self' blob: https:; connect-src 'self' ipc: http://ipc.localhost gis: http://gis.localhost data: blob: https: http: wss: ws:; frame-src 'self' blob: gis: http://gis.localhost; object-src 'none'; base-uri 'self'; form-action 'self'"
+      "csp": "default-src 'self' gis: http://gis.localhost; script-src 'self' 'wasm-unsafe-eval' 'sha256-CukmEDrXQ+NcquTHa0xtWUz1SXEI/xQOC6exFB3iaf0='; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com gis: http://gis.localhost; img-src 'self' data: blob: gis: http://gis.localhost https: http:; media-src 'self' blob: https:; connect-src 'self' ipc: http://ipc.localhost gis: http://gis.localhost data: blob: https: http: wss: ws:; frame-src 'self' blob: gis: http://gis.localhost; object-src 'none'; base-uri 'self'; form-action 'self'"
     }
   },
   "bundle": {
