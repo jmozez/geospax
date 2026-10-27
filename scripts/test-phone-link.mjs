@@ -84,6 +84,9 @@ const watch = (page, label) => {
 const desk = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
 watch(desk, 'main');
 await desk.goto(`${base}/?fresh`);
+// the Devices pane lives in the Explorer (hidden until shown); showTab finds it wherever it is docked
+await desk.waitForFunction(() => !!window.workbench, null, { timeout: 30000 });
+await desk.evaluate(() => window.workbench.showTab('right', 'devices'));
 const card = desk.locator('#phone-link .phone-card');
 await card.waitFor({ timeout: 30000 }).catch(() => fail('no "Send from phone" card in the Devices panel'));
 if ((await card.getAttribute('data-state')) !== 'off') fail('the phone link should start switched off');

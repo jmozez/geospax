@@ -107,6 +107,10 @@ await page.screenshot({ path: `${out}/18-automate-saved-recipe.png` });
 // 4. Rasters: Run terrain-report (Copernicus DEM read over HTTP) -> shaded relief on the map and the
 //    Rasters pane lists what it made. Skipped with GEOSPAX_OFFLINE=1.
 if (process.env.GEOSPAX_OFFLINE !== '1') {
+  // terrain-report's area is "auto" (the most sample-like layer): the 60 soil samples. Without them it
+  // picks some other layer (often far wider than the DEM limit), and the checks below mean nothing.
+  if (!(await page.evaluate(() => window.map.getStyle().layers.some((l) => l.id.startsWith('field_samples')))))
+    await fail('no field_samples layer: the data folder needs scripts/data-sample-field.py DATA');
   const tcard = page.locator('#automate .recipe[data-recipe="terrain-report"]');
   await page.evaluate(() => delete document.body.dataset.runApplied);
   await page.evaluate(() => document.querySelector('#automate .recipe[data-recipe="terrain-report"]')?.scrollIntoView({ block: 'center' }));
@@ -116,7 +120,10 @@ if (process.env.GEOSPAX_OFFLINE !== '1') {
     .catch(() => fail('terrain-report did not finish (needs internet for the Copernicus DEM)'));
   await page
     .waitForFunction(() => window.map.getStyle().layers.some((l) => l.id === 'raster:terrain-report.dem'), null, { timeout: 20000 })
-    .catch(() => fail('the DEM overlay is not on the map'));
+    .catch(async () => {
+      const run = await page.evaluate(async () => (await (await fetch('api/runs')).json()).runs.find((r) => r.recipe === 'terrain-report'));
+      await fail(`the DEM overlay is not on the map (run ${run?.status}: ${run?.error ?? 'no error'})`);
+    });
   await page.evaluate(() => new Promise((r) => (window.map.loaded() ? r() : window.map.once('idle', r))));
   await page.waitForTimeout(1500);
   const rs = await page.evaluate(() => {

@@ -13,8 +13,32 @@ Planned as 3.0.7 (all version numbers already read 3.0.7).
 - The download page and the guides no longer offer a Flathub install: GeoSpaX is not on Flathub yet, and
   the link led to a page that does not exist. The Flathub submission steps stay in DEPLOY.md.
 
+### Fixed
+- **Phone as a GPS (web edition)**: the phone page did nothing in 3.0.6. The content security policy added
+  in 3.0.6 blocks inline scripts, and the page's script was inline, so the pairing check and the position
+  updates never ran. The script is now its own file (`phone.js`), and the phone link sends its page with a
+  policy that allows only that file.
+- **3D terrain viewer in the app (web and desktop)**: the 🧊 3D button of a run opened an empty frame in
+  3.0.6. The viewer runs in a sandboxed frame that inherits the app's policy, so its inline script was
+  blocked too. The web server and the desktop app now allow exactly that script by its hash; an engine
+  test fails if the viewer changes without the hash.
+- **Rasters of a run with a map**: a DEM or relief shading from a recipe that exports a map (Terrain
+  report) was drawn on top of everything, hiding the run's own sample points and contours. Those rasters now
+  go where the exported map draws them, under the vector layers and above the land polygons. Results of
+  a run without a map still go on top.
+- **Imagery › Terrain** listed "Wetness index" twice: the built-in tool and the SAGA recipe, under the same
+  name. The ribbon keeps the built-in one (no SAGA needed); the SAGA version stays in the Automate gallery.
+
 ### Tests
 - `scripts/test-web-ribbon.mjs` (the ribbon tools in a real browser) runs in CI and in `scripts/test-all.sh`.
+  It now also fails when a ribbon group shows the same button twice.
+- `scripts/test-web-devices.mjs` opens the Devices pane where it now lives (the Explorer); it used a tab
+  that had moved, so the device checks failed locally.
+- `scripts/test-all.sh` adds the soil samples (`scripts/data-sample-field.py`) to the data folder when
+  they are missing, as CI does. Without them the Terrain report picked a 267 km layer and the DEM fetch was
+  refused. `scripts/test-web-automation.mjs` says so, and shows a failed run's error, instead of timing out.
+- Engine tests: the phone page has no inline script, and the scene viewer's script hash is allowed by the
+  desktop CSP.
 
 ## [3.0.6] — 2026-10-27
 

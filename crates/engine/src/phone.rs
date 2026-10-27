@@ -29,6 +29,9 @@ const MAX_HEAD: usize = 16 << 10;
 const MAX_CONNECTIONS: usize = 32;
 const BATCH_IDLE: Duration = Duration::from_secs(120);
 static PHONE_PAGE: &str = include_str!("../../../web/public/phone.html");
+static PHONE_JS: &str = include_str!("../../../web/public/phone.js");
+/// The phone page runs only its own script file, never inline code.
+const PHONE_CSP: &str = "default-src 'self'; img-src 'self' blob: data:; style-src 'unsafe-inline'; script-src 'self'";
 
 /// Adapter settings: `--phone` / `--phone-port` (server), `GEOSPAX_PHONE` / `GEOSPAX_PHONE_PORT` (desktop).
 #[derive(Debug, Clone)]
@@ -406,7 +409,10 @@ fn route<R: BufRead>(engine: &Arc<Engine>, req: &Request, rd: &mut R) -> Reply {
     let link = &engine.phone;
     match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/") | ("GET", "/phone.html") => {
-            return (200, "text/html; charset=utf-8", vec![("Content-Security-Policy", "default-src 'self'; img-src 'self' blob: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'".into())], PHONE_PAGE.as_bytes().to_vec());
+            return (200, "text/html; charset=utf-8", vec![("Content-Security-Policy", PHONE_CSP.into())], PHONE_PAGE.as_bytes().to_vec());
+        }
+        ("GET", "/phone.js") => {
+            return (200, "text/javascript; charset=utf-8", Vec::new(), PHONE_JS.as_bytes().to_vec());
         }
         ("GET", "/favicon.ico") => return (404, "text/plain", Vec::new(), Vec::new()),
         _ => {}
@@ -661,6 +667,15 @@ mod tests {
         assert!(clean_batch(Some("../x".into())).is_none());
         assert_eq!(param("t=abc&name=IMG%201.jpg&x", "name").as_deref(), Some("IMG 1.jpg"));
         assert_eq!(param("t=abc", "batch"), None);
+    }
+
+    #[test]
+    fn phone_page_has_no_inline_script() {
+        // both servers send a CSP without 'unsafe-inline' for scripts: inline code would never run
+        assert!(PHONE_PAGE.contains(r#"<script src="phone.js"></script>"#));
+        assert_eq!(PHONE_PAGE.matches("<script").count(), 1);
+        assert!(PHONE_CSP.ends_with("script-src 'self'") && !PHONE_CSP.contains("script-src 'unsafe-inline'"));
+        assert!(PHONE_JS.contains("watchPosition"));
     }
 
     #[test]
