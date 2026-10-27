@@ -480,7 +480,14 @@ async fn serve(args: Args) {
 
 /// The web pages' Content Security Policy: scripts only from this site (MapLibre's workers from blob:),
 /// map tiles, imagery and data from anywhere, no plugins, no other site may frame the app.
-const CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; media-src 'self' blob: https:; connect-src 'self' data: blob: https: http: wss: ws:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+/// The 3D scene viewer (a sandboxed srcdoc frame, which inherits this policy) is allowed by its hash only.
+static CSP: std::sync::LazyLock<axum::http::HeaderValue> = std::sync::LazyLock::new(|| {
+    let csp = format!(
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' {}; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; media-src 'self' blob: https:; connect-src 'self' data: blob: https: http: wss: ws:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
+        geospax_engine::scene3d::VIEWER_SCRIPT_CSP
+    );
+    axum::http::HeaderValue::from_str(&csp).expect("CSP is a valid header value")
+});
 
 /// Security headers on every reply; then caching: built files under /assets carry a content hash and never change; everything else of the page
 /// (index.html first) is checked with the server on every load, so browsers (phones above all)
@@ -501,7 +508,7 @@ async fn cache_policy(req: axum::extract::Request, next: axum::middleware::Next)
     // pages run only the app's own scripts: an injected <script> or onerror= never runs, even if some
     // data got into the page unescaped (the same policy as the desktop app's tauri.conf.json)
     if res.headers().get(axum::http::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|t| t.starts_with("text/html")) {
-        res.headers_mut().insert(axum::http::HeaderName::from_static("content-security-policy"), axum::http::HeaderValue::from_static(CSP));
+        res.headers_mut().insert(axum::http::HeaderName::from_static("content-security-policy"), CSP.clone());
     }
     res
 }

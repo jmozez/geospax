@@ -19,6 +19,11 @@ pub const MAX_VERTS: usize = 65_535;
 /// Unit vector towards the sun (east, north, up): north-west, 45° up.
 const SUN: [f64; 3] = [-0.5, 0.5, std::f64::consts::FRAC_1_SQRT_2];
 const VIEWER: &str = include_str!("../assets/scene-viewer.html");
+/// The CSP hash source of the viewer's one inline script. The app shows a scene in a sandboxed srcdoc
+/// frame, which inherits the app's Content-Security-Policy (no inline scripts), so the web server and
+/// the desktop app (tauri.conf.json) allow exactly this script. The test `viewer_script_hash_is_allowed`
+/// fails when the viewer changes and this hash, the server CSP or tauri.conf.json is not updated.
+pub const VIEWER_SCRIPT_CSP: &str = "'sha256-CukmEDrXQ+NcquTHa0xtWUz1SXEI/xQOC6exFB3iaf0='";
 
 // ------------------------------------------------------------------ geometry containers
 
@@ -1288,5 +1293,22 @@ mod tests {
         assert_eq!(auto_exaggeration(10_000.0, 1200.0, 30.0), 1.0);
         assert_eq!(auto_exaggeration(1_400.0, 12.0, 1.0), 1.5);
         assert_eq!(auto_exaggeration(50_000.0, 50.0, 30.0), 3.0);
+    }
+}
+
+#[cfg(test)]
+mod csp_tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+
+    #[test]
+    fn viewer_script_hash_is_allowed() {
+        let script = VIEWER.split_once("<script>").and_then(|(_, r)| r.split_once("</script>")).map(|(s, _)| s).expect("inline viewer script");
+        let want = format!("'sha256-{}'", crate::automation::cartography::base64(&Sha256::digest(script.as_bytes())));
+        assert_eq!(VIEWER_SCRIPT_CSP, want, "scene-viewer.html changed: update VIEWER_SCRIPT_CSP and the desktop CSP");
+        // exactly one executable inline script (the others are data blocks)
+        assert_eq!(VIEWER.matches("<script>").count(), 1);
+        let tauri = include_str!("../../../apps/desktop/src-tauri/tauri.conf.json");
+        assert!(tauri.contains(&format!("script-src 'self' 'wasm-unsafe-eval' {want}")), "apps/desktop/src-tauri/tauri.conf.json script-src lacks {want}");
     }
 }
