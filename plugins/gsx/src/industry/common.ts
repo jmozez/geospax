@@ -232,7 +232,7 @@ export function dijkstra(g: Graph, sources: number[], cutoff = Infinity) {
     if (c > cost[u]) continue;
     for (const e of g.adj[u]) {
       const nc = c + e.w;
-      if (nc < cost[e.to] && nc <= cutoff) { cost[e.to] = nc; prev[e.to] = u; origin[e.to] = origin[u]; push(nc, e.to); }
+      if (nc < cost[e.to] && nc <= cutoff * (1 + 1e-9) + 1e-6) { cost[e.to] = nc; prev[e.to] = u; origin[e.to] = origin[u]; push(nc, e.to); }
     }
   }
   const path = (to: number): number[] => {

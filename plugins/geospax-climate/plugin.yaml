@@ -3,7 +3,7 @@
 plugin: geospax-climate
 version: 3.0.1
 title: "Climate"
-description: "Moisture and burn stress, climate vulnerability, distance decay and signal change."
+description: "ENSO indices (ONI, Niño 3.4, SOI), rainfall anomalies, El Niño drought and frost risk, seasonal outlooks, moisture and burn stress, climate vulnerability and change."
 author: in4metrix
 license: MIT
 homepage: https://github.com/jmozez/geospax
@@ -12,6 +12,42 @@ geojson: true
 default: true
 run: node --no-warnings ${plugin}/../gsx/run.mjs ${tool}
 tools:
+  - id: "enso-index"
+    name: "ENSO index (ONI, Niño 3.4, SOI)"
+    summary: "The latest El Niño Southern Oscillation index from NOAA CPC or the Bureau of Meteorology, the ENSO phase and strength, and a chart of recent values."
+    group: "Climate"
+    icon: lineChart
+    params:
+      - { name: "index", label: "Index", kind: choice, default: "oni", description: "oni: NOAA Oceanic Niño Index (official El Niño measure); nino34: weekly Niño 3.4 SST anomaly; soi: BoM Southern Oscillation Index.", choices: ["oni", "nino34", "soi"] }
+      - { name: "periods", label: "Recent periods to show", kind: number, default: 36 }
+      - { name: "file", label: "Data file (optional, instead of downloading)", kind: file, description: "A copy of the NOAA or BoM text file, for offline use." }
+  - id: "rainfall-anomaly"
+    name: "Rainfall anomaly (percent of normal)"
+    summary: "Observed rainfall as a percentage of the long-term normal (for example CHIRPS month or season against its climatology), in classes from very much below to very much above normal."
+    group: "Climate"
+    icon: d-hydrology
+    params:
+      - { name: "observed", label: "Observed rainfall (mm)", kind: raster, required: true }
+      - { name: "normal", label: "Normal (long-term mean) rainfall (mm)", kind: raster, required: true }
+  - id: "drought-risk"
+    name: "El Niño drought and frost risk"
+    summary: "Drought risk classes from a rainfall anomaly (percent of normal) and the current ENSO state (ONI), with highland frost risk above a set elevation during El Niño: for food security and water supply planning in PNG."
+    group: "Climate"
+    icon: d-disaster
+    params:
+      - { name: "rain_pct", label: "Rainfall (% of normal, optional)", kind: raster }
+      - { name: "dem", label: "DEM (optional, for frost)", kind: raster }
+      - { name: "oni", label: "ONI (°C, blank = latest from NOAA)", kind: number, description: "Leave blank to download the latest Oceanic Niño Index." }
+      - { name: "oni_file", label: "ONI data file (optional, offline)", kind: file }
+      - { name: "frost_m", label: "Frost risk above (m)", kind: number, default: 2200 }
+  - id: "seasonal-outlook"
+    name: "Seasonal rainfall outlook classes"
+    summary: "Classes from a seasonal outlook probability raster (the chance of rainfall above the median, as from the BoM ACCESS-S, IRI or NOAA forecasts): very likely drier to very likely wetter."
+    group: "Climate"
+    icon: d-climate
+    params:
+      - { name: "probability", label: "Chance of above-median rainfall (%)", kind: raster, required: true }
+      - { name: "scale", label: "The values are", kind: choice, default: "percent", choices: ["percent", "fraction"] }
   - id: "spectral-index"
     name: "Spectral index and extent (Otsu)"
     summary: "NDVI, NDWI, NDBI, NBR or any band pair from a multiband image, with an automatic Otsu threshold and the area above it."

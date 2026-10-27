@@ -284,7 +284,7 @@ export const ENERGY_TOOLS: Tool[] = [
         xy.forEach((p, j) => { if (j !== i) nd = Math.min(nd, dist(p, xy[i])); });
         const ll = pointOf(w)!;
         const li = leases.findIndex((l) => polygonsOf(l.geometry).some((rg) => inRings(ll, rg)));
-        const lease = li < 0 ? null : String((lf && leases[li].properties?.[lf]) ?? `Lease ${li + 1}`);
+        const lease = li < 0 ? null : String((lf ? leases[li].properties?.[lf] : null) ?? `Lease ${li + 1}`);
         if (leases.length && !lease) outside++;
         if (lease) per.set(lease, (per.get(lease) ?? 0) + 1);
         const tooClose = nd < minS;

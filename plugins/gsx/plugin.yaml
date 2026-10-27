@@ -4,7 +4,7 @@
 plugin: gsx
 version: 3.0.1
 title: GSX tool library
-description: "31 conservation, landscape and biodiversity tools shared by the twelve domain plugins. Runs on Node, offline."
+description: "47 conservation, landscape and biodiversity tools shared by the twelve domain plugins. Runs on Node, offline."
 author: in4metrix
 license: MIT
 homepage: https://github.com/jmozez/geospax
@@ -340,3 +340,174 @@ tools:
       - { name: "after", label: "DEM after", kind: raster, required: true }
       - { name: "boundary", label: "Boundary (optional)", kind: layer }
       - { name: "min_change_m", label: "Ignore changes smaller than (m)", kind: number, default: 0.1, description: "Survey noise threshold." }
+  - id: "harvest-coupes"
+    name: "Harvest coupe net area (stream buffers, steep slopes)"
+    summary: "Gross and net harvestable area of each logging coupe after stream and river buffers and slopes too steep to log are excluded, with the excluded areas."
+    group: "Harvest planning"
+    icon: d-forestry
+    params:
+      - { name: "coupes", label: "Coupes (polygons)", kind: layer, required: true }
+      - { name: "streams", label: "Streams and rivers (lines, optional)", kind: layer }
+      - { name: "buffer_m", label: "Stream buffer (m each side)", kind: number, default: 50, description: "The PNG Logging Code of Practice uses 50 m for major rivers and 10 m for streams; use the widest that applies." }
+      - { name: "dem", label: "DEM (optional, for slope)", kind: raster }
+      - { name: "max_slope_deg", label: "Steepest loggable slope (°)", kind: number, default: 30 }
+      - { name: "step_m", label: "Sample spacing (m)", kind: number, default: 10 }
+  - id: "ais-density"
+    name: "Vessel track density (AIS)"
+    summary: "Square cells counting AIS position reports and distinct vessels: shipping lanes, fishing grounds and anchorages."
+    group: "Maritime surveillance"
+    icon: grid
+    params:
+      - { name: "pings", label: "AIS positions (points)", kind: layer, required: true }
+      - { name: "vessel_field", label: "Vessel id field (MMSI)", kind: field }
+      - { name: "cell_m", label: "Cell size (m)", kind: number, default: 1000 }
+  - id: "ais-loitering"
+    name: "Vessel loitering and AIS gaps"
+    summary: "Vessels that stay within a small radius for a long time (loitering, possible transhipment or illegal fishing) and gaps in their AIS reports (transponder switched off), from time-stamped positions."
+    group: "Maritime surveillance"
+    icon: alert
+    params:
+      - { name: "pings", label: "AIS positions (points)", kind: layer, required: true }
+      - { name: "vessel_field", label: "Vessel id field (MMSI)", kind: field, required: true }
+      - { name: "time_field", label: "Time field", kind: field, required: true }
+      - { name: "radius_m", label: "Loitering radius (m)", kind: number, default: 1000 }
+      - { name: "min_hours", label: "Loitering for at least (hours)", kind: number, default: 2 }
+      - { name: "gap_hours", label: "Report gap of at least (hours)", kind: number, default: 6 }
+      - { name: "zone", label: "Zone of interest (optional: only events inside)", kind: layer }
+  - id: "ols-surfaces"
+    name: "Obstacle limitation surfaces (airports)"
+    summary: "ICAO Annex 14 approach, inner horizontal and conical surfaces for a runway by code number, and the obstacles (towers, trees, buildings) that penetrate them, by how much."
+    group: "Aeronautical"
+    icon: chart
+    params:
+      - { name: "runway", label: "Runway centre line (threshold to threshold)", kind: layer, required: true }
+      - { name: "elevation_m", label: "Aerodrome elevation (m AMSL)", kind: number, default: 0 }
+      - { name: "code", label: "Runway code number", kind: choice, default: "3", description: "From the runway length: 1 under 800 m, 2 800 to 1199 m, 3 1200 to 1799 m, 4 1800 m and over.", choices: ["3", "4", "2", "1"] }
+      - { name: "obstacles", label: "Obstacles (optional)", kind: layer }
+      - { name: "top_field", label: "Obstacle top elevation field (m AMSL)", kind: field }
+  - id: "service-area"
+    name: "Service areas (drive time or distance)"
+    summary: "The parts of a road network reachable from depots, clinics or other facilities within time or distance bands, and the nearest facility for each demand point."
+    group: "Transport and logistics"
+    icon: road
+    params:
+      - { name: "network", label: "Road network (lines)", kind: layer, required: true }
+      - { name: "facilities", label: "Facilities (points)", kind: layer, required: true }
+      - { name: "bands", label: "Bands (minutes, or metres without a speed)", kind: text, default: "10, 20, 30" }
+      - { name: "speed_field", label: "Speed field (km/h)", kind: field }
+      - { name: "speed_kmh", label: "Default speed (km/h, 0 = distance)", kind: number, default: 40 }
+      - { name: "demand", label: "Demand points (optional)", kind: layer }
+  - id: "route-optimise"
+    name: "Delivery route optimisation"
+    summary: "The shortest order to visit a set of stops from a depot (nearest neighbour improved by 2-opt), over a road network or in straight lines, with the route and leg lengths."
+    group: "Transport and logistics"
+    icon: roadCentre
+    params:
+      - { name: "stops", label: "Stops (points; the first is the depot)", kind: layer, required: true }
+      - { name: "network", label: "Road network (optional)", kind: layer }
+      - { name: "return", label: "Return to the depot", kind: choice, default: "yes", choices: ["yes", "no"] }
+      - { name: "speed_field", label: "Speed field (km/h)", kind: field }
+      - { name: "speed_kmh", label: "Default speed (km/h, 0 = distance)", kind: number, default: 0 }
+  - id: "zoning-summary"
+    name: "Zoning summary"
+    summary: "Area and share of each zone (land-use zoning or planning scheme), and the count and density of buildings, parcels or households in each."
+    group: "Urban planning"
+    icon: mapOutline
+    params:
+      - { name: "zones", label: "Zones (polygons)", kind: layer, required: true }
+      - { name: "zone_field", label: "Zone field", kind: field, required: true }
+      - { name: "features", label: "Buildings or households (optional)", kind: layer }
+  - id: "density-grid"
+    name: "Building and population density"
+    summary: "Square cells counting buildings, households or people (from a population field) per hectare: settlement density for city and town planning."
+    group: "Urban planning"
+    icon: grid
+    params:
+      - { name: "points", label: "Buildings or households (points)", kind: layer, required: true }
+      - { name: "weight_field", label: "Population field (optional)", kind: field }
+      - { name: "cell_m", label: "Cell size (m)", kind: number, default: 100 }
+  - id: "green-access"
+    name: "Green space access"
+    summary: "Distance from each home or building to the nearest park or green space of a minimum size, and the share within walking distance (for example 400 m, about 5 minutes)."
+    group: "Urban planning"
+    icon: d-environment
+    params:
+      - { name: "homes", label: "Homes or buildings (points)", kind: layer, required: true }
+      - { name: "parks", label: "Parks and green spaces (polygons)", kind: layer, required: true }
+      - { name: "walk_m", label: "Walking distance (m)", kind: number, default: 400 }
+      - { name: "min_ha", label: "Smallest park counted (ha)", kind: number, default: 0.5 }
+      - { name: "weight_field", label: "Population field (optional)", kind: field }
+  - id: "service-access"
+    name: "Access to services (clinics, schools, markets)"
+    summary: "Travel distance or time from each village or household to the nearest service, over roads and tracks or in straight lines, with the population beyond each threshold."
+    group: "Rural planning"
+    icon: home
+    params:
+      - { name: "settlements", label: "Villages or households (points)", kind: layer, required: true }
+      - { name: "services", label: "Services (points)", kind: layer, required: true }
+      - { name: "network", label: "Roads and tracks (optional)", kind: layer }
+      - { name: "speed_field", label: "Speed field (km/h)", kind: field }
+      - { name: "speed_kmh", label: "Default speed (km/h, 0 = distance)", kind: number, default: 0 }
+      - { name: "pop_field", label: "Population field (optional)", kind: field }
+      - { name: "thresholds", label: "Thresholds (km or minutes)", kind: text, default: "5, 10, 20" }
+  - id: "asset-register"
+    name: "Asset register (age, inspections, risk)"
+    summary: "For each asset (poles, pumps, bridges, culverts, pipes): age and remaining life, the next inspection and whether it is overdue, and a risk score from condition and criticality."
+    group: "Asset management"
+    icon: database
+    params:
+      - { name: "assets", label: "Assets", kind: layer, required: true }
+      - { name: "installed_field", label: "Installed date or year field", kind: field }
+      - { name: "life_years", label: "Design life (years)", kind: number, default: 40 }
+      - { name: "inspected_field", label: "Last inspection date field", kind: field }
+      - { name: "interval_months", label: "Inspection interval (months)", kind: number, default: 12 }
+      - { name: "condition_field", label: "Condition field (1 very good to 5 very poor)", kind: field }
+      - { name: "criticality_field", label: "Criticality field (1 to 5)", kind: field }
+      - { name: "as_of", label: "As of (date, blank = today)", kind: text, default: "" }
+  - id: "change-alert"
+    name: "Asset change alerts (compare two snapshots)"
+    summary: "Assets added, removed, moved or with changed attributes between an earlier and a later snapshot of the same layer, matched by id."
+    group: "Asset management"
+    icon: alert
+    params:
+      - { name: "before", label: "Earlier snapshot", kind: layer, required: true }
+      - { name: "after", label: "Later snapshot", kind: layer, required: true }
+      - { name: "id_field", label: "Id field", kind: field, required: true }
+      - { name: "fields", label: "Attributes to compare (blank = all)", kind: text, default: "" }
+      - { name: "move_m", label: "Moved if shifted more than (m)", kind: number, default: 1 }
+  - id: "enso-index"
+    name: "ENSO index (ONI, Niño 3.4, SOI)"
+    summary: "The latest El Niño Southern Oscillation index from NOAA CPC or the Bureau of Meteorology, the ENSO phase and strength, and a chart of recent values."
+    group: "Climate and ENSO"
+    icon: lineChart
+    params:
+      - { name: "index", label: "Index", kind: choice, default: "oni", description: "oni: NOAA Oceanic Niño Index (official El Niño measure); nino34: weekly Niño 3.4 SST anomaly; soi: BoM Southern Oscillation Index.", choices: ["oni", "nino34", "soi"] }
+      - { name: "periods", label: "Recent periods to show", kind: number, default: 36 }
+      - { name: "file", label: "Data file (optional, instead of downloading)", kind: file, description: "A copy of the NOAA or BoM text file, for offline use." }
+  - id: "rainfall-anomaly"
+    name: "Rainfall anomaly (percent of normal)"
+    summary: "Observed rainfall as a percentage of the long-term normal (for example CHIRPS month or season against its climatology), in classes from very much below to very much above normal."
+    group: "Climate and ENSO"
+    icon: d-hydrology
+    params:
+      - { name: "observed", label: "Observed rainfall (mm)", kind: raster, required: true }
+      - { name: "normal", label: "Normal (long-term mean) rainfall (mm)", kind: raster, required: true }
+  - id: "drought-risk"
+    name: "El Niño drought and frost risk"
+    summary: "Drought risk classes from a rainfall anomaly (percent of normal) and the current ENSO state (ONI), with highland frost risk above a set elevation during El Niño: for food security and water supply planning in PNG."
+    group: "Climate and ENSO"
+    icon: d-disaster
+    params:
+      - { name: "rain_pct", label: "Rainfall (% of normal, optional)", kind: raster }
+      - { name: "dem", label: "DEM (optional, for frost)", kind: raster }
+      - { name: "oni", label: "ONI (°C, blank = latest from NOAA)", kind: number, description: "Leave blank to download the latest Oceanic Niño Index." }
+      - { name: "oni_file", label: "ONI data file (optional, offline)", kind: file }
+      - { name: "frost_m", label: "Frost risk above (m)", kind: number, default: 2200 }
+  - id: "seasonal-outlook"
+    name: "Seasonal rainfall outlook classes"
+    summary: "Classes from a seasonal outlook probability raster (the chance of rainfall above the median, as from the BoM ACCESS-S, IRI or NOAA forecasts): very likely drier to very likely wetter."
+    group: "Climate and ENSO"
+    icon: d-climate
+    params:
+      - { name: "probability", label: "Chance of above-median rainfall (%)", kind: raster, required: true }
+      - { name: "scale", label: "The values are", kind: choice, default: "percent", choices: ["percent", "fraction"] }
