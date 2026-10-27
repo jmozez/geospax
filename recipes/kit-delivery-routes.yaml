@@ -1,0 +1,31 @@
+# Transport and logistics kit: what a depot or clinic can reach, and the best order for deliveries.
+recipe: kit-delivery-routes
+version: 1
+kit: Transport and logistics
+title: Service areas and delivery routes
+description: >-
+  A road network, facilities and delivery stops in: the roads reachable within time bands of each
+  facility, the demand points served, and the shortest visiting order for the stops (nearest
+  neighbour improved by 2-opt), mapped and reported.
+inputs:
+  network: { type: layer, default: auto, description: road network (lines) }
+  facilities: { type: layer, default: "", description: "depots, clinics or schools (points)" }
+  bands: { type: text, default: "10, 20, 30", description: "travel time bands in minutes" }
+  speed_kmh: { type: number, default: 40, description: default road speed in km/h }
+  stops: { type: layer, default: "", description: "delivery stops, depot first (points; optional)" }
+steps:
+  - id: area
+    use: tool
+    with: { tool: gsx/service-area, params: { network: "${inputs.network}", facilities: "${inputs.facilities}", bands: "${inputs.bands}", speed_kmh: "${inputs.speed_kmh}" } }
+  - id: route
+    use: tool
+    when: "${inputs.stops}"
+    with: { tool: gsx/route-optimise, params: { stops: "${inputs.stops}" } }
+  - id: map
+    use: export.map
+    with: { name: service-areas, layers: ["${area.layers}", "${inputs.facilities}"], title: "Reachable within ${inputs.bands} min" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Service areas and routes · ${run.date}" }
+outputs: [map, report]

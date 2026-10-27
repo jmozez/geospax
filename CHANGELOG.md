@@ -5,6 +5,21 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added
+- **Ten industry domain plugins** (22 default plugins in all): Surveying and cartography (datum and
+  projection transformation including AGD66 and PNG94, Bowditch traverse adjustment, bearings and distances,
+  survey plan sheet, map grid and graticule), Energy and utilities (corridor and clearance zones, LiDAR
+  vegetation clearance, tower inventory, least-cost route, tenure check), Oil and gas (well sites), Mining
+  (cut and fill volumes), Maritime (vessel track density, loitering and AIS gaps), Aeronautical (obstacle
+  limitation surfaces), Transport and logistics (service areas, delivery route optimisation, access to
+  services), Urban planning (zoning summary, building and population density, green space access), Rural
+  planning and Asset management (asset register, change alerts). Forestry gains harvest coupe net area.
+- **ENSO and El Niño tools** in Climate: ONI, Niño 3.4 and SOI from NOAA (or an offline file), rainfall
+  percent of normal, El Niño drought and highland frost risk, seasonal outlook classes.
+- **12 new kits**: survey plan, power corridor, petroleum licences, mine volumes, harvest planning,
+  maritime watch, aerodrome safeguarding, delivery routes, urban planning, rural access, asset register
+  and El Niño drought.
+
 ## [3.0.7] — 2026-10-28
 
 ### Added

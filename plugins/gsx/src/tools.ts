@@ -6,6 +6,10 @@ import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import * as A from './analysis';
 import { RASTER_TOOLS } from './rastertools';
 import { LEGACY_TOOLS } from './legacytools';
+import { SURVEY_TOOLS } from './industry/survey';
+import { ENERGY_TOOLS } from './industry/energy';
+import { SECTOR_TOOLS } from './industry/sectors';
+import { ENSO_TOOLS } from './industry/enso';
 
 export interface Param {
   name: string;
@@ -531,3 +535,4 @@ export const TOOLS: Tool[] = [
 TOOLS.push(...RASTER_TOOLS);
 // LISA and elevation profiles (src/legacytools.ts)
 TOOLS.push(...LEGACY_TOOLS);
+TOOLS.push(...SURVEY_TOOLS, ...ENERGY_TOOLS, ...SECTOR_TOOLS, ...ENSO_TOOLS);

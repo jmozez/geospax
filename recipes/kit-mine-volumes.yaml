@@ -1,0 +1,28 @@
+# Mining kit: tenements and the volume moved between two surveys.
+recipe: kit-mine-volumes
+version: 1
+kit: Mining
+title: Tenement check and cut and fill volumes
+description: >-
+  Two DEMs of a pit, stockpile or tailings dam (before and after) and tenement polygons in: cut and
+  fill volumes and their change map, and tenement areas, overlaps and expiry status, mapped and reported.
+inputs:
+  before: { type: raster, default: "", description: the earlier surface (DEM) }
+  after: { type: raster, default: "", description: the later surface (DEM) on the same grid }
+  tenements: { type: layer, default: auto, description: mining tenements (polygons) }
+  expiry_field: { type: field, default: "", description: expiry date field }
+steps:
+  - id: volume
+    use: tool
+    with: { tool: gsx/volume-change, params: { before: "${inputs.before}", after: "${inputs.after}" } }
+  - id: tenure
+    use: tool
+    with: { tool: gsx/tenure-check, params: { tenures: "${inputs.tenements}", expiry_field: "${inputs.expiry_field}" } }
+  - id: map
+    use: export.map
+    with: { name: cut-fill, layers: ["${volume.rasters.0}", "${inputs.tenements}"], title: "Cut and fill" }
+  - id: report
+    use: export.report
+    needs: [map, tenure]
+    with: { title: "Mine volumes · ${run.date}" }
+outputs: [map, report]

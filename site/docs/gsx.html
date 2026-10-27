@@ -24,8 +24,8 @@
   <div class="wrap doc-layout">
     <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx" aria-current="page">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
     <article class="prose"><h1 id="gsx-tools"><a class="anchor" href="#gsx-tools">#</a>GSX tools</h1>
-<p>The GSX tools bring the conservation, biodiversity and environmental analysis into GeoSpaX 3. They are
-<strong>twelve default plugins</strong>, one per domain, each with its tools:</p>
+<p>The GSX tools bring conservation, biodiversity, environmental and industry analysis (surveying, energy, oil and gas, mining, forestry, maritime, aeronautical, transport, urban, rural, assets and ENSO) into GeoSpaX 3. They are
+<strong>22 default plugins</strong>, one per domain, each with its tools:</p>
 <div class="table"><table><thead><tr>
 <th>Plugin</th>
 <th>Tools</th>
@@ -48,7 +48,7 @@
 </tr>
 <tr>
 <td><strong>Forestry</strong></td>
-<td>spectral index, fragmentation, connectivity, raster change, change, protection gap</td>
+<td>spectral index, fragmentation, connectivity, raster change, change, protection gap, harvest coupe net area, least-cost route, corridor zones</td>
 </tr>
 <tr>
 <td><strong>Marine</strong></td>
@@ -56,7 +56,7 @@
 </tr>
 <tr>
 <td><strong>Climate</strong></td>
-<td>spectral index, suitability, distance decay, raster change, change</td>
+<td>ENSO index (ONI, Niño 3.4, SOI), rainfall anomaly, El Niño drought and frost risk, seasonal outlook classes, spectral index, suitability, distance decay, raster change, change</td>
 </tr>
 <tr>
 <td><strong>Disaster</strong></td>
@@ -78,9 +78,49 @@
 <td><strong>Soil</strong></td>
 <td>spectral index, suitability, distance decay, overlay, raster change, change</td>
 </tr>
+<tr>
+<td><strong>Asset management</strong></td>
+<td>asset register, asset change alerts, corridor and clearance zones, transmission tower inventory</td>
+</tr>
+<tr>
+<td><strong>Aeronautical</strong></td>
+<td>obstacle limitation surfaces, elevation profile, slope zones</td>
+</tr>
+<tr>
+<td><strong>Energy and utilities</strong></td>
+<td>corridor and clearance zones, liDAR vegetation and obstacle clearance, transmission tower inventory, least-cost route, tenure check, asset register, slope zones, elevation profile</td>
+</tr>
+<tr>
+<td><strong>Maritime</strong></td>
+<td>vessel track density, vessel loitering and AIS gaps, weighted hotspot grid, DBSCAN clusters</td>
+</tr>
+<tr>
+<td><strong>Mining</strong></td>
+<td>cut and fill volumes, tenure check, least-cost route, corridor and clearance zones, spectral index and extent, raster change, two-date change, slope zones</td>
+</tr>
+<tr>
+<td><strong>Oil and gas</strong></td>
+<td>well sites, tenure check, least-cost route, corridor and clearance zones, raster change, elevation profile</td>
+</tr>
+<tr>
+<td><strong>Rural planning</strong></td>
+<td>access to services, weighted suitability, slope zones, distance-decay suitability, zoning summary, building and population density</td>
+</tr>
+<tr>
+<td><strong>Surveying and cartography</strong></td>
+<td>datum and projection transformation, traverse adjustment, bearings and distances, survey plan sheet, map grid and graticule</td>
+</tr>
+<tr>
+<td><strong>Transport and logistics</strong></td>
+<td>service areas, delivery route optimisation, access to services, corridor and clearance zones, least-cost route</td>
+</tr>
+<tr>
+<td><strong>Urban planning</strong></td>
+<td>zoning summary, building and population density, green space access, service areas, weighted suitability, asset register</td>
+</tr>
 </tbody></table></div><p>They ship with GeoSpaX and are in the <strong>Explorer</strong> under <strong>Plugins</strong> (one per domain), in the <strong>Tools</strong> tab under
 <em>Plugins › <domain></em> and in the plugin manager marked <em>default plugin</em>. They are not on the Analysis,
-Imagery or Modelling tabs, which hold GeoSpaX&#39;s own tools. All twelve run the same code, the shared
+Imagery or Modelling tabs, which hold GeoSpaX&#39;s own tools. All 22 run the same code, the shared
 <strong>GSX library</strong> in <code>plugins/gsx</code> (<code>library: true</code>: not listed, but recipes, the API and MCP call its
 tools as <code>gsx/&lt;tool&gt;</code>, so a tool gives the same answer from every domain).</p>
 <p>A tool&#39;s dialog opens with its inputs already chosen, as in ArcGIS Pro&#39;s geoprocessing pane:</p>
@@ -322,6 +362,66 @@ node gen-manifest.mjs   # src/tools.ts → plugin.yaml
 <td><strong>Topsoil properties (SoilGrids)</strong></td>
 <td>An area → pH, organic carbon and clay at a chosen depth</td>
 </tr>
+<tr>
+<td>Surveying and cartography</td>
+<td><strong>Traverse adjustment and survey plan</strong></td>
+<td>Traverse legs (bearing, distance) → Bowditch adjustment with misclosure and accuracy ratio, bearings and distances, a plan sheet with grid, north point and scale bar</td>
+</tr>
+<tr>
+<td>Energy and utilities</td>
+<td><strong>Corridor encroachment and vegetation clearance</strong></td>
+<td>Power lines or pipelines, structures and a canopy raster → clearance zones, encroachments, LiDAR clearance breaches, tower inventory</td>
+</tr>
+<tr>
+<td>Oil and gas</td>
+<td><strong>Licences, well spacing and pipeline route</strong></td>
+<td>Licences, wells and two route ends → licence areas and expiry, wells outside their licence or too close, a least-cost pipeline route</td>
+</tr>
+<tr>
+<td>Mining</td>
+<td><strong>Tenement check and cut and fill volumes</strong></td>
+<td>Tenements and two DEMs → tenement areas and expiry, cut and fill volumes and a cut and fill map</td>
+</tr>
+<tr>
+<td>Forestry</td>
+<td><strong>Harvest coupes (net area and haul road route)</strong></td>
+<td>Coupes, streams and a DEM → net harvestable area after stream buffers and steep slopes, a haul road route</td>
+</tr>
+<tr>
+<td>Maritime</td>
+<td><strong>Vessel traffic, loitering and AIS gaps</strong></td>
+<td>AIS points (MMSI, time) → track density, loitering events and AIS gaps per vessel</td>
+</tr>
+<tr>
+<td>Aeronautical</td>
+<td><strong>Aerodrome obstacle limitation surfaces</strong></td>
+<td>A runway line and obstacles → approach, take-off, transitional and inner horizontal surfaces, obstacles that penetrate them</td>
+</tr>
+<tr>
+<td>Transport and logistics</td>
+<td><strong>Service areas and delivery routes</strong></td>
+<td>Roads, a depot and stops → network service areas, the shortest delivery tour and its length</td>
+</tr>
+<tr>
+<td>Urban planning</td>
+<td><strong>Zoning, density and green space access</strong></td>
+<td>Zones, buildings and parks → zoning summary, building and population density, distance to green space</td>
+</tr>
+<tr>
+<td>Rural planning</td>
+<td><strong>Distance to services and gardening land</strong></td>
+<td>Villages, services (clinics, schools) and a DEM → distance to services, slope classes for gardening land</td>
+</tr>
+<tr>
+<td>Asset management</td>
+<td><strong>Asset condition, risk and changes</strong></td>
+<td>An asset register, optionally an earlier one → overdue inspections, assets past design life, risk scores, added, removed and moved assets</td>
+</tr>
+<tr>
+<td>Climate</td>
+<td><strong>El Niño drought and frost risk (ENSO)</strong></td>
+<td>An area, optionally observed rainfall → the latest ONI and SOI from NOAA (or an offline file), rainfall percent of normal, drought and highland frost risk</td>
+</tr>
 </tbody></table></div><p>Every kit is an ordinary recipe (<code>recipes/kit-*.yaml</code>): open it in the Automate pane to see each step,
 change a default, or save a copy with your own steps. Kits call the tools with the <strong><code>tool</code></strong> step
 (<a href="/docs/automation#2-recipe-format-v1-as-implemented">AUTOMATION §2</a>).</p>
@@ -329,7 +429,13 @@ change a default, or save a copy with your own steps. Kits call the tools with t
 (<code>scripts/test-kits-data.R</code>): 25 % protected, 12 patches, net land-cover change of zero, 12 species in
 3 clusters, the planted vegetation-loss strip, and a future range that is both lost and gained. Kits
 that download data run with the downloads swapped for local test rasters, so their tools, maps and
-reports run for real; the downloads need internet and are covered by the <code>data.fetch</code> tests.</p>
+reports run for real; the downloads need internet and are covered by the <code>data.fetch</code> tests. The
+12 industry and El Niño kits run the same way in <code>scripts/test-domain-plugins.py</code>.</p>
+<p><strong>Limits of the industry tools:</strong> the ENSO indices and DEMs download from the internet unless you give an
+offline file or a mirror; AGD66 to GDA94 uses a 7-parameter shift (about 1 m), not NTv2 grids; the
+obstacle limitation surfaces cover non-instrument runways only; LiDAR clearance assumes one conductor
+height; least-cost routes follow cell centres; date-typed fields in a layer are dropped, so give expiry
+and inspection dates as text (<code>1 Jan 2026</code>) and AIS times as epoch seconds.</p>
 <h2 id="online-data-from-the-20-catalogue"><a class="anchor" href="#online-data-from-the-20-catalogue">#</a>Online data from the 2.0 catalogue</h2>
 <p>earlier GeoSpaX listed these sources; 3.0 fetches them, for the area on the map, with their citations
 (Explorer › Online data, and its Check species names; steps in <a href="/docs/automation">AUTOMATION.md</a>):</p>
