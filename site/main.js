@@ -52,9 +52,9 @@ document.addEventListener('keydown', (e) => {
 
 // the hosted web app, once there is one
 if (WEBAPP_URL) {
-  for (const a of document.querySelectorAll('[data-webapp]')) { a.href = WEBAPP_URL; a.textContent = 'Open the web app'; }
+  for (const a of document.querySelectorAll('[data-webapp]')) { a.href = WEBAPP_URL; if (a.closest('#webapp')) a.textContent = 'Open the web demo'; }
   const t = document.querySelector('[data-webapp-text]');
-  if (t) t.textContent = 'Use GeoSpaX in your browser, nothing to install.';
+  if (t) t.textContent = 'Demo for visitors. For full features, download the desktop app.';
 }
 
 // which download suits this computer
