@@ -10,7 +10,6 @@ Download the installer for your system from the [releases page](https://github.c
   password is needed. A portable ZIP is there too.
 - **Android (GeoSpaX Field):** `GeoSpaX-Field-<version>.apk`. Open it on the phone and allow *install unknown apps* for your browser once. It records points, lines, areas, tracks and photos offline; *Send* pairs with **Devices › Phone link** on your computer (scan its QR code) and uploads them over Wi-Fi.
 - **Any Linux:** `GeoSpaX-<version>-x86_64.AppImage`: make it executable (`chmod +x`, or *Properties › Allow executing*) and run it. No installing, no admin rights; it updates itself.
-- **Linux from Flathub:** `flatpak install flathub io.github.jmozez.GeoSpaX` (or GNOME Software / KDE Discover).
 - **Any system with Docker:** the web edition, `docker compose up -d`.
 
 Start **GeoSpaX** from the Start menu or the applications menu. The [user guide](USER_GUIDE.md) has the details.

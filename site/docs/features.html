@@ -45,6 +45,12 @@ zoom-to-row and charts, run history, status bar, resizable and collapsible docks
 on <strong>RustGIS</strong> (Apache-2.0: &quot;everything is a command&quot;, ribbon/pane vocabulary) and <strong>GeoLibre</strong> (MIT: pane set,
 attribute table as a peer of the map) — patterns re-implemented in TypeScript, no source copied
 (<a href="https://github.com/jmozez/geospax/blob/main/THIRD_PARTY_NOTICES.md" rel="noopener" target="_blank">THIRD_PARTY_NOTICES.md</a>).</p>
+<p><strong>Ribbon tools (3.0.6):</strong> each Pro tab reviewed against ArcGIS Pro 3.6 and QGIS 4.0. View: Swipe,
+Spyglass, Time slider, map grid, go to scale, lock scale, coordinate system search. Edit: split, merge, cut,
+reshape, copy and paste, copy along line, trace, GPS point, attribute rules, check topology. Analysis: erase,
+zonal statistics with exact cell coverage, network service area, closest facility and shortest path. Share:
+a web map in one HTML file and project packages. Tested in CI by <code>scripts/test-ribbon-tools.py</code> and, in a real
+browser, <code>scripts/test-web-ribbon.mjs</code> (<a href="/docs/guide#the-ribbon-tools-tab-by-tab">USER_GUIDE §2b</a>).</p>
 <p><strong>Built so far (automation engine v0 + Phase 2 slice 2 + sensor hub v1, October 2026):</strong></p>
 <ul>
 <li>AutoMap rules that explain themselves, automatic page layouts with collision-free point labels, finished PNG/SVG/<strong>PDF</strong> maps and an HTML report;</li>
@@ -123,6 +129,24 @@ attribute table as a peer of the map) — patterns re-implemented in TypeScript,
 <td><strong>Pro mode</strong>: a layer tree with Map node, group layers, twisties, drag into groups and a group switch; a contextual <strong>Layer</strong> tab for the selected layer. <strong>Lazy mode</strong> turns the same layers into cards that explain themselves</td>
 <td>N</td>
 <td>✅ next</td>
+</tr>
+<tr>
+<td>Swipe, Spyglass, time slider</td>
+<td><strong>Compare</strong> and <strong>Time</strong> on the View tab: swipe or a lens shows the map without the selected layer; the time slider plays any date or year field through a definition query, so tools and exports see what the map shows</td>
+<td>N</td>
+<td>✅ 3.0.6</td>
+</tr>
+<tr>
+<td>Split, Merge, Cut, Reshape, Trace, attribute rules, topology checks</td>
+<td>The same edits on the Edit tab, attributes kept and every edit undoable; attribute rules for value lists, defaults and required fields; <strong>Check topology</strong> returns overlaps, gaps and invalid shapes as a layer</td>
+<td>G (GEOS)</td>
+<td>✅ 3.0.6</td>
+</tr>
+<tr>
+<td>Zonal Statistics as Table</td>
+<td><strong>Zonal statistics with exact cell coverage</strong>: each cell weighted by the share inside the polygon, as exactextract, so thin and small polygons get correct values</td>
+<td>N</td>
+<td>✅ 3.0.6</td>
 </tr>
 <tr>
 <td>Geoprocessing pane (search tools, favourites, history)</td>
