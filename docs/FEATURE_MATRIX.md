@@ -24,6 +24,13 @@ on **RustGIS** (Apache-2.0: "everything is a command", ribbon/pane vocabulary) a
 attribute table as a peer of the map) — patterns re-implemented in TypeScript, no source copied
 ([THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)).
 
+**Ribbon tools (3.0.6):** each Pro tab reviewed against ArcGIS Pro 3.6 and QGIS 4.0. View: Swipe,
+Spyglass, Time slider, map grid, go to scale, lock scale, coordinate system search. Edit: split, merge, cut,
+reshape, copy and paste, copy along line, trace, GPS point, attribute rules, check topology. Analysis: erase,
+zonal statistics with exact cell coverage, network service area, closest facility and shortest path. Share:
+a web map in one HTML file and project packages. Tested in CI by `scripts/test-ribbon-tools.py` and, in a real
+browser, `scripts/test-web-ribbon.mjs` ([USER_GUIDE §2b](USER_GUIDE.md#the-ribbon-tools-tab-by-tab)).
+
 **Built so far (automation engine v0 + Phase 2 slice 2 + sensor hub v1, October 2026):**
 - AutoMap rules that explain themselves, automatic page layouts with collision-free point labels, finished PNG/SVG/**PDF** maps and an HTML report;
 - **raster maps** with relief shading, ramp and class legends;
@@ -56,6 +63,9 @@ These are marked ✅ / 🚧 in the tables below; details are in [AUTOMATION.md](
 | Local scenes: elevation surfaces, vertical exaggeration, extrusion, LAS dataset layers, Export to glTF / 3D Object | **3D scene in every LiDAR and terrain recipe**: block diagram draped with map colours, relief shading, imagery or contours; buildings extruded to their heights, trees, point cloud; exaggeration chosen from the relief; glTF + offline viewer + picture in the report ([AUTOMATION §6d](AUTOMATION.md#6d-3d-scenes-built)) | N (own mesher, glTF writer, CPU renderer, WebGL viewer) | ✅ v1.5; LOD2 roofs, I3S/3D Tiles next |
 | Network Analyst (routes, service areas) | "What can I reach in 15 min?" as one step (isochrones, OD matrices) | P (Valhalla/OSRM) / Py (osmnx) | P4 |
 | Contents pane (drawing order, group layers, expandable legends), contextual tabs | **Pro mode**: a layer tree with Map node, group layers, twisties, drag into groups and a group switch; a contextual **Layer** tab for the selected layer. **Lazy mode** turns the same layers into cards that explain themselves | N | ✅ next |
+| Swipe, Spyglass, time slider | **Compare** and **Time** on the View tab: swipe or a lens shows the map without the selected layer; the time slider plays any date or year field through a definition query, so tools and exports see what the map shows | N | ✅ 3.0.6 |
+| Split, Merge, Cut, Reshape, Trace, attribute rules, topology checks | The same edits on the Edit tab, attributes kept and every edit undoable; attribute rules for value lists, defaults and required fields; **Check topology** returns overlaps, gaps and invalid shapes as a layer | G (GEOS) | ✅ 3.0.6 |
+| Zonal Statistics as Table | **Zonal statistics with exact cell coverage**: each cell weighted by the share inside the polygon, as exactextract, so thin and small polygons get correct values | N | ✅ 3.0.6 |
 | Geoprocessing pane (search tools, favourites, history) | **Toolbox**: recipes, building blocks and every plugin's tools in one ranked search; each building block lists the ArcGIS Pro / QGIS tools it stands in for, so their names find it; recently used on top | N | ✅ next |
 | Pro assistant (help, SQL, ArcPy code) [1] | **Ask** pane: questions about the data answered through GeoSpaX's own tools (queries, statistics, selections, recipes without code), every tool call listed; local (Ollama, OpenAI-compatible) or Claude with your key; the same tools as an **MCP server**. Natural language → recipe: P2 | AI | ✅ Ask + MCP next; recipe writer P2 |
 

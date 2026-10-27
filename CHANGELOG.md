@@ -5,6 +5,17 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+Planned as 3.0.7 (all version numbers already read 3.0.7).
+
+### Changed
+- The user guide, the feature list, the README and the home page describe the ribbon tools tab by tab, with
+  new screenshots (Swipe, Time slider, the View tab) taken in headless Chromium by `scripts/shots-ribbon.sh`.
+- The download page and the guides no longer offer a Flathub install: GeoSpaX is not on Flathub yet, and
+  the link led to a page that does not exist. The Flathub submission steps stay in DEPLOY.md.
+
+### Tests
+- `scripts/test-web-ribbon.mjs` (the ribbon tools in a real browser) runs in CI and in `scripts/test-all.sh`.
+
 ## [3.0.6] — 2026-10-27
 
 ### Added — the ribbon, tab by tab (reviewed against ArcGIS Pro 3.6, QGIS 4.0 and current tools)

@@ -68,6 +68,16 @@ jobs:
           kill "$pid"
       - name: Exact zonal statistics, topology check, split / merge / cut / reshape, layer downloads
         run: python3 scripts/test-ribbon-tools.py target/release/geospax-server
+      - name: Ribbon tools in a real browser (Playwright Chromium)
+        run: |
+          npm i --prefix /tmp/pw --no-audit --no-fund playwright@1.64.1
+          /tmp/pw/node_modules/.bin/playwright install --with-deps --only-shell chromium
+          rm -rf /tmp/rb && python3 scripts/test-edit-data.py /tmp/rb/data
+          ./target/release/geospax-server --data /tmp/rb/data --state-dir /tmp/rb/state --web web/dist --port 18120 --no-device-mounts --no-triggers > /tmp/rb/server.log 2>&1 &
+          pid=$!
+          for i in $(seq 30); do curl -fs http://127.0.0.1:18120/api/health >/dev/null && break; sleep 1; done
+          PW=/tmp/pw/node_modules/playwright node scripts/test-web-ribbon.mjs http://127.0.0.1:18120 /tmp/rb/shots || { cat /tmp/rb/server.log; exit 1; }
+          kill "$pid"
       - name: Field app GPS filter
         run: node --experimental-strip-types --no-warnings scripts/test-field-gps.mjs
       - name: Assistant (Ollama, OpenAI-compatible and Claude wire formats, scripted model) and MCP server
