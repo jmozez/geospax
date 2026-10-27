@@ -29,7 +29,7 @@ const rows = (ms: Model[]) =>
         .map((m) => m.error
           ? `<tr><td>${esc(m.name)}</td><td colspan="4" class="err">${esc(m.error)}</td><td><button type="button" data-del="${esc(m.name)}">Remove</button></td></tr>`
           : `<tr><td><b>${esc(m.name)}</b>${m.source ? `<br><span class="dim">${esc(m.source)}</span>` : ''}</td><td>${esc(m.task)}</td><td>${m.channels} bands, ${size(m)}</td>
-            <td title="${esc(m.labels.join(', '))}">${m.labels.length || '—'}</td><td>${m.licence ? esc(m.licence) : '<span class="warn">not stated</span>'}</td>
+            <td title="${esc(m.labels.join(', '))}">${m.labels.length || '–'}</td><td>${m.licence ? esc(m.licence) : '<span class="warn">not stated</span>'}</td>
             <td><button type="button" data-edit="${esc(m.name)}">Edit</button> <button type="button" data-del="${esc(m.name)}">Remove</button></td></tr>`)
         .join('')}</table>`
     : '<p class="pane-empty">No models yet. Add an .onnx file below.</p>';
@@ -90,7 +90,7 @@ export async function openModels(host: ModelsHost) {
         delete root.dataset.editing;
         (root.querySelector('form') as HTMLFormElement | null)?.querySelectorAll<HTMLInputElement>('.add-model input, .add-model textarea').forEach((i) => { i.value = ''; });
         const m = ms.find((x) => x.name === name);
-        say(root, `${name}: ${m?.task ?? '?'} model, ${m?.labels.length ?? 0} classes${m?.licence ? '' : ' — licence not stated'}`);
+        say(root, `${name}: ${m?.task ?? '?'} model, ${m?.labels.length ?? 0} classes${m?.licence ? '' : ', licence not stated'}`);
       } catch (e) {
         say(root, e instanceof Error ? e.message : String(e), 'err');
       }

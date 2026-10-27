@@ -12,6 +12,8 @@ import { groupItemsHtml, COMMANDS, TABS, commandHtml, groupsFor, icon, pluginIco
 import type { PluginInfo, PluginsState } from './plugins';
 import { ONLINE_SOURCES } from './online';
 import { bytesText, followJob } from './downloads';
+import { PRESSED, isResolvedSplit, rememberSplit, ribbonFor, setDockTests, splitCurrent, splitSpec, command as commandById, type ResolvedSplit } from './ribbonlayout';
+import { claimMapTool, isMapTool, releaseMapTool, stopMapTool } from './toolstate';
 
 /** Public open data in cloud storage, one click in "＋ Add" (read without signing in). */
 const CLOUD_PRESETS: { title: string; url: string; endpoint?: string; region?: string; about: string; ask?: string }[] = [
@@ -153,6 +155,7 @@ export class Workbench {
     this.wirePalette();
     this.wireMapStatus();
     this.wireIdentify();
+    this.wirePressed();
     this.host.map.on('click', () => this.hideRibbon());
     this.renderCatalog();
     void this.loadRuns();
@@ -305,7 +308,7 @@ export class Workbench {
         (t) => `<button class="rb-tab${t.id === this.layout.ribbon ? ' on' : ''}" data-tab="${t.id}">${esc(t.label)}</button>`,
       ).join('') + ctx +
       `<button class="rb-pin${pinned ? ' on' : ''}" data-ribbon-pin title="${
-        pinned ? 'Ribbon is pinned open — click to auto-hide it (Ctrl+F1)' : 'Ribbon is hidden — it opens when you click a tab (Ctrl+F1)'
+        pinned ? 'Ribbon is pinned open: click to auto-hide it (Ctrl+F1)' : 'Ribbon is hidden: it opens when you click a tab (Ctrl+F1)'
       }"><span class="rb-pin-ico">${icon('pin', 13)}</span><span class="rb-pin-txt">${pinned ? 'Pin' : 'Auto-hide'}</span></button>`;
     // Assignment (not addEventListener): buildRibbon runs again on every tab switch.
     tabsEl.onclick = (e) => {
@@ -434,7 +437,7 @@ export class Workbench {
     this.ribbonPeek = false;
     this.saveLayout();
     this.buildRibbon();
-    this.setStatus(pinned ? 'Ribbon pinned open' : 'Ribbon auto-hides — click a tab to use it, Ctrl+F1 to pin it back');
+    this.setStatus(pinned ? 'Ribbon pinned open' : 'Ribbon auto-hides: click a tab to use it, Ctrl+F1 to pin it back');
   }
 
   private async renderRibbonBody(bodyEl: HTMLElement) {
@@ -443,11 +446,13 @@ export class Workbench {
     document.querySelector<HTMLElement>('#ribbon')?.classList.toggle('auto', !visible);
     requestAnimationFrame(() => this.host.map.resize());
     if (!visible) { bodyEl.innerHTML = ''; return; }
-    const groups = groupsFor(this.layout.ribbon);
+    const laid = ribbonFor(this.layout.ribbon);
+    const groups = laid ?? groupsFor(this.layout.ribbon).map((g) => ({ group: g.group, big: g.items.filter((c) => c.big), small: g.items.filter((c) => !c.big) }));
     const parts: string[] = [];
+    const item = (x: Command | ResolvedSplit, big: boolean) => (isResolvedSplit(x) ? this.splitHtml(x, big) : commandHtml(x, big));
     for (const g of groups) {
-      const items = groupItemsHtml(g.items.filter((c) => c.big).map((c) => commandHtml(c)), g.items.filter((c) => !c.big).map((c) => commandHtml(c)));
-      parts.push(`<div class="rb-group"><div class="rb-items">${items}</div><div class="rb-title">${esc(g.group)}</div></div>`);
+      const items = groupItemsHtml(g.big.map((x) => item(x, true)), g.small.map((x) => item(x, false)));
+      parts.push(`<div class="rb-group" data-group="${esc(g.group)}"><div class="rb-items">${items}</div><div class="rb-title">${esc(g.group)}</div></div>`);
     }
     // contextual Layer tab: the analyses that fit the selected layer, run on it
     if (this.layout.ribbon === 'layer') {
@@ -470,7 +475,7 @@ export class Workbench {
               icon: 'wand',
               label: 'Recipes',
               count: r.recipes.length,
-              title: `${r.recipes.length} recipes — click to open the list`,
+              title: `${r.recipes.length} recipes: click to open the list`,
             })}</div><div class="rb-title">Recipes ${this.galleryToggle()}</div></div>`,
           );
         } else {
@@ -489,7 +494,7 @@ export class Workbench {
             .join('');
           put(
             `<div class="rb-group wide" data-group="recipes"><div class="rb-items recipes">${cards}</div>` +
-              `<div class="rb-title">Recipes — click to run ${this.galleryToggle()}</div></div>`,
+              `<div class="rb-title">Recipes: click to run ${this.galleryToggle()}</div></div>`,
           );
         }
       } catch { /* engine offline: the static commands still work */ }
@@ -504,7 +509,7 @@ export class Workbench {
     const domains = this.pluginTools().filter((p) => p.default && (p.tools[0]?.tab ?? 'plugins') === 'plugins');
     if (tab === 'plugins' && domains.length) {
       const btns = domains
-        .map((p) => `<button class="rb-btn small" data-menu="plugin:${esc(p.id)}" title="${esc(p.name)}: ${p.tools.length} tools — ${esc(p.description)}" aria-haspopup="true">
+        .map((p) => `<button class="rb-btn small" data-menu="plugin:${esc(p.id)}" title="${esc(p.name)}: ${p.tools.length} tools. ${esc(p.description)}" aria-haspopup="true">
             <span class="rb-ico">${icon(pluginIcon(p), 16)}</span><span class="rb-label">${esc(p.name)}</span><span class="rb-caret">${icon('caret', 10)}</span></button>`)
         .join('');
       parts.push(`<div class="rb-group" data-group="domains"><div class="rb-items grid3">${btns}</div><div class="rb-title">Domain plugins (GSX)</div></div>`);
@@ -551,6 +556,101 @@ export class Workbench {
     }
     bodyEl.innerHTML = parts.join('') + `<div class="rb-spacer"></div>`;
     this.fitRibbon(bodyEl);
+    this.syncPressed();
+  }
+
+  // ------------------------------------------------- split buttons and pressed states
+
+  /** A split button: the main part runs the remembered item (or the default), the arrow lists all. */
+  private splitHtml(s: ResolvedSplit, big: boolean): string {
+    const cur = commandById(splitCurrent(s)) ?? s.cmds[0];
+    const tip = (c: Command) => `${c.title}${c.hint ? `: ${c.hint}` : ''}${c.keys ? ` (${c.keys})` : ''}`;
+    const label = big && s.label ? s.label : cur.title;
+    const ico = big && s.icon ? s.icon : cur.icon;
+    // a large split names the item its main part runs, unless that is the split's own name
+    const sub = big && s.label && cur.title !== s.label ? `<span class="rb-sub">${esc(cur.title)}</span>` : '';
+    const mainTip = big && s.label ? `${s.label}: ${cur.title}. ${cur.hint ?? ''}`.trim() : tip(cur);
+    return `<div class="rb-split ${big ? 'big' : 'small'}" data-split-box="${esc(s.split)}">
+      <button class="rb-btn ${big ? 'big' : 'small'} rb-split-main" data-split="${esc(s.split)}" data-cmd="${esc(cur.id)}" title="${esc(mainTip)}">
+        <span class="rb-ico">${icon(ico, big ? (sub ? 22 : 28) : 16)}</span><span class="rb-label">${esc(label)}</span>${sub}
+      </button><button class="rb-split-arrow" data-split-arrow="${esc(s.split)}" data-menu="split:${esc(s.split)}" aria-haspopup="menu" aria-expanded="false" title="${esc(`${s.label ?? cur.title}: ${s.hint ?? 'more options'}`)}">${icon('chevronDown', 12)}</button></div>`;
+  }
+
+  /** The rows of a split button's list: icon, name and what it does. */
+  private splitRows(key: string): string {
+    const s = splitSpec(key);
+    if (!s) return '';
+    const cur = splitCurrent(s);
+    const rows = s.items
+      .map((id) => commandById(id))
+      .filter((c): c is Command => !!c)
+      .map((c) => `<button class="rb-menu-row${c.id === cur ? ' current' : ''}" role="menuitem" data-cmd="${esc(c.id)}" title="${esc(`${c.title}${c.hint ? `: ${c.hint}` : ''}`)}">
+          <span class="rm-ico">${icon(c.icon, 16)}</span>
+          <span class="rm-txt"><span class="rm-name">${esc(c.title)}${c.keys ? ` <kbd>${esc(c.keys)}</kbd>` : ''}</span>${c.hint ? `<span class="rm-desc">${esc(c.hint)}</span>` : ''}</span></button>`)
+      .join('');
+    return `<div class="rb-menu-head"><span>${esc(s.label ?? commandById(s.items[0])?.title ?? '')}</span></div><div class="rb-menu-group rb-split-list" role="menu">${rows}</div>`;
+  }
+
+  /** Point the split buttons at the item used last (after a command from the list ran). */
+  private refreshSplits() {
+    document.querySelectorAll<HTMLElement>('#ribbon-body [data-split-box]').forEach((box) => {
+      const s = splitSpec(box.dataset.splitBox!);
+      if (!s) return;
+      const big = box.classList.contains('big');
+      const cmds = s.items.map((i) => commandById(i)).filter((c): c is Command => !!c);
+      const tmp = document.createElement('div');
+      tmp.innerHTML = this.splitHtml({ ...s, cmds }, big);
+      const fresh = tmp.firstElementChild;
+      if (fresh && fresh.innerHTML !== box.innerHTML) box.replaceWith(fresh);
+    });
+    this.syncPressed();
+  }
+
+  /** aria-pressed and the "on" look for tools and on/off states; commands are never pressed. */
+  syncPressed() {
+    const btns = document.querySelectorAll<HTMLElement>('#ribbon-body [data-cmd], .rb-menu [data-cmd], #quickbar [data-cmd]');
+    btns.forEach((b) => {
+      const p = PRESSED[b.dataset.cmd!];
+      if (!p) {
+        if (b.hasAttribute('aria-pressed')) b.removeAttribute('aria-pressed');
+        if (!b.classList.contains('rb-collapsed') && !b.dataset.menu) b.classList.remove('on');
+        return;
+      }
+      let v = false;
+      try { v = p.test(); } catch { /* not ready yet */ }
+      b.setAttribute('aria-pressed', String(v));
+      b.classList.toggle('on', v);
+      if (p.kind === 'tool') b.dataset.maptool = '1';
+    });
+    // a split whose list holds the active tool shows it pressed on its main part
+    document.querySelectorAll<HTMLElement>('#ribbon-body [data-split-box]').forEach((box) => {
+      const s = splitSpec(box.dataset.splitBox!);
+      const active = !!s?.items.some((id) => { const p = PRESSED[id]; try { return !!p && p.test(); } catch { return false; } });
+      box.classList.toggle('has-on', active);
+    });
+  }
+
+  private wirePressed() {
+    // View › Reset layout (and the Start screen's "reset the layout"): panes, sizes, tabs and ribbon back to the defaults
+    document.addEventListener('geospax:reset-layout', () => {
+      const ribbon = this.layout.ribbon;
+      this.layout = { ...DEFAULT_LAYOUT, tabs: { ...DEFAULT_LAYOUT.tabs }, collapsed: [], ribbon };
+      this.ribbonPeek = false;
+      this.saveLayout();
+      this.applyLayout();
+      this.buildRibbon();
+      this.setStatus('Layout reset: panes, sizes and the ribbon are back to the defaults');
+    });
+    setDockTests((d) => !this.layout.collapsed.includes(d));
+    let queued = false;
+    const later = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; this.syncPressed(); });
+    };
+    document.addEventListener('geospax:toolstate', () => { this.syncPressed(); later(); });
+    const mo = new MutationObserver(later);
+    mo.observe(document.body, { attributes: true, attributeFilter: ['data-tracing', 'data-snapping', 'data-grid', 'data-scale-lock', 'data-time', 'data-projection', 'data-base-map', 'data-theme-pref', 'data-labels', 'data-terrain3d', 'data-cad-snap', 'data-cad-ortho', 'data-cad-polar', 'data-map-tool'] });
   }
 
   // ------------------------------------------------- compact galleries (dropdowns)
@@ -608,7 +708,7 @@ export class Workbench {
 
   private openMenu(anchor: HTMLElement, kind: string) {
     const group = this.collapsed.get(kind);
-    const rows = group ? `<div class="rb-menu-head"><span>${esc(group.title)}</span></div><div class="rb-menu-group">${group.html}</div>` : kind === 'recipes' ? this.recipeRows() : kind.startsWith('plugin:') ? this.pluginRows(kind.slice(7).split(':')[0], kind.split(':').slice(2).join(':') || undefined) : '';
+    const rows = group ? `<div class="rb-menu-head"><span>${esc(group.title)}</span></div><div class="rb-menu-group">${group.html}</div>` : kind.startsWith('split:') ? this.splitRows(kind.slice(6)) : kind === 'recipes' ? this.recipeRows() : kind.startsWith('plugin:') ? this.pluginRows(kind.slice(7).split(':')[0], kind.split(':').slice(2).join(':') || undefined) : '';
     if (!rows) return;
     const el = document.createElement('div');
     el.className = 'rb-menu';
@@ -618,9 +718,36 @@ export class Workbench {
     const r = anchor.getBoundingClientRect();
     const w = Math.max(el.offsetWidth, 240);
     el.style.width = `${w}px`;
-    el.style.left = `${Math.max(4, Math.min(r.left, window.innerWidth - w - 8))}px`;
-    el.style.top = `${r.bottom + 3}px`;
-    el.style.maxHeight = `${Math.max(180, Math.min(window.innerHeight - r.bottom - 24, window.innerHeight * 0.62))}px`;
+    // always inside the window: clamped left and right, above the button when there is no room below
+    const vw = document.documentElement.clientWidth || window.innerWidth;
+    const vh = window.innerHeight;
+    const fitW = Math.min(w, vw - 8);
+    el.style.width = `${fitW}px`;
+    el.style.left = `${Math.max(4, Math.min(r.left, vw - fitW - 4))}px`;
+    const below = vh - r.bottom - 8, above = r.top - 8;
+    const natural = el.scrollHeight;
+    if (natural > below && above > below) {
+      const hgt = Math.min(natural, above, vh * 0.8);
+      el.style.maxHeight = `${hgt}px`;
+      el.style.top = `${Math.max(4, r.top - 3 - hgt)}px`;
+    } else {
+      el.style.top = `${Math.min(r.bottom + 3, vh - 40)}px`;
+      el.style.maxHeight = `${Math.max(120, Math.min(below, vh * 0.8))}px`;
+    }
+    el.setAttribute('role', 'menu');
+    anchor.setAttribute('aria-expanded', 'true');
+    // keyboard: arrows move, Home and End jump, Enter runs (a button), Esc closes back to the button
+    el.addEventListener('keydown', (e) => {
+      const items = [...el.querySelectorAll<HTMLElement>('button')];
+      const i = items.indexOf(document.activeElement as HTMLElement);
+      const go = (n: number) => { e.preventDefault(); items[(n + items.length) % items.length]?.focus(); };
+      if (e.key === 'ArrowDown') return go(i + 1);
+      if (e.key === 'ArrowUp') return go(i < 0 ? items.length - 1 : i - 1);
+      if (e.key === 'Home') return go(0);
+      if (e.key === 'End') return go(items.length - 1);
+      if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); this.closeMenu(); anchor.focus(); }
+    });
+    requestAnimationFrame(() => (el.querySelector<HTMLElement>('.rb-menu-row.current, .rb-menu-row, button'))?.focus({ preventScroll: true }));
     el.onclick = (e) => {
       const t = e.target as HTMLElement;
       // a collapsed group's buttons: commands, plugin menus, the Toolbox
@@ -665,6 +792,7 @@ export class Workbench {
     };
     anchor.classList.add('on');
     this.menu = el;
+    this.syncPressed();
   }
 
   private closeMenu() {
@@ -672,6 +800,7 @@ export class Workbench {
     const kind = this.menu.dataset.kind;
     this.menu.remove();
     this.menu = null;
+    document.querySelectorAll<HTMLElement>('[aria-expanded="true"][data-menu]').forEach((b) => { b.setAttribute('aria-expanded', 'false'); b.classList.remove('on'); });
     document.querySelectorAll<HTMLElement>('.rb-combo.on').forEach((b) => {
       if (!kind || b.dataset.menu === kind) b.classList.remove('on');
     });
@@ -701,7 +830,7 @@ export class Workbench {
 
   private recipeRows(): string {
     const recipes = this.generalRecipes();
-    const head = `<div class="rb-menu-head"><span>Recipes</span><span class="dim">${recipes.length} — click to run</span></div>`;
+    const head = `<div class="rb-menu-head"><span>Recipes</span><span class="dim">${recipes.length}, click to run</span></div>`;
     const row = (x: RecipeInfo) => this.recipeRow(x);
     // kits that are not a domain plugin's (satellite embeddings) first, then the general recipes
     const kits = [...new Set(recipes.map((x) => x.kit).filter((k): k is string => !!k))].sort();
@@ -747,6 +876,16 @@ export class Workbench {
   private async run(id: string) {
     const c = COMMANDS.find((x) => x.id === id);
     if (!c) return;
+    // a pressed map tool clicked again is put away (ArcGIS Pro and Office behave the same)
+    const p = PRESSED[id];
+    if (p?.kind === 'tool' && p.test()) {
+      stopMapTool();
+      this.setStatus(`${c.title} off`, 3000);
+      this.syncPressed();
+      return;
+    }
+    rememberSplit(id);
+    this.refreshSplits();
     this.setStatus(`${c.title}…`);
     this.hideRibbon();
     try {
@@ -816,6 +955,7 @@ export class Workbench {
       : [...this.layout.collapsed, dock];
     this.saveLayout();
     this.applyLayout();
+    this.syncPressed();
   }
 
   private applyLayout() {
@@ -1866,13 +2006,28 @@ export class Workbench {
   private wireIdentify() {
     // Pro's "Identify": click a feature, get its attributes in a popup.
     let popup: maplibregl.Popup | null = null;
+    // Home › Identify is a map tool: pressed until clicked again or Esc, with a help cursor
+    const canvas = () => this.host.map.getCanvas();
+    const stopIdentify = () => {
+      canvas().style.cursor = '';
+      popup?.remove();
+      releaseMapTool('identify');
+    };
+    document.addEventListener('geospax:identify-tool', () => {
+      if (isMapTool('identify')) return stopIdentify();
+      claimMapTool('identify', () => { canvas().style.cursor = ''; popup?.remove(); });
+      canvas().style.cursor = 'help';
+      this.setStatus('Identify: click a feature to see its attributes (Esc or Identify again to stop)', 6000);
+    });
     this.host.map.on('click', (e) => {
       // an edit tool owns the click (web/src/editing.ts); drawing handles (td-*) are not data
       const tool = document.body.dataset.editTool;
       if ((tool && tool !== 'idle') || document.body.dataset.measure) return;
+      const held = document.body.dataset.mapTool;
+      if (held && held !== 'identify') return;
       const feats = this.host.map.queryRenderedFeatures(e.point);
       const f = feats.find((x) => !x.layer.id.startsWith('td-') && !x.layer.id.endsWith('#sel') && x.properties && Object.keys(x.properties).length);
-      if (!f) return;
+      if (!f) { if (held === 'identify') this.setStatus('Identify: no feature there', 3000); return; }
       popup?.remove();
       const rows = Object.entries(f.properties as Record<string, unknown>)
         .filter(([, v]) => v != null && String(v) !== '')
@@ -2040,13 +2195,21 @@ export class Workbench {
       this.closeMenu();
     });
     window.addEventListener('keydown', (e) => {
+      const arrow = (e.target as HTMLElement)?.closest?.('[data-split-arrow], [data-split]') as HTMLElement | null;
+      if (arrow && (e.key === 'ArrowDown' || (e.altKey && e.key === 'ArrowDown'))) {
+        const box = arrow.closest<HTMLElement>('[data-split-box]');
+        const a = box?.querySelector<HTMLElement>('[data-split-arrow]');
+        if (a) { e.preventDefault(); this.closeMenu(); this.openMenu(a, a.dataset.menu!); return; }
+      }
       const tag = (e.target as HTMLElement)?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); document.dispatchEvent(new CustomEvent('geospax:palette')); return; }
       if (mod && (e.key === 'F1' || e.key === 'f1')) { e.preventDefault(); this.setRibbonPinned(!this.layout.ribbonPinned); return; }
       if (e.key === 'F5') { e.preventDefault(); void this.run('home.refresh'); return; }
-      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); this.host.save(); this.setStatus('Project saved'); return; }
+      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void this.run(e.shiftKey ? 'home.saveAs' : 'home.save'); return; }
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); void this.run('home.open'); return; }
+      if (mod && e.altKey && e.key.toLowerCase() === 'n') { e.preventDefault(); void this.run('home.new'); return; }
       if (!typing && !mod) {
         if (e.key === '+') return void this.host.map.zoomIn();
         if (e.key === '-') return void this.host.map.zoomOut();

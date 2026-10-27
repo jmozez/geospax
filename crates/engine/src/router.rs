@@ -876,6 +876,44 @@ impl Engine {
                 },
                 Err(e) => ApiResponse::error(404, e),
             },
+            // Named projects (Home › New, Open, Save as, Rename): one JSON file each in
+            // <state>/projects/<slug>.json. The working project stays api/project.
+            ("GET", ["api", "projects"]) if !guest => ApiResponse::json(200, &self.projects_list()),
+            ("GET", ["api", "projects", slug]) if !guest => match self.named_project(slug) {
+                Ok(p) if p.exists() => self.project_get(&p),
+                Ok(_) => ApiResponse::error(404, format!("no project '{slug}'")),
+                Err(e) => e,
+            },
+            ("PUT", ["api", "projects", slug]) if !guest => match self.named_project(slug) {
+                Ok(p) => self.project_put(&p, &req.body),
+                Err(e) => e,
+            },
+            ("DELETE", ["api", "projects", slug]) if !guest => match self.named_project(slug) {
+                Ok(p) => match std::fs::remove_file(&p) {
+                    Ok(()) => ApiResponse::json(200, &json!({ "deleted": slug })),
+                    Err(e) => ApiResponse::error(404, format!("{}: {e}", p.display())),
+                },
+                Err(e) => e,
+            },
+            ("POST", ["api", "projects", slug, "rename"]) if !guest => {
+                let to = param(q, "to").unwrap_or_default();
+                match (self.named_project(slug), self.named_project(&to)) {
+                    (Ok(from), Ok(dest)) => {
+                        if !from.exists() {
+                            ApiResponse::error(404, format!("no project '{slug}'"))
+                        } else if dest.exists() && dest != from {
+                            ApiResponse::error(409, format!("a project called '{to}' already exists"))
+                        } else {
+                            let _g = self.project_lock.lock().unwrap();
+                            match std::fs::rename(&from, &dest) {
+                                Ok(()) => ApiResponse::json(200, &json!({ "renamed": to, "path": dest.display().to_string() })),
+                                Err(e) => ApiResponse::error(500, e.to_string()),
+                            }
+                        }
+                    }
+                    (Err(e), _) | (_, Err(e)) => e,
+                }
+            }
             ("GET", ["api", "project"]) => match self.project_file(guest, q) {
                 Ok(p) => self.project_get(&p),
                 Err(e) => e,
@@ -1094,6 +1132,43 @@ impl Engine {
             Ok((r, warnings)) => ApiResponse::json(201, &json!({ "recipe": r.summary_json(), "warnings": warnings })),
             Err(errors) => ApiResponse::json(400, &json!({ "error": errors.join("; "), "errors": errors })),
         }
+    }
+
+    fn projects_dir(&self) -> std::path::PathBuf {
+        self.state_dir.join("projects")
+    }
+
+    /// `<state>/projects/<slug>.json`; a slug is 1 to 64 of a-z, 0-9, '-' and '_'.
+    fn named_project(&self, slug: &str) -> Result<std::path::PathBuf, ApiResponse> {
+        let ok = !slug.is_empty() && slug.len() <= 64 && slug.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_');
+        if !ok {
+            return Err(ApiResponse::error(400, format!("'{slug}' is not a valid project id (a-z, 0-9, - and _, up to 64)")));
+        }
+        Ok(self.projects_dir().join(format!("{slug}.json")))
+    }
+
+    /// The named projects, newest first: id, name (from the file), when saved and where.
+    fn projects_list(&self) -> serde_json::Value {
+        let mut out: Vec<(std::time::SystemTime, serde_json::Value)> = vec![];
+        if let Ok(rd) = std::fs::read_dir(self.projects_dir()) {
+            for e in rd.flatten() {
+                let p = e.path();
+                if p.extension().and_then(|x| x.to_str()) != Some("json") {
+                    continue;
+                }
+                let slug = p.file_stem().and_then(|x| x.to_str()).unwrap_or_default().to_string();
+                let modified = e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+                let name = std::fs::read(&p)
+                    .ok()
+                    .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+                    .and_then(|v| v.get("name").and_then(|n| n.as_str()).map(str::to_string))
+                    .unwrap_or_else(|| slug.clone());
+                let ms = modified.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                out.push((modified, json!({ "id": slug, "name": name, "saved": ms, "path": p.display().to_string() })));
+            }
+        }
+        out.sort_by(|a, b| b.0.cmp(&a.0));
+        json!({ "folder": self.projects_dir().display().to_string(), "projects": out.into_iter().map(|x| x.1).collect::<Vec<_>>() })
     }
 
     fn project_path(&self) -> std::path::PathBuf {

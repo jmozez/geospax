@@ -167,6 +167,8 @@ export class FinishMap {
   /** a layout window said hello and has not said goodbye */
   private layoutOpen = false;
   private specTimer = 0;
+  /** Share › Export map: the format to save as a file once the run is done (null: Finish my map) */
+  wanted: 'png' | 'pdf' | 'svg' | 'report' | null = null;
 
   constructor(private host: FinishHost) {
     this.chan?.addEventListener('message', (e: MessageEvent<LayoutMsg>) => {
@@ -202,6 +204,7 @@ export class FinishMap {
   /** Share › Export map › PDF / SVG / PNG / Word: Finish my map with just that output ticked. */
   openFor(fmt: 'png' | 'pdf' | 'svg' | 'report') {
     this.open();
+    this.wanted = fmt;
     const form = this.el.querySelector<HTMLFormElement>('form');
     if (!form) return;
     for (const k of ['png', 'pdf', 'svg', 'report']) {
@@ -211,6 +214,7 @@ export class FinishMap {
   }
 
   open() {
+    this.wanted = null;
     if (!this.host.visible().length) return this.host.setStatus('Switch on at least one layer first: the finished map shows what is on the map', 5000);
     const lazy = this.host.mode() === 'lazy';
     // page layers: visible polygon or line layers small enough to page through
