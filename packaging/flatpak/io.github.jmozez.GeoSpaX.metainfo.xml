@@ -77,8 +77,7 @@
     <display_length compare="ge">900</display_length>
   </requires>
   <releases>
-    <!-- 3.0.7: set the date to the release day when the tag is pushed -->
-    <release version="3.0.7" date="2026-10-27">
+    <release version="3.0.7" date="2026-10-28">
       <description><p>Fixes: the phone page of the web edition sends positions again, the 3D terrain viewer opens inside the app again, analysis rasters draw under the points and contours of their map, and the Imagery tab lists the wetness index once.</p></description>
     </release>
     <release version="3.0.6" date="2026-10-27">

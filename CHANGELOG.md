@@ -5,7 +5,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
-Planned as 3.0.7 (all version numbers already read 3.0.7).
+## [3.0.7] — 2026-10-28
 
 ### Added
 - **Named projects (Home › Project)**: New project asks for a name (checked: not empty, no slashes or other
