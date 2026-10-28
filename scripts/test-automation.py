@@ -63,6 +63,9 @@ def check_artifacts(run, label):
             check(s is not None and s[0] >= 1000 and s[1] >= 700, f"{label}: {name} is a PNG page ({s[0]}x{s[1]})" if s else f"{label}: {name} is a PNG")
         elif name.endswith(".svg"):
             t = open(p, encoding="utf-8").read()
+            if name.startswith("chart-"):  # report charts (3.0.3) are plots, not map pages
+                check(t.startswith("<svg"), f"{label}: {name} is an SVG chart ({len(t) // 1024} KB)")
+                continue
             check(t.startswith("<svg") and "Legend" in t and "Scale" in t, f"{label}: {name} has a legend and a scale ({len(t) // 1024} KB)")
         elif name.endswith(".html") and os.path.basename(name).startswith("scene"):
             t = open(p, encoding="utf-8").read()
