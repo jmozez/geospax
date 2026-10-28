@@ -73,7 +73,7 @@ SPEC = {
     "asset-register": ({"assets": L("lae-assets-2026"), "installed_field": "installed", "inspected_field": "inspected", "condition_field": "condition", "criticality_field": "criticality", "before": L("lae-assets-2025"), "id_field": "id"},
                        {"basemap": "esri-dark", "title": "Asset risk and inspections, Lae", "subtitle": "Locations from OpenStreetMap; register attributes are illustrative"}),
     "el-nino-drought": ({"area": L("png-mainland"), "observed": R("chirps-ond-2015"), "normal": R("chirps-ond-normal-1991-2020")},
-                        {"basemap": "esri-dark", "title": "El Niño 2015: October to December rainfall, Papua New Guinea", "subtitle": "CHIRPS v3 percent of the 1991 to 2020 normal, with NOAA ONI"}),
+                        {"basemap": "esri-dark", "title": "El Niño 2015: Oct to Dec rainfall, PNG", "subtitle": "CHIRPS v3 percent of the 1991 to 2020 normal, with NOAA ONI"}),
 }
 
 
@@ -102,9 +102,9 @@ def S(color, opacity=0.9, width=None, size=None, labels=None, outline=None, fill
 YN = lambda yes, no, ty, tn: [(1, yes, ty), (0, no, tn)]
 # kit: (layers bottom to top as (id fragment, style or None to keep), extra export.map params)
 STYLE = {
-    "survey-plan": ([("grid-epsg", S("#5b6976", 0.7, width=0.6, labels={"field": "label", "size": 9})),
-                     ("lot-bearings", S("#ffd166", 1, width=2.6, labels={"field": "bearing", "field2": "distance_m", "suffix2": " m", "size": 11, "font": "bold", "overlap": True, "placement": "point"})),
-                     ("traverse-stations", S("#ffffff", 1, size=6, labels={"field": "station", "size": 10}))],
+    "survey-plan": ([("grid-epsg", S("#5b6976", 0.7, width=0.6, labels={"field": "label", "size": 7})),
+                     ("lot-bearings", S("#ffd166", 1, width=2.6, labels={"field": "bearing", "field2": "distance_m", "suffix2": " m", "size": 8, "font": "bold", "overlap": True, "placement": "point"})),
+                     ("traverse-stations", S("#ffffff", 1, size=6, labels={"field": "station", "size": 9}))],
                     {"extent": [147.00095, -6.72820, 147.00330, -6.72650], "exact": True, "rasters": []}),
     "power-corridor": ([("corridor-zones", U("zone", [("consultation", "#4cc9f0", "Consultation, 100 m"), ("clearance", "#ffb703", "Vegetation clearance, 50 m"), ("easement", "#e63946", "Easement, 20 m")], "", 0.5)),
                         ("@power-lines.geojson", S("#ffffff", 1, width=1.8)),
@@ -136,7 +136,7 @@ STYLE = {
                                     "min": 0, "breaks": [1, 2, 3, 5, 10], "colors": ["#1a9850", "#91cf60", "#fee08b", "#fc8d59", "#d73027"]},
                       "labels": {"on": False}})], {"rasters": []}),
     "mine-volumes": ([("tenure-check", S("#ffffff", 1, outline={"color": "#ffffff", "width": 2}, fill=False))], {"rasters": ["elevation-change"]}),
-    "el-nino-drought": ([("@png-mainland.geojson", S("#ffffff", 1, outline={"color": "#ffffff", "width": 1.5}, fill=False))], {"rasters": ["rainfall-anomaly-class"]}),
+    "el-nino-drought": ([], {"rasters": ["rainfall-anomaly-class"]}),
     "asset-register": ([("asset-register", U("risk_class", [("high", "#e63946", "High risk"), ("medium", "#ffb703", "Medium risk"), ("low", "#52b788", "Low risk")], "Condition x criticality", 1, size=7)),
                         ("change-alerts", U("change", [("added", "#00e5ff", "Added since 2025"), ("changed", "#ff00ff", "Changed since 2025")], "", 1, size=12, fill=None) if False else U("change", [("added", "#00e5ff", "Added since 2025"), ("changed", "#ff00ff", "Changed since 2025")], "", 0.9, size=13))], {}),
 }
@@ -167,7 +167,7 @@ def style_pass(kit, run, look, text):
         keys = sorted((k for k in TITLES.get(kit, {}) if k in i), key=len)
         if keys:
             edit[i] = {"title": TITLES[kit][keys[-1]]}
-    w = {**look, **extra, "legend_edit": edit, "name": f"{kit}-pro-dark", "layers": ids + rasters, "size": "1600x1100", "dpi": 150, "legend_title": "Legend", "theme": "dark"}
+    w = {**look, **extra, "legend_edit": edit, "name": f"{kit}-pro-dark", "layers": ids + rasters, "size": "1000x690", "dpi": 300, "legend_title": "Legend", "theme": "dark"}
     steps = []
     if styles:
         steps.append({"id": "style", "use": "style.apply", "with": {"styles": styles, "save": False}})
@@ -198,7 +198,7 @@ try:
         m = re.search(r"(    use: export\.map\n    with: \{)(.*)\}\n", text)
         w = re.sub(r'title: ("[^"]*"|[^,}]*)', "", m.group(2)).rstrip(", ")
         extra = ", ".join(f"{k}: {json.dumps(v)}" for k, v in look.items())
-        text = text[: m.start()] + m.group(1) + w + ", " + extra + ', size: "1600x1100", dpi: 150, legend_title: "Legend", theme: dark }\n' + text[m.end():]
+        text = text[: m.start()] + m.group(1) + w + ", " + extra + ', size: "1000x690", dpi: 300, legend_title: "Legend", theme: dark }\n' + text[m.end():]
         if kit == "el-nino-drought":  # all of PNG is past dem.fetch's 120 km limit: a 1 km DEM made by the data script
             text = re.sub(r"\n  - id: dem\n    use: dem\.fetch\n(    when: [^\n]*\n)?    with: [^\n]*\n", "\n", text).replace("dem: dem", "dem: png-dem-1km")
         if kit == "petroleum-leases":  # a buried pipeline climbs steeper ground than a haul road
