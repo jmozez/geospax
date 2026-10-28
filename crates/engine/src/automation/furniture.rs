@@ -79,6 +79,8 @@ pub struct Furniture {
     pub legend_edit: Value,
     pub legend_order: Vec<String>,
     pub inset_at: Place,
+    /// light (default) or dark page
+    pub theme: String,
 }
 
 impl Default for Furniture {
@@ -95,6 +97,7 @@ impl Default for Furniture {
             legend_edit: Value::Null,
             legend_order: Vec::new(),
             inset_at: Place::Off,
+            theme: "light".into(),
         }
     }
 }
@@ -122,6 +125,7 @@ impl Furniture {
             legend_edit: p.get("legend_edit").cloned().unwrap_or(Value::Null),
             legend_order: p.get("legend_order").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default(),
             inset_at: Place::parse(p.get("inset"), Place::Off),
+            theme: s("theme", &d.theme, &["light", "dark"])?,
             scale_style,
             north_style,
             legend,
@@ -519,5 +523,12 @@ mod tests {
         assert_eq!(f.legend_at, Place::At(Corner::TopLeft));
         assert_eq!(f.inset_at, Place::Auto);
         assert!(Furniture::from_params(&serde_json::json!({"scale_bar": "fancy"})).is_err());
+    }
+
+    #[test]
+    fn page_theme_defaults_to_light_and_rejects_unknown_values() {
+        assert_eq!(Furniture::from_params(&serde_json::json!({})).unwrap().theme, "light");
+        assert_eq!(Furniture::from_params(&serde_json::json!({"theme": "dark"})).unwrap().theme, "dark");
+        assert!(Furniture::from_params(&serde_json::json!({"theme": "neon"})).is_err());
     }
 }

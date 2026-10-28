@@ -498,3 +498,11 @@ gstat is one line away, and the `r-kriging` recipe shows how.
 | Web-map export, `for_each`/`parallel`, content-addressed cache, zonal statistics, cloud-free composites | Phase 2 (next) |
 | Providers (OTB, SNAP, ODM, Whitebox) | Phase 2 → 4 |
 | Optional AI recipe writer, MCP server | Phase 2 → 6 |
+
+### Professional map layout options
+
+- `export.map` accepts `theme: dark` for a dark page (title, legend and margins), and `basemap` names such as `osm`, `esri-imagery` or `esri-dark`.
+- Unique-value classes can carry a `label`, shown in the legend instead of the raw value.
+- `symbology.caption` replaces the "by field" line under a legend title; an empty caption hides it.
+- `labels.field2` with `labels.suffix2` joins a second field into each label, for example a bearing and a distance.
+- `labels.placement: point` keeps line labels on short segments.
