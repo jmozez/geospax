@@ -28,7 +28,8 @@ import re, sys
 skip = {"CHANGELOG.md", "LICENSE", "packaging/windows/installer-hooks.nsh", "scripts/check-publisher.sh",
         "scripts/test-windows-upgrade.ps1", "docs/FAQ.md"}  # the old registry key, named to remove it
 for f in sys.stdin.read().split("\n"):
-    if not f or f in skip: continue
+    # site/docs/*.html is generated from docs/ — a source on the skip list keeps that status rendered
+    if not f or f in skip or f.startswith("site/docs/"): continue
     try: t = open(f, encoding="utf-8").read()
     except (UnicodeDecodeError, OSError): continue
     if re.search(r"(?<!and )GeoSpaX contributors", t): print(f)
