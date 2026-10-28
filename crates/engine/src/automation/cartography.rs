@@ -278,9 +278,10 @@ impl Layout {
             return Layout { width, height, fx: MARGIN, fy: HEADER, fw, fh, s, cx: (x0 + x1) / 2.0, cy: (y0 + y1) / 2.0, proj };
         }
         let pad = if fit == Fit::Exact { 1.0 } else { 1.16 };
-        // at least ~400 m across, so a single photo still gets a sensible map
+        // at least ~400 m across, so a single photo still gets a sensible map (an exact extent is
+        // shown as asked, e.g. a survey plan at 1:1000)
         let lat_c = (extent[1] + extent[3]) / 2.0;
-        let min_span = 400.0 / (40_075_016.686 * lat_c.to_radians().cos().max(0.05));
+        let min_span = if fit == Fit::Exact { 0.0 } else { 400.0 } / (40_075_016.686 * lat_c.to_radians().cos().max(0.05));
         let (cx, cy) = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
         let (w, h) = ((x1 - x0).max(min_span) * pad, (y1 - y0).max(min_span) * pad);
         x0 = cx - w / 2.0;
@@ -888,10 +889,9 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
     let max_chars = ((w - 2.0 * MARGIN) / (11.0 * 0.6)) as usize;
     let _ = write!(
         svg,
-        "<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">{}</text>\
+        "{}\
 <text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">Scale ≈ 1:{} at {DPI:.0} dpi · {} · WGS 84 · north is up</text></svg>",
-        h - 22.0,
-        esc(&truncate(&spec.credits, max_chars)),
+        credit_lines(&spec.credits, max_chars, h),
         h - 8.0,
         fmt_num(round_sig(denom, 2)),
         lay.proj.name()
@@ -1190,9 +1190,8 @@ pub fn render_panels(spec: &MapSpec, panels: &[Panel], w: f64, h: f64, own_legen
     let max_chars = ((w - 2.0 * MARGIN) / (11.0 * 0.6)) as usize;
     let _ = write!(
         svg,
-        "<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">{}</text><text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">{} panels · each with its own scale bar · Web Mercator · WGS 84 · north is up</text></svg>",
-        h - 22.0,
-        esc(&truncate(&spec.credits, max_chars)),
+        "{}<text x=\"{MARGIN}\" y=\"{:.1}\" font-size=\"11\" fill=\"#6b7785\">{} panels · each with its own scale bar · Web Mercator · WGS 84 · north is up</text></svg>",
+        credit_lines(&spec.credits, max_chars, h),
         h - 8.0,
         panels.len()
     );
@@ -1640,6 +1639,33 @@ fn swatch(svg: &mut String, kind: GeomKind, x: f64, y: f64, color: &str, role: O
     }
 }
 
+/// A graduated class row: "lo – hi", with the optional `symbology.unit` after it ("0 – 1 km").
+pub fn grad_text(lo: f64, hi: f64, unit: &str) -> String {
+    let u = unit.trim();
+    if u.is_empty() { format!("{} – {}", fmt_num(lo), fmt_num(hi)) } else { format!("{} – {} {u}", fmt_num(lo), fmt_num(hi)) }
+}
+
+/// Footer credits as SVG text: one line when they fit, else wrapped at a word to two lines (the
+/// second trimmed), sitting above the scale statement inside the footer band.
+pub fn credit_lines(s: &str, n: usize, h: f64) -> String {
+    let line = |y: f64, txt: &str| format!("<text x=\"{MARGIN}\" y=\"{y:.1}\" font-size=\"11\" fill=\"#6b7785\">{}</text>", esc(txt));
+    let (a, b) = wrap2(s, n);
+    match b {
+        None => line(h - 22.0, &a),
+        Some(b) => format!("{}{}", line(h - 35.0, &a), line(h - 22.0, &truncate(&b, n))),
+    }
+}
+
+/// Split `s` into a first line of at most `n` chars, broken at the last space, and the rest.
+pub fn wrap2(s: &str, n: usize) -> (String, Option<String>) {
+    if s.chars().count() <= n || n < 2 {
+        return (s.to_string(), None);
+    }
+    let head: String = s.chars().take(n).collect();
+    let cut = head.rfind(' ').filter(|&i| i > 0).unwrap_or(head.len());
+    (s[..cut].trim_end().to_string(), Some(s[cut..].trim_start().to_string()))
+}
+
 fn truncate(s: &str, n: usize) -> String {
     if s.chars().count() <= n { s.to_string() } else { format!("{}…", s.chars().take(n - 1).collect::<String>()) }
 }
@@ -1767,7 +1793,7 @@ fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64,
                     swatch(svg, l.kind, x, y, colors.get(i).copied().unwrap_or(NULL_COLOR), role, op, &l.style);
                     let count = counts.get(i).map(|c| format!("  ({c})")).unwrap_or_default();
                     let note = labels.get(i).map(|n| format!(" · {n}")).unwrap_or_default();
-                    text(svg, y, &format!("{} – {}{note}{count}", fmt_num(lo), fmt_num(*b)));
+                    text(svg, y, &format!("{}{note}{count}", grad_text(lo, *b, txt(&sym, "unit", ""))));
                     lo = *b;
                     y += row;
                 }
@@ -2030,6 +2056,34 @@ mod tests {
 
 #[cfg(test)]
 mod theme_tests {
+    #[test]
+    fn exact_extent_skips_the_minimum_span() {
+        use super::{Fit, Layout, Proj};
+        let e = [147.00115, -6.7281, 147.00305, -6.7267];
+        let exact = Layout::fit_in(e, 1600.0, 1100.0, Fit::Exact, true, Proj::Mercator).scale_denominator();
+        let margin = Layout::fit_in(e, 1600.0, 1100.0, Fit::Margin, true, Proj::Mercator).scale_denominator();
+        assert!(exact < margin / 1.5, "exact {exact} margin {margin}");
+    }
+
+    #[test]
+    fn graduated_rows_carry_units() {
+        assert_eq!(super::grad_text(0.0, 1.0, "km"), "0 – 1 km");
+        assert_eq!(super::grad_text(2.0, 5.0, ""), "2 – 5");
+    }
+
+    #[test]
+    fn credits_wrap_to_two_lines() {
+        use super::{credit_lines, wrap2};
+        assert_eq!(wrap2("short", 20), ("short".to_string(), None));
+        let (a, b) = wrap2("Data: OSM contributors · Basemap Esri", 20);
+        assert!(a.chars().count() <= 20 && !a.ends_with(' '));
+        assert_eq!(format!("{a} {}", b.clone().unwrap()), "Data: OSM contributors · Basemap Esri");
+        let svg = credit_lines("Data: OSM contributors · Basemap Esri", 30, 500.0);
+        assert_eq!(svg.matches("<text").count(), 2);
+        assert!(svg.contains("y=\"465.0\"") && svg.contains("y=\"478.0\""));
+        assert!(!svg.contains('…'));
+    }
+
     use super::*;
     use serde_json::json;
 

@@ -103,9 +103,9 @@ YN = lambda yes, no, ty, tn: [(1, yes, ty), (0, no, tn)]
 # kit: (layers bottom to top as (id fragment, style or None to keep), extra export.map params)
 STYLE = {
     "survey-plan": ([("grid-epsg", S("#5b6976", 0.7, width=0.6, labels={"field": "label", "size": 9})),
-                     ("lot-bearings", S("#ffd166", 1, width=2.6, labels={"field": "bearing", "field2": "distance_m", "suffix2": " m", "size": 10, "font": "bold", "overlap": True, "placement": "point"})),
+                     ("lot-bearings", S("#ffd166", 1, width=2.6, labels={"field": "bearing", "field2": "distance_m", "suffix2": " m", "size": 11, "font": "bold", "overlap": True, "placement": "point"})),
                      ("traverse-stations", S("#ffffff", 1, size=6, labels={"field": "station", "size": 10}))],
-                    {"extent": [147.0002, -6.72805, 147.0041, -6.72625], "exact": True, "rasters": []}),
+                    {"extent": [147.00095, -6.72820, 147.00330, -6.72650], "exact": True, "rasters": []}),
     "power-corridor": ([("corridor-zones", U("zone", [("consultation", "#4cc9f0", "Consultation, 100 m"), ("clearance", "#ffb703", "Vegetation clearance, 50 m"), ("easement", "#e63946", "Easement, 20 m")], "", 0.5)),
                         ("@power-lines.geojson", S("#ffffff", 1, width=1.8)),
                         ("spans", U("too_long", YN("#ff5d8f", "#ffffff", "Span over limit", "Span within limit"), "", 1, width=1.6)),
@@ -132,7 +132,7 @@ STYLE = {
     "urban-planning": ([("zoning-summary", U("zone", [("residential", "#f4a261", "Residential"), ("commercial", "#4361ee", "Commercial"), ("retail", "#7209b7", "Retail"), ("industrial", "#8d99ae", "Industrial"), ("recreation ground", "#52b788", "Recreation"), ("religious", "#e9c46a", "Religious"), ("cemetery", "#6c757d", "Cemetery")], "", 0.6)),
                         ("green-space", U("within_walk", YN("#80ed99", "#ef476f", "Home within 400 m of a park", "Home beyond 400 m"), "", 1, size=4))], {}),
     "rural-access": ([("service-access", {"visible": True, "opacity": 1, "point": {"size": 9},
-                      "symbology": {"kind": "graduated", "field": "nearest_km", "caption": "km, straight line to the nearest clinic or school",
+                      "symbology": {"kind": "graduated", "field": "nearest_km", "caption": "Straight line to the nearest clinic or school", "unit": "km",
                                     "min": 0, "breaks": [1, 2, 3, 5, 10], "colors": ["#1a9850", "#91cf60", "#fee08b", "#fc8d59", "#d73027"]},
                       "labels": {"on": False}})], {"rasters": []}),
     "mine-volumes": ([("tenure-check", S("#ffffff", 1, outline={"color": "#ffffff", "width": 2}, fill=False))], {"rasters": ["elevation-change"]}),
