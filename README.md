@@ -196,9 +196,9 @@ Twelve finished maps, one per industry kit, made in GeoSpaX (Pro mode, dark them
 
 ### Surveying: Plan a lot in minutes, not days.
 
-Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:1,300.
+Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:2,500.
 
-<p align="center"><img src="docs/assets/industry/survey-plan-map-pro-dark.png" alt="GeoSpaX Surveying map: Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:1,300." width="900" /></p>
+<p align="center"><img src="docs/assets/industry/survey-plan-map-pro-dark.png" alt="GeoSpaX Surveying map: Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:2,500." width="900" /></p>
 
 ### Power lines: See every easement at a glance.
 
