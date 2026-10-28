@@ -118,6 +118,8 @@ a:hover .arrow { transform: translateX(3px); }
 .shot { margin: 0; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); background: var(--card); cursor: zoom-in; transition: border-color .2s, transform .25s; }
 .shot:hover { border-color: var(--line2); transform: translateY(-3px); }
 .shot img { aspect-ratio: 16 / 10; object-fit: cover; transition: transform .6s; }
+#industry-maps .shot img { aspect-ratio: 1000 / 690; object-fit: contain; }
+#industry-maps .tours { grid-template-columns: repeat(2, 1fr); }
 .shot:hover img { transform: scale(1.03); }
 .tours figcaption, .plugin figcaption { padding: 14px 16px 16px; color: var(--muted); font-size: 14.5px; position: relative; background: var(--card); }
 .tours { display: grid; gap: 18px; grid-template-columns: repeat(3, 1fr); }
@@ -169,7 +171,7 @@ footer { border-top: 1px solid var(--line); padding: 64px 0 32px; }
 }
 @media (max-width: 600px) {
   section { padding: 80px 0; }
-  .bento, .tours, .plugins, .steps { grid-template-columns: 1fr; }
+  .bento, .tours, .plugins, .steps, #industry-maps .tours { grid-template-columns: 1fr; }
   .b-wide { grid-column: span 1; }
   .stats-in { grid-template-columns: 1fr 1fr; }
   .hero-shot { transform: none; }
