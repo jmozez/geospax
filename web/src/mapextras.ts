@@ -218,7 +218,9 @@ export class MapExtras {
     el.className = `gx-compare gx-${mode}`;
     el.dataset.layer = id;
     host.append(el);
-    const style = structuredClone(main.getStyle());
+    const spec = main.getStyle();
+    if (!spec) return this.h.setStatus('The map is still loading; try again in a moment.', 4000);
+    const style = structuredClone(spec);
     style.layers = style.layers.filter((x) => !(x.id === id || x.id.startsWith(`${id}#`)));
     const map = new maplibregl.Map({ container: el, style, center: main.getCenter(), zoom: main.getZoom(), bearing: main.getBearing(), pitch: main.getPitch(), interactive: false, attributionControl: false, fadeDuration: 0 });
     // maplibre gives its container position: relative; the overlay must cover the whole map
@@ -264,8 +266,8 @@ export class MapExtras {
       bar.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowLeft') { x -= e.shiftKey ? 80 : 20; place(); e.preventDefault(); }
         if (e.key === 'ArrowRight') { x += e.shiftKey ? 80 : 20; place(); e.preventDefault(); }
-        if (e.key === 'Home') { x = 0; place(); }
-        if (e.key === 'End') { x = host.clientWidth; place(); }
+        if (e.key === 'Home') { x = 0; place(); e.preventDefault(); }
+        if (e.key === 'End') { x = host.clientWidth; place(); e.preventDefault(); }
       });
       const resize = () => place();
       window.addEventListener('resize', resize);
