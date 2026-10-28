@@ -146,10 +146,10 @@ export const ENSO_TOOLS: Tool[] = [
         if (Number.isFinite(p[i])) { counts[br.filter((x) => p[i] >= x).length]++; k++; sum += p[i]; }
       }
       if (!k) throw new Error('No cells with both values');
-      const labels = ['Very much below normal (under 50 %)', 'Below normal (50 to 80 %)', 'Near normal (80 to 120 %)', 'Above normal (120 to 150 %)', 'Very much above normal (over 150 %)'];
+      const labels = ['Under 50 % (severe deficit)', '50 to 80 % (below normal)', '80 to 120 % (near normal)', '120 to 150 % (above normal)', 'Over 150 % (well above)'];
       return {
         message: `Mean ${(sum / k).toFixed(0)} % of normal; ${((counts[0] + counts[1]) / k * 100).toFixed(1)} % of the area below 80 %`,
-        rasters: [{ name: 'Rainfall (% of normal)', like: o, data: p, units: '%', description: 'Observed rainfall as a percentage of the normal' }, classify(o, 'Rainfall anomaly class', p, br, labels, ['#8c510a', '#d8b365', '#f5f5f5', '#5ab4ac', '#01665e'], 'Rainfall percent of normal in five classes')],
+        rasters: [{ name: 'Rainfall (% of normal)', like: o, data: p, units: '%', description: 'Observed rainfall as a percentage of the normal' }, classify(o, 'Rainfall anomaly class', p, br, labels, ['#8c510a', '#d8b365', '#6f7a84', '#5ab4ac', '#01665e'], 'Rainfall percent of normal in five classes')],
         table: labels.map((l, i) => [l, `${(counts[i] / k * 100).toFixed(1)} %`] as [string, string]),
       };
     },
@@ -211,7 +211,7 @@ export const ENSO_TOOLS: Tool[] = [
       if (!k) throw new Error('The raster has no values');
       return {
         message: `${((cnt[0] + cnt[1]) / k * 100).toFixed(1)} % of the area is likely drier than the median`,
-        rasters: [classify(g, 'Seasonal outlook', p, br, labels, ['#8c510a', '#d8b365', '#f5f5f5', '#5ab4ac', '#01665e'], 'Chance of above-median rainfall, in classes')],
+        rasters: [classify(g, 'Seasonal outlook', p, br, labels, ['#8c510a', '#d8b365', '#6f7a84', '#5ab4ac', '#01665e'], 'Chance of above-median rainfall, in classes')],
         table: labels.map((l, i) => [l, `${(cnt[i] / k * 100).toFixed(1)} %`] as [string, string]),
       };
     },
