@@ -24,12 +24,15 @@
   <div class="wrap doc-layout">
     <aside class="doc-nav"><p class="kicker">Documentation</p><a href="/docs/guide" aria-current="page">User guide</a><a href="/docs/faq">FAQ</a><a href="/docs/features">Features</a><a href="/docs/plugins">Domain plugins</a><a href="/docs/automation">Automation and recipes</a><a href="/docs/devices">Devices and sensors</a><a href="/docs/r">R and Python</a><a href="/docs/ai">AI assistant</a><a href="/docs/gsx">GSX tools</a><a href="/docs/deploy">Web edition and servers</a><a href="/docs/development">Development</a></aside>
     <article class="prose"><h1 id="geospax-user-guide"><a class="anchor" href="#geospax-user-guide">#</a>GeoSpaX user guide</h1>
+<p align="center"><img src="assets/geospax-user-guide-cover.png" alt="GeoSpaX user guide cover" width="420" /></p>
+
 <p>GeoSpaX makes maps for you. You bring the data (plug something in, drop a file, or name an area) and a
 <strong>recipe</strong> does the rest: import, analysis, styling, layout, legend and export to PNG, PDF and an HTML report.
 This guide gets you from zero to a finished map in a few minutes.</p>
 <ul>
 <li><a href="#1-install">1. Install</a></li>
 <li><a href="#2-your-first-map-four-lazy-ways">2. Your first map: four lazy ways</a></li>
+<li><a href="#2d-guided-tours-make-every-showcase-map">2d. Guided tours: make every showcase map</a></li>
 <li><a href="#3-where-things-go">3. Where things go</a></li>
 <li><a href="#4-recipes-in-the-box">4. Recipes in the box</a></li>
 <li><a href="#5-automation-on-and-off">5. Automation on and off</a></li>
@@ -303,7 +306,11 @@ selected (zoom, attribute table, symbology, AutoMap and the same next steps):</p
 <td><strong>Help</strong></td>
 <td>Learn (tutorials, search commands) · Docs (user guide, FAQ, what&#39;s new) · Support · About · Diagnostics</td>
 </tr>
-</tbody></table></div><p><strong>Data, R &amp; Python, recipes and plugins are in the Explorer</strong> (left panel), not on the ribbon:
+</tbody></table></div><p><img src="/docs/assets/ribbon-view.webp" alt="The View tab of the Pro ribbon: basemap, projection, compare, time, grid, theme and windows" loading="lazy" /></p>
+<p><em>A tab at a glance (View shown): large buttons for the common action of each group, small
+three-a-column buttons for the rest, and split buttons — like <strong>Basemap</strong> here — that run the last
+choice and open the list on their arrow.</em></p>
+<p><strong>Data, R &amp; Python, recipes and plugins are in the Explorer</strong> (left panel), not on the ribbon:
 <strong>Online data</strong> (climate, future climate, soil, species, boundaries, elevation … and Check species
 names), <strong>Overture Maps</strong>, <strong>Recipes</strong> (with the recipe gallery) and <strong>Results</strong>, <strong>R &amp; Python</strong> (R:
 packages, R console, tmap, ggplot2 and rayshader maps, terra terrain, Earth Engine, biomod2 and MaxEnt,
@@ -595,6 +602,47 @@ folder&quot; so you can remove them yourself.</p>
 (<code>Recipes 10 ▾</code>) so the ribbon stays one row tall. Click it for the full list — icon, title and one
 line of description, one click to run. The tiny button in the group&#39;s title switches that group back
 to a card gallery, and the choice is remembered.</p>
+<p>The twelve domain plugins ship with GeoSpaX — what each one made on open data around Lae (see the
+step-by-step table in <a href="#the-twelve-domain-plugins">§2d · The twelve domain plugins</a>):</p>
+<table><tr>
+<td><img src="assets/plugin-agriculture.png" alt="Agriculture plugin: cropland suitability" /></td>
+<td><img src="assets/plugin-biodiversity.png" alt="Biodiversity plugin: species richness grid" /></td>
+<td><img src="assets/plugin-forestry.png" alt="Forestry plugin: fragmentation and connectivity" /></td>
+<td><img src="assets/plugin-marine.png" alt="Marine plugin: fish record clusters over bathymetry" /></td>
+</tr></table>
+
+<p><em>Cropland suitability · species richness per cell · forest fragmentation · DBSCAN fish clusters —
+four of the twelve domain plugins, all run inside GeoSpaX on open data.</em></p>
+<h3 id="what-running-a-tool-looks-like"><a class="anchor" href="#what-running-a-tool-looks-like">#</a>What running a tool looks like</h3>
+<p>Every plugin tool opens the same kind of form: a plain-words description on top, labelled fields
+(layer pickers list what is on your map, required fields are marked), then <strong>Cancel / Run</strong>. Pick a
+layer, adjust the defaults if you like, press <strong>Run</strong> — results land on the map and in <strong>History</strong>.</p>
+<table>
+<tr>
+<td><img src="assets/dialog-spectral-index.png" alt="Spectral index dialog: pick an image and index, set bands and threshold" /><br /><b>Spectral index (Otsu)</b><br />band pair + threshold → NDVI/NDWI/NBR extent</td>
+<td><img src="assets/dialog-asset-register.png" alt="Asset register dialog: assets, installed date, design life, inspection and condition fields" /><br /><b>Asset register</b><br />age, inspections and risk per asset</td>
+<td><img src="assets/dialog-ols-surfaces.png" alt="Obstacle limitation surfaces dialog: runway line, code number, obstacles" /><br /><b>Obstacle limitation surfaces</b><br />ICAO Annex 14 surfaces + obstacles</td>
+</tr>
+<tr>
+<td><img src="assets/dialog-protection-gap.png" alt="Protection gap dialog: habitat layer, protected areas, area method" /><br /><b>Protection gap</b><br />habitat inside vs outside protected areas</td>
+<td><img src="assets/dialog-enso-index.png" alt="ENSO index dialog: index choice, periods, optional data file" /><br /><b>ENSO index</b><br />latest ONI / Niño 3.4 / SOI + chart</td>
+<td><img src="assets/dialog-hotspot-grid.png" alt="Weighted hotspot grid dialog: three layers, weights, cell size, shape, score" /><br /><b>Weighted hotspot grid</b><br />up to 3 layers on hex/square cells</td>
+</tr>
+<tr>
+<td><img src="assets/dialog-wlc-suitability.png" alt="Weighted suitability dialog: features layer, criteria field:weight list, constraint" /><br /><b>Weighted suitability (WLC)</b><br />field:weight criteria rescaled 0–1</td>
+<td><img src="assets/dialog-tower-inventory.png" alt="Tower inventory dialog: towers, route, number field, span and deviation limits" /><br /><b>Tower inventory</b><br />spans, deviations, structure types</td>
+<td><img src="assets/dialog-slope-zones.png" alt="Slope zones dialog: DEM layer and degree breaks" /><br /><b>Slope zones</b><br />gentle / moderate / steep + areas</td>
+</tr>
+<tr>
+<td><img src="assets/dialog-ais-density.png" alt="Vessel track density dialog: AIS points, MMSI field, cell size" /><br /><b>Vessel track density</b><br />AIS reports + distinct vessels per cell</td>
+<td><img src="assets/dialog-diversity.png" alt="Richness and diversity dialog: occurrences, species field, per-area option" /><br /><b>Richness and diversity</b><br />richness, Shannon, Simpson, evenness</td>
+<td><img src="assets/dialog-cut-fill.png" alt="Cut and fill volumes dialog: two DEMs, boundary, change threshold" /><br /><b>Cut and fill volumes</b><br />volume removed/added between DEMs</td>
+</tr>
+</table>
+
+<p><em>All fields come with sensible defaults (e.g. bands 4/3 for NDVI, 40-year design life, 10 m / 1 km
+cells); <code>(none)</code> and <code>(choose)</code> mean the field is optional or needs a pick. A blank text field uses
+the tool&#39;s own choice — Otsu threshold, today&#39;s date, auto CRS.</em></p>
 <p><strong>Using one:</strong> click a tool&#39;s <strong>Run…</strong>, fill in the form, press Run. The result (or the recipe run it
 started) is reported in the pane and in the log; recipe-backed tools also appear in <strong>History</strong>.</p>
 <p><strong>Installing:</strong> paste a folder or package path (<code>.rgplugin</code>, <code>.esriAddInX</code>, <code>.zip</code>) into the box at
@@ -603,6 +651,388 @@ in <code>&lt;state&gt;/.geospax/plugins</code>; <code>--plugins DIR</code> adds 
 <p><strong>Writing one:</strong> copy <code>plugins/example-python</code> — a <code>plugin.yaml</code> with tools and parameters, plus a
 script that reads a JSON request on stdin and prints JSON back. Full contract, runtimes and the
 honest compatibility table: <a href="/docs/plugins">PLUGINS.md</a>.</p>
+<h2 id="2d-guided-tours-make-every-showcase-map"><a class="anchor" href="#2d-guided-tours-make-every-showcase-map">#</a>2d. Guided tours: make every showcase map</h2>
+<p>Every picture in the README and on the site was made inside GeoSpaX on open data. This section walks
+through each one, step by step, so you can make it yourself — then take it apart and make it yours.
+All of it runs offline except where a tour says it fetches data (DEM, imagery, species records).</p>
+<p>The tours use the <strong>Pro</strong> interface. Press the <strong>Pro</strong> button (top right) if you are in Lazy mode —
+same map, same engine, more controls. Ribbon paths are written <strong>Tab › Button</strong>; panels are
+<strong>left › Explorer</strong> (files, online data, recipes, plugins, devices) and <strong>right › Layer / Tools / Ask</strong>.</p>
+<h3 id="the-starting-globe"><a class="anchor" href="#the-starting-globe">#</a>The starting globe</h3>
+<p><img src="/docs/assets/screenshot-globe.webp" alt="GeoSpaX starting on the globe over world imagery" loading="lazy" /></p>
+<p><strong>What it is:</strong> the app as it opens — Esri World Imagery on a globe, no layers yet, the Layer tab on
+the right offering basemap, projection and data choices.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Start GeoSpaX. It opens here every time with a fresh project.</li>
+<li>Nothing selected = the <strong>Layer</strong> tab (right) controls the map itself:<ul>
+<li><strong>Basemap</strong> — imagery, streets, terrain or none;</li>
+<li><strong>Globe / Flat / 3D terrain</strong> — the projection;</li>
+<li><strong>Add data</strong> — your files, devices and online sources.</li>
+</ul>
+</li>
+<li>Turn it flat with <strong>View › Mercator</strong>, back to a ball with <strong>View › Globe</strong>. The two buttons stay
+pressed to show which is on.</li>
+</ol>
+<p><strong>Try next:</strong> click the imagery — nothing is there yet. That is what the next tours fix.</p>
+<h3 id="lazy-mode-layer-cards-that-explain-themselves"><a class="anchor" href="#lazy-mode-layer-cards-that-explain-themselves">#</a>Lazy mode: layer cards that explain themselves</h3>
+<p><img src="/docs/assets/screenshot-lazy.webp" alt="GeoSpaX Lazy mode with layer cards and the task bar" loading="lazy" /></p>
+<p><strong>What it is:</strong> the same project in <strong>Lazy</strong> mode — one card per layer saying what it shows
+(&quot;Coloured by <em>height</em>, 3 to 30&quot;), a legend bar, and one-click next steps under it
+(<em>Make a surface</em>, <em>Hot spots</em>, <em>Zoom to</em>).</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Press <strong>Lazy</strong> (top right). The ribbon becomes a task bar.</li>
+<li>Drop a file on the window (or use the sample data below). The card appears styled and zoomed to.</li>
+<li>Read the card: the field it chose, the classes, and <em>why</em> under &quot;Styled for you&quot;.</li>
+<li>Press a next step on the card — each runs the real tool, not a demo. <strong>Hot spots</strong> on a point
+layer, for example, runs Getis-Ord Gi* with settings chosen from the data.</li>
+</ol>
+<p><strong>The sample data used here:</strong> <code>data/</code> in this repository (Natural Earth countries, rivers, roads
+and places; a GBIF occurrence file; 1 M synthetic points, buildings and hotspots). Any GeoJSON,
+GeoPackage, zipped Shapefile, KML, GPX, CSV, GeoTIFF, FlatGeobuf, GeoParquet or LAS/LAZ works the
+same way.</p>
+<h3 id="pro-mode-the-full-workbench"><a class="anchor" href="#pro-mode-the-full-workbench">#</a>Pro mode: the full workbench</h3>
+<p><img src="/docs/assets/screenshot-pro.webp" alt="GeoSpaX Pro mode with the ribbon, layer tree and Layer tab" loading="lazy" /></p>
+<p><strong>What it is:</strong> the ArcGIS-Pro-style workbench — ribbon on top, <strong>Contents</strong> tree on the left with
+live legends and feature counts, <strong>Layer / Tools / Ask</strong> tabs on the right, attribute table and
+runs underneath.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Press <strong>Pro</strong>. The ribbon appears (Home, View, Edit, Design, Imagery, Analysis, Share, Help).</li>
+<li>The <strong>Contents</strong> pane (left) lists every layer: twisty to expand its legend classes, the number
+of features, and flags like <code>overviews suggested</code>.</li>
+<li>Click a layer name — the right <strong>Layer</strong> tab becomes <em>its</em> panel: appearance, labels, fields,
+source. This is where styling lives.</li>
+<li>The <strong>Tools</strong> tab is the Toolbox (~1,130 tools); <strong>Ask</strong> is the assistant.</li>
+<li>The bottom dock holds <strong>Attributes</strong> (the table) and <strong>Automate / History / Log</strong>.</li>
+</ol>
+<p><strong>Ribbon tour, the useful stops:</strong> <strong>Home</strong> has add data, selection, identify and measure;
+<strong>View</strong> has swipe, spyglass, time slider, grid, projection and theme; <strong>Edit</strong> has drawing and
+attribute editing; <strong>Design</strong> is CAD; <strong>Imagery</strong> is rasters, terrain and remote sensing;
+<strong>Analysis</strong> is the Toolbox, network and statistics; <strong>Share</strong> is export and publish; <strong>Help</strong> is
+docs, tutorials and diagnostics.</p>
+<h3 id="swipe-a-layer-on-one-side-of-the-divider"><a class="anchor" href="#swipe-a-layer-on-one-side-of-the-divider">#</a>Swipe: a layer on one side of the divider</h3>
+<p><img src="/docs/assets/ribbon-swipe.webp" alt="Swipe: the reserves layer shown only left of the divider, map grid on" loading="lazy" /></p>
+<p><strong>What it is:</strong> <strong>View › Swipe</strong> draws the <em>selected</em> layer only on one side of a vertical divider
+you drag. The other side shows the map without it — for before/after or layer/basemap comparison.
+<strong>Spyglass</strong> (next to it) is the same idea inside a circle that follows the pointer.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Load two things that overlap — e.g. drop <code>natural_earth.roads</code> on top of imagery, or open
+<em>Explorer › Online data › Boundaries</em> for a country boundary over the basemap.</li>
+<li>Click the layer in <strong>Contents</strong> so it is selected (it is what swipe hides).</li>
+<li><strong>View › Swipe</strong>. The button stays pressed; a divider appears.</li>
+<li>Drag the divider. Left of it: the layer. Right of it: everything else.</li>
+<li>Optional: <strong>View › Grid</strong> for the labelled graticule shown in the shot.</li>
+<li>Done: click <strong>Swipe</strong> again (or press Esc) to release it.</li>
+</ol>
+<h3 id="time-slider-play-a-layer-through-its-dates"><a class="anchor" href="#time-slider-play-a-layer-through-its-dates">#</a>Time slider: play a layer through its dates</h3>
+<p><img src="/docs/assets/ribbon-time.webp" alt="Time slider playing survey points by year" loading="lazy" /></p>
+<p><strong>What it is:</strong> <strong>View › Time</strong> shows a layer one period at a time (or accumulating) by any date or
+year field — through a definition query, so tools, exports and selections see the same features as
+the map.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>You need a layer with a date-ish field. The occurrence sample
+(<code>lab_paradisaea_guilielmi_occurrences.geojson</code>) has <code>year</code>; GPS tracks have timestamps.</li>
+<li>Select the layer in <strong>Contents</strong>.</li>
+<li><strong>View › Time</strong>. Pick the field and the step — year, month or day.</li>
+<li>Press <strong>play</strong> or drag the slider. The map shows that period only; the <strong>Attributes</strong> table and
+any export see the same subset.</li>
+<li>Toggle <strong>accumulate</strong> to keep earlier periods on screen instead of replacing them.</li>
+<li><strong>Time</strong> again (or Esc) ends it.</li>
+</ol>
+<h3 id="design-draw-a-subdivision-over-imagery"><a class="anchor" href="#design-draw-a-subdivision-over-imagery">#</a>Design: draw a subdivision over imagery</h3>
+<p><img src="/docs/assets/tour-design.png" alt="GeoSpaX Design tab: a 76-lot subdivision plan over Esri World Imagery of Lae" loading="lazy" /></p>
+<p><strong>What it is:</strong> a 76-lot estate drawn with the Design tab (CAD tools) — two 12 m access roads, a 15 m
+collector, 20 × 30 m lots, a reserve, a water tank and dimensions, all typed on the command line —
+exported to DXF in UTM metres.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Zoom to your site on imagery (the shot is over Lae, Papua New Guinea).</li>
+<li><strong>Design › Line</strong> or <strong>Shapes › Polyline</strong>: draw the centreline of each road. The command line at
+the bottom takes typed input — <code>25&lt;90</code> (25 m at bearing 90°), <code>@10,5</code> (relative x, y).</li>
+<li><strong>Design › Road from centreline</strong>: pick the centreline, type the width (12 m / 15 m) — it makes
+the road polygons.</li>
+<li><strong>Shapes › Rectangle</strong> for a lot; <strong>Design › Array</strong> repeats it into the grid; <strong>Trim / Extend /
+Fillet</strong> clean the corners; <strong>Offset</strong> sets lots back from roads.</li>
+<li><strong>Precision</strong> toggles while you work: <strong>Snap</strong> (to vertices/edges), <strong>Ortho</strong> (right angles),
+<strong>Polar</strong> (angle steps).</li>
+<li><strong>Design › Dimension</strong> for the measurement callouts; <strong>Survey › Areas</strong> for the lot area table;
+<strong>Traverse (COGO)</strong> if you have a measured boundary to adjust.</li>
+<li><strong>Design › Layers</strong> manages colours, linetypes and locks, like a CAD layer manager.</li>
+<li>Hand it to AutoCAD: <strong>CAD exchange › Export DXF</strong> (in the CRS units — the shot is PNG94/UTM 55S).</li>
+</ol>
+<h3 id="rivers-and-catchments-from-the-30-m-dem"><a class="anchor" href="#rivers-and-catchments-from-the-30-m-dem">#</a>Rivers and catchments from the 30 m DEM</h3>
+<p><img src="/docs/assets/tour-hydrology.png" alt="Strahler-ordered streams and drainage basins of the Markham valley" loading="lazy" /></p>
+<p><strong>What it is:</strong> the Huon Peninsula coast east of Lae from the Copernicus GLO-30 DEM — depressions
+filled, D8 flow routing, 834 stream links coloured by Strahler order 1–5, and the 11 basins wholly
+inside the DEM.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Get the DEM for your area: <strong>Explorer › Online data › Elevation</strong> (Copernicus 30 m, fetched as a
+cloud-optimised GeoTIFF window over HTTP — seconds, not a download of the world).</li>
+<li>Select the DEM layer.</li>
+<li><strong>Imagery › Terrain</strong> group, or the Toolbox tool <strong>hydro.network</strong> (Analysis › Toolbox, search
+&quot;hydro&quot;): it fills depressions, routes flow (D8), extracts stream links with Strahler order and
+delineates basins. Basins cut by the DEM edge are left out.</li>
+<li>The streams come out already styled by order (the dark-to-light blue ramp in the shot); basins as
+outlines.</li>
+<li>Want it for a different area? The <strong>terrain-report</strong> recipe does DEM → relief, slope, aspect,
+contours and slope classes in one run: <strong>Analysis › Recipe gallery › Terrain report</strong>, or
+<code>geospax run terrain-report --input area=your-layer</code> — it fetches the DEM itself.</li>
+</ol>
+<h3 id="land-cover-esa-worldcover-for-your-area"><a class="anchor" href="#land-cover-esa-worldcover-for-your-area">#</a>Land cover: ESA WorldCover for your area</h3>
+<p><img src="/docs/assets/tour-landcover.png" alt="ESA WorldCover 10 m land cover of Lae over Esri World Imagery" loading="lazy" /></p>
+<p><strong>What it is:</strong> ESA WorldCover 2021 at 10 m for the map area, drawn in ESA&#39;s class colours; the
+legend shows each class&#39;s share of the area.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Pan/zoom to the area you care about.</li>
+<li><strong>Explorer › Online data › Land cover</strong> (ESA WorldCover). GeoSpaX clips it to the map window and
+cites the source on the map.</li>
+<li>It arrives styled in the official class colours — forest green, crop yellow, built-up red —
+with the area-share legend automatically.</li>
+<li>Change a class colour or label: <strong>right › Layer tab</strong> while the raster is selected.</li>
+</ol>
+<h3 id="supervised-classification-six-land-cover-classes-from-satellite-embeddings"><a class="anchor" href="#supervised-classification-six-land-cover-classes-from-satellite-embeddings">#</a>Supervised classification: six land-cover classes from satellite embeddings</h3>
+<p><img src="/docs/assets/tour-classification.png" alt="Supervised land-cover classification of Lae from AlphaEarth embeddings" loading="lazy" /></p>
+<p><strong>What it is:</strong> Google DeepMind&#39;s AlphaEarth satellite embeddings (64 values per 10 m pixel),
+k-nearest neighbours trained on 360 points labelled from WorldCover — leave-one-out accuracy 81 %.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Get embeddings for the area: <strong>Imagery › Satellite embeddings › Embeddings</strong> (downloads the
+AlphaEarth field for the current extent).</li>
+<li>Get training samples: drop or draw a point layer with a class field — the tour used points
+labelled by WorldCover class.</li>
+<li><strong>Imagery › Classify</strong> (Satellite embeddings group), or the <strong>embeddings-classify</strong> recipe:
+it trains kNN on the samples, predicts the whole extent and reports leave-one-out accuracy.
+CLI: <code>geospax run embeddings-classify --input area=your-area --input samples=your-points</code>.</li>
+<li>The result comes out styled by class with the accuracy in the report.</li>
+</ol>
+<h3 id="unsupervised-classification-landscape-groups-no-samples-needed"><a class="anchor" href="#unsupervised-classification-landscape-groups-no-samples-needed">#</a>Unsupervised classification: landscape groups, no samples needed</h3>
+<p><img src="/docs/assets/tour-clustering.png" alt="k-means landscape groups of Lae from satellite embeddings" loading="lazy" /></p>
+<p><strong>What it is:</strong> the same embeddings grouped into eight landscape kinds by k-means — 3.6 M pixels in
+under a minute, zero training data.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li><strong>Imagery › Embeddings</strong> for the area (as above).</li>
+<li><strong>Imagery › Group landscape</strong> — pick the number of groups (8 here).</li>
+<li>Done — the classes are machine-found, so colours are categorical; recolour in the Layer tab and
+rename classes once you recognise what each is (&quot;mangrove&quot;, &quot;urban&quot;, &quot;gardens&quot;…).</li>
+<li>Cousins in the same group: <strong>Similar places</strong> (find pixels that look like a clicked spot) and
+<strong>Change</strong> (same landscape, different years).</li>
+</ol>
+<h3 id="lidar-in-3d-point-cloud-to-extruded-buildings"><a class="anchor" href="#lidar-in-3d-point-cloud-to-extruded-buildings">#</a>LiDAR in 3D: point cloud to extruded buildings</h3>
+<p><img src="/docs/assets/tour-lidar.png" alt="LiDAR buildings of downtown San Francisco extruded to roof heights in 3D" loading="lazy" /></p>
+<p><strong>What it is:</strong> 23 M USGS 3DEP points over downtown San Francisco gridded in 12 s into terrain,
+surface and canopy models; 184 buildings found and raised to measured roof heights over imagery.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Drop LAS/LAZ tiles (or a folder, or plug in the drive holding them) — the drop folder or
+<strong>Explorer › Devices</strong> also works. A folder of files becomes a LiDAR <em>device</em> automatically.</li>
+<li>Run <strong>LiDAR → terrain</strong>: <strong>Imagery › LiDAR</strong>, the <strong>lidar-to-terrain</strong> recipe
+(Analysis › Recipe gallery), or <code>geospax run lidar-to-terrain --input source=/path/to/tiles</code>.
+Ground comes from the files&#39; own classification, else the SMRF filter.</li>
+<li>You get a DTM, DSM, canopy heights, tree tops and building outlines with measured heights — each
+a normal layer you can restyle.</li>
+<li><strong>View › 3D terrain</strong> raises the DTM as terrain; select the buildings layer and use
+<em>Extrude in 3D</em> to lift them to roof height (what you see in the shot).</li>
+<li>The run also writes a glTF scene (<code>scene.glb</code>) and a self-contained <code>scene.html</code> viewer in the
+run folder — no install needed to share the 3D.</li>
+</ol>
+<h3 id="network-analysis-road-distance-to-the-nearest-clinic"><a class="anchor" href="#network-analysis-road-distance-to-the-nearest-clinic">#</a>Network analysis: road distance to the nearest clinic</h3>
+<p><img src="/docs/assets/tour-network.png" alt="Road distance to the nearest hospital across Lae&#39;s street network" loading="lazy" /></p>
+<p><strong>What it is:</strong> drive distance from every street segment to the nearest of 12 hospitals and clinics,
+over 2,646 Overture road segments — a service-area-style map.</p>
+<p><strong>Make it:</strong></p>
+<ol>
+<li>Roads: <strong>Explorer › Online data › Roads</strong> (Overture), or drop your own road network.</li>
+<li>Facilities: drop a points layer of clinics/depots/stores.</li>
+<li><strong>Analysis › Network › Closest facility</strong> (the Tools group also has <strong>Service area</strong> for
+reachable bands and <strong>Shortest path</strong> for A→B). Pick the network layer and the facilities layer.</li>
+<li>Every road segment gets the distance to its nearest facility — styled short→long as in the shot.</li>
+<li><strong>Service area</strong> instead gives bands (&quot;within 5 / 10 / 20 min&quot;) from one or more depots — the
+basis of the <em>delivery-routes</em> industry kit below.</li>
+</ol>
+<h3 id="mount-wilhelm-dem-in-seconds-then-in-3d-then-as-print-relief"><a class="anchor" href="#mount-wilhelm-dem-in-seconds-then-in-3d-then-as-print-relief">#</a>Mount Wilhelm: DEM in seconds, then in 3D, then as print relief</h3>
+<p><img src="/docs/assets/tour-dem-wilhelm.webp" alt="Copernicus 30 m DEM of Mount Wilhelm in a hypsometric tint" loading="lazy" /></p>
+<p><strong>What it is (1/3):</strong> the GLO-30 DEM around PNG&#39;s highest peak (839–4,471 m), hypsometric tint green
+to white, with histogram and band stats.</p>
+<ol>
+<li>Zoom to Mount Wilhelm (or any place).</li>
+<li><strong>Explorer › Online data › Elevation</strong> — the DEM arrives in ~4 s, already tinted.</li>
+<li><strong>right › Layer tab</strong> shows its band statistics and the histogram; change the ramp or the
+breakpoints there.</li>
+</ol>
+<p><img src="/docs/assets/tour-dem-3d.webp" alt="Mount Wilhelm DEM as 3D terrain over Esri World Imagery" loading="lazy" /></p>
+<p><strong>What it is (2/3):</strong> the same DEM raised as live 3D terrain over imagery.</p>
+<ol start="4">
+<li>With the DEM on the map, press <strong>View › 3D terrain</strong>. Drag to tilt; the exaggeration is set
+from the data, adjustable in the Layer tab.</li>
+</ol>
+<p><strong>What it is (3/3):</strong> a print-quality version — imagery warped onto the DEM, ray-traced shadows and
+ambient occlusion, rendered in R with rayshader (the <code>relief-wilhelm</code> image on the site).</p>
+<ol start="5">
+<li>Needs R installed (<strong>Help › Diagnostics</strong> checks it). Run the <strong>3D relief with rayshader</strong>
+analysis: <strong>Analysis › Recipe gallery</strong>, or <code>geospax run r-rayshader --input area=your-area</code>.</li>
+<li>It writes the rendered PNG plus a shaded-relief map and a report into the run folder.</li>
+</ol>
+<h3 id="the-twelve-domain-plugins"><a class="anchor" href="#the-twelve-domain-plugins">#</a>The twelve domain plugins</h3>
+<p>Each domain plugin is a bundle of analyses on the same engine — run from <strong>Explorer › Plugins</strong> or
+its ribbon tab. On open data around Lae they made these:</p>
+<div class="table"><table><thead><tr>
+<th>Plugin</th>
+<th>What its map shows</th>
+<th>Run it with</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>Agriculture</strong></td>
+<td>Cropland suitability: gentle slope (weight 3), open land (2), low ground (1) on 220 m cells; forest excluded</td>
+<td><code>agriculture</code> plugin › suitability</td>
+</tr>
+<tr>
+<td><strong>Biodiversity</strong></td>
+<td>OBIS seafloor records per 0.1° cell: richness, Shannon, Simpson, evenness</td>
+<td><code>biodiversity</code> › richness grid</td>
+</tr>
+<tr>
+<td><strong>Climate</strong></td>
+<td>Coastal flood exposure: low-elevation cells scored by low ground and built-up land</td>
+<td><code>climate</code> › flood exposure</td>
+</tr>
+<tr>
+<td><strong>Conservation</strong></td>
+<td>The same records counted on 10 km hexagons — a hotspot grid</td>
+<td><code>conservation</code> › hexagon hotspots</td>
+</tr>
+<tr>
+<td><strong>Disaster</strong></td>
+<td>Landslide susceptibility: slope (4) + local relief (2) + low tree cover (1), 0–1</td>
+<td><code>disaster</code> › susceptibility</td>
+</tr>
+<tr>
+<td><strong>Environment</strong></td>
+<td>A 38.9 km elevation profile transect, 882 samples</td>
+<td><code>environment</code> › profile</td>
+</tr>
+<tr>
+<td><strong>Forestry</strong></td>
+<td>Hansen forest patches ≥1 ha: FRAGSTATS metrics, core areas, 500 m connectivity links</td>
+<td><code>forestry</code> › fragmentation</td>
+</tr>
+<tr>
+<td><strong>Geoscience</strong></td>
+<td>Horn slope in three zones (&lt;8°, 8–20°, &gt;20°)</td>
+<td><code>geoscience</code> › slope zones</td>
+</tr>
+<tr>
+<td><strong>Hydrology</strong></td>
+<td>The streams and basins tour above</td>
+<td><code>hydrology</code> › network</td>
+</tr>
+<tr>
+<td><strong>LULC</strong></td>
+<td>Forest 2000 vs 2023 (Hansen): 3,800 ha lost, 43,831 ha unchanged</td>
+<td><code>lulc</code> › two-date change</td>
+</tr>
+<tr>
+<td><strong>Marine</strong></td>
+<td>DBSCAN clusters of OBIS fish records over GEBCO bathymetry</td>
+<td><code>marine</code> › clusters</td>
+</tr>
+<tr>
+<td><strong>Soil</strong></td>
+<td>RUSLE-style erosion index: slope-steepness × cover factor</td>
+<td><code>soil</code> › erosion potential</td>
+</tr>
+</tbody></table></div><p>To run one: <strong>Explorer › Plugins</strong>, open the domain card, pick the analysis, fill the form, <strong>Run</strong>.
+Every one writes a styled layer, a report, and (where relevant) intermediate layers you can restyle.
+The plugin screenshots in <code>docs/assets/plugin-*.png</code> were all made that way on the open data above.</p>
+<h3 id="the-twelve-industry-kits"><a class="anchor" href="#the-twelve-industry-kits">#</a>The twelve industry kits</h3>
+<p>The industry kits are <strong>recipes</strong> — the same steps a professional would click, saved and repeatable.
+Each made one print-ready map on real Papua New Guinea locations (see <code>docs/assets/industry/</code>).
+Run them from <strong>Analysis › Recipe gallery</strong>, or <code>geospax run kit-&lt;name&gt;</code>.</p>
+<div class="table"><table><thead><tr>
+<th>Kit</th>
+<th>What it does</th>
+<th>Inputs it asks for</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>kit-survey-plan</strong></td>
+<td>Bowditch traverse adjustment, per-lot bearings/distances, survey plan + UTM grid</td>
+<td>traverse legs, start point, lots layer, CRS</td>
+</tr>
+<tr>
+<td><strong>kit-power-corridor</strong></td>
+<td>Corridor zones on a transmission line, encroaching buildings, LiDAR clearance, tower inventory</td>
+<td>line layer, buildings, (optional) LiDAR</td>
+</tr>
+<tr>
+<td><strong>kit-petroleum-leases</strong></td>
+<td>Licence areas, overlap flags, wells vs protected land, least-cost pipeline</td>
+<td>lease polygons, wells, protected areas</td>
+</tr>
+<tr>
+<td><strong>kit-mine-volumes</strong></td>
+<td>Cut/fill between two elevation surveys; tenements, overlaps, expiry</td>
+<td>two DEMs or surveys, tenement polygons</td>
+</tr>
+<tr>
+<td><strong>kit-harvest-planning</strong></td>
+<td>Net harvestable coupes after stream buffers, least-cost haul road</td>
+<td>coupe polygons, streams, slope limit</td>
+</tr>
+<tr>
+<td><strong>kit-maritime-watch</strong></td>
+<td>AIS ping density, vessel tracks, loitering events, transmission gaps</td>
+<td>AIS points/tracks</td>
+</tr>
+<tr>
+<td><strong>kit-aerodrome-safeguarding</strong></td>
+<td>ICAO Annex 14 obstacle limitation surfaces for a runway, obstacles that break them</td>
+<td>runway, buildings/obstacles</td>
+</tr>
+<tr>
+<td><strong>kit-delivery-routes</strong></td>
+<td>Drive-time service areas from a depot, optimised stop order</td>
+<td>road network, depot, stops</td>
+</tr>
+<tr>
+<td><strong>kit-urban-planning</strong></td>
+<td>Zoning summary, housing density, 400 m walk access to green space</td>
+<td>land use, buildings, parks</td>
+</tr>
+<tr>
+<td><strong>kit-rural-access</strong></td>
+<td>Settlement access to clinics and schools with slope context</td>
+<td>villages, services, DEM</td>
+</tr>
+<tr>
+<td><strong>kit-asset-register</strong></td>
+<td>Asset age/condition risk, alerts since the last register</td>
+<td>asset points/polygons + register table</td>
+</tr>
+<tr>
+<td><strong>kit-el-nino-drought</strong></td>
+<td>Rainfall % of normal, anomaly class, drought risk scaled by the Oceanic Niño Index</td>
+<td>rainfall raster or a province layer</td>
+</tr>
+</tbody></table></div><p><strong>To make one look like the site shots</strong> (dark theme, Pro mode): <strong>View › Theme › Dark</strong>, run the
+kit, open its map artifact from <strong>History</strong>, then <strong>Share › Export map</strong> for a print-ready version
+with your own title and credits.</p>
+<h3 id="tips-that-apply-to-every-tour"><a class="anchor" href="#tips-that-apply-to-every-tour">#</a>Tips that apply to every tour</h3>
+<ul>
+<li><strong>Everything is a layer.</strong> Intermediate results (slope, basins, buffers) stay on the map —
+restyle, rename or delete them like anything else.</li>
+<li><strong>Everything is a recipe.</strong> What a button did is saved as a re-runnable recipe in <strong>History</strong> —
+open a finished run to see the exact steps and reuse them on your data.</li>
+<li><strong>AutoStyling is a start, not a wall.</strong> Every colour, class break and label can be changed in the
+Layer tab; AutoMap&#39;s reason for each choice is shown next to it.</li>
+<li><strong>Offline vs online.</strong> File/device tours work fully offline. DEM, WorldCover, Overture, OBIS and
+STAC tours fetch just the area on your map, then work from the local copy.</li>
+</ul>
 <h2 id="3-where-things-go"><a class="anchor" href="#3-where-things-go">#</a>3. Where things go</h2>
 <p>The installed desktop app keeps everything in one folder:</p>
 <pre><code>~/GeoSpaX/
@@ -615,6 +1045,10 @@ honest compatibility table: <a href="/docs/plugins">PLUGINS.md</a>.</p>
 <p>When you start it from a terminal with a folder (<code>geospax /path/to/data</code>), or with <code>GEOSPAX_DATA</code> set, it uses
 that folder instead. State then goes into <code>&lt;folder&gt;/.geospax</code>.</p>
 <h2 id="4-recipes-in-the-box"><a class="anchor" href="#4-recipes-in-the-box">#</a>4. Recipes in the box</h2>
+<p><strong>Run any recipe in three clicks:</strong> 1) <strong>Analysis › Recipe gallery</strong> (or a recipe card under
+<strong>Explorer › Recipes</strong>) → 2) fill the inputs it asks for (each has a plain-words description and a
+sensible default — <code>auto</code> picks your most sample-like layer) → 3) <strong>Run</strong>. Watch it in <strong>Automate</strong>,
+open the result in <strong>History</strong>, or find every finished map under <strong>Your finished maps</strong>.</p>
 <div class="table"><table><thead><tr>
 <th>Recipe</th>
 <th>Makes</th>
@@ -812,12 +1246,16 @@ heights, in the results folder;</li>
 itself. A file that doesn&#39;t say where on Earth it is (some phone scans and exports) stops with a message; run it
 again with the EPSG code of the survey: <code>geospax run lidar-to-terrain --input source=FILE --input epsg=32755</code>.
 Details: <a href="/docs/automation#6c-lidar-point-clouds-built">AUTOMATION.md §6c</a>.</p>
+<p><strong>Step by step:</strong> 1) drop LAS/LAZ files on the window or in <code>Inbox/</code> → 2) the
+<strong>lidar-to-terrain</strong> recipe runs itself → 3) the map gets DTM/DSM/canopy rasters plus <code>trees</code> and
+<code>buildings</code> vector layers → 4) raise them with <strong>View › 3D terrain</strong> and <em>Extrude in 3D</em>.
+Full walkthrough with the San Francisco example: <a href="#lidar-in-3d-point-cloud-to-extruded-buildings">§2d · LiDAR in 3D</a>.</p>
 <h2 id="5c-3d-scenes"><a class="anchor" href="#5c-3d-scenes">#</a>5c. 3D scenes</h2>
 <p>The LiDAR and terrain recipes also build a 3D scene by themselves. The terrain is a block diagram in its map colours
 with the relief shaded, contours painted on, buildings at their measured heights, trees at their heights and crown
 widths, and the point cloud. You get it three ways:</p>
 <ul>
-<li><strong>In the app:</strong> press <strong>🧊 3D</strong> on the recipe&#39;s card. Drag to turn, right-drag (or Shift-drag) to move, scroll or
+<li><strong>In the app:</strong> press *<strong>� 3D</strong> on the recipe&#39;s card. Drag to turn, right-drag (or Shift-drag) to move, scroll or
 pinch to zoom, click the compass to face north, double-click to start again. The switches at the top show or hide
 the terrain, buildings, trees and point cloud.</li>
 <li><strong><code>scene.html</code></strong> in the results folder: the same viewer with the model inside. It opens in any browser, offline,
@@ -828,6 +1266,9 @@ slicer. The report also shows a 3D picture.</li>
 <p>Flat land is raised a little so you can read it: at most 1.5× for detailed surveys, up to 3× for big areas. The note
 on the picture says by how much. Buildings and trees always keep their true heights. To add a 3D scene to your own
 recipe, add a <code>scene.3d</code> step after any elevation raster (<a href="/docs/automation#6d-3d-scenes-built">AUTOMATION.md §6d</a>).</p>
+<p><strong>Step by step:</strong> 1) any DEM on the map (LiDAR DTM or <code>dem.fetch</code> output) → 2) <strong>View › 3D terrain</strong>
+raises it live → 3) a <code>scene.3d</code> recipe step exports <code>scene.glb</code> + <code>scene.html</code>. The interactive
+viewer needs no install — drag to orbit, right-drag to pan, scroll to zoom.</p>
 <h2 id="5d-hot-spots-and-kriging-no-r-or-python-needed"><a class="anchor" href="#5d-hot-spots-and-kriging-no-r-or-python-needed">#</a>5d. Hot spots and kriging (no R or Python needed)</h2>
 <p><strong>Hot spots.</strong> Put a file of incidents (crimes, crashes, disease cases, complaints: any points) in your Data folder
 and run <code>points-to-hotspots</code>. GeoSpaX counts them in hexagons, works out the distance at which they cluster most, and
@@ -842,6 +1283,13 @@ predicting it from the rest, and keeps the one that predicts better. With krigin
 pale near your samples, dark where the surface is a guess. That is where to sample next. The report shows the error of
 each method and the variogram (the chart of how quickly samples stop resembling each other).</p>
 <p>Both are checked against R&#39;s spdep and gstat, and give the same numbers. Details: <a href="/docs/automation#6e-spatial-statistics-built">AUTOMATION.md §6e</a>.</p>
+<p><strong>Step by step (hot spots):</strong> 1) drop a points file (incidents, cases, complaints) in <code>Data/</code> →
+2) run <code>points-to-hotspots</code> from <strong>Analysis › Recipe gallery</strong> or <code>geospax run points-to-hotspots</code> →
+3) hexagons appear coloured red (clusters), blue (gaps), pale (nothing special) → 4) the report in
+<strong>History</strong> shows the map, the distance it chose and how.</p>
+<p><strong>Step by step (kriging):</strong> 1) a points layer with a number field → 2) run <code>interpolate-samples</code>
+(it tries kriging <em>and</em> IDW, cross-validates both, keeps the better one) → 3) you get the surface plus
+an uncertainty map — dark where the guess is thin, telling you where to sample next.</p>
 <h2 id="5e-ask-about-your-data-ai"><a class="anchor" href="#5e-ask-about-your-data-ai">#</a>5e. Ask about your data (AI)</h2>
 <p><strong>Analysis › Ask</strong> (or the <strong>Ask</strong> tab on the right) answers questions about your layers in plain
 words, such as <em>&quot;How many sites are above 2000 m? Select them.&quot;</em> It reads your data through GeoSpaX&#39;s
@@ -871,6 +1319,11 @@ with its latest values and updates them when they report.</li>
 </ul>
 <p>Live devices appear in the <strong>Devices</strong> section, and <code>sensor</code> triggers can fire recipes on thresholds or geofences.
 Details and message formats: <a href="/docs/devices#4-sensors-in-detail">DEVICES.md §4</a>.</p>
+<p><strong>Step by step (a sensor on the map, 60 seconds):</strong> 1) start the server with
+<code>geospax-server --data data --mqtt mqtt://localhost:1883/sensors/#</code> → 2) publish
+<code>{&quot;lat&quot;:-9.44,&quot;lon&quot;:147.18,&quot;pm2_5&quot;:41}</code> to <code>sensors/1</code> → 3) the point appears under
+<strong>Explorer › Devices &amp; phones</strong> → 4) enable a <code>sensor</code> trigger (e.g. the air-quality recipe) and the
+map <em>makes itself</em> when a reading crosses the threshold.</p>
 <h2 id="7-optional-power-tools-r-python-grass-saga"><a class="anchor" href="#7-optional-power-tools-r-python-grass-saga">#</a>7. Optional power tools: R, Python, GRASS, SAGA</h2>
 <p>Recipes that use these tools work once the tool is installed. On Debian:</p>
 <pre><code class="language-sh">sudo apt install python3                       # python-spatial-stats
@@ -927,7 +1380,7 @@ catalogue. See <a href="/docs/devices#5-privacy-and-safety">DEVICES.md §5</a>.<
 <td>Start <code>geospax</code> from a terminal (Windows: <code>geospax-server.exe</code> in the install folder, <code>%LOCALAPPDATA%\GeoSpaX</code>). It logs what it detects and runs. Please include that log in bug reports</td>
 </tr>
 </tbody></table></div></article>
-    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#1-install">1. Install</a><a href="#2-your-first-map-four-lazy-ways">2. Your first map: four lazy ways</a><a href="#2b-the-workbench-ribbon-panes-map">2b. The workbench: ribbon, panes, map</a><a href="#2c-plugins-tools-from-five-ecosystems">2c. Plugins: tools from five ecosystems</a><a href="#3-where-things-go">3. Where things go</a><a href="#4-recipes-in-the-box">4. Recipes in the box</a><a href="#5-automation-on-and-off">5. Automation on and off</a><a href="#5a-edit-and-query-data">5a. Edit and query data</a><a href="#5b-lidar-point-clouds">5b. LiDAR point clouds</a><a href="#5c-3d-scenes">5c. 3D scenes</a><a href="#5d-hot-spots-and-kriging-no-r-or-python-needed">5d. Hot spots and kriging (no R or Python needed)</a><a href="#5e-ask-about-your-data-ai">5e. Ask about your data (AI)</a><a href="#6-live-sensors-and-phones">6. Live sensors and phones</a><a href="#7-optional-power-tools-r-python-grass-saga">7. Optional power tools: R, Python, GRASS, SAGA</a><a href="#8-command-line">8. Command line</a><a href="#9-privacy">9. Privacy</a><a href="#10-troubleshooting">10. Troubleshooting</a></aside>
+    <aside class="doc-toc"><p class="kicker">On this page</p><a href="#1-install">1. Install</a><a href="#2-your-first-map-four-lazy-ways">2. Your first map: four lazy ways</a><a href="#2b-the-workbench-ribbon-panes-map">2b. The workbench: ribbon, panes, map</a><a href="#2c-plugins-tools-from-five-ecosystems">2c. Plugins: tools from five ecosystems</a><a href="#2d-guided-tours-make-every-showcase-map">2d. Guided tours: make every showcase map</a><a href="#3-where-things-go">3. Where things go</a><a href="#4-recipes-in-the-box">4. Recipes in the box</a><a href="#5-automation-on-and-off">5. Automation on and off</a><a href="#5a-edit-and-query-data">5a. Edit and query data</a><a href="#5b-lidar-point-clouds">5b. LiDAR point clouds</a><a href="#5c-3d-scenes">5c. 3D scenes</a><a href="#5d-hot-spots-and-kriging-no-r-or-python-needed">5d. Hot spots and kriging (no R or Python needed)</a><a href="#5e-ask-about-your-data-ai">5e. Ask about your data (AI)</a><a href="#6-live-sensors-and-phones">6. Live sensors and phones</a><a href="#7-optional-power-tools-r-python-grass-saga">7. Optional power tools: R, Python, GRASS, SAGA</a><a href="#8-command-line">8. Command line</a><a href="#9-privacy">9. Privacy</a><a href="#10-troubleshooting">10. Troubleshooting</a></aside>
   </div>
   <footer><div class="wrap legal mono">© <a href="https://www.in4metrix.dev" rel="noopener">in4metrix</a> · GeoSpaX is MIT-licensed · <a href="https://github.com/jmozez/geospax/blob/main/docs/USER_GUIDE.md" rel="noopener">Edit this page</a></div></footer>
 </body>

@@ -5,7 +5,12 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+Planned as 3.0.8 (all version numbers already read 3.0.8).
+
 ### Added
+- **User guide visuals**: a book cover under the title, a "What running a tool looks like" gallery of
+  the real plugin dialogs, and step-by-step blocks for recipes, LiDAR, 3D scenes, hot spots and kriging,
+  and the MQTT sensor quickstart.
 - **Ten industry domain plugins** (22 default plugins in all): Surveying and cartography (datum and
   projection transformation including AGD66 and PNG94, Bowditch traverse adjustment, bearings and distances,
   survey plan sheet, map grid and graticule), Energy and utilities (corridor and clearance zones, LiDAR
@@ -19,6 +24,12 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - **12 new kits**: survey plan, power corridor, petroleum licences, mine volumes, harvest planning,
   maritime watch, aerodrome safeguarding, delivery routes, urban planning, rural access, asset register
   and El Niño drought.
+
+### Fixed
+- **Swipe and Spyglass**: starting a compare before the map style finished loading threw instead of
+  reporting "the map is still loading"; Home/End keys on the swipe divider could scroll the page.
+- **Web dev server**: `proj4` was declared by `mapextras` but missing from `web/package.json`, so a
+  clean `npm install` broke the Vite build.
 
 ## [3.0.7] — 2026-10-28
 
