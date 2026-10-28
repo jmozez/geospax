@@ -171,6 +171,25 @@ updates; otherwise the bar links to the release: unpack the new ZIP
 over the old folder.</li>
 </ul>
 <p><strong>Later</strong> hides the bar until the next version after that one.</p>
+<h3 id="windows-the-installer-finds-my-old-geospax-but-says-it-cannot-uninstall-it"><a class="anchor" href="#windows-the-installer-finds-my-old-geospax-but-says-it-cannot-uninstall-it">#</a>Windows: the installer finds my old GeoSpaX but says it cannot uninstall it</h3>
+<p>This happens with GeoSpaX 3.0.0 to 3.0.2 and the installers of 3.0.3 to 3.0.6, which look for the old copy
+under the new publisher name (in4metrix). Installers from 3.0.7 on find it and replace it. To remove a stuck
+copy by hand (your maps and settings in <code>%USERPROFILE%\GeoSpaX</code> are not touched):</p>
+<ol>
+<li>Close GeoSpaX and the GeoSpaX Web Server window (or end <code>geospax.exe</code> and <code>geospax-server.exe</code> in Task Manager).</li>
+<li>Open <code>%LOCALAPPDATA%\GeoSpaX</code> in Explorer and run <code>uninstall.exe</code>. If that fails or the file is missing,
+delete the whole <code>%LOCALAPPDATA%\GeoSpaX</code> folder.</li>
+<li>Press Win+R, type <code>regedit</code>, and delete these keys if they are there:
+<code>HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\GeoSpaX</code>,
+<code>HKEY_CURRENT_USER\Software\GeoSpaX contributors</code> and <code>HKEY_CURRENT_USER\Software\in4metrix\GeoSpaX</code>.</li>
+<li>Delete the shortcuts <em>GeoSpaX</em> and <em>GeoSpaX Web Server</em> from the desktop and from
+<code>%APPDATA%\Microsoft\Windows\Start Menu\Programs</code>.</li>
+<li>Run the new <code>GeoSpaX_&lt;version&gt;_x64-setup.exe</code>.</li>
+</ol>
+<p>Or do steps 1 to 4 at once in PowerShell:</p>
+<pre><code class="language-powershell">Get-Process geospax, geospax-server -ErrorAction SilentlyContinue | Stop-Process -Force
+Remove-Item -Recurse -Force &quot;$env:LOCALAPPDATA\GeoSpaX&quot;, &#39;HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GeoSpaX&#39;, &#39;HKCU:\Software\GeoSpaX contributors&#39;, &#39;HKCU:\Software\in4metrix\GeoSpaX&#39;, &quot;$env:APPDATA\Microsoft\Windows\Start Menu\Programs\GeoSpaX*.lnk&quot;, &quot;$env:USERPROFILE\Desktop\GeoSpaX.lnk&quot; -ErrorAction SilentlyContinue
+</code></pre>
 <h3 id="does-geospax-send-my-data-anywhere"><a class="anchor" href="#does-geospax-send-my-data-anywhere">#</a>Does GeoSpaX send my data anywhere?</h3>
 <p>No. Everything runs on your computer. The web edition answers only this computer unless you start it with
 <code>--host 0.0.0.0</code>, and then only with an access token. See <a href="https://github.com/jmozez/geospax/blob/main/SECURITY.md" rel="noopener" target="_blank">Security</a>.</p>
