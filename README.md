@@ -196,9 +196,9 @@ Twelve finished maps, one per industry kit, made in GeoSpaX (Pro mode, dark them
 
 ### Surveying: Plan a lot in minutes, not days.
 
-Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:1,300.
+Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:2,500.
 
-<p align="center"><img src="docs/assets/industry/survey-plan-map-pro-dark.png" alt="GeoSpaX Surveying map: Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:1,300." width="900" /></p>
+<p align="center"><img src="docs/assets/industry/survey-plan-map-pro-dark.png" alt="GeoSpaX Surveying map: Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:2,500." width="900" /></p>
 
 ### Power lines: See every easement at a glance.
 
@@ -266,59 +266,6 @@ CHIRPS v3 rainfall for October to December 2015 as a percentage of the 1991 to 2
 
 <p align="center"><img src="docs/assets/industry/el-nino-drought-map-pro-dark.png" alt="GeoSpaX Climate and El Niño map: CHIRPS v3 rainfall for October to December 2015 as a percentage of the 1991 to 2020 normal across Papua New Guinea, with the NOAA Oceanic Niño Index." width="900" /></p>
 
-
-## Industry plugins
-
-Each industry kit run in GeoSpaX (dark theme, Pro mode) on the offline 1 km test landscape (UTM 55S) that
-`scripts/test-domain-plugins.py` checks against known answers. Run it with `GX_SHOTS=<folder>` to make these again.
-
-**Surveying and cartography.** Traverse adjustment (Bowditch, 1:20,001), survey stations, bearings and distances of each lot, and a UTM grid.
-
-<p align="center"><img src="docs/assets/industry/survey-plan-pro-dark.png" alt="GeoSpaX Surveying and cartography: Traverse adjustment (Bowditch, 1:20,001), survey stations, bearings and distances of each lot, and a UTM grid" width="900" /></p>
-
-**Energy · power lines.** Corridor zones along a transmission line, encroaching buildings, LiDAR clearance breaches, the tower inventory and spans.
-
-<p align="center"><img src="docs/assets/industry/power-corridor-pro-dark.png" alt="GeoSpaX Energy · power lines: Corridor zones along a transmission line, encroaching buildings, LiDAR clearance breaches, the tower inventory and spans" width="900" /></p>
-
-**Petroleum and gas.** Licence areas and their overlaps, well sites checked against protected land, and a least-cost pipeline route.
-
-<p align="center"><img src="docs/assets/industry/petroleum-leases-pro-dark.png" alt="GeoSpaX Petroleum and gas: Licence areas and their overlaps, well sites checked against protected land, and a least-cost pipeline route" width="900" /></p>
-
-**Mining.** Cut and fill between two surveys (elevation change) with tenement areas, overlaps and expiry status.
-
-<p align="center"><img src="docs/assets/industry/mine-volumes-pro-dark.png" alt="GeoSpaX Mining: Cut and fill between two surveys (elevation change) with tenement areas, overlaps and expiry status" width="900" /></p>
-
-**Logging.** Net harvestable coupe areas after stream buffers, and a least-cost haul road.
-
-<p align="center"><img src="docs/assets/industry/harvest-planning-pro-dark.png" alt="GeoSpaX Logging: Net harvestable coupe areas after stream buffers, and a least-cost haul road" width="900" /></p>
-
-**Maritime surveillance.** AIS ping density, vessel tracks, loitering events and gaps in transmission.
-
-<p align="center"><img src="docs/assets/industry/maritime-watch-pro-dark.png" alt="GeoSpaX Maritime surveillance: AIS ping density, vessel tracks, loitering events and gaps in transmission" width="900" /></p>
-
-**Aeronautical.** Obstacle limitation surfaces of a code 1 runway and the obstacles that break them.
-
-<p align="center"><img src="docs/assets/industry/aerodrome-safeguarding-pro-dark.png" alt="GeoSpaX Aeronautical: Obstacle limitation surfaces of a code 1 runway and the obstacles that break them" width="900" /></p>
-
-**Transport and logistics.** Drive-time service areas from a depot, an optimised route and the stops in order.
-
-<p align="center"><img src="docs/assets/industry/delivery-routes-pro-dark.png" alt="GeoSpaX Transport and logistics: Drive-time service areas from a depot, an optimised route and the stops in order" width="900" /></p>
-
-**Urban planning.** Zoning summary, housing density and walking access to green space.
-
-<p align="center"><img src="docs/assets/industry/urban-planning-pro-dark.png" alt="GeoSpaX Urban planning: Zoning summary, housing density and walking access to green space" width="900" /></p>
-
-**Rural planning.** Settlement access to services, with slope and slope zones.
-
-<p align="center"><img src="docs/assets/industry/rural-access-pro-dark.png" alt="GeoSpaX Rural planning: Settlement access to services, with slope and slope zones" width="900" /></p>
-
-**Asset management.** Asset age, inspection and condition risk, with alerts for what changed since the last register.
-
-<p align="center"><img src="docs/assets/industry/asset-register-pro-dark.png" alt="GeoSpaX Asset management: Asset age, inspection and condition risk, with alerts for what changed since the last register" width="900" /></p>
-
-**ENSO and El Niño.** Rainfall as a percentage of normal, the anomaly class and drought risk, scaled by the current Oceanic Niño Index.
-
-<p align="center"><img src="docs/assets/industry/el-nino-drought-pro-dark.png" alt="GeoSpaX ENSO and El Niño: Rainfall as a percentage of normal, the anomaly class and drought risk, scaled by the current Oceanic Niño Index" width="900" /></p>
 
 ## Download
 
