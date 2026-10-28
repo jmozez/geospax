@@ -1297,3 +1297,87 @@ pub fn terrain_tile(path: &Path, z: u32, x: u32, y: u32) -> Result<Vec<u8>, Stri
     }
     encode_png(rgba, 256, 256)
 }
+
+/// Online basemaps for finished maps (export.map `basemap`): id, XYZ URL, deepest zoom, credit.
+pub const BASEMAPS: &[(&str, &str, u32, &str)] = &[
+    ("osm", "https://tile.openstreetmap.org/${z}/${x}/${y}.png", 19, "© OpenStreetMap contributors (ODbL)"),
+    ("topo", "https://tile.opentopomap.org/${z}/${x}/${y}.png", 17, "© OpenStreetMap contributors, SRTM · style © OpenTopoMap (CC BY-SA)"),
+    ("esri-topo", "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/${z}/${y}/${x}", 19, "Esri World Topographic Map: Esri, HERE, Garmin, USGS, NGA, OpenStreetMap contributors"),
+    ("esri-imagery", "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}", 19, "Esri World Imagery: Esri, Maxar, Earthstar Geographics, GIS User Community"),
+    ("esri-dark", "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${z}/${y}/${x}", 16, "Esri, HERE, Garmin, © OpenStreetMap contributors"),
+    ("carto-light", "https://a.basemaps.cartocdn.com/light_all/${z}/${x}/${y}.png", 20, "© OpenStreetMap contributors © CARTO"),
+    ("carto-dark", "https://a.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png", 20, "© OpenStreetMap contributors © CARTO"),
+];
+
+/// The zoom level whose tiles match `m_per_px` at latitude `lat` (Web Mercator, 256 px tiles).
+pub fn basemap_zoom(m_per_px: f64, lat: f64, max: u32) -> u32 {
+    let z = (156_543.033_928 * lat.to_radians().cos() / m_per_px.max(0.01)).log2().ceil();
+    (z.max(0.0) as u32).min(max)
+}
+
+/// A GDAL WMS (TMS) description of an XYZ tile service, cut off at `zoom`.
+pub fn basemap_xml(url: &str, zoom: u32, cache: &Path) -> String {
+    let u = url.replace('&', "&amp;");
+    format!(
+        "<GDAL_WMS><Service name=\"TMS\"><ServerUrl>{u}</ServerUrl></Service><DataWindow><UpperLeftX>-20037508.34</UpperLeftX><UpperLeftY>20037508.34</UpperLeftY><LowerRightX>20037508.34</LowerRightX><LowerRightY>-20037508.34</LowerRightY><TileLevel>{zoom}</TileLevel><TileCountX>1</TileCountX><TileCountY>1</TileCountY><YOrigin>top</YOrigin></DataWindow><Projection>EPSG:3857</Projection><BlockSizeX>256</BlockSizeX><BlockSizeY>256</BlockSizeY><BandsCount>3</BandsCount><MaxConnections>4</MaxConnections><UserAgent>GeoSpaX map export (https://github.com/jmozez/geospax)</UserAgent><Cache><Path>{}</Path></Cache><ZeroBlockHttpCodes>204,404</ZeroBlockHttpCodes></GDAL_WMS>",
+        cache.display()
+    )
+}
+
+/// An online basemap (id from [`BASEMAPS`] or an XYZ URL with {z}/{x}/{y}) rendered as RGBA for a map frame.
+pub fn render_basemap(id: &str, srs: &str, frame: [f64; 4], w: usize, h: usize, m_per_px: f64, lat: f64, cache: &Path) -> Result<(Vec<u8>, String), String> {
+    let (url, max, credit) = match BASEMAPS.iter().find(|b| b.0 == id) {
+        Some(b) => (b.1.to_string(), b.2, b.3.to_string()),
+        None if id.contains("{z}") && id.contains("{x}") && id.contains("{y}") => (id.replace("{z}", "${z}").replace("{x}", "${x}").replace("{y}", "${y}"), 19, "basemap tiles".to_string()),
+        None => return Err(format!("basemap: {id} is not one of {} or an XYZ URL", BASEMAPS.iter().map(|b| b.0).collect::<Vec<_>>().join(", "))),
+    };
+    let xml = basemap_xml(&url, basemap_zoom(m_per_px, lat, max), cache);
+    let ds = Dataset::open(&xml).map_err(|e| format!("basemap {id}: {e}"))?;
+    let mut args = strings(&["-of", "MEM", "-t_srs", srs, "-ot", "Byte", "-r", "cubic", "-dstalpha"]);
+    args.extend(["-te".to_string(), frame[0].to_string(), frame[1].to_string(), frame[2].to_string(), frame[3].to_string()]);
+    args.extend(["-ts".to_string(), w.to_string(), h.to_string()]);
+    let out = warp(&[&ds], "", &args)?;
+    let mut rgba = vec![0u8; w * h * 4];
+    for b in 0..4 {
+        let v = out.rasterband(b + 1).map_err(|e| e.to_string())?.read_band_as::<u8>().map_err(|e| e.to_string())?.into_shape_and_vec().1;
+        for (i, x) in v.into_iter().enumerate() {
+            rgba[i * 4 + b] = x;
+        }
+    }
+    if rgba.chunks(4).filter(|p| p[3] > 0).count() < w * h / 2 {
+        return Err(format!("basemap {id}: fewer than half the tiles loaded (is the internet reachable?)"));
+    }
+    Ok((rgba, credit))
+}
+
+#[cfg(test)]
+mod basemap_tests {
+    use super::*;
+
+    #[test]
+    fn zoom_follows_ground_resolution_and_caps_at_the_service_maximum() {
+        // ~2.4 m/px at the equator is zoom 16; a 16-capped service stays at 16 for finer frames
+        assert_eq!(basemap_zoom(2.4, 0.0, 19), 16);
+        assert_eq!(basemap_zoom(0.3, 0.0, 16), 16);
+        // the same ground resolution needs one zoom less at 60° (tiles are half as wide)
+        assert_eq!(basemap_zoom(2.4, 60.0, 19), 15);
+        assert_eq!(basemap_zoom(1e9, 0.0, 19), 0);
+    }
+
+    #[test]
+    fn wms_description_escapes_the_url_and_sets_the_level() {
+        let x = basemap_xml("https://t.example/${z}/${x}/${y}.png?a=1&b=2", 12, Path::new("/tmp/c"));
+        assert!(x.contains("a=1&amp;b=2"));
+        assert!(x.contains("<TileLevel>12</TileLevel>"));
+        assert!(x.contains("<Path>/tmp/c</Path>"));
+    }
+
+    #[test]
+    fn every_named_basemap_has_a_tile_template_and_credit() {
+        for (id, url, max, credit) in BASEMAPS {
+            assert!(url.contains("${z}") && url.contains("${x}") && url.contains("${y}"), "{id}");
+            assert!(*max >= 10 && !credit.is_empty(), "{id}");
+        }
+        assert!(BASEMAPS.iter().any(|b| b.0 == "esri-dark"));
+    }
+}

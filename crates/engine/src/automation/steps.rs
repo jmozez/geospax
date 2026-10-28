@@ -74,6 +74,8 @@ const MAP_PARAMS: &[(&str, bool, &str)] = &[
     ("legends", false, "collect (one shared), keep (one per panel) or auto"),
     ("tags", false, "panel tags: a (default), A, 1, i or none"),
     ("to", false, "also copy the files to this folder"),
+    ("basemap", false, "online basemap under the map: osm, topo, esri-topo, esri-imagery, esri-dark, carto-light, carto-dark or an XYZ URL (default none)"),
+    ("theme", false, "page theme: light (default) or dark"),
 ];
 
 const SEARCH_PARAMS: &[(&str, bool, &str)] = &[
@@ -2192,9 +2194,20 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
             legend: crate::raster::legend(&r.info, &style),
         });
     }
+    // an online basemap goes under everything, and replaces the offline context
+    let mut basemap_credit = None;
+    if let Some(b) = p_str(p, "basemap").filter(|b| !b.is_empty() && *b != "none") {
+        let lat = (extent[1] + extent[3]) / 2.0;
+        let m_per_px = frame_m / rw as f64;
+        let cache = sc.dir.join("..").join(".basemap-cache");
+        let (rgba, credit) = crate::raster::render_basemap(b, srs, fbox, rw, rh, m_per_px, lat, &cache)?;
+        map_rasters.insert(0, cartography::MapRaster { id: format!("basemap:{b}"), title: "Basemap".into(), png: crate::raster::encode_png(rgba, rw, rh)?, opacity: 1.0, blend: None, legend: json!({ "type": "none" }) });
+        basemap_credit = Some(credit);
+    }
     let mut layers: Vec<MapLayer> = Vec::new();
     // background context (land, roads, rivers) when loaded and not mapped themselves
     let ctx_ids: Vec<String> = match p.get("context") {
+        _ if basemap_credit.is_some() && p.get("context").is_none() => vec![],
         Some(Value::Bool(false)) => vec![],
         Some(Value::String(s)) if s == "none" => vec![],
         Some(Value::Array(_)) => p_list(p, "context"),
@@ -2209,7 +2222,7 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         }
     }
     // nothing loaded to put underneath: the offline world the app shows (Natural Earth land and borders)
-    if ctx_layers.is_empty() && !matches!(p.get("context"), Some(Value::Bool(false)) | Some(Value::String(_)) | Some(Value::Array(_))) {
+    if ctx_layers.is_empty() && basemap_credit.is_none() && !matches!(p.get("context"), Some(Value::Bool(false)) | Some(Value::String(_)) | Some(Value::Array(_))) {
         for (title, l) in bundled_context(sc.engine) {
             let fs = features::read_layer(sc.engine, &l, Some(view), Some(&[]), 60_000)?;
             if !fs.feats.is_empty() {
@@ -2241,7 +2254,7 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         };
         let mut want: Vec<usize> = Vec::new();
         // the facet field too: a map split by a field needs it even when the layer is not styled by it
-        for f in [style["symbology"]["field"].as_str().map(str::to_string), style["point"]["sizeBy"]["field"].as_str().map(str::to_string), label.clone(), p_str(p, "facet").map(str::to_string), Some("direction".to_string()), Some("length_m".to_string()), Some("area_m2".to_string()), Some("index".to_string())].into_iter().flatten() {
+        for f in [style["symbology"]["field"].as_str().map(str::to_string), style["point"]["sizeBy"]["field"].as_str().map(str::to_string), label.clone(), style["labels"]["field2"].as_str().map(str::to_string), p_str(p, "facet").map(str::to_string), Some("direction".to_string()), Some("length_m".to_string()), Some("area_m2".to_string()), Some("index".to_string())].into_iter().flatten() {
             if let Some(i) = l.field_index(&f) {
                 if !want.contains(&i) {
                     want.push(i);
@@ -2300,8 +2313,15 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     if layers.iter().any(|l| l.context && BASEMAP.iter().any(|(_, n, _)| l.id.starts_with(n))) {
         credit_sources.push("Natural Earth (public domain)".to_string());
     }
+    if let Some(c) = &basemap_credit {
+        credit_sources.push(format!("Basemap {c}"));
+    }
     credit_sources.dedup();
-    let credits = format!("Made automatically by GeoSpaX · recipe {} · {} · Data: {}", sc.recipe_id, date.format("%Y-%m-%d %H:%M"), credit_sources.join(", "));
+    let crs_note = match lay.proj {
+        cartography::Proj::Mercator => "WGS 84 / Pseudo-Mercator (EPSG:3857)",
+        cartography::Proj::EqualEarth => "Equal Earth (EPSG:8857)",
+    };
+    let credits = format!("Made with GeoSpaX · recipe {} · {} · CRS {crs_note} · Data: {}", sc.recipe_id, date.format("%Y-%m-%d %H:%M"), credit_sources.join(", "));
     let n_rasters = map_rasters.len();
     let spec = MapSpec { rasters: map_rasters, title: title.clone(), subtitle, credits, layers, labels: p_bool(p, "labels", true), grid: p_bool(p, "grid", true), frames: frames_param(p)?, inset: inset_for(sc, &fur, view)?, furniture: fur };
     let out = if panel_defs.is_empty() && p.get("facet").is_none() {

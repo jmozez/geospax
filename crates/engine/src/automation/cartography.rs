@@ -628,10 +628,20 @@ fn circle_path(c: [f64; 2], r: f64, d: &mut String) {
     let _ = write!(d, "M{:.1} {:.1}a{r} {r} 0 1 0 {:.1} 0a{r} {r} 0 1 0 {:.1} 0", c[0] - r, c[1], 2.0 * r, -2.0 * r);
 }
 
+/// A label's text: the label field, then (when `field2` is set) a second field and its unit,
+/// e.g. a survey side's bearing and distance: `65°18'56"  52.31 m`.
+pub fn label_join(first: String, second: Option<String>, suffix: &str) -> String {
+    match second.filter(|s| !s.is_empty()) {
+        Some(s) => format!("{first}  {s}{suffix}"),
+        None => first,
+    }
+}
+
 /// Labels as set in the app (web/src/symbols.ts LabelStyle): field, font, size, colour, halo, case,
 /// wrapping, and placement (around points, at polygon centres, along lines).
 fn styled_labels(out: &mut String, l: &MapLayer, lb: &Value, lay: &Layout, clip: [f64; 4], labels: &mut Labeler) {
     let Some(fi) = lb["field"].as_str().and_then(|f| l.fs.field(f)) else { return };
+    let fi2 = lb["field2"].as_str().and_then(|f| l.fs.field(f));
     let size = num(lb, "size", 12.0) * PX;
     let font = txt(lb, "font", "regular");
     let (bold, italic) = (font.starts_with("bold"), font.ends_with("italic"));
@@ -663,7 +673,7 @@ fn styled_labels(out: &mut String, l: &MapLayer, lb: &Value, lay: &Layout, clip:
         if placed >= 2000 {
             break;
         }
-        let raw = l.fs.feats[i].props[fi].text();
+        let raw = label_join(l.fs.feats[i].props[fi].text(), fi2.map(|f| l.fs.feats[i].props[f].text()), txt(lb, "suffix2", ""));
         let t = match txt(lb, "transform", "none") {
             "uppercase" => raw.to_uppercase(),
             "lowercase" => raw.to_lowercase(),
@@ -862,7 +872,10 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
         esc(&spec.title),
         esc(&spec.subtitle)
     );
-    draw_furniture(&mut svg, spec, lay, &pl);
+    let (a, b) = (svg.len(), {
+        draw_furniture(&mut svg, spec, lay, &pl);
+        svg.len()
+    });
     match (fur.legend.as_str(), pl.legend, inside) {
         ("inside", Some(c), Some(size)) => inside_legend(&mut svg, &legend_layers, &spec.rasters, lay, c, size, fur),
         ("right", _, _) => {
@@ -883,7 +896,37 @@ pub fn render_svg(spec: &MapSpec, lay: &Layout) -> MapOut {
         fmt_num(round_sig(denom, 2)),
         lay.proj.name()
     );
+    let svg = if fur.theme == "dark" { format!("{}{}{}", dark_page(&svg[..a]), &svg[a..b], dark_page(&svg[b..])) } else { svg };
     MapOut { svg, drawn, labels: n_labels, scale_denominator: denom }
+}
+
+/// Page colours of the dark theme: a near-black page, light type, and dark halos so labels read on a
+/// dark or imagery basemap. Only the page's own greys are swapped; layer colours stay as styled, and
+/// the scale bar and north arrow keep their light cards.
+pub const DARK_PAGE: &str = "#0f151b";
+pub fn dark_page(svg: &str) -> String {
+    const SWAP: &[(&str, &str)] = &[
+        ("<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>", "<rect width=\"100%\" height=\"100%\" fill=\"#0f151b\"/>"),
+        ("fill=\"#1b2631\" stroke=\"#ffffff\"", "fill=\"#f2f5f7\" stroke=\"#0f151b\""),
+        ("fill=\"#51606c\" stroke=\"#ffffff\"", "fill=\"#d5dde4\" stroke=\"#0f151b\""),
+        ("fill=\"#ffffff\" fill-opacity=\"0.92\" stroke=\"#c3cbd2\"", "fill=\"#141c24\" fill-opacity=\"0.9\" stroke=\"#3a4753\""),
+        ("stroke=\"#2f3b46\" stroke-width=\"1.2\"", "stroke=\"#5b6976\" stroke-width=\"1.2\""),
+        ("fill=\"#f6f4ef\"/>", "fill=\"#1a2129\"/>"),
+        ("fill=\"#d3e4f0\"/>", "fill=\"#142230\"/>"),
+        ("#14212b", "#eef2f5"),
+        ("#1b2631", "#e3e9ee"),
+        ("#33414e", "#cfd8df"),
+        ("#4a5a68", "#a9b6c1"),
+        ("#5d6b78", "#9eabb6"),
+        ("#6b7785", "#8e9ba7"),
+        ("#8a96a3", "#7f8c98"),
+        ("#9aa5b1", "#6f7c88"),
+    ];
+    let mut out = svg.to_string();
+    for (a, b) in SWAP {
+        out = out.replace(a, b);
+    }
+    out
 }
 
 /// One map frame: background, rasters, layers, labels, graticule, sheet outlines and the border, drawn
@@ -1603,6 +1646,25 @@ fn truncate(s: &str, n: usize) -> String {
 
 /// The legend at (x, y0), down to max_y; returns where it ended. Titles, hidden layers, renamed class
 /// labels and the order come from the furniture's legend edits.
+/// The small grey line under a classed layer's legend title: `symbology.caption` when set
+/// (empty hides it), else the field and method.
+pub fn legend_caption(sym: &Value, default: String) -> String {
+    match sym.get("caption").and_then(Value::as_str) {
+        Some(c) => c.to_string(),
+        None => default,
+    }
+}
+
+/// A unique-value legend row: the class `label` when set (a readable name for a coded value),
+/// else the value, then the count when known.
+pub fn class_text(c: &Value) -> String {
+    let name = c.get("label").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_string).unwrap_or_else(|| super::recipe::value_text(&c["value"]));
+    match c.get("count").filter(|n| !n.is_null()) {
+        Some(n) => format!("{name}  ({n})"),
+        None => name,
+    }
+}
+
 fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64, y0: f64, max_y: f64, fur: &Furniture) -> f64 {
     let shown: Vec<&MapRaster> = rasters.iter().rev().filter(|r| r.legend["type"] != "none" && !fur.edit_for(&r.id).1).collect();
     let mut layers: Vec<&MapLayer> = layers.iter().copied().filter(|l| !fur.edit_for(&l.id).1).collect();
@@ -1660,15 +1722,17 @@ fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64,
         }
         match sym.get("kind").and_then(Value::as_str) {
             Some("unique") => {
-                let field = sym["field"].as_str().unwrap_or("");
-                let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"11\" fill=\"#6b7785\">by {}</text>", esc(field));
-                y += row - 3.0;
+                let caption = legend_caption(&sym, format!("by {}", sym["field"].as_str().unwrap_or("")));
+                if !caption.is_empty() {
+                    let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"11\" fill=\"#6b7785\">{}</text>", esc(&caption));
+                    y += row - 3.0;
+                }
                 for c in sym["classes"].as_array().into_iter().flatten().take(12) {
                     if y > max_y - 12.0 {
                         break;
                     }
                     swatch(svg, l.kind, x, y, c["color"].as_str().unwrap_or(NULL_COLOR), role, op, &l.style);
-                    text(svg, y, &format!("{}  ({})", super::recipe::value_text(&c["value"]), c["count"]));
+                    text(svg, y, &class_text(c));
                     y += row;
                 }
                 let others = sym["othersCount"].as_u64().unwrap_or(0);
@@ -1687,8 +1751,11 @@ fn legend(svg: &mut String, layers: &[&MapLayer], rasters: &[MapRaster], x: f64,
                     _ => "equal intervals",
                 };
                 let labels: Vec<&str> = sym["labels"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
-                let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"11\" fill=\"#6b7785\">{} · {method}</text>", esc(field));
-                y += row - 3.0;
+                let caption = legend_caption(&sym, format!("{field} · {method}"));
+                if !caption.is_empty() {
+                    let _ = write!(svg, "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"11\" fill=\"#6b7785\">{}</text>", esc(&caption));
+                    y += row - 3.0;
+                }
                 let breaks: Vec<f64> = sym["breaks"].as_array().into_iter().flatten().filter_map(Value::as_f64).collect();
                 let colors: Vec<&str> = sym["colors"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
                 let counts: Vec<u64> = sym["counts"].as_array().into_iter().flatten().filter_map(Value::as_u64).collect();
@@ -1958,5 +2025,38 @@ mod tests {
         assert_eq!(Proj::parse(None, [-180.0, -60.0, 180.0, 85.0]).unwrap(), Proj::EqualEarth);
         assert_eq!(Proj::parse(None, [144.0, -6.0, 145.0, -5.0]).unwrap(), Proj::Mercator);
         assert!(Proj::parse(Some("lambert"), [0.0; 4]).is_err());
+    }
+}
+
+#[cfg(test)]
+mod theme_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn dark_page_swaps_page_colours_and_keeps_data_colours() {
+        let svg = "<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/><path fill=\"#e4572e\" stroke=\"#2f3b46\"/><text fill=\"#14212b\">Legend</text>";
+        let d = dark_page(svg);
+        assert!(d.contains(DARK_PAGE));
+        assert!(d.contains("#e4572e"), "layer colours stay as styled");
+        assert!(d.contains("#eef2f5"), "dark text turns light");
+        assert!(!d.contains("#14212b"));
+    }
+
+    #[test]
+    fn two_field_labels_join_with_a_unit() {
+        assert_eq!(label_join("65°18'56\"".into(), Some("52.31".into()), " m"), "65°18'56\"  52.31 m");
+        assert_eq!(label_join("A".into(), None, " m"), "A");
+        assert_eq!(label_join("A".into(), Some(String::new()), " m"), "A");
+    }
+
+    #[test]
+    fn class_labels_and_captions_replace_raw_values() {
+        assert_eq!(class_text(&json!({"value": "easement", "label": "Easement (0 to 20 m)", "count": 1})), "Easement (0 to 20 m)  (1)");
+        assert_eq!(class_text(&json!({"value": "easement", "count": 3})), "easement  (3)");
+        assert_eq!(class_text(&json!({"value": "x", "label": "X"})), "X");
+        assert_eq!(legend_caption(&json!({"caption": ""}), "by zone".into()), "");
+        assert_eq!(legend_caption(&json!({"caption": "ICAO Annex 14"}), "by zone".into()), "ICAO Annex 14");
+        assert_eq!(legend_caption(&json!({}), "by zone".into()), "by zone");
     }
 }
