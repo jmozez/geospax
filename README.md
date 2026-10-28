@@ -190,6 +190,83 @@ ranks cells rather than giving tonnes; built-up and water cells are left out.
 
 <p align="center"><img src="docs/assets/plugin-soil.png" alt="GeoSpaX Soil plugin: erosion risk from slope, exposed land and tree cover" width="900" /></p>
 
+## Industry maps
+
+Twelve finished maps, one per industry kit, made in GeoSpaX (Pro mode, dark theme) on real basemaps and real Papua New Guinea locations. Each has a title, legend, scale bar, north arrow, grid, credits and a CRS note. Illustrative or simulated data is marked on each map.
+
+### Surveying: Plan a lot in minutes, not days.
+
+Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:1,300.
+
+<p align="center"><img src="docs/assets/industry/survey-plan-map-pro-dark.png" alt="GeoSpaX Surveying map: Bearings and distances from the real OpenStreetMap lot outline in Lae, a Bowditch-adjusted traverse and a PNG94 / UTM 55S grid, ready to print at 1:1,300." width="900" /></p>
+
+### Power lines: See every easement at a glance.
+
+The real OpenStreetMap transmission line near Lae on Esri imagery, with 20 m easement, 50 m clearance and 100 m consultation zones. Tower types and span checks are illustrative.
+
+<p align="center"><img src="docs/assets/industry/power-corridor-map-pro-dark.png" alt="GeoSpaX Power lines map: The real OpenStreetMap transmission line near Lae on Esri imagery, with 20 m easement, 50 m clearance and 100 m consultation zones. Tower types and span checks are illustrative." width="900" /></p>
+
+### Petroleum and gas: Spot tenure clashes before they cost you.
+
+Illustrative licence blocks at Hides, Hela Province, over real OpenStreetMap villages, with overlaps flagged and a least-cost pipeline route on the real terrain.
+
+<p align="center"><img src="docs/assets/industry/petroleum-leases-map-pro-dark.png" alt="GeoSpaX Petroleum and gas map: Illustrative licence blocks at Hides, Hela Province, over real OpenStreetMap villages, with overlaps flagged and a least-cost pipeline route on the real terrain." width="900" /></p>
+
+### Mining: Measure cut and fill from free elevation data.
+
+Surface change at Ok Tedi from SRTM (2000) to the Copernicus DEM, in metres, with an illustrative lease outline.
+
+<p align="center"><img src="docs/assets/industry/mine-volumes-map-pro-dark.png" alt="GeoSpaX Mining map: Surface change at Ok Tedi from SRTM (2000) to the Copernicus DEM, in metres, with an illustrative lease outline." width="900" /></p>
+
+### Logging: Know your net harvest area before the first tree falls.
+
+Illustrative coupes at Bulolo, Morobe Province, net of slopes over 30° and real OpenStreetMap stream buffers, with a least-cost haul road.
+
+<p align="center"><img src="docs/assets/industry/harvest-planning-map-pro-dark.png" alt="GeoSpaX Logging map: Illustrative coupes at Bulolo, Morobe Province, net of slopes over 30° and real OpenStreetMap stream buffers, with a least-cost haul road." width="900" /></p>
+
+### Maritime: Turn AIS reports into patrol targets.
+
+AIS density, vessel tracks and loitering events in the Huon Gulf off the Port of Lae. The AIS tracks are simulated.
+
+<p align="center"><img src="docs/assets/industry/maritime-watch-map-pro-dark.png" alt="GeoSpaX Maritime map: AIS density, vessel tracks and loitering events in the Huon Gulf off the Port of Lae. The AIS tracks are simulated." width="900" /></p>
+
+### Aerodromes: Protect your airspace, obstacle by obstacle.
+
+ICAO Annex 14 obstacle limitation surfaces for the real Nadzab (AYNZ) runway, with OpenStreetMap buildings checked against them. Obstacle heights are assumed.
+
+<p align="center"><img src="docs/assets/industry/aerodrome-safeguarding-map-pro-dark.png" alt="GeoSpaX Aerodromes map: ICAO Annex 14 obstacle limitation surfaces for the real Nadzab (AYNZ) runway, with OpenStreetMap buildings checked against them. Obstacle heights are assumed." width="900" /></p>
+
+### Logistics: Cut kilometres off every delivery run.
+
+Drive-time bands from the Lae port depot on real OpenStreetMap roads, and the optimised order to visit each stop.
+
+<p align="center"><img src="docs/assets/industry/delivery-routes-map-pro-dark.png" alt="GeoSpaX Logistics map: Drive-time bands from the Lae port depot on real OpenStreetMap roads, and the optimised order to visit each stop." width="900" /></p>
+
+### Urban planning: Show who is within walking distance of a park.
+
+Real OpenStreetMap land use and buildings in Lae, with every home checked against a 400 m walk to green space.
+
+<p align="center"><img src="docs/assets/industry/urban-planning-map-pro-dark.png" alt="GeoSpaX Urban planning map: Real OpenStreetMap land use and buildings in Lae, with every home checked against a 400 m walk to green space." width="900" /></p>
+
+### Rural development: Find the villages furthest from clinics and schools.
+
+Real OpenStreetMap villages, clinics and schools in the Morobe highlands, graded by straight-line distance in km.
+
+<p align="center"><img src="docs/assets/industry/rural-access-map-pro-dark.png" alt="GeoSpaX Rural development map: Real OpenStreetMap villages, clinics and schools in the Morobe highlands, graded by straight-line distance in km." width="900" /></p>
+
+### Asset management: Put your highest-risk assets on the map first.
+
+Real OpenStreetMap asset locations in Lae, ranked by condition and criticality, with changes since 2025. Register attributes are illustrative.
+
+<p align="center"><img src="docs/assets/industry/asset-register-map-pro-dark.png" alt="GeoSpaX Asset management map: Real OpenStreetMap asset locations in Lae, ranked by condition and criticality, with changes since 2025. Register attributes are illustrative." width="900" /></p>
+
+### Climate and El Niño: See drought coming, province by province.
+
+CHIRPS v3 rainfall for October to December 2015 as a percentage of the 1991 to 2020 normal across Papua New Guinea, with the NOAA Oceanic Niño Index.
+
+<p align="center"><img src="docs/assets/industry/el-nino-drought-map-pro-dark.png" alt="GeoSpaX Climate and El Niño map: CHIRPS v3 rainfall for October to December 2015 as a percentage of the 1991 to 2020 normal across Papua New Guinea, with the NOAA Oceanic Niño Index." width="900" /></p>
+
+
 ## Industry plugins
 
 Each industry kit run in GeoSpaX (dark theme, Pro mode) on the offline 1 km test landscape (UTM 55S) that
