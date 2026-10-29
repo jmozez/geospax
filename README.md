@@ -65,8 +65,8 @@ the same features as the map.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/assets/ribbon-swipe.webp" alt="GeoSpaX Swipe: the reserves layer on the left of the divider only, with the map grid on" /></td>
-<td width="50%"><img src="docs/assets/ribbon-time.webp" alt="GeoSpaX time slider playing survey points by year" /></td>
+<td width="50%"><img src="docs/assets/ribbon-swipe.webp" alt="GeoSpaX Swipe: core forest of the Markham valley shown left of the divider, imagery alone on the right" /></td>
+<td width="50%"><img src="docs/assets/ribbon-time.webp" alt="GeoSpaX time slider adding up GBIF bird records around Lae year by year" /></td>
 </tr>
 </table>
 
@@ -76,27 +76,19 @@ tank and dimensions, all typed into the command line. *Export DXF* hands it to A
 
 <p align="center"><img src="docs/assets/tour-design.png" alt="GeoSpaX Design tab: a 76-lot subdivision plan over Esri World Imagery of Lae" width="900" /></p>
 
-**Rivers and catchments.** The Huon Peninsula coast east of Lae from the Copernicus DEM at 60 m
-(1,909 × 1,400 cells, sea masked out): GeoSpaX's `hydro.network` fills depressions, routes flow (D8),
-extracts 834 stream links coloured by Strahler order (1 to 5) and outlines the 11 drainage basins that lie
-wholly inside the DEM (basins cut by its edge are left out), over Esri World Imagery.
+**Rivers and catchments.** The Markham valley from the Copernicus 30 m DEM: GeoSpaX's `hydro.network` fills depressions, routes flow (D8) and extracts 1,674 stream links coloured by Strahler order (1 to 5), with the 7 drainage basins that lie wholly inside the DEM outlined in yellow, over a soft hillshade and Esri World Imagery.
 
 <p align="center"><img src="docs/assets/tour-hydrology.png" alt="GeoSpaX: Strahler-ordered streams and drainage basins of the Markham valley over Esri World Imagery" width="900" /></p>
 
-**Land cover.** ESA WorldCover 10 m (2021) for Lae and the Markham delta, downloaded for the area with
-*Explorer › Online data*, drawn in ESA's class colours over Esri World Imagery; the legend gives each class's
-share of the area.
+**Land cover.** ESA WorldCover 10 m (2021) for Lae and the Markham delta, downloaded for the area with *Explorer › Online data* and drawn in ESA's class colours; the legend gives each class's share of the area, so you see at a glance how much is tree cover, built-up land or water.
 
 <p align="center"><img src="docs/assets/tour-landcover.png" alt="GeoSpaX: ESA WorldCover land cover of Lae over Esri World Imagery" width="900" /></p>
 
-**Supervised classification.** Six land-cover classes from Google DeepMind's AlphaEarth satellite
-embeddings (64 values per 10 m pixel), k-nearest neighbours trained on 360 points labelled from
-WorldCover; leave-one-out accuracy 81 %.
+**Supervised classification.** Nine land-cover classes from Google DeepMind's AlphaEarth satellite embeddings (64 values per pixel, 1.1 million pixels at 20 m), k-nearest neighbours trained on 360 points labelled from WorldCover (white dots); leave-one-out accuracy 80.3 %.
 
 <p align="center"><img src="docs/assets/tour-classification.png" alt="GeoSpaX: supervised land-cover classification of Lae from satellite embeddings, with training points" width="900" /></p>
 
-**Unsupervised classification.** The same embeddings grouped into eight kinds of landscape by k-means,
-with no samples: 3.6 million pixels in under a minute.
+**Unsupervised classification.** The same embeddings grouped into eight kinds of landscape by k-means with no training samples at all: rivers, mangroves, town and forest separate on their own.
 
 <p align="center"><img src="docs/assets/tour-clustering.png" alt="GeoSpaX: k-means landscape groups of Lae from satellite embeddings" width="900" /></p>
 
@@ -106,19 +98,15 @@ roof heights with *Extrude in 3D* over Esri World Imagery.
 
 <p align="center"><img src="docs/assets/tour-lidar.png" alt="GeoSpaX: LiDAR buildings of downtown San Francisco extruded to their roof heights in 3D" width="900" /></p>
 
-**Network analysis.** Road distance from every street in Lae to the nearest of 12 hospitals and clinics,
-over 2,646 Overture road segments (service area with the network tools of the Toolbox).
+**Network analysis.** Which streets in Lae are within 500 m, 1 km and 2 km by road of the nearest of 16 hospitals and clinics (red crosses), measured along 2,456 Overture roads with the network service-area tool of the Toolbox; grey streets are further than 2 km.
 
 <p align="center"><img src="docs/assets/tour-network.png" alt="GeoSpaX: road distance to the nearest hospital across Lae's street network" width="900" /></p>
 
-**Mount Wilhelm in 30 m.** The Copernicus GLO-30 DEM for the area around Papua New Guinea's highest
-peak (839–4,471 m), fetched with *Online data › Elevation* in 4 seconds and tinted green to white, with
-its histogram and band statistics.
+**Mount Wilhelm in 30 m.** The Copernicus GLO-30 DEM for the area around Papua New Guinea's highest peak (338 to 4,473 m), fetched with *Online data › Elevation* in seconds and tinted green to white, with its histogram and band statistics.
 
 <p align="center"><img src="docs/assets/tour-dem-wilhelm.webp" alt="GeoSpaX: Copernicus 30 m DEM of Mount Wilhelm, Papua New Guinea, in a hypsometric tint" width="900" /></p>
 
-The same DEM in 3D: *3D view* raises it as terrain over the imagery. For a print-quality 3D relief,
-the **3D relief with rayshader** analysis (R) renders it with ray-traced shadows and ambient occlusion.
+The same DEM in 3D: *View › 3D terrain* raises it as live terrain you can tilt and turn. For a print-quality 3D relief, the **3D relief with rayshader** analysis (R) renders it with ray-traced shadows and ambient occlusion.
 
 <p align="center"><img src="docs/assets/tour-dem-3d.webp" alt="GeoSpaX: Mount Wilhelm DEM as 3D terrain over Esri World Imagery" width="900" /></p>
 
@@ -127,66 +115,49 @@ the **3D relief with rayshader** analysis (R) renders it with ray-traced shadows
 Each domain plugin run in GeoSpaX on open data around Lae and the Huon Gulf, Papua New Guinea, over Esri
 World Imagery. The plugins share one tested toolkit (GSX), so a tool behaves the same in every domain.
 
-**Agriculture · weighted suitability.** Where new gardens could go: land cells of about 220 m (0.002°) scored
-by gentle slope (weight 3), open grass, shrub and crop land (2) and low ground (1) from the Copernicus 30 m
-DEM and ESA WorldCover 2021. Forest is kept out, which leaves 3,187 of 18,546 cells to score.
+**Agriculture · weighted suitability.** Where new gardens could go: 2,529 land cells of 1 km along the Markham valley scored by gentle slope (weight 3), open land (2) and low ground (1) from the Copernicus 30 m DEM and Hansen tree cover, in five quantile classes from least to most suitable.
 
 <p align="center"><img src="docs/assets/plugin-agriculture.png" alt="GeoSpaX Agriculture plugin: cropland suitability around Lae from slope, open land and elevation" width="900" /></p>
 
-**Biodiversity · richness and diversity.** OBIS records of the Huon Gulf, kept to those on the seafloor
-(GEBCO depth below 0 m, birds left out: 3,536 of 4,842), summarised per 0.1° cell: 987 taxa in all,
-species richness up to 133 in one cell, and Shannon, Simpson and evenness for the 49 cells with records.
+**Biodiversity · richness and diversity.** 1,904 GBIF bird records around Lae summarised on 5 km hexagons: 244 species in all, up to 94 in one hexagon, and a Shannon diversity of 4.68 for the area, with Simpson and evenness per hexagon in the attribute table.
 
 <p align="center"><img src="docs/assets/plugin-biodiversity.png" alt="GeoSpaX Biodiversity plugin: species richness of OBIS records per cell in the Huon Gulf" width="900" /></p>
 
-**Climate · coastal flood exposure.** The 462 cells of Lae's low-elevation coastal zone (10 m and
-below) scored by low ground (weight 3) and built-up land (2): exposure is highest on the waterfront and port.
+**Climate · flood exposure.** The same 2,529 land cells scored by low ground (weight 2) and low average elevation (1): exposure is highest on the Markham floodplain and the coast at Lae.
 
 <p align="center"><img src="docs/assets/plugin-climate.png" alt="GeoSpaX Climate plugin: coastal flood exposure of Lae's low-lying coast" width="900" /></p>
 
-**Conservation · weighted hotspot grid.** The same marine records counted on 10 km hexagons: 35 of 176
-hold records, densest off Lae and along the Huon Peninsula coast.
+**Conservation · weighted hotspot grid.** 1,197 OBIS fish records counted on an 8 km grid over GEBCO bathymetry: 68 of 740 cells hold records, and the hottest sit off Lae and along the Huon Peninsula coast.
 
 <p align="center"><img src="docs/assets/plugin-conservation.png" alt="GeoSpaX Conservation plugin: 10 km hexagon hotspot grid of OBIS records" width="900" /></p>
 
-**Disaster · landslide susceptibility.** Slope (weight 4), local relief (2) and little tree cover (1)
-combined into a 0–1 score on the same land cells along the Markham valley; built-up and water cells score 0.
+**Disaster · landslide susceptibility.** Slope (weight 3), local relief (2) and little tree cover (1) combined into a 0 to 1 score on the same land cells: the steep, cleared ranges above the valley score highest.
 
 <p align="center"><img src="docs/assets/plugin-disaster.png" alt="GeoSpaX Disaster plugin: landslide susceptibility from slope, relief and tree cover" width="900" /></p>
 
-**Environment · elevation profile.** A 38.9 km transect from the Saruwaged foothills to the Huon Gulf on
-the Copernicus 30 m DEM (882 samples, about 44 m apart): from 20 m to 1,175 m, with 2,833 m of climb.
+**Environment · elevation profile.** A 39.1 km transect from the Saruwaged foothills to the Huon Gulf sampled on the Copernicus 30 m DEM at 634 points, coloured by height: from sea level to 1,730 m, with 3,102 m of climb along the way.
 
 <p align="center"><img src="docs/assets/plugin-environment.png" alt="GeoSpaX Environment plugin: elevation profile along a transect to the Huon Gulf" width="900" /></p>
 
-**Forestry · fragmentation and connectivity.** 136 forest patches of 1 ha or more from Hansen tree cover
-(2000 canopy ≥ 50 %, 40,783 ha): FRAGSTATS-style metrics, 28,797 ha of core forest more than 100 m from an
-edge, and 33 links joining patches within a 500 m dispersal distance (105 connected groups).
+**Forestry · fragmentation and core forest.** 69 forest patches of 20 ha or more from Hansen tree cover (canopy 60 % or more, no loss since 2000), outlined in orange, with the core forest more than 300 m from any edge in green: 83.7 % of the forest is core.
 
 <p align="center"><img src="docs/assets/plugin-forestry.png" alt="GeoSpaX Forestry plugin: forest patches, core areas and 1 km connectivity links" width="900" /></p>
 
-**Geoscience · slope zones.** Horn slope from the Copernicus 30 m DEM in three zones (under 8°, 8–20°,
-20° and over) across the Markham valley.
+**Geoscience · slope zones.** Horn slope from the Copernicus 30 m DEM in three zones across the Markham valley: 41 % under 8° (green), 23 % from 8° to 20° (amber) and 36 % at 20° and over (red).
 
 <p align="center"><img src="docs/assets/plugin-geoscience.png" alt="GeoSpaX Geoscience plugin: slope zones of the Markham valley" width="900" /></p>
 
-**Hydrology · streams and basins.** Strahler-ordered streams and drainage basins of the Markham valley
-(see the Rivers and catchments tour above).
+**Hydrology · wet ground.** The land cells scored by low ground (weight 2), gentle slope (1) and little tree cover (1) to show where water gathers and lingers on the Markham floodplain (see the Rivers and catchments tour above for the stream network).
 
-**Land use and land cover · two-date change.** Forest of 2000 against forest left in 2023 (Hansen Global
-Forest Change) east of Lae: 3,800 ha lost, 43,831 ha unchanged, no gain (patches of 1 ha or more).
+**Land use and land cover · forest loss by year.** Hansen Global Forest Change along the Markham valley: 18,021 ha of tree cover lost from 2001 to 2025, coloured by the year it went, with the worst year 2022 (2,745 ha).
 
 <p align="center"><img src="docs/assets/plugin-lulc.png" alt="GeoSpaX Land use and land cover plugin: forest loss and persistence from 2000 to 2023" width="900" /></p>
 
-**Marine · DBSCAN clusters.** 409 OBIS fish records from the sea grouped into 9 clusters (5 km radius,
-9 records of noise) over GEBCO 2026 bathymetry of the Huon Gulf (shown from 0 to 3,000 m deep).
+**Marine · DBSCAN clusters.** 1,197 OBIS fish records grouped into 28 clusters by DBSCAN (111 records left as noise, in grey) over GEBCO 2026 bathymetry of the Huon Gulf.
 
 <p align="center"><img src="docs/assets/plugin-marine.png" alt="GeoSpaX Marine plugin: clusters of fish records over GEBCO bathymetry of the Huon Gulf" width="900" /></p>
 
-**Soil · erosion potential.** A RUSLE-style index on the land cells: the slope-steepness factor S
-(McCool) times the cover-management factor C from the WorldCover shares (forest 0.003, shrub and grass 0.05,
-crop 0.20, bare 0.35). Rainfall and soil erodibility are taken as even over this small area, so the index
-ranks cells rather than giving tonnes; built-up and water cells are left out.
+**Soil · erosion potential.** Steep slope (weight 3) and bare or open ground (2) scored on the same land cells, ranking where soil is most likely to wash off in heavy rain.
 
 <p align="center"><img src="docs/assets/plugin-soil.png" alt="GeoSpaX Soil plugin: erosion risk from slope, exposed land and tree cover" width="900" /></p>
 
