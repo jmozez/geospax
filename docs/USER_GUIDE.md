@@ -344,13 +344,13 @@ it back, so the map can take the whole window when you need it.
 - **Help**: **Tutorials** are guided lessons on the real window. **Search commands** finds any command by
   name.
 
-![Swipe in GeoSpaX: the reserves layer on the left of the divider, the map without it on the right, with the map grid on](assets/ribbon-swipe.webp)
+![Swipe in GeoSpaX: core forest of the Markham valley left of the divider, the imagery without it on the right](assets/ribbon-swipe.webp)
 
-*Swipe with the map grid on: the selected layer on one side of the divider only.*
+*Swipe: core forest on one side of the divider, the imagery underneath on the other, to check the result against the ground.*
 
-![The GeoSpaX time slider playing a survey layer by year](assets/ribbon-time.webp)
+![The GeoSpaX time slider adding up GBIF bird records around Lae by year](assets/ribbon-time.webp)
 
-*Time slider: play a layer through its dates, by year, month or day.*
+*Time slider: 2,000 GBIF bird records from 1993 to 2026 building up year by year, shown here at 2019.*
 
 ### The Toolbox: every tool in one place
 
@@ -550,7 +550,7 @@ docs, tutorials and diagnostics.
 
 ### Swipe: a layer on one side of the divider
 
-![Swipe: the reserves layer shown only left of the divider, map grid on](assets/ribbon-swipe.webp)
+![Swipe: core forest shown only left of the divider](assets/ribbon-swipe.webp)
 
 **What it is:** **View › Swipe** draws the *selected* layer only on one side of a vertical divider
 you drag. The other side shows the map without it — for before/after or layer/basemap comparison.
@@ -568,7 +568,7 @@ you drag. The other side shows the map without it — for before/after or layer/
 
 ### Time slider: play a layer through its dates
 
-![Time slider playing survey points by year](assets/ribbon-time.webp)
+![Time slider adding up bird records by year](assets/ribbon-time.webp)
 
 **What it is:** **View › Time** shows a layer one period at a time (or accumulating) by any date or
 year field — through a definition query, so tools, exports and selections see the same features as
@@ -613,9 +613,8 @@ exported to DXF in UTM metres.
 
 ![Strahler-ordered streams and drainage basins of the Markham valley](assets/tour-hydrology.png)
 
-**What it is:** the Huon Peninsula coast east of Lae from the Copernicus GLO-30 DEM — depressions
-filled, D8 flow routing, 834 stream links coloured by Strahler order 1–5, and the 11 basins wholly
-inside the DEM.
+**What it is:** the Markham valley from the Copernicus GLO-30 DEM: depressions filled, D8 flow
+routing, 1,674 stream links coloured by Strahler order 1 to 5, and the 7 basins wholly inside the DEM.
 
 **Make it:**
 
@@ -647,12 +646,13 @@ legend shows each class's share of the area.
    with the area-share legend automatically.
 4. Change a class colour or label: **right › Layer tab** while the raster is selected.
 
-### Supervised classification: six land-cover classes from satellite embeddings
+### Supervised classification: nine land-cover classes from satellite embeddings
 
 ![Supervised land-cover classification of Lae from AlphaEarth embeddings](assets/tour-classification.png)
 
-**What it is:** Google DeepMind's AlphaEarth satellite embeddings (64 values per 10 m pixel),
-k-nearest neighbours trained on 360 points labelled from WorldCover — leave-one-out accuracy 81 %.
+**What it is:** Google DeepMind's AlphaEarth satellite embeddings (64 values per pixel, 1.1 million
+pixels at 20 m), k-nearest neighbours trained on 360 points labelled from WorldCover (the white dots):
+nine classes, leave-one-out accuracy 80.3 %.
 
 **Make it:**
 
@@ -702,28 +702,30 @@ surface and canopy models; 184 buildings found and raised to measured roof heigh
 5. The run also writes a glTF scene (`scene.glb`) and a self-contained `scene.html` viewer in the
    run folder — no install needed to share the 3D.
 
-### Network analysis: road distance to the nearest clinic
+### Network analysis: how far is the nearest clinic by road
 
-![Road distance to the nearest hospital across Lae's street network](assets/tour-network.png)
+![Lae streets within 500 m, 1 km and 2 km by road of a hospital or clinic](assets/tour-network.png)
 
-**What it is:** drive distance from every street segment to the nearest of 12 hospitals and clinics,
-over 2,646 Overture road segments — a service-area-style map.
+**What it is:** a service area from 16 hospitals and clinics (red crosses) over 2,456 Overture roads:
+streets within 500 m (green), 1 km (yellow) and 2 km (orange) by road of the nearest one, and grey
+beyond that, so the gaps in access stand out.
 
 **Make it:**
 
 1. Roads: **Explorer › Online data › Roads** (Overture), or drop your own road network.
 2. Facilities: drop a points layer of clinics/depots/stores.
-3. **Analysis › Network › Closest facility** (the Tools group also has **Service area** for
-   reachable bands and **Shortest path** for A→B). Pick the network layer and the facilities layer.
-4. Every road segment gets the distance to its nearest facility — styled short→long as in the shot.
-5. **Service area** instead gives bands ("within 5 / 10 / 20 min") from one or more depots — the
-   basis of the *delivery-routes* industry kit below.
+3. **Analysis › Network › Service area** (the Tools group also has **Closest facility** and
+   **Shortest path** for A to B). Pick the road layer, the facilities layer and the break distances
+   (500, 1000, 2000 m in the shot).
+4. Every node reached gets its road distance and band; style the roads by band, green to orange, as
+   in the shot. **Closest facility** instead gives every segment its distance to the nearest site.
+5. The same bands from one or more depots are the basis of the *delivery-routes* industry kit below.
 
 ### Mount Wilhelm: DEM in seconds, then in 3D, then as print relief
 
 ![Copernicus 30 m DEM of Mount Wilhelm in a hypsometric tint](assets/tour-dem-wilhelm.webp)
 
-**What it is (1/3):** the GLO-30 DEM around PNG's highest peak (839–4,471 m), hypsometric tint green
+**What it is (1/3):** the GLO-30 DEM around PNG's highest peak (338 to 4,473 m), hypsometric tint green
 to white, with histogram and band stats.
 
 1. Zoom to Mount Wilhelm (or any place).
@@ -752,18 +754,18 @@ its ribbon tab. On open data around Lae they made these:
 
 | Plugin | What its map shows | Run it with |
 | --- | --- | --- |
-| **Agriculture** | Cropland suitability: gentle slope (weight 3), open land (2), low ground (1) on 220 m cells; forest excluded | `agriculture` plugin › suitability |
-| **Biodiversity** | OBIS seafloor records per 0.1° cell: richness, Shannon, Simpson, evenness | `biodiversity` › richness grid |
-| **Climate** | Coastal flood exposure: low-elevation cells scored by low ground and built-up land | `climate` › flood exposure |
-| **Conservation** | The same records counted on 10 km hexagons — a hotspot grid | `conservation` › hexagon hotspots |
-| **Disaster** | Landslide susceptibility: slope (4) + local relief (2) + low tree cover (1), 0–1 | `disaster` › susceptibility |
-| **Environment** | A 38.9 km elevation profile transect, 882 samples | `environment` › profile |
-| **Forestry** | Hansen forest patches ≥1 ha: FRAGSTATS metrics, core areas, 500 m connectivity links | `forestry` › fragmentation |
-| **Geoscience** | Horn slope in three zones (<8°, 8–20°, >20°) | `geoscience` › slope zones |
-| **Hydrology** | The streams and basins tour above | `hydrology` › network |
-| **LULC** | Forest 2000 vs 2023 (Hansen): 3,800 ha lost, 43,831 ha unchanged | `lulc` › two-date change |
-| **Marine** | DBSCAN clusters of OBIS fish records over GEBCO bathymetry | `marine` › clusters |
-| **Soil** | RUSLE-style erosion index: slope-steepness × cover factor | `soil` › erosion potential |
+| **Agriculture** | Cropland suitability: gentle slope (weight 3), open land (2), low ground (1) on 2,529 cells of 1 km | `agriculture` plugin › suitability |
+| **Biodiversity** | 1,904 GBIF bird records on 5 km hexagons: 244 species, richness, Shannon, Simpson, evenness | `biodiversity` › richness grid |
+| **Climate** | Flood exposure: land cells scored by low ground (2) and low average elevation (1) | `climate` › flood exposure |
+| **Conservation** | 1,197 OBIS fish records on an 8 km hotspot grid: 68 of 740 cells hold records | `conservation` › hexagon hotspots |
+| **Disaster** | Landslide susceptibility: slope (3) + local relief (2) + low tree cover (1), 0 to 1 | `disaster` › susceptibility |
+| **Environment** | A 39.1 km elevation profile transect, 634 samples, 0 to 1,730 m | `environment` › profile |
+| **Forestry** | 69 Hansen forest patches of 20 ha or more: patch metrics and core forest 300 m from any edge (83.7 % core) | `forestry` › fragmentation |
+| **Geoscience** | Horn slope in three zones: 41 % under 8°, 23 % from 8° to 20°, 36 % at 20° and over | `geoscience` › slope zones |
+| **Hydrology** | Wet ground: low, gentle, open cells where water gathers | `hydrology` › suitability |
+| **LULC** | Hansen forest loss by year: 18,021 ha lost 2001 to 2025, worst in 2022 | **Online data › Hansen** (loss year) |
+| **Marine** | 1,197 OBIS fish records in 28 DBSCAN clusters over GEBCO bathymetry | `marine` › clusters |
+| **Soil** | Erosion potential: steep slope (3) and open ground (2) on the land cells | `soil` › erosion potential |
 
 To run one: **Explorer › Plugins**, open the domain card, pick the analysis, fill the form, **Run**.
 Every one writes a styled layer, a report, and (where relevant) intermediate layers you can restyle.
