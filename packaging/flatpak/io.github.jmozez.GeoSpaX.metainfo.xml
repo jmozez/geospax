@@ -77,7 +77,7 @@
     <display_length compare="ge">900</display_length>
   </requires>
   <releases>
-    <release version="3.0.8" date="2026-10-28">
+    <release version="3.0.8" date="2026-10-30">
       <description><p>Ten industry plugins (surveying, energy, oil and gas, mining, maritime, aeronautical, transport, urban and rural planning, asset management) and twelve kits; ENSO and El Niño climate tools; an illustrated user guide; steadier swipe and spyglass.</p></description>
     </release>
     <release version="3.0.7" date="2026-10-28">
