@@ -5,7 +5,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
-Planned as 3.0.8 (all version numbers already read 3.0.8).
+## [3.0.8] — 2026-10-28
 
 ### Added
 - **User guide visuals**: a book cover under the title, a "What running a tool looks like" gallery of
