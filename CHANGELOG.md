@@ -5,7 +5,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
-## [3.0.8] — 2026-10-28
+## [3.0.8] — 2026-10-30
 
 ### Added
 - **User guide visuals**: a book cover under the title, a "What running a tool looks like" gallery of
@@ -25,7 +25,19 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
   maritime watch, aerodrome safeguarding, delivery routes, urban planning, rural access, asset register
   and El Niño drought.
 
+- **Industry maps gallery**: 12 finished, professional maps, one per industry kit, on real topographic,
+  satellite and OpenStreetMap basemaps at real Papua New Guinea places (Lae, Nadzab, the PNG LNG corridor,
+  Bulolo and Wau, the Huon Gulf), each with a title, legend, scale bar, north arrow, grid and credits. Shown
+  on the README, the GeoSpaX site and in4metrix.
+
+### Changed
+- **Screenshots**: the hero, Lazy mode, ribbon, tour and plugin screenshots are retaken in dark mode on
+  real basemaps with real data, with captions that quote the real figures. The old test-landscape
+  Industry plugins section is gone; the Industry maps gallery replaces it.
+
 ### Fixed
+- **Ribbon screenshots**: the ribbon shots now show the regrouped 3.0.7 ribbon as it really looks, and
+  footer credits on the maps are no longer cut off.
 - **Swipe and Spyglass**: starting a compare before the map style finished loading threw instead of
   reporting "the map is still loading"; Home/End keys on the swipe divider could scroll the page.
 - **Web dev server**: `proj4` was declared by `mapextras` but missing from `web/package.json`, so a
