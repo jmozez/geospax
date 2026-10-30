@@ -674,6 +674,11 @@ export const COMMANDS: Command[] = [
     run: project('open'),
   },
   {
+    id: 'home.review', tab: 'share', group: 'Publish', title: 'Review', icon: 'form',
+    hint: 'Comments pinned to the map and the version history of this named project, for a team sharing one server',
+    run: (h) => void import('./review').then((m) => m.openReview(h)),
+  },
+  {
     id: 'home.saveAs', tab: 'home', group: 'Project', title: 'Save as', icon: 'save',
     hint: 'Save a copy of the project under a new name and carry on in the copy', keys: 'Ctrl+Shift+S',
     run: project('saveAs'),

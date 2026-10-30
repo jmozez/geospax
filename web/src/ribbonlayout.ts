@@ -110,7 +110,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
       small: ['edit.export'],
     },
     { group: 'Layout', big: ['home.finish', 'share.layout'] },
-    { group: 'Publish', big: ['share.publish'], small: ['share.package', 'home.copyLink'] },
+    { group: 'Publish', big: ['share.publish'], small: ['share.package', 'home.copyLink', 'home.review'] },
   ],
   help: [
     { group: 'Learn', big: ['help.tutorials', 'help.guide'], small: ['help.search', 'help.keys', 'help.faq'] },
