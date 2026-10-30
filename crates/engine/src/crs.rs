@@ -101,6 +101,85 @@ pub fn describe(code: &str) -> Result<Value, String> {
     }))
 }
 
+/// The Pacific pack: hand-picked systems for Papua New Guinea and the Pacific Islands, with a note
+/// on when to use each. Every code is checked against PROJ's database (see the test), so the list
+/// never offers a system the engine cannot use.
+pub const PACIFIC: &[(&str, &str, &str)] = &[
+    (
+        "5546",
+        "Papua New Guinea",
+        "PNG94 geographic (the national datum, GRS80, ITRF92)",
+    ),
+    (
+        "5550",
+        "Papua New Guinea",
+        "PNG94 / PNGMG94 zone 54 (western PNG)",
+    ),
+    (
+        "5551",
+        "Papua New Guinea",
+        "PNG94 / PNGMG94 zone 55 (Port Moresby, Lae, Highlands)",
+    ),
+    (
+        "5552",
+        "Papua New Guinea",
+        "PNG94 / PNGMG94 zone 56 (New Britain, New Ireland, Bougainville)",
+    ),
+    (
+        "4202",
+        "Papua New Guinea",
+        "AGD66 geographic (legacy PNG and Australian surveys)",
+    ),
+    (
+        "32755",
+        "Papua New Guinea",
+        "WGS 84 / UTM 55S (GPS work around Lae and Port Moresby)",
+    ),
+    (
+        "3460",
+        "Fiji",
+        "Fiji 1986 / Fiji Map Grid (the national grid)",
+    ),
+    ("4720", "Fiji", "Fiji 1986 geographic"),
+    ("32757", "Solomon Islands", "WGS 84 / UTM 57S"),
+    ("32758", "Vanuatu and New Caledonia", "WGS 84 / UTM 58S"),
+    ("32759", "Vanuatu", "WGS 84 / UTM 59S"),
+    (
+        "32701",
+        "Tonga and Samoa",
+        "WGS 84 / UTM 1S (across the antimeridian)",
+    ),
+    ("32702", "Samoa and American Samoa", "WGS 84 / UTM 2S"),
+    (
+        "2193",
+        "New Zealand",
+        "NZGD2000 / New Zealand Transverse Mercator",
+    ),
+    (
+        "7855",
+        "Australia",
+        "GDA2020 / MGA zone 55 (Queensland, Torres Strait)",
+    ),
+    (
+        "3832",
+        "Pacific-wide",
+        "WGS 84 / PDC Mercator (a Pacific-centred map, no antimeridian split)",
+    ),
+    ("4326", "Pacific-wide", "WGS 84 geographic (GPS, web maps)"),
+];
+
+/// The Pacific pack as JSON, skipping any code PROJ does not know.
+pub fn pacific() -> Value {
+    let rows: Vec<Value> = PACIFIC
+        .iter()
+        .filter_map(|(code, region, note)| {
+            let c = all().iter().find(|c| c.code == *code)?;
+            Some(json!({ "code": format!("EPSG:{code}"), "name": c.name, "kind": c.kind, "area": c.area, "region": region, "note": note }))
+        })
+        .collect();
+    json!({ "total": rows.len(), "systems": rows })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,5 +194,16 @@ mod tests {
         assert!(d["proj4"].as_str().unwrap().contains("+zone=55"));
         assert!(d["name"].as_str().unwrap().contains("UTM zone 55S"));
         assert!(describe("EPSG:nope").is_err());
+    }
+
+    #[test]
+    fn pacific_pack_codes_all_exist() {
+        crate::raster::configure_gdal();
+        let p = pacific();
+        let n = p["systems"].as_array().unwrap().len();
+        assert_eq!(n, PACIFIC.len(), "a Pacific code is missing from PROJ: {p}");
+        for (code, _, _) in PACIFIC {
+            assert!(describe(code).is_ok(), "EPSG:{code}");
+        }
     }
 }

@@ -1,4 +1,6 @@
 import { wireProjects } from './projects';
+import * as editingMod from './editing';
+import * as ggchartMod from './ggchart';
 import { startupCheck } from './updates';
 import * as maplibregl from 'maplibre-gl';
 import { AutomatePane, type RunInfo } from './automate';
@@ -58,7 +60,7 @@ maplibregl.setWorkerUrl(workerUrl);
 
 const backend = createBackend();
 // the chart look (ggplot2 theme and palette) chosen in Settings, for the charts drawn in the app
-void import("./ggchart").then((m) => m.loadChartStyle(backend));
+void ggchartMod.loadChartStyle(backend);
 
 // Forward client errors/warnings to the engine log: release webviews (Tauri)
 // have no devtools, and headless smoke tests read the engine's stderr.
@@ -476,7 +478,7 @@ function addBasemap(sources: maplibregl.StyleSpecification['sources'], out: mapl
 
 /** View › Basemap gallery: every basemap with its terms, and your own XYZ tiles. */
 async function basemapGallery() {
-  const { dialog, say } = await import('./editing');
+  const { dialog, say } = editingMod;
   const cur = basemap();
   const e = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const groups = [...new Set(BASEMAPS.map((d) => d.group))];
@@ -915,7 +917,7 @@ function rasterMenu(id: string, x: number, y: number): boolean {
     { sep: true },
     { label: 'Remove from map', danger: true, hint: 'The file is kept; add it again from the Explorer', run: () => void removeLayer(id) },
     { label: 'Properties…', run: async () => {
-      const { dialog } = await import('./editing');
+      const { dialog } = editingMod;
       const e = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
       const rows: [string, string][] = [['Name', r.title], ['Id', r.id], ['Kind', r.kind], ['Size', `${r.width} × ${r.height} px`], ['Pixel', `${r.pixel_m} m`],
         ['Coordinate system', r.crs], ['Extent (WGS 84)', r.bounds.map((v) => v.toFixed(5)).join(', ')], ['About', r.description || r.why]];
@@ -1363,7 +1365,7 @@ function wireContents() {
 async function layerProperties(id: string) {
   const l = layerById(id);
   if (!l) return;
-  const { dialog } = await import('./editing');
+  const { dialog } = editingMod;
   const e = (x: unknown) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const rows: [string, string][] = [
     ['Name', l.name], ['Id', l.id], ['Source', l.source], ['Format', l.driver], ['Geometry', l.geometry],
@@ -1377,7 +1379,7 @@ async function layerProperties(id: string) {
 
 /** Data › Sample data: pick a set; it is copied into the data folder and mapped. */
 async function openSamples() {
-  const { dialog, say } = await import('./editing');
+  const { dialog, say } = editingMod;
   type Set = { id: string; title: string; description: string; credits: string; files: string[] };
   let sets: Set[] = [];
   try {
@@ -1460,7 +1462,7 @@ function dropPin(lonlat: [number, number], label: string) {
 }
 
 async function goToXY() {
-  const { dialog, say } = await import('./editing');
+  const { dialog, say } = editingMod;
   await dialog('Go To XY', `<label>Coordinates <input name="xy" placeholder="-9.44, 147.18  ·  9°26'S 147°11'E  ·  147.18 -9.44" autofocus></label>
     <p class="hint">Latitude and longitude in decimal degrees or degrees-minutes-seconds, in either order with N/S/E/W.</p><div class="dlg-msg" data-msg></div>`, [['ok', 'Go'], ['', 'Cancel']], {
     onButton: (b, v, root) => {
@@ -1475,7 +1477,7 @@ async function goToXY() {
 }
 
 async function findPlace() {
-  const { dialog, say } = await import('./editing');
+  const { dialog, say } = editingMod;
   await dialog('Find place', `<label>Place or address <input name="q" placeholder="e.g. Port Moresby, or Waigani Drive" autofocus></label>
     <div class="fp-results"></div><p class="hint">Search by OpenStreetMap Nominatim (needs internet). Coordinates work too.</p><div class="dlg-msg" data-msg></div>`, [['ok', 'Search'], ['', 'Close']], {
     onOpen: (root) => root.addEventListener('click', (e) => {
@@ -1515,10 +1517,10 @@ async function findPlace() {
 
 /** Home › Settings (ArcGIS Pro's Options): appearance, map, automation, and the setup pages. */
 async function openSettings() {
-  const { dialog } = await import('./editing');
+  const { dialog } = editingMod;
   const e = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const opt = (v: string, label: string, cur: string) => `<option value="${e(v)}"${v === cur ? ' selected' : ''}>${e(label)}</option>`;
-  const { loadChartStyle, saveChartStyle, THEMES: CH_THEMES, PALETTES: CH_PALETTES } = await import('./ggchart');
+  const { loadChartStyle, saveChartStyle, THEMES: CH_THEMES, PALETTES: CH_PALETTES } = ggchartMod;
   const chartSt = await loadChartStyle(backend);
   const health = await backend.json<{ version?: string; data?: string[]; state?: string }>('api/about').catch(() => ({} as { version?: string; data?: string[]; state?: string }));
   const body = `
