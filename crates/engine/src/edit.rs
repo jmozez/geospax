@@ -133,14 +133,13 @@ fn geometry_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
         // allowed (the user may still be shaping it) but say so in the server log
         eprintln!("edit: invalid geometry saved as drawn");
     }
-    if let Some(srs) = lyr.spatial_ref() {
-        if !catalog::is_wgs84(&srs) {
+    if let Some(srs) = lyr.spatial_ref()
+        && !catalog::is_wgs84(&srs) {
             let mut dst = srs.clone();
             dst.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
             let ct = CoordTransform::new(&wgs84()?, &dst).map_err(gerr)?;
             geom.transform_inplace(&ct).map_err(gerr)?;
         }
-    }
     let want = gdal::vector::geometry_type_flatten(lyr.defn().geometry_type());
     let have = gdal::vector::geometry_type_flatten(geom.geometry_type());
     let multi = match (want, have) {
@@ -330,11 +329,10 @@ impl Engine {
     /// Re-attach edit copies and new layers from earlier sessions (called once at start).
     pub fn load_edits(&self) {
         for (id, e) in self.edit_index() {
-            if e.copy.is_file() {
-                if let Err(err) = self.reload_layer(&id, &e.copy, &e.layer, &e.name) {
+            if e.copy.is_file()
+                && let Err(err) = self.reload_layer(&id, &e.copy, &e.layer, &e.name) {
                     eprintln!("warning: edited copy of {id} not loaded: {err}");
                 }
-            }
         }
     }
 
@@ -356,7 +354,7 @@ impl Engine {
     }
 
     fn reload(&self, l: &LayerHandle) -> Result<Arc<LayerHandle>, String> {
-        self.reload_layer(&l.info.id, &l.path().to_path_buf(), &l.layer_name().to_string(), &l.info.name.clone())
+        self.reload_layer(&l.info.id, l.path(), l.layer_name(), &l.info.name.clone())
     }
 
     /// The layer, made editable: the first call copies it into `<state>/edits` (see module docs).
@@ -613,11 +611,10 @@ impl Engine {
                     }
                     let Some(g) = feat.geometry() else { continue };
                     let mut g = g.clone();
-                    if let Some(ct) = &to {
-                        if g.transform_inplace(&ct.0).is_err() {
+                    if let Some(ct) = &to
+                        && g.transform_inplace(&ct.0).is_err() {
                             continue;
                         }
-                    }
                     let Ok(bytes) = g.wkb() else { continue };
                     let Ok(geom) = wkb::parse(&bytes) else { continue };
                     let (a, len, p) = measure(&geom);
@@ -1025,33 +1022,6 @@ fn count_dialect(ds: &Dataset, sql: &str, d: Dialect) -> Result<u64, String> {
     Ok(n.max(0) as u64)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn geodesic_measures() {
-        // a 1° × 1° cell at the equator: 12,363.7 km² on the sphere (R = 6,371,008.8 m)
-        let sq = Geom::Polygons(vec![vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]]]);
-        let (a, p, _) = measure(&sq);
-        let exact = EARTH_R * EARTH_R * 1f64.to_radians() * (1f64.to_radians().sin());
-        assert!((a - exact).abs() / exact < 1e-9, "{a} vs {exact}");
-        assert!((p / 1000.0 - 444.7).abs() < 0.5, "perimeter {p}");
-        // 1° of longitude along the equator: 111.195 km
-        let l = Geom::Lines(vec![vec![[0.0, 0.0], [1.0, 0.0]]]);
-        assert!((measure(&l).1 - 111_195.08).abs() < 0.1);
-    }
-
-    #[test]
-    fn sql_quoting() {
-        assert_eq!(ident("a\"b"), "\"a\"\"b\"");
-        assert_eq!(tidy("CPL error class: '3', error number: '1', error msg: 'In ExecuteSQL(): sqlite3_prepare_v2(SELECT x):\n  no such column: x'"), "no such column: x");
-        assert_eq!(literal("O'Neil"), "'O''Neil'");
-        assert_eq!(Engine::scope_sql("fid", Some("x > 1"), Some(&[3, 4])), " WHERE (x > 1) AND \"fid\" IN (3,4)");
-        assert_eq!(Engine::scope_sql("fid", None, Some(&[])), " WHERE \"fid\" IN (NULL)");
-    }
-}
-
 // ---------------------------------------------------------------- geometry edits (Edit › Modify)
 
 /// A geometry GEOS made through the OGR C API, copied into an owned `Geometry` (via WKB) and the
@@ -1095,14 +1065,13 @@ fn parts(g: &Geometry) -> Vec<Geometry> {
 /// A sketch (GeoJSON in WGS 84) in the layer's CRS, its type kept.
 fn sketch_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
     let mut geom = Geometry::from_geojson(&g.to_string()).map_err(|e| format!("bad sketch: {e}"))?;
-    if let Some(srs) = lyr.spatial_ref() {
-        if !catalog::is_wgs84(&srs) {
+    if let Some(srs) = lyr.spatial_ref()
+        && !catalog::is_wgs84(&srs) {
             let mut dst = srs.clone();
             dst.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
             let ct = CoordTransform::new(&wgs84()?, &dst).map_err(gerr)?;
             geom.transform_inplace(&ct).map_err(gerr)?;
         }
-    }
     Ok(geom)
 }
 
@@ -1321,6 +1290,9 @@ impl Engine {
     /// CSV (WKT geometry), GeoJSON or GeoParquet, in WGS 84 except GeoPackage and Shapefile, which
     /// keep the layer's CRS. A definition query applies. Returns (bytes, file name, content type).
     pub fn layer_download(&self, l: &LayerHandle, format: &str) -> Result<(Vec<u8>, String, &'static str), String> {
+        if matches!(format, "pmtiles") {
+            return self.layer_pmtiles(l);
+        }
         let (driver, ext, ctype, wgs, extra): (&str, &str, &'static str, bool, &[&str]) = match format {
             "gpkg" | "geopackage" => ("GPKG", "gpkg", "application/geopackage+sqlite3", false, &[]),
             "shp" | "shapefile" => ("ESRI Shapefile", "shp", "application/zip", false, &["-lco", "ENCODING=UTF-8"]),
@@ -1328,7 +1300,7 @@ impl Engine {
             "csv" => ("CSV", "csv", "text/csv", true, &["-lco", "GEOMETRY=AS_WKT"]),
             "geojson" | "json" => ("GeoJSON", "geojson", "application/geo+json", true, &["-lco", "RFC7946=YES"]),
             "parquet" | "geoparquet" => ("Parquet", "parquet", "application/vnd.apache.parquet", false, &[]),
-            f => return Err(format!("unknown format '{f}' (gpkg, shp, kml, csv, geojson, parquet)")),
+            f => return Err(format!("unknown format '{f}' (gpkg, shp, kml, csv, geojson, parquet, pmtiles)")),
         };
         // GeoParquet without GDAL's Parquet driver (the builds GeoSpaX ships with have none):
         // a WGS 84 GeoPackage first, then the parquet crate writes the file
@@ -1380,5 +1352,88 @@ impl Engine {
         });
         let _ = std::fs::remove_dir_all(&dir);
         result
+    }
+
+    /// A layer as one PMTiles vector tile archive (Share › Export data › PMTiles): a single static
+    /// file that MapLibre, the GeoSpaX web map and any web server or USB stick can serve with no tile
+    /// server. Zoom 0 to 14, lowered until the pyramid fits the tile limit.
+    pub fn layer_pmtiles(&self, l: &LayerHandle) -> Result<(Vec<u8>, String, &'static str), String> {
+        let mut z: u8 = 14;
+        while z > 4 && crate::overview::pyramid_tiles(l.info.bounds, z) > crate::overview::MAX_TILES {
+            z -= 1;
+        }
+        let stem = {
+            let s = catalog::sanitize(&l.info.name).replace('.', "_");
+            if s.trim_matches('_').is_empty() { "layer".to_string() } else { s }
+        };
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("geospax-pm-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let out = dir.join(format!("{stem}.pmtiles"));
+        let cancel = std::sync::atomic::AtomicBool::new(false);
+        let res = crate::overview::build(self, l, z, &out, &cancel, &|_, _| {}).and_then(|_| std::fs::read(&out).map_err(|e| e.to_string()));
+        let _ = std::fs::remove_dir_all(&dir);
+        Ok((res?, format!("{stem}.pmtiles"), "application/vnd.pmtiles"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn geodesic_measures() {
+        // a 1° × 1° cell at the equator: 12,363.7 km² on the sphere (R = 6,371,008.8 m)
+        let sq = Geom::Polygons(vec![vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]]]);
+        let (a, p, _) = measure(&sq);
+        let exact = EARTH_R * EARTH_R * 1f64.to_radians() * (1f64.to_radians().sin());
+        assert!((a - exact).abs() / exact < 1e-9, "{a} vs {exact}");
+        assert!((p / 1000.0 - 444.7).abs() < 0.5, "perimeter {p}");
+        // 1° of longitude along the equator: 111.195 km
+        let l = Geom::Lines(vec![vec![[0.0, 0.0], [1.0, 0.0]]]);
+        assert!((measure(&l).1 - 111_195.08).abs() < 0.1);
+    }
+
+    #[test]
+    fn sql_quoting() {
+        assert_eq!(ident("a\"b"), "\"a\"\"b\"");
+        assert_eq!(tidy("CPL error class: '3', error number: '1', error msg: 'In ExecuteSQL(): sqlite3_prepare_v2(SELECT x):\n  no such column: x'"), "no such column: x");
+        assert_eq!(literal("O'Neil"), "'O''Neil'");
+        assert_eq!(Engine::scope_sql("fid", Some("x > 1"), Some(&[3, 4])), " WHERE (x > 1) AND \"fid\" IN (3,4)");
+        assert_eq!(Engine::scope_sql("fid", None, Some(&[])), " WHERE \"fid\" IN (NULL)");
+    }
+
+    #[test]
+    fn exports_a_layer_as_pmtiles() {
+        crate::raster::configure_gdal();
+        let dir = std::env::temp_dir().join(format!("gx-pmx-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("sites.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"n":"a"},"geometry":{"type":"Point","coordinates":[147.15,-9.47]}},{"type":"Feature","properties":{"n":"b"},"geometry":{"type":"Point","coordinates":[147.2,-9.44]}}]}"#,
+        )
+        .unwrap();
+        let e = Engine::open(crate::EngineConfig {
+            plugins: Default::default(),
+            data: vec![dir.clone()],
+            cache_tiles: 0,
+            threads: 1,
+            bench_log: None,
+            read_mode: Default::default(),
+            state_dir: Some(dir.join(".state")),
+            devices: Default::default(),
+            automation: Default::default(),
+            phone: Default::default(),
+        })
+        .unwrap();
+        let l = e.layers().into_iter().next().expect("one layer");
+        let (bytes, name, mime) = e.layer_download(&l, "pmtiles").unwrap();
+        assert_eq!(name, "sites.pmtiles");
+        assert_eq!(mime, "application/vnd.pmtiles");
+        assert_eq!(&bytes[..7], b"PMTiles");
+        assert_eq!(bytes[7], 3, "PMTiles spec version 3");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -533,15 +533,50 @@ fn provider_error(provider: &str, e: &str) -> String {
 
 // ------------------------------------------------------------------ MCP
 
+/// What an MCP client may do: every tool (the default), only tools that change nothing, or a named
+/// list; and an optional JSON Lines audit log of every tool call.
+#[derive(Debug, Clone, Default)]
+pub struct McpPolicy {
+    /// Hide and refuse tools that write files or start work (`run_recipe`).
+    pub read_only: bool,
+    /// When set, only these tools are listed and callable.
+    pub allow: Option<Vec<String>>,
+    /// Append one JSON line per tool call (time, tool, arguments, ok, milliseconds, error).
+    pub audit: Option<std::path::PathBuf>,
+}
+
+/// Tools that create files or start background work; refused in read-only mode.
+const WRITES: &[&str] = &["run_recipe"];
+
+impl McpPolicy {
+    pub fn allows(&self, tool: &str) -> bool {
+        !(self.read_only && WRITES.contains(&tool)) && self.allow.as_ref().is_none_or(|a| a.iter().any(|t| t == tool))
+    }
+
+    fn log(&self, tool: &str, args: &Value, res: &Result<Value, String>, ms: u128) {
+        let Some(p) = &self.audit else { return };
+        let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let line = json!({ "ts": ts, "tool": tool, "arguments": args, "ok": res.is_ok(), "ms": ms, "error": res.as_ref().err() });
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+}
+
 /// Serve the tools over MCP (JSON-RPC 2.0, one message per line) until `input` ends.
-pub fn mcp_serve(engine: &Arc<Engine>, input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
+pub fn mcp_serve(engine: &Arc<Engine>, input: impl BufRead, output: impl Write) -> std::io::Result<()> {
+    mcp_serve_with(engine, &McpPolicy::default(), input, output)
+}
+
+/// [`mcp_serve`] under a policy (read-only mode, a tool allow list, an audit log).
+pub fn mcp_serve_with(engine: &Arc<Engine>, policy: &McpPolicy, input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
     for line in input.lines() {
         let line = line?;
         if line.trim().is_empty() {
             continue;
         }
         let reply = match serde_json::from_str::<Value>(&line) {
-            Ok(msg) => mcp_handle(engine, &msg),
+            Ok(msg) => mcp_handle_with(engine, policy, &msg),
             Err(e) => Some(json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": format!("parse error: {e}") } })),
         };
         if let Some(r) = reply {
@@ -554,6 +589,16 @@ pub fn mcp_serve(engine: &Arc<Engine>, input: impl BufRead, mut output: impl Wri
 
 /// One MCP message; None for notifications.
 pub fn mcp_handle(engine: &Arc<Engine>, msg: &Value) -> Option<Value> {
+    mcp_handle_with(engine, &McpPolicy::default(), msg)
+}
+
+/// The MCP tools an assistant sees under a policy: (name, description, input schema).
+pub fn mcp_tools(policy: &McpPolicy) -> Vec<(&'static str, &'static str, Value)> {
+    defs().into_iter().filter(|d| d.3 && policy.allows(d.0)).map(|(n, d, s, _)| (n, d, s)).collect()
+}
+
+/// [`mcp_handle`] under a policy.
+pub fn mcp_handle_with(engine: &Arc<Engine>, policy: &McpPolicy, msg: &Value) -> Option<Value> {
     let id = msg.get("id")?.clone();
     let ok = |result: Value| Some(json!({ "jsonrpc": "2.0", "id": id, "result": result }));
     let params = &msg["params"];
@@ -565,15 +610,20 @@ pub fn mcp_handle(engine: &Arc<Engine>, msg: &Value) -> Option<Value> {
             "instructions": "GeoSpaX's map data: list_layers first, then describe_field, query_features or select_features with SQL WHERE clauses on the layer's fields; list_recipes / run_recipe for whole workflows.",
         })),
         "ping" => ok(json!({})),
-        "tools/list" => ok(json!({ "tools": defs().into_iter().filter(|d| d.3).map(|(n, d, s, _)| json!({ "name": n, "description": d, "inputSchema": s })).collect::<Vec<_>>() })),
+        "tools/list" => ok(json!({ "tools": mcp_tools(policy).into_iter().map(|(n, d, s)| json!({ "name": n, "description": d, "inputSchema": s })).collect::<Vec<_>>() })),
         "tools/call" => {
             let name = params["name"].as_str().unwrap_or("");
-            if !defs().iter().any(|d| d.0 == name && d.3) {
-                return Some(json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32602, "message": format!("unknown tool '{name}'") } }));
+            if !mcp_tools(policy).iter().any(|d| d.0 == name) {
+                let why = if defs().iter().any(|d| d.0 == name && d.3) { format!("tool '{name}' is not allowed on this server") } else { format!("unknown tool '{name}'") };
+                policy.log(name, &params["arguments"], &Err(why.clone()), 0);
+                return Some(json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32602, "message": why } }));
             }
             let args = if params["arguments"].is_object() { params["arguments"].clone() } else { json!({}) };
-            match engine.ai_tool(name, &args) {
-                Ok((v, _)) => ok(json!({ "content": [{ "type": "text", "text": cut(&v) }], "structuredContent": v, "isError": false })),
+            let t0 = std::time::Instant::now();
+            let res = engine.ai_tool(name, &args).map(|(v, _)| v);
+            policy.log(name, &args, &res, t0.elapsed().as_millis());
+            match res {
+                Ok(v) => ok(json!({ "content": [{ "type": "text", "text": cut(&v) }], "structuredContent": v, "isError": false })),
                 Err(e) => ok(json!({ "content": [{ "type": "text", "text": e }], "isError": true })),
             }
         }
@@ -602,6 +652,27 @@ mod tests {
         assert!(e.automation.last_run("points-to-hexbins").is_none(), "nothing ran");
         let (_, err) = e.run_tool("run_recipe", &json!({ "recipe": "points-to-hexbins", "inputs": { "nope": 1 } }), &mut steps, &mut actions);
         assert!(err);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn mcp_policy_limits_tools() {
+        let all = mcp_tools(&McpPolicy::default());
+        assert!(all.iter().any(|t| t.0 == "run_recipe"));
+        let ro = McpPolicy { read_only: true, ..Default::default() };
+        assert!(!mcp_tools(&ro).iter().any(|t| t.0 == "run_recipe"));
+        assert!(mcp_tools(&ro).iter().any(|t| t.0 == "list_layers"));
+        let only = McpPolicy { allow: Some(vec!["list_layers".into()]), ..Default::default() };
+        assert_eq!(mcp_tools(&only).iter().map(|t| t.0).collect::<Vec<_>>(), vec!["list_layers"]);
+        // the policy and audit log apply before the engine is touched
+        let dir = std::env::temp_dir().join(format!("gx-mcp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("audit.jsonl");
+        let p = McpPolicy { read_only: true, audit: Some(log.clone()), ..Default::default() };
+        p.log("run_recipe", &json!({ "recipe": "x" }), &Err("tool 'run_recipe' is not allowed on this server".into()), 0);
+        let line: Value = serde_json::from_str(std::fs::read_to_string(&log).unwrap().lines().next().unwrap()).unwrap();
+        assert_eq!(line["tool"], "run_recipe");
+        assert_eq!(line["ok"], false);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
