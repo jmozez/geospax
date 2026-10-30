@@ -47,6 +47,7 @@ pub mod rsetup;
 pub mod samples;
 pub mod scene3d;
 pub mod tile;
+pub mod tiles3d;
 pub mod upload;
 pub mod wkb;
 
