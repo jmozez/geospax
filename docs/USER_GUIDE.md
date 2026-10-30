@@ -390,7 +390,7 @@ hides, Enter opens the symbology, Alt+↑/↓ moves the layer in the drawing ord
 
 ### Reviewing a shared project
 
-When a team shares one self-hosted web edition (docs/DEPLOY.md, token mode), **Home › Review** works on
+When a team shares one self-hosted web edition (docs/DEPLOY.md, token mode), **Share › Review** works on
 the named project that is open (save it with **Save as** first):
 
 - **Comments pinned to the map.** Type your name and a comment; it is pinned to the centre of the

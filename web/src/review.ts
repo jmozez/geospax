@@ -1,4 +1,4 @@
-// Review (Home › Review): comments pinned to the map and the version history of a named project,
+// Review (Share › Review): comments pinned to the map and the version history of a named project,
 // for teams sharing one self-hosted web edition (docs/USER_GUIDE.md, "Reviewing a shared project").
 import type { CommandHost } from './commands';
 import { dialog, say } from './editing';
