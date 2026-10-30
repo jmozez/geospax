@@ -150,11 +150,10 @@ fn stac_tick(engine: &Arc<Engine>, polls: &mut HashMap<(String, usize), (Instant
 
 fn fire(engine: &Arc<Engine>, recipe: &super::recipe::Recipe, trigger: Value, source: Option<String>) {
     let mut given = Map::new();
-    if let Some(s) = source {
-        if recipe.inputs.iter().any(|i| i.name == "source") {
+    if let Some(s) = source
+        && recipe.inputs.iter().any(|i| i.name == "source") {
             given.insert("source".into(), Value::from(s));
         }
-    }
     match engine.automation.start_run(engine, &recipe.id, given, trigger) {
         Ok(run) => eprintln!("automation: {} started ({})", recipe.id, run.id),
         Err(e) => eprintln!("automation: {}: {e}", recipe.id),

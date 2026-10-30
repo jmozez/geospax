@@ -166,7 +166,7 @@ fn overlay(sc: &StepCtx, ids: &[String], d: &DemIn, tw: usize, th: usize, rgb: &
     let tree = resvg::usvg::Tree::from_str(&svg, &resvg::usvg::Options::default()).map_err(|e| format!("overlay: {e}"))?;
     let mut pm = resvg::tiny_skia::Pixmap::new(tw as u32, th as u32).ok_or("overlay: bad size")?;
     resvg::render(&tree, resvg::tiny_skia::Transform::identity(), &mut pm.as_mut());
-    for (i, px) in pm.data().chunks_exact(4).enumerate() {
+    for (i, px) in pm.data().as_chunks::<4>().0.iter().enumerate() {
         let a = px[3] as f32 / 255.0;
         if a > 0.0 {
             for k in 0..3 {
@@ -606,7 +606,7 @@ fn north_arrow(img: scene3d::Rendered, k: f64) -> Result<(Vec<u8>, Vec<u8>, f64)
     let size = resvg::tiny_skia::IntSize::from_wh(img.w as u32, img.h as u32).ok_or("bad picture size")?;
     let mut pm = resvg::tiny_skia::Pixmap::from_vec(img.rgba, size).ok_or("bad picture")?;
     resvg::render(&tree, resvg::tiny_skia::Transform::identity(), &mut pm.as_mut());
-    let rgb: Vec<u8> = pm.data().chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
+    let rgb: Vec<u8> = pm.data().as_chunks::<4>().0.iter().flat_map(|p| [p[0], p[1], p[2]]).collect();
     let png = pm.encode_png().map_err(|e| e.to_string())?;
     Ok((png, rgb, img.north))
 }

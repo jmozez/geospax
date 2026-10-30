@@ -97,12 +97,11 @@ pub fn list(svc: &Value, sub: &str) -> Result<Vec<Value>, String> {
         let is_dir = e.bModeKnown != 0 && (e.nMode & 0o170000) == 0o040000;
         if is_dir {
             folders.push(json!({ "id": rel, "title": name, "type": "folder" }));
-        } else if let Some(kind) = crate::browse::kind_of(Path::new(&name)) {
-            if matches!(kind, "raster" | "vector") {
+        } else if let Some(kind) = crate::browse::kind_of(Path::new(&name))
+            && matches!(kind, "raster" | "vector") {
                 let size = (e.bSizeKnown != 0).then_some(e.nSize);
                 files.push(json!({ "id": rel, "title": name, "type": "file", "kind": kind, "size": size }));
             }
-        }
     }
     unsafe { gdal_sys::VSICloseDir(h) };
     let by = |a: &Value, b: &Value| a["title"].as_str().unwrap_or("").to_lowercase().cmp(&b["title"].as_str().unwrap_or("").to_lowercase());

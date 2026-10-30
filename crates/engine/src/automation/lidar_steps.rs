@@ -45,11 +45,10 @@ fn round1(v: f64) -> f64 {
 /// or (auto) the device / drop folder / file that triggered the run.
 fn cloud_files(sc: &StepCtx, src: &str) -> Result<Vec<PathBuf>, String> {
     let s = src.trim();
-    if !s.is_empty() && s != "auto" {
-        if let Some(p) = sc.resolve_path(s).filter(|p| p.is_file()) {
+    if !s.is_empty() && s != "auto"
+        && let Some(p) = sc.resolve_path(s).filter(|p| p.is_file()) {
             return if lidar::is_cloud_file(&p) { Ok(vec![p]) } else { Err(format!("'{s}' is not a LAS or LAZ point cloud")) };
         }
-    }
     let root = resolve_source(sc, s)?;
     let files = lidar::find_clouds(&root, 5000);
     if files.is_empty() {

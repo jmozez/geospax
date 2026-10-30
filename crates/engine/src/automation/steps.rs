@@ -1086,7 +1086,7 @@ fn sensor_summary(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                 .rev()
                 .find(|t| t.ends_with("readings"))
                 .cloned()
-                .or_else(|| sc.engine.layers().iter().map(|l| l.info.id.clone()).filter(|i| i.ends_with("readings")).last())
+                .or_else(|| sc.engine.layers().iter().map(|l| l.info.id.clone()).rfind(|i| i.ends_with("readings")))
                 .ok_or("no sensor readings layer yet: import a sensor logger (devices.import) or take a live snapshot (sensor.snapshot) first")?;
             sc.layer(&id)?
         }
@@ -1766,11 +1766,10 @@ fn automap_style(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                     st.style[k] = v.clone();
                 }
             }
-            if let Some(c) = h.get("color") {
-                if st.style["symbology"]["kind"] == "single" || h.get("field").and_then(Value::as_str) == Some("none") {
+            if let Some(c) = h.get("color")
+                && (st.style["symbology"]["kind"] == "single" || h.get("field").and_then(Value::as_str) == Some("none")) {
                     st.style["symbology"] = json!({ "kind": "single", "color": c });
                 }
-            }
             if let Some(w) = h.get("width") {
                 st.style["width"] = w.clone();
             }
@@ -2084,12 +2083,11 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     let ids: Vec<String> = layer_list(sc, p, "layers")
         .into_iter()
         .filter(|id| {
-            if sc.engine.layer(id).is_none() {
-                if let Some(r) = find_raster(id) {
+            if sc.engine.layer(id).is_none()
+                && let Some(r) = find_raster(id) {
                     raster_ids.push(r.info.id.clone());
                     return false;
                 }
-            }
             true
         })
         .collect();
@@ -2103,17 +2101,15 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
             let touched: Vec<Arc<crate::raster::RasterHandle>> = sc.rasters.iter().filter_map(|id| sc.engine.raster(id)).collect();
             if let Some(base) = touched.iter().rev().find(|r| r.info.kind != "hillshade") {
                 // forest loss is drawn over the tree cover it was lost from (its no-loss cells are clear)
-                if base.info.kind == "lossyear" {
-                    if let Some(tc) = touched.iter().rev().find(|r| r.info.kind == "treecover") {
+                if base.info.kind == "lossyear"
+                    && let Some(tc) = touched.iter().rev().find(|r| r.info.kind == "treecover") {
                         raster_ids.push(tc.info.id.clone());
                     }
-                }
                 raster_ids.push(base.info.id.clone());
-                if base.info.kind != "rgb" {
-                    if let Some(hs) = touched.iter().rev().find(|r| r.info.kind == "hillshade") {
+                if base.info.kind != "rgb"
+                    && let Some(hs) = touched.iter().rev().find(|r| r.info.kind == "hillshade") {
                         raster_ids.push(hs.info.id.clone());
                     }
-                }
             } else if let Some(hs) = touched.last() {
                 raster_ids.push(hs.info.id.clone());
             }
@@ -2271,11 +2267,10 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         let mut want: Vec<usize> = Vec::new();
         // the facet field too: a map split by a field needs it even when the layer is not styled by it
         for f in [style["symbology"]["field"].as_str().map(str::to_string), style["point"]["sizeBy"]["field"].as_str().map(str::to_string), label.clone(), style["labels"]["field2"].as_str().map(str::to_string), p_str(p, "facet").map(str::to_string), Some("direction".to_string()), Some("length_m".to_string()), Some("area_m2".to_string()), Some("index".to_string())].into_iter().flatten() {
-            if let Some(i) = l.field_index(&f) {
-                if !want.contains(&i) {
+            if let Some(i) = l.field_index(&f)
+                && !want.contains(&i) {
                     want.push(i);
                 }
-            }
         }
         let fs = features::read_layer(sc.engine, l, Some(view), Some(&want), 250_000)?;
         let n = fs.feats.len();
@@ -2440,13 +2435,12 @@ fn export_report(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         if !names.is_empty() {
             rows.push(("Fields".into(), names.join(", ")));
         }
-        if let Some((st, _, _)) = sc.styles.get(id) {
-            if let (Some("graduated"), Some(f)) = (st["symbology"]["kind"].as_str(), st["symbology"]["field"].as_str()) {
+        if let Some((st, _, _)) = sc.styles.get(id)
+            && let (Some("graduated"), Some(f)) = (st["symbology"]["kind"].as_str(), st["symbology"]["field"].as_str()) {
                 let lo = st["symbology"]["min"].as_f64().unwrap_or(f64::NAN);
                 let hi = st["symbology"]["breaks"].as_array().and_then(|a| a.last()).and_then(Value::as_f64).unwrap_or(f64::NAN);
                 rows.push((format!("Range of {f}"), format!("{} – {}", cartography::fmt_num(lo), cartography::fmt_num(hi))));
             }
-        }
         layers.push(report::LayerSummary { id: id.clone(), title: sc.title_of(&l), kind: format!("{:?}", l.info.geometry).to_lowercase(), features: l.info.feature_count, rows });
     }
     let mut cards = sc.cards.clone();

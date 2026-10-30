@@ -238,11 +238,10 @@ pub fn handle(engine: &Arc<Engine>, mut req: ApiRequest) -> ApiResponse {
         ["api", "jobs", id, ..] => Some(format!("job:{id}")),
         _ => None,
     };
-    if let Some(key) = named {
-        if !owners.owns(&key, &ws) {
+    if let Some(key) = named
+        && !owners.owns(&key, &ws) {
             return not_found();
         }
-    }
     // and so must every layer or raster its body or query names (tool inputs, map previews...)
     if !matches!(segs.as_slice(), ["api", "project", ..]) {
         let known: HashSet<String> = engine.layers().iter().map(|l| l.info.id.clone()).chain(engine.rasters().iter().map(|r| r.info.id.clone())).collect();
@@ -287,14 +286,13 @@ pub fn handle(engine: &Arc<Engine>, mut req: ApiRequest) -> ApiResponse {
     };
 
     // no folders of the server in replies (where an upload or a tool saved, which file an error is about)
-    if res.content_type.starts_with("application/json") {
-        if let Ok(mut v) = serde_json::from_slice::<Value>(&res.body) {
+    if res.content_type.starts_with("application/json")
+        && let Ok(mut v) = serde_json::from_slice::<Value>(&res.body) {
             let mut roots: Vec<String> = engine.data_dirs.iter().chain(std::iter::once(&engine.state_dir)).map(|d| d.display().to_string()).filter(|r| r.len() > 1).collect();
             roots.sort_by_key(|r| std::cmp::Reverse(r.len()));
             scrub(&mut v, &roots);
             res.body = serde_json::to_vec(&v).unwrap_or_default();
         }
-    }
 
     // lists show this visitor's own things only
     let list = match segs.as_slice() {
@@ -304,8 +302,8 @@ pub fn handle(engine: &Arc<Engine>, mut req: ApiRequest) -> ApiResponse {
         ["api", "jobs"] => Some(("jobs", "job:")),
         _ => None,
     };
-    if let (Some((field, prefix)), 200) = (list, res.status) {
-        if let Ok(mut v) = serde_json::from_slice::<Value>(&res.body) {
+    if let (Some((field, prefix)), 200) = (list, res.status)
+        && let Ok(mut v) = serde_json::from_slice::<Value>(&res.body) {
             if let Some(a) = v[field].as_array_mut() {
                 a.retain(|o| {
                     let id = match &o["id"] { Value::String(s) => s.clone(), Value::Number(n) => n.to_string(), _ => return false };
@@ -314,7 +312,6 @@ pub fn handle(engine: &Arc<Engine>, mut req: ApiRequest) -> ApiResponse {
             }
             res.body = serde_json::to_vec(&v).unwrap_or_default();
         }
-    }
     res
 }
 
