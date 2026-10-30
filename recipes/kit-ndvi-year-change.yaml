@@ -1,0 +1,44 @@
+# Earth observation pack: vegetation change against the same season last year (Sentinel-2).
+recipe: kit-ndvi-year-change
+version: 1
+kit: Agriculture and environment
+title: Vegetation change since last year (Sentinel-2 NDVI)
+description: >-
+  Finds the newest clear Sentinel-2 L2A pass over the area and the clearest pass from the same
+  season a year earlier, computes cloud-masked NDVI at 10 m for both, and maps where vegetation was
+  lost or gained (Otsu thresholds), with the areas, scene ids and dates in the report. Evidence for
+  clearing checks (for example EUDR due diligence); confirm each patch on the ground or in imagery.
+inputs:
+  area: { type: layer, default: auto, description: the area to check (a plot, concession or district) }
+  days: { type: number, default: 60, description: length of each search window in days }
+  max_cloud: { type: number, default: 40, description: scene cloud cover limit (%) }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}" }
+  - id: search_before
+    use: rs.search
+    with: { aoi: "${area.layer}", buffer: 500, days: "${inputs.days}", ago: 365, max_cloud: "${inputs.max_cloud}" }
+  - id: before
+    use: rs.index
+    with: { index: ndvi, name: ndvi_last_year, min_clear: 0.7 }
+  - id: search_after
+    use: rs.search
+    with: { aoi: "${area.layer}", buffer: 500, days: "${inputs.days}", max_cloud: "${inputs.max_cloud}" }
+  - id: after
+    use: rs.index
+    with: { index: ndvi, name: ndvi_now, min_clear: 0.7 }
+  - id: change
+    use: tool
+    with: { tool: gsx/raster-change, params: { before: "${before.raster}", after: "${after.raster}" } }
+  - id: classes_map
+    use: export.map
+    with: { name: vegetation-change, layers: ["${change.rasters.1}", "${area.layer}"], title: "Vegetation loss and gain · ${before.date} to ${after.date}" }
+  - id: difference_map
+    use: export.map
+    with: { name: ndvi-difference, layers: ["${change.rasters.0}", "${area.layer}"], title: Change in NDVI (now − last year) }
+  - id: report
+    use: export.report
+    needs: [classes_map, difference_map]
+    with: { title: "Vegetation change since last year · ${run.date}" }
+outputs: [classes_map, difference_map, report]
