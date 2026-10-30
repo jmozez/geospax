@@ -1124,11 +1124,10 @@ impl Engine {
             return ApiResponse::error(413, "recipe too large (1 MB max)");
         }
         let text = String::from_utf8_lossy(body).into_owned();
-        if let Ok(r) = crate::automation::recipe::Recipe::parse(&text, crate::automation::recipe::Origin::Api) {
-            if r.has_code_steps() && param(query, "approve").as_deref() != Some("code") {
+        if let Ok(r) = crate::automation::recipe::Recipe::parse(&text, crate::automation::recipe::Origin::Api)
+            && r.has_code_steps() && param(query, "approve").as_deref() != Some("code") {
                 return ApiResponse::error(403, "this recipe runs Python/R code on this machine; save it with ?approve=code once you trust it");
             }
-        }
         match self.automation.save_user(&text) {
             Ok((r, warnings)) => ApiResponse::json(201, &json!({ "recipe": r.summary_json(), "warnings": warnings })),
             Err(errors) => ApiResponse::json(400, &json!({ "error": errors.join("; "), "errors": errors })),
@@ -1208,7 +1207,7 @@ impl Engine {
         let tmp = path.with_extension("json.part");
         let res = std::fs::create_dir_all(path.parent().unwrap_or(&self.state_dir))
             .and_then(|_| std::fs::write(&tmp, serde_json::to_vec_pretty(&v).unwrap_or_default()))
-            .and_then(|_| std::fs::rename(&tmp, &path));
+            .and_then(|_| std::fs::rename(&tmp, path));
         match res {
             Ok(()) => ApiResponse::json(200, &json!({ "saved": true, "path": path.display().to_string() })),
             Err(e) => ApiResponse::error(500, format!("{}: {e}", path.display())),
@@ -1220,11 +1219,10 @@ impl Engine {
     fn client_log(&self, body: &[u8]) -> ApiResponse {
         let text = String::from_utf8_lossy(&body[..body.len().min(4096)]).into_owned();
         eprintln!("[client] {text}");
-        if let Some(path) = &self.bench_log {
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        if let Some(path) = &self.bench_log
+            && let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
                 let _ = writeln!(f, "{}", json!({ "kind": "client-log", "message": text }));
             }
-        }
         ApiResponse::json(200, &json!({ "logged": true }))
     }
 
@@ -1232,11 +1230,10 @@ impl Engine {
         let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
             return ApiResponse::error(400, "invalid JSON");
         };
-        if let Some(path) = &self.bench_log {
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        if let Some(path) = &self.bench_log
+            && let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
                 let _ = writeln!(f, "{v}");
             }
-        }
         *self.bench.lock().unwrap() = Some(v);
         ApiResponse::json(200, &json!({ "stored": true }))
     }

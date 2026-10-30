@@ -5,12 +5,18 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased] (planned 3.0.9)
 
+### Changed
+- Code health: clippy warnings in the engine and server cut from 137 to 51 (collapsed `if`s, `is_multiple_of`, `chunks_exact` and similar); no behaviour change.
+
 ### Added
 - Earth observation recipes: "Vegetation change since last year" (Sentinel-2 NDVI, same season a year apart) and "Burn severity" (Sentinel-2 dNBR). `rs.search` and `rs.index` take a new `ago` parameter that ends the search window that many days back, so one recipe can compare two periods.
+- Ask pane: when the assistant proposes a recipe, it now shows a plan card (recipe, inputs with defaults marked, and steps in order) and nothing runs until you press Run. Dismiss discards it. MCP clients are unchanged.
 - View › Coordinate system: a Pacific pack of 17 checked systems (PNG94 and PNGMG94 zones 54 to 56, AGD66, Fiji Map Grid, UTM zones for the Solomons, Vanuatu, Samoa and Tonga, NZTM, MGA 55 and Pacific-centred PDC Mercator) shown first, also at `GET /api/crs/pacific`.
 - Supply chain: a CI gate runs `cargo audit` and `npm audit` on every push and before any release, and each release now carries CycloneDX SBOMs (`scripts/sbom.sh`). See SECURITY.md.
 - Share › Export data › PMTiles: a layer as one vector tile archive that any static web host or MapLibre map can serve, no tile server needed.
 - GeoParquet export writes a GeoParquet 1.1 `bbox` covering column and 65,536-row groups, so readers can skip row groups outside an area.
+- Raster results and STAC downloads are written as cloud-optimised GeoTIFFs (COG) with internal overviews by default; `GEOSPAX_RASTER_COG=0` restores plain GeoTIFF.
+- MCP server: `--read-only`, a `--tools` allow list and an `--audit` JSON Lines log of every tool call (docs/AI.md).
 - Analysis › Profile chart: a distance-against-elevation panel for profile point layers, with min, max, relief, total climb and descent, an elevation legend, A/B ends, km ticks on the map and a hover marker linking chart and map.
 
 ### Changed

@@ -486,7 +486,7 @@ fn grid_points(srcs: &[Src], spec: GridSpec, sample: usize, cancel: &AtomicBool)
                 let z = zs[i] * s.zscale;
                 let zf = z as f32;
                 g.classes[class as usize] += 1;
-                if g.used % every == 0 {
+                if g.used.is_multiple_of(every) {
                     let rgb = match rgb_at {
                         Some(o) if o + 6 <= rec => [u16::from_le_bytes([r[o], r[o + 1]]), u16::from_le_bytes([r[o + 2], r[o + 3]]), u16::from_le_bytes([r[o + 4], r[o + 5]])],
                         _ => [0; 3],
@@ -574,7 +574,7 @@ pub fn sample_files(paths: &[PathBuf], target_wkt: &str, epsg: Option<u32>, max:
                 if withheld || class == 7 || class == 18 {
                     continue;
                 }
-                if k % every == 0 {
+                if k.is_multiple_of(every) {
                     let rgb = match rgb_at {
                         Some(o) if o + 6 <= rec => [u16::from_le_bytes([r[o], r[o + 1]]), u16::from_le_bytes([r[o + 2], r[o + 3]]), u16::from_le_bytes([r[o + 4], r[o + 5]])],
                         _ => [0; 3],
