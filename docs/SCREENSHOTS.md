@@ -36,7 +36,7 @@ Retaken 30 October 2026 (PGT) from main, 1600x960 at 2x, dark theme, all in Pro 
 | plugin-geoscience.png | Slope zones | Slope zones 41 / 23 / 36 % | README, USER_GUIDE, site |
 | plugin-hydrology.png | Streams and basins | Wet ground suitability on land cells | README, USER_GUIDE, site |
 | plugin-lulc.png | Two-date change, 3,800 ha lost | Hansen loss year, 18,021 ha 2001 to 2025 | README, USER_GUIDE, site |
-| plugin-marine.png | 409 records, 9 clusters | 1,197 records, 28 clusters, 111 noise | README, USER_GUIDE, site |
+| plugin-marine.png | 409 records, 9 clusters | 1,197 records, 242 on land dropped by the land check, 955 in 20 clusters, 47 noise | README, USER_GUIDE, site |
 | plugin-soil.png | RUSLE-style index | Slope and open-ground erosion score | README, USER_GUIDE, site |
 
 Not retaken: tour-lidar (no LiDAR source on hand; the San Francisco shot is already dark and on real data) and tour-design (no design session on hand). The industry maps were redone in PRs #74 to #76.

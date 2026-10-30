@@ -10,6 +10,7 @@ import { SURVEY_TOOLS } from './industry/survey';
 import { ENERGY_TOOLS } from './industry/energy';
 import { SECTOR_TOOLS } from './industry/sectors';
 import { ENSO_TOOLS } from './industry/enso';
+import { converter } from './industry/crs';
 
 export interface Param {
   name: string;
@@ -130,6 +131,24 @@ function criteria(text: string) {
 const PLAN = 'Conservation Planning';
 const LAND = 'Landscape Ecology';
 const OVERLAY = 'Analysis › Overlay';
+/** lon/lat → a raster's CRS, for land-mask sampling (identity when geographic or unknown) */
+const toGridCrs = (g: Grid) => (g.geographic || !g.crs ? undefined : ((c) => (p: number[]) => c.forward(p))(converter('EPSG:4326', g.crs)));
+const landCheck = (ctx: Ctx, drop: boolean) => {
+  const dem = ctx.raster('land_dem');
+  const land = ctx.layer('land_polygons');
+  if (!dem && !land) return null;
+  const c = ctx.params.coastal_m;
+  return A.flagOnLand(need(ctx, 'points', 'a point layer'), {
+    dem, toDem: dem ? toGridCrs(dem) : undefined, land, drop,
+    coastalM: c != null && c !== '' ? num(ctx, 'coastal_m') : 1000,
+  });
+};
+const landParams: Param[] = [
+  { name: 'land_dem', label: 'Land mask: elevation / bathymetry raster', kind: 'raster', description: 'e.g. GEBCO; records with no cell at or below 0 m within the coastal tolerance count as on land.' },
+  { name: 'land_polygons', label: 'Land mask: land polygons', kind: 'layer', description: 'Optional, e.g. OSM land polygons or Natural Earth 10 m land.' },
+  { name: 'coastal_m', label: 'Coastal tolerance (m)', kind: 'number', default: 1000, description: 'A record is kept as marine if any sea cell lies within this distance (allows for coarse coastlines).' },
+];
+
 const POINTS = 'Spatial Statistics › Point patterns';
 const BIODIV = 'Biodiversity';
 
@@ -434,6 +453,29 @@ export const TOOLS: Tool[] = [
 
   // ---------------------------------------------------------------- species and point patterns
   {
+    id: 'on-land',
+    name: 'Records on land (marine QC)',
+    summary: 'Flags marine occurrences that fall on land (DEM above 0 m with a coastal tolerance, or inside land polygons), and can drop them.',
+    group: POINTS,
+    icon: 'alert',
+    params: [
+      { name: 'points', label: 'Points', kind: 'layer', required: true },
+      ...landParams,
+      { name: 'drop', label: 'Drop records on land', kind: 'bool', default: false },
+    ],
+    run(ctx) {
+      const drop = ctx.params.drop === true || ctx.params.drop === 'true';
+      const r = landCheck(ctx, drop);
+      if (!r) throw new Error('Give a land mask: an elevation / bathymetry raster or a land polygon layer');
+      return {
+        message: `${r.onLand} of ${r.total} record(s) on land${drop ? `; ${r.removed} removed, ${r.kept} kept` : ' (flagged in on_land)'}`,
+        layers: [{ name: `${ctx.layerName('points')} ${drop ? 'at sea' : 'land check'}`, features: r.features }],
+        table: [['Records', r.total], ['On land', r.onLand], ['Removed', r.removed], ['Kept', r.kept], ['Outside the raster', r.outsideDem], ['Highest ground under a land record', r.maxElevationOnLand == null ? '-' : `${Math.round(r.maxElevationOnLand)} m`]],
+        notes: ['Records on land are usually specimens georeferenced to a town, island or grid centroid (check coordinateUncertaintyInMeters and locality), freshwater or estuarine records, or swapped coordinates.'],
+      };
+    },
+  },
+  {
     id: 'dbscan',
     name: 'DBSCAN clusters',
     summary: 'Density-based clusters of up to 2,000 points (haversine distance); noise stays as cluster −1.',
@@ -444,22 +486,25 @@ export const TOOLS: Tool[] = [
       { name: 'min_points', label: 'Minimum points', kind: 'number', default: 4 },
       { name: 'epsilon_m', label: 'Radius (m)', kind: 'number', description: 'Empty: from the median nearest-neighbour distance × multiplier.' },
       { name: 'multiplier', label: 'Automatic radius × ', kind: 'number', default: 1.5 },
+      ...landParams,
+      { name: 'drop_on_land', label: 'Drop records on land before clustering', kind: 'bool', default: true, description: 'Only used when a land mask is given.' },
     ],
     run(ctx) {
+      const lc = landCheck(ctx, ctx.params.drop_on_land == null || ctx.params.drop_on_land === '' ? true : ctx.params.drop_on_land === true || ctx.params.drop_on_land === 'true');
       const minPoints = num(ctx, 'min_points', 4);
       if (!Number.isInteger(minPoints) || minPoints < 2) throw new Error('Minimum points must be a whole number of at least 2');
       const eps = ctx.params.epsilon_m;
       const r = ok(
-        A.dbscanClusters(need(ctx, 'points', 'a point layer'), {
+        A.dbscanClusters(lc ? lc.features : need(ctx, 'points', 'a point layer'), {
           minPoints,
           maxPoints: 2000,
           ...(eps != null && eps !== '' ? { epsilonM: num(ctx, 'epsilon_m') } : { epsilonMultiplier: num(ctx, 'multiplier', 1.5) }),
         }),
       );
       return {
-        message: `${r.clusterCount} cluster(s), ${r.noiseCount} noise point(s); radius ${fix(r.epsilonM, 0)} m`,
+        message: `${r.clusterCount} cluster(s), ${r.noiseCount} noise point(s); radius ${fix(r.epsilonM, 0)} m${lc ? `; ${lc.onLand} of ${lc.total} record(s) on land${lc.removed ? ', removed' : ', flagged'}` : ''}`,
         layers: [{ name: `${ctx.layerName('points')} clusters`, features: r.features as Feature[], provenance: r.provenance }],
-        table: [['Points', r.pointCount], ['Clusters', r.clusterCount], ['Noise', r.noiseCount], ['Core points', r.corePointCount], ['Radius', `${fix(r.epsilonM, 0)} m${r.epsilonWasAutomatic ? ' (automatic)' : ''}`]],
+        table: [['Points', r.pointCount], ['Clusters', r.clusterCount], ['Noise', r.noiseCount], ['Core points', r.corePointCount], ['Radius', `${fix(r.epsilonM, 0)} m${r.epsilonWasAutomatic ? ' (automatic)' : ''}`], ...(lc ? [['Records on land', lc.onLand], ['Removed before clustering', lc.removed]] as [string, number][] : [])],
       };
     },
   },

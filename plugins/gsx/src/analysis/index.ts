@@ -26,3 +26,4 @@ export * from "./biodiversity";
 export * from "./indices";
 export * from "./classification";
 export * from "./scp";
+export * from "./landmask";
