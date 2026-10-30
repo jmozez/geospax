@@ -184,3 +184,7 @@ In recipes the step is `ai.detect` ([AUTOMATION.md](AUTOMATION.md)). The models 
   the same read-only tools or start a non-code recipe, whose results go only into the runs folder.
 - Beyond `localhost`, the web edition's API needs its access token (README › Security), so another
   device cannot use your key.
+
+## Plan preview in the Ask pane
+
+The Ask pane never starts a recipe by itself. When the assistant decides a recipe fits your question, it shows a plan card: the recipe, each input with its value (defaults are marked) and the steps it will run, in order. Press **Run** to start it (the run opens in the Automate pane) or **Dismiss** to drop it. Recipes with Python or R code steps are never proposed; start those yourself. MCP clients still call `run_recipe` directly unless the server runs with `--read-only`.
