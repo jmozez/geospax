@@ -780,6 +780,7 @@ impl Engine {
                 };
                 ApiResponse::json(200, &crate::crs::search(&q, at, 40))
             }
+            ("GET", ["api", "crs", "pacific"]) => ApiResponse::json(200, &crate::crs::pacific()),
             ("GET", ["api", "crs", code]) => match crate::crs::describe(code) {
                 Ok(v) => ApiResponse::json(200, &v),
                 Err(e) => ApiResponse::error(404, e),
