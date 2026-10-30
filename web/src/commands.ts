@@ -481,6 +481,11 @@ const EXTRA_COMMANDS: Command[] = [
   { id: 'edit.copyalong', tab: 'edit', group: 'Clipboard', title: 'Copy along line', icon: 'polarArray', hint: 'Copies of the selected feature at equal steps along a line', run: editCmd('copy-along') },
   { id: 'edit.trace', tab: 'edit', group: 'Create', title: 'Trace', icon: 'curve', hint: 'New edges follow existing features between snapped vertices (on/off)', run: editCmd('trace') },
   { id: 'edit.gps', tab: 'edit', group: 'Create', title: 'GPS point', icon: 'pin', hint: 'A point at the newest live GPS position (phone or GNSS receiver)', run: editCmd('gps-point') },
+  {
+    id: 'edit.fieldsync', tab: 'edit', group: 'Fields', title: 'Field sync', icon: 'form',
+    hint: 'Package a layer for offline field work (USB, laptop, phone) and merge the field copy back, with conflicts to review',
+    run: (h) => void import('./fieldsync').then((m) => m.openFieldSync(h)),
+  },
   { id: 'edit.rules', tab: 'edit', group: 'Fields', title: 'Attribute rules', icon: 'form', hint: 'Value lists, defaults and required fields for consistent data', run: editCmd('rules') },
   tool('edit.topology', 'edit', 'Manage edits', 'Check topology', 'topology', ['r:check-topology'], 'Find overlaps, gaps and invalid polygons'),
   // ---- Design
@@ -672,6 +677,11 @@ export const COMMANDS: Command[] = [
     id: 'home.open', tab: 'home', group: 'Project', title: 'Open project', icon: 'folder', big: true,
     hint: 'Open one of your saved projects', keys: 'Ctrl+O',
     run: project('open'),
+  },
+  {
+    id: 'home.review', tab: 'share', group: 'Publish', title: 'Review', icon: 'form',
+    hint: 'Comments pinned to the map and the version history of this named project, for a team sharing one server',
+    run: (h) => void import('./review').then((m) => m.openReview(h)),
   },
   {
     id: 'home.saveAs', tab: 'home', group: 'Project', title: 'Save as', icon: 'save',

@@ -388,6 +388,24 @@ hides, Enter opens the symbology, Alt+↑/↓ moves the layer in the drawing ord
 ◐ System (follows your operating system); View → Theme does the same. The choice is remembered; add
 `?theme=dark` to a link to force one. The map's background and land colours follow the theme.
 
+### Reviewing a shared project
+
+When a team shares one self-hosted web edition (docs/DEPLOY.md, token mode), **Share › Review** works on
+the named project that is open (save it with **Save as** first):
+
+- **Comments pinned to the map.** Type your name and a comment; it is pinned to the centre of the
+  map. **Show** flies there, **Reply** threads an answer, **Resolve** closes the thread (and
+  **Reopen** opens it again).
+- **Version history.** Every save keeps the version it replaced, the last 50 per project, under
+  `<state>/projects/.history/`. **Restore** puts one back and keeps the one it replaced, so nothing
+  is lost; open the project again to load it.
+
+Limits for now: everyone with the server's token has the same rights, and the name on a comment is
+the one the reviewer typed. Sign-in with your organisation's accounts (OIDC) and roles such as
+viewer, editor and approver need an identity provider and are planned. The guest demo has no
+review. The API is `GET|POST /api/projects/{id}/comments`, `POST /api/projects/{id}/comments/{n}/resolve|reopen`,
+`GET /api/projects/{id}/history[/{version}]` and `POST /api/projects/{id}/history/{version}/restore`.
+
 ## 2c. Plugins: tools from five ecosystems
 
 Plugins are in the **Explorer** under **Plugins**. **Manage plugins…** (first row) lists what is
@@ -1021,6 +1039,19 @@ MCP clients.
 numbers per 10 m pixel that sum up a year of satellite observations. Use them to find places like
 your sample points, group the landscape, classify it from labelled points, or map change between two
 years. See [AI.md](AI.md).
+
+### Field sync without a network
+
+Surveys, plot checks and asset inspections often happen far from mobile coverage. **Edit › Field sync** carries a layer out and brings the edits back without any server or account.
+
+1. **Package for field.** Pick a layer and press *Package for field*. GeoSpaX makes the layer editable (its edit copy, so the original file is never written), keeps a base copy and writes `field.gpkg` into `<state>/sync/<layer>/<date-time>/`. Copy that file to a USB stick, a field laptop or a phone and edit it there in GeoSpaX, QGIS or QField. Every feature keeps its id.
+2. **Review.** Back in the office, open *Field sync*, give the path of the returned file (or leave it empty if the package's own `field.gpkg` was edited in place) and press *Review* on the package. GeoSpaX compares each feature three ways: as it left (base), as it is here now, and as it came back.
+   * Changes made on one side only, new field features and field deletions of untouched features merge on their own.
+   * Edits to different fields of the same feature merge too (for example a new status in the field and a corrected name here).
+   * A **conflict** is the same field changed differently on both sides, or an edit on one side and a delete on the other. Each one is listed; choose *this computer* (the default) or *field*.
+3. **Apply.** Nothing is written before this. The merge goes through the normal edit functions, so *Revert* still restores the original file.
+
+Limits: a returned file must keep the layer's fields and feature ids (GeoPackage editors do; a format conversion such as Shapefile and back does not). A change to the layer's fields is not merged. Several devices can each take their own package from the same layer and be merged one after the other. Sync is by file for now; over the LAN through the phone link is planned.
 
 ## 6. Live sensors and phones
 
