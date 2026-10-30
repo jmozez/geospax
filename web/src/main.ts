@@ -50,6 +50,7 @@ import {
 } from './symbology';
 import { defaultLabels, GLYPHS, HATCH_PREFIX, hatchImage, ICON_PREFIX, labelLayer, sdfImage, symbolFields, symbolLayers, type Shape } from './symbols';
 import { DownloadGauge } from './downloads';
+import { ProfilePanel } from './profile';
 import { isElevation, mountRasterCharts, rasterAttributesHtml, rasterStoryHtml, valueHtml, type Histogram, type RasterValue } from './rasterview';
 import './style.css';
 
@@ -2256,6 +2257,9 @@ async function main() {
       await reloadLayers();
     },
   });
+  const profilePanel = new ProfilePanel({ map, backend, layers: () => layers, activeId: () => panel.current, setStatus: (t, ms) => workbench?.setStatus(t, ms) });
+  // scripts and tours open it with ends named: geospax:profile { reverse, a, b }
+  document.addEventListener('geospax:profile', (e) => { const d = (e as CustomEvent<{ reverse?: boolean; a?: string; b?: string }>).detail ?? {}; profilePanel.close(); void profilePanel.toggle(d); });
   document.addEventListener('geospax:x', (e) => {
     const a = (e as CustomEvent<string>).detail;
     switch (a) {
@@ -2267,6 +2271,7 @@ async function main() {
       case 'scale': return void extras.goToScale();
       case 'lockscale': return extras.toggleScaleLock();
       case 'labels': return toggleLabels();
+      case 'profile': return void profilePanel.toggle();
     }
     if (a.startsWith('download:')) return void share.download(a.slice(9));
     switch (a) {
