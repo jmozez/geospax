@@ -32,6 +32,22 @@ The desktop app does not listen on the network.
 - Only install plugins and recipes you trust: they run with your user's permissions.
 - The bundled MQTT broker allows anonymous access; add a password file before exposing it.
 
+## Supply chain
+
+- **Advisory gate.** Every push runs `cargo audit` against the RustSec database and `npm audit` (high and
+  critical) for the web app, the desktop shell and the field app. A GitHub release needs this job to pass,
+  so a build with a known vulnerability cannot be published. Unmaintained or unsound warnings are listed in
+  the log but do not fail the build.
+- **SBOM.** Each release carries CycloneDX 1.5 software bills of materials (`*.cdx.json`) for the Rust
+  packages (engine, server, desktop) and the npm apps. Make them locally with `scripts/sbom.sh OUT_DIR`
+  (needs `cargo install --locked cargo-cyclonedx`).
+- **Update signatures.** Installed copies only accept updates signed with the GeoSpaX updater key
+  (minisign, public key in `apps/desktop/src-tauri/tauri.conf.json`).
+- **Code signing.** The Windows installer is signed when the repository has the `WINDOWS_SIGN_PFX_BASE64`
+  and `WINDOWS_SIGN_PASSWORD` secrets (an OV or EV Authenticode certificate as a base64 `.pfx`). Without
+  them the installer is built unsigned and Windows SmartScreen warns on first run. macOS builds are not
+  packaged yet, so there is no notarisation.
+
 ## Reporting a vulnerability
 
 Please report it privately through GitHub's **Security → Report a vulnerability** on

@@ -7,6 +7,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ### Added
 - View › Coordinate system: a Pacific pack of 17 checked systems (PNG94 and PNGMG94 zones 54 to 56, AGD66, Fiji Map Grid, UTM zones for the Solomons, Vanuatu, Samoa and Tonga, NZTM, MGA 55 and Pacific-centred PDC Mercator) shown first, also at `GET /api/crs/pacific`.
+- Supply chain: a CI gate runs `cargo audit` and `npm audit` on every push and before any release, and each release now carries CycloneDX SBOMs (`scripts/sbom.sh`). See SECURITY.md.
 - Analysis › Profile chart: a distance-against-elevation panel for profile point layers, with min, max, relief, total climb and descent, an elevation legend, A/B ends, km ticks on the map and a hover marker linking chart and map.
 
 ### Changed
