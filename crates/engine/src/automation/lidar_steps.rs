@@ -241,3 +241,30 @@ pub(super) fn lidar_grid(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String>
         why,
     })
 }
+
+/// `lidar.3dtiles`: a point cloud as an OGC 3D Tiles 1.1 tileset (crate::tiles3d) for CesiumJS,
+/// deck.gl, QGIS or ArcGIS. Heights are the file's heights plus `height_offset`.
+pub(super) fn lidar_3dtiles(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
+    let files = cloud_files(sc, p_str(p, "source").unwrap_or("auto"))?;
+    let max = p_f64(p, "points").map(|v| v.max(1000.0) as usize).unwrap_or(5_000_000).min(20_000_000);
+    let per_tile = p_f64(p, "per_tile").map(|v| v as usize).unwrap_or(200_000).clamp(1000, 2_000_000);
+    let offset = p_f64(p, "height_offset").unwrap_or(0.0);
+    let wkt = raster::wgs84().to_wkt().map_err(|e| e.to_string())?;
+    let (sample, total) = lidar::sample_files(&files, &wkt, p_f64(p, "epsg").map(|e| e as u32), max, sc.cancel)?;
+    if sample.is_empty() {
+        return Err("the point clouds have no points".into());
+    }
+    let (cols, how) = super::scene_steps::point_colors(&sample);
+    let pts: Vec<crate::tiles3d::Pt> = sample.iter().zip(cols).map(|(q, c)| crate::tiles3d::Pt { lon: q.x, lat: q.y, h: q.z as f64 + offset, rgb: c }).collect();
+    let name = sanitize(p_str(p, "name").unwrap_or("cloud"));
+    let w = crate::tiles3d::write_points(&pts, &sc.dir, &name, per_tile, &format!("GeoSpaX {}", env!("CARGO_PKG_VERSION")))?;
+    sc.artifacts.extend(w.files.iter().cloned());
+    let of = if total > w.points as u64 { format!(" (every {}th of {})", total.div_ceil(w.points as u64), count_text(total)) } else { String::new() };
+    Ok(StepOut {
+        outputs: json!({ "tileset": w.files[0], "tiles": w.tiles, "points": w.points, "points_read": total, "center": w.center, "colour": how }),
+        why: vec![
+            format!("{} points{of} written as a 3D Tiles 1.1 tileset of {} tiles, coloured by {how}", count_text(w.points as u64), w.tiles),
+            format!("open {} in CesiumJS, deck.gl, QGIS 3.34+ or ArcGIS; copy all {} files together", w.files[0], w.files.len()),
+        ],
+    })
+}
