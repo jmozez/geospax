@@ -512,6 +512,7 @@ const EXTRA_COMMANDS: Command[] = [
     ['gpkg', 'GeoPackage', 'database', 'GeoPackage: one SQLite file, opens in ArcGIS Pro and QGIS'],
     ['kml', 'KML', 'googleEarth', 'KML: for Google Earth and phones'],
     ['parquet', 'GeoParquet', 'grid', 'GeoParquet: compact columns for big data, DuckDB and Python'],
+    ['pmtiles', 'PMTiles', 'grid', 'PMTiles: one vector tile file any web server or web map can serve, no tile server'],
   ] as [string, string, string, string][]).map(([f, t, ic, hint]): Command => (
     { id: `share.data.${f}`, tab: 'share', group: 'Export data', title: t, icon: ic, hint: `${hint}. Saves the selected layer`, run: xCmd(`download:${f}`) })),
   ...([

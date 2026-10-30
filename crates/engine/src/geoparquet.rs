@@ -525,6 +525,16 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
         .map(|(n, k)| Field::new(n, match k { K::Int => DataType::Int64, K::Real => DataType::Float64, K::Bool => DataType::Boolean, K::Text => DataType::Utf8 }, true))
         .collect();
     cols.push(Field::new("geometry", DataType::Binary, true));
+    // GeoParquet 1.1 bbox covering: a per-row xmin/ymin/xmax/ymax struct, so readers (DuckDB,
+    // GDAL, GeoSpaX itself) can skip whole row groups by their statistics
+    let bbox_fields = arrow_schema::Fields::from(vec![
+        Field::new("xmin", DataType::Float64, true),
+        Field::new("ymin", DataType::Float64, true),
+        Field::new("xmax", DataType::Float64, true),
+        Field::new("ymax", DataType::Float64, true),
+    ]);
+    cols.push(Field::new("bbox", DataType::Struct(bbox_fields.clone()), true));
+    let mut bx: [Float64Builder; 4] = [Float64Builder::new(), Float64Builder::new(), Float64Builder::new(), Float64Builder::new()];
     // bounds and geometry types for the "geo" metadata
     let mut bbox = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
     let mut types: std::collections::BTreeSet<String> = Default::default();
@@ -565,8 +575,16 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
                 bbox = [bbox[0].min(e.MinX), bbox[1].min(e.MinY), bbox[2].max(e.MaxX), bbox[3].max(e.MaxY)];
                 types.insert(g.geometry_name().to_ascii_lowercase());
                 geoms.append_value(g.wkb().map_err(gerr)?);
+                for (b, v) in bx.iter_mut().zip([e.MinX, e.MinY, e.MaxX, e.MaxY]) {
+                    b.append_value(v);
+                }
             }
-            None => geoms.append_null(),
+            None => {
+                geoms.append_null();
+                for b in bx.iter_mut() {
+                    b.append_null();
+                }
+            }
         }
         n += 1;
     }
@@ -577,7 +595,8 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
             "multilinestring" => "MultiLineString", "multipolygon" => "MultiPolygon", _ => "GeometryCollection",
         }.to_string())
         .collect();
-    let mut col = json!({ "encoding": "WKB", "geometry_types": names });
+    let mut col = json!({ "encoding": "WKB", "geometry_types": names,
+        "covering": { "bbox": { "xmin": ["bbox", "xmin"], "ymin": ["bbox", "ymin"], "xmax": ["bbox", "xmax"], "ymax": ["bbox", "ymax"] } } });
     if bbox[0].is_finite() {
         col["bbox"] = json!(bbox);
     }
@@ -594,8 +613,11 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
         });
     }
     arrays.push(Arc::new(geoms.finish()));
+    let bx_arrays: Vec<ArrayRef> = bx.iter_mut().map(|b| Arc::new(b.finish()) as ArrayRef).collect();
+    arrays.push(Arc::new(arrow_array::StructArray::new(bbox_fields, bx_arrays, None)));
     let batch = RecordBatch::try_new(schema.clone(), arrays).map_err(|e| e.to_string())?;
-    let props = WriterProperties::builder().set_compression(Compression::ZSTD(ZstdLevel::default())).build();
+    // row groups of 64k rows so the bbox statistics can skip parts of big files
+    let props = WriterProperties::builder().set_compression(Compression::ZSTD(ZstdLevel::default())).set_max_row_group_row_count(Some(65_536)).build();
     let file = std::fs::File::create(out).map_err(|e| e.to_string())?;
     let mut w = ArrowWriter::try_new(file, schema, Some(props)).map_err(|e| e.to_string())?;
     w.write(&batch).map_err(|e| e.to_string())?;
@@ -686,6 +708,33 @@ mod tests {
         let names: Vec<String> = l.features().filter_map(|f| f.field_index("name").ok().and_then(|i| f.field_as_string(i).ok().flatten())).collect();
         assert_eq!(names, vec!["b10", "b11", "b12"]);
         assert!(!hs.is_empty());
+    }
+
+    #[test]
+    fn written_files_carry_a_bbox_covering_that_skips_row_groups() {
+        crate::raster::configure_gdal();
+        let dir = tmp("wr");
+        // 65,536 points near (0, 0) fill the first row group; 100 points near (10, 5) are the second
+        let mut fc = String::from(r#"{"type":"FeatureCollection","features":["#);
+        for i in 0..65_636u32 {
+            let (x, y) = if i < 65_536 { (f64::from(i % 256) * 0.001, f64::from(i / 256) * 0.001) } else { (10.0 + f64::from(i - 65_536) * 0.001, 5.0) };
+            if i > 0 {
+                fc.push(',');
+            }
+            fc.push_str(&format!(r#"{{"type":"Feature","properties":{{"n":{i}}},"geometry":{{"type":"Point","coordinates":[{x},{y}]}}}}"#));
+        }
+        fc.push_str("]}");
+        let src = dir.join("p.geojson");
+        std::fs::write(&src, fc).unwrap();
+        let out = dir.join("p.parquet");
+        assert_eq!(write_file(&src, None, &out).unwrap(), 65_636);
+        let b = ParquetRecordBatchReaderBuilder::try_new(std::fs::File::open(&out).unwrap()).unwrap();
+        let geo: Value = serde_json::from_str(b.schema().metadata().get("geo").unwrap()).unwrap();
+        assert_eq!(geo["columns"]["geometry"]["covering"]["bbox"]["xmin"], json!(["bbox", "xmin"]));
+        assert!(b.schema().field_with_name("bbox").is_ok());
+        assert_eq!(b.metadata().num_row_groups(), 2);
+        let p = plan(out.to_str().unwrap(), Some([9.9, 4.9, 10.2, 5.1])).unwrap();
+        assert_eq!(p.groups, vec![1]);
     }
 
     #[test]
