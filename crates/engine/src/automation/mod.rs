@@ -75,6 +75,8 @@ pub const GALLERY: &[(&str, &str)] = &[
     ("kit-vegetation-change", include_str!("../../../../recipes/kit-vegetation-change.yaml")),
     ("kit-steep-slopes", include_str!("../../../../recipes/kit-steep-slopes.yaml")),
     ("kit-soil-properties", include_str!("../../../../recipes/kit-soil-properties.yaml")),
+    ("kit-ndvi-year-change", include_str!("../../../../recipes/kit-ndvi-year-change.yaml")),
+    ("kit-burn-severity", include_str!("../../../../recipes/kit-burn-severity.yaml")),
 ];
 
 #[derive(Debug, Clone, Default)]

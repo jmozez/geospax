@@ -1034,6 +1034,19 @@ numbers per 10 m pixel that sum up a year of satellite observations. Use them to
 your sample points, group the landscape, classify it from labelled points, or map change between two
 years. See [AI.md](AI.md).
 
+### Field sync without a network
+
+Surveys, plot checks and asset inspections often happen far from mobile coverage. **Edit › Field sync** carries a layer out and brings the edits back without any server or account.
+
+1. **Package for field.** Pick a layer and press *Package for field*. GeoSpaX makes the layer editable (its edit copy, so the original file is never written), keeps a base copy and writes `field.gpkg` into `<state>/sync/<layer>/<date-time>/`. Copy that file to a USB stick, a field laptop or a phone and edit it there in GeoSpaX, QGIS or QField. Every feature keeps its id.
+2. **Review.** Back in the office, open *Field sync*, give the path of the returned file (or leave it empty if the package's own `field.gpkg` was edited in place) and press *Review* on the package. GeoSpaX compares each feature three ways: as it left (base), as it is here now, and as it came back.
+   * Changes made on one side only, new field features and field deletions of untouched features merge on their own.
+   * Edits to different fields of the same feature merge too (for example a new status in the field and a corrected name here).
+   * A **conflict** is the same field changed differently on both sides, or an edit on one side and a delete on the other. Each one is listed; choose *this computer* (the default) or *field*.
+3. **Apply.** Nothing is written before this. The merge goes through the normal edit functions, so *Revert* still restores the original file.
+
+Limits: a returned file must keep the layer's fields and feature ids (GeoPackage editors do; a format conversion such as Shapefile and back does not). A change to the layer's fields is not merged. Several devices can each take their own package from the same layer and be merged one after the other. Sync is by file for now; over the LAN through the phone link is planned.
+
 ## 6. Live sensors and phones
 
 - **MQTT:** point GeoSpaX at a broker (`GEOSPAX_MQTT` / `--mqtt`). Publish JSON such as
