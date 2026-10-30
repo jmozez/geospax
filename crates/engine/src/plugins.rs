@@ -792,7 +792,7 @@ fn find_files(dir: &Path, ext: &str) -> Vec<PathBuf> {
 fn read_package(path: &Path) -> Option<PluginInfo> {
     let file = fs::File::open(path).ok()?;
     let mut zip = zip::ZipArchive::new(file).ok()?;
-    let names: Vec<String> = (0..zip.len()).filter_map(|i| zip.by_index(i).ok().map(|f| f.name().to_string())).collect();
+    let names: Vec<String> = (0..zip.len()).filter_map(|i| zip.by_index(i).ok().and_then(|f| f.name().ok().map(|n| n.to_string()))).collect();
     let pick = |want: &str| -> Option<String> {
         names
             .iter()
@@ -1395,8 +1395,9 @@ fn unpack_package(src: &Path, dest_dir: &Path) -> Result<PathBuf, String> {
         if f.size() > 64 << 20 {
             return Err("package member is larger than 64 MB".to_string());
         }
-        let rel = safe_join(&dest, f.name())?;
-        if f.name().ends_with('/') {
+        let fname = f.name().map_err(|e| e.to_string())?.to_string();
+        let rel = safe_join(&dest, &fname)?;
+        if fname.ends_with('/') {
             fs::create_dir_all(&rel).map_err(|e| e.to_string())?;
             continue;
         }
