@@ -9,8 +9,9 @@
 # with GDAL 3.8 from the UbuntuGIS PPA, so it also runs on Mint 21 and Debian 12; scripts/check-glibc.sh enforces it.
 # An AppRun hook sets WEBKIT_DISABLE_DMABUF_RENDERER=1 unless already set (blank windows on some GPU drivers).
 # With TAURI_SIGNING_PRIVATE_KEY set it is also signed for the in-app updater (.AppImage.sig).
-# BUNDLES=appimage,deb also writes a .deb from the Tauri bundler (needs libgdal34, so Ubuntu 22.04 with the
-# UbuntuGIS PPA, Ubuntu 24.04 or Mint 22).
+# BUNDLES=deb or BUNDLES=rpm writes a .deb or .rpm from the Tauri bundler instead, for the distribution it is
+# built on: its dependencies are the packages that own GDAL, WebKitGTK and the GDAL and PROJ data here, and
+# PKG_SUFFIX (say debian13) is added to the file name so packages for several distributions can sit together.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT="${1:-releases}"
@@ -32,16 +33,30 @@ PROJ_SHARE=$(dirname "$(find /usr/share /usr/local/share -name proj.db -print -q
 [ -d "$GDAL_SHARE" ] && [ -f "$PROJ_SHARE/proj.db" ] || { echo "GDAL or PROJ data not found"; exit 1; }
 
 BUNDLES="${BUNDLES:-appimage}"
-CONFIG=$(python3 - "$ST" "$GDAL_SHARE" "$PROJ_SHARE" "${TAURI_SIGNING_PRIVATE_KEY:+1}" <<'PY'
+owner() {  # the package that owns a file, on dpkg or rpm systems
+  local f; f=$(readlink -f "$1")
+  if command -v dpkg >/dev/null; then dpkg -S "$f" 2>/dev/null | head -1 | cut -d: -f1
+  else rpm -qf --qf '%{NAME}\n' "$f" 2>/dev/null | head -1; fi
+}
+lib() { { ldconfig -p 2>/dev/null || /sbin/ldconfig -p; } | awk -v n="$1" '$1 ~ "^"n"\\.so\\.[0-9]+$" {print $NF; exit}'; }
+DEPS=""
+case ",$BUNDLES," in *,deb,*|*,rpm,*)
+  for f in "$(lib libgdal)" "$(lib libwebkit2gtk-4.1)" "$GDAL_SHARE/gdalvrt.xsd" "$PROJ_SHARE/proj.db"; do
+    [ -e "$f" ] || { echo "cannot find $f for the package dependencies"; exit 1; }
+    DEPS="$DEPS,$(owner "$f")"
+  done
+  DEPS=$(echo "${DEPS#,}" | tr ',' '\n' | sort -u | paste -sd,); echo "== package depends: $DEPS" ;;
+esac
+CONFIG=$(python3 - "$ST" "$GDAL_SHARE" "$PROJ_SHARE" "${TAURI_SIGNING_PRIVATE_KEY:+1}" "$DEPS" <<'PY'
 import json, sys
-st, gdal, proj, sign = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+st, gdal, proj, sign, deps = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], [d for d in sys.argv[5].split(",") if d]
 share = {"/usr/share/geospax": f"{st}/geospax"}
 print(json.dumps({"bundle": {
     "createUpdaterArtifacts": bool(sign),
     "linux": {"appimage": {"bundleMediaFramework": False, "files": {
         "usr/share/gdal": gdal, "usr/share/proj": proj, "usr/share/geospax": f"{st}/geospax"}},
-        "deb": {"depends": ["libgdal34 | libgdal34t64", "gdal-data", "proj-data"], "files": share},
-        "rpm": {"depends": ["gdal-libs", "proj-data"], "files": share}}}}))
+        "deb": {"depends": deps, "files": share},
+        "rpm": {"depends": deps, "files": share}}}}))
 PY
 )
 
@@ -51,7 +66,9 @@ echo "== web UI + AppImage (Tauri bundler)"
   npx tauri build --verbose --bundles "$BUNDLES" --config "$CONFIG" --features custom-protocol)
 mkdir -p "$OUT"
 for f in target/release/bundle/deb/*.deb target/release/bundle/rpm/*.rpm; do
-  [ -f "$f" ] && [ "$f" -nt "$ST" ] && cp "$f" "$OUT/" && echo "== $OUT/$(basename "$f")"
+  [ -f "$f" ] && [ "$f" -nt "$ST" ] || continue
+  b=$(basename "$f"); ext=${b##*.}; [ -n "${PKG_SUFFIX:-}" ] && b="${b%.*}_${PKG_SUFFIX}.$ext"
+  cp "$f" "$OUT/$b" && echo "== $OUT/$b"
 done
 case ",$BUNDLES," in *,appimage,*) ;; *) exit 0 ;; esac
 

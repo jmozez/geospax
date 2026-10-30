@@ -167,8 +167,8 @@ jobs:
             target
           key: cargo-ubuntu2204-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-ubuntu2204-
-      - name: Build the AppImage and the .deb (the AppImage step fails if anything needs glibc newer than 2.35)
-        run: BUNDLES=appimage,deb bash scripts/package-appimage.sh
+      - name: Build the AppImage (fails if anything needs glibc newer than 2.35)
+        run: bash scripts/package-appimage.sh
       - name: glibc 2.35 or older (objdump -T)
         run: scripts/check-glibc.sh 2.35 target/release/geospax
       - uses: actions/upload-artifact@v4
@@ -176,32 +176,11 @@ jobs:
           name: geospax-appimage
           path: |
             releases/GeoSpaX-*.AppImage*
-            releases/*.deb
 
-  rpm:
-    name: RPM (Fedora 44, Tauri bundler)
-    runs-on: ubuntu-latest
-    container: fedora:44
-    steps:
-      - name: Tools for checkout
-        run: dnf install -y -q git
-      - uses: actions/checkout@v4
-      - name: System packages, Rust, Node (scripts/setup-fedora.sh)
-        run: bash scripts/setup-fedora.sh
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-fedora44-${{ hashFiles('Cargo.lock') }}
-          restore-keys: cargo-fedora44-
-      - name: Build the .rpm
-        run: BUNDLES=rpm bash scripts/package-appimage.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: geospax-rpm
-          path: releases/*.rpm
+  linux-smoke:
+    # the real app on a virtual screen on every supported distribution, from the AppImage, .deb and .rpm
+    needs: appimage
+    uses: ./.github/workflows/linux-smoke.yml
 
   appimage-test:
     name: AppImage runs on ${{ matrix.distro }}
@@ -483,7 +462,7 @@ jobs:
     name: GitHub release
     # on a pushed tag, or from "Run workflow" with a release tag (the release then creates the tag)
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
-    needs: [linux, flatpak, appimage-test, rpm, android, android-emulator, windows-native, supply-chain]
+    needs: [linux, flatpak, appimage-test, linux-smoke, android, android-emulator, windows-native, supply-chain]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -515,7 +494,8 @@ jobs:
           path: releases
       - uses: actions/download-artifact@v4
         with:
-          name: geospax-rpm
+          pattern: geospax-pkg-*
+          merge-multiple: true
           path: releases
       - uses: actions/download-artifact@v4
         with:
