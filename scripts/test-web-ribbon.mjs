@@ -99,6 +99,8 @@ const mgrs = await page.textContent('#sb-coords');
 ok('MGRS readout', /^\d{1,2}[C-X] [A-Z]{2} \d{5} \d{5}$/.test(mgrs), mgrs);
 void coordsAt;
 const known = await page.evaluate(() => fetch('api/crs?q=PNG94&lon=147&lat=-6').then((r) => r.json()));
+const pac = await page.evaluate(() => fetch('api/crs/pacific').then((r) => r.json()));
+ok('Pacific CRS pack lists PNG94 and Fiji', pac.systems.some((s) => s.code === 'EPSG:5551') && pac.systems.some((s) => s.code === 'EPSG:3460'), `${pac.total} systems`);
 ok('coordinate-system search finds PNG94', known.systems.some((s) => /PNG94/.test(s.name)), known.systems.slice(0, 3).map((s) => s.code).join(', '));
 await cmd('view.crs');
 await page.fill('.gx-dialog input[name=q]', '32755');
