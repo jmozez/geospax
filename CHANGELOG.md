@@ -3,7 +3,7 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [Unreleased] (planned 3.0.9)
 
 ### Added
 - Raster results and STAC downloads are written as cloud-optimised GeoTIFFs (COG) with internal overviews by default; `GEOSPAX_RASTER_COG=0` restores plain GeoTIFF.
@@ -11,6 +11,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ### Changed
 - The Environment plugin screenshot now shows the profile chart beside the map.
+- The web app now loads as separate, long-cached chunks for MapLibre, deck.gl, Arrow, drawing and projections. The main app chunk drops from 1.75 MB to 0.68 MB (504 KB to 221 KB gzipped).
 
 ## [3.0.8] — 2026-10-30
 
