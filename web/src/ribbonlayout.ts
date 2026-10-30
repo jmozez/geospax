@@ -45,7 +45,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
   view: [
     { group: 'Basemap', big: [{ split: 'view-basemap', label: 'Basemap', icon: 'gallery', hint: 'The basemap gallery, the offline world, OpenStreetMap or none', items: ['view.basemapGallery', 'view.basemapOffline', 'view.basemapOsm', 'view.basemapNone'] }] },
     { group: 'Compare', big: ['view.swipe', 'view.spyglass'] },
-    { group: 'Projection', small: ['view.projMercator', 'view.projGlobe', 'view.terrain3d', 'view.crs'] },
+    { group: 'Projection', small: ['view.projMercator', 'view.projGlobe', 'view.terrain3d', 'view.crs', 'view.gpupoints'] },
     { group: 'Time', big: ['view.time'] },
     { group: 'Map grid', small: ['view.grid', 'view.scale', 'view.lockscale'] },
     { group: 'Theme', small: ['view.themeLight', 'view.themeDark', 'view.themeSystem'] },
@@ -56,7 +56,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
     { group: 'Modify', big: ['edit.select'], small: ['edit.box', 'edit.lasso', 'edit.vertices', 'edit.attributes', { split: 'edit-geometry', items: ['edit.split', 'edit.merge', 'edit.cut', 'edit.reshape'] }, 'edit.delete'] },
     { group: 'Clipboard', small: ['edit.copy', 'edit.paste', 'edit.copyalong'] },
     { group: 'Selection', big: [{ split: 'edit-select', label: 'Select', icon: 'select', hint: 'Select features by attributes or by location', items: ['edit.sel.attributes', 'edit.sel.location'] }], small: ['edit.sel.zoom', 'edit.sel.clear'] },
-    { group: 'Fields', big: ['edit.calculate'], small: ['edit.addField', 'edit.table', 'edit.defquery', 'edit.rules'] },
+    { group: 'Fields', big: ['edit.calculate'], small: ['edit.addField', 'edit.table', 'edit.defquery', 'edit.rules', 'edit.fieldsync'] },
     { group: 'Measure', big: [{ split: 'edit-measure', label: 'Measure', icon: 'ruler', hint: 'Measure a distance or an area on the map', items: ['edit.measure.distance', 'edit.measure.area', 'edit.measure.clear'] }] },
     { group: 'Manage edits', small: ['edit.undo', 'edit.redo', 'edit.snap', 'edit.discard', 'edit.topology'] },
   ],
@@ -110,7 +110,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
       small: ['edit.export'],
     },
     { group: 'Layout', big: ['home.finish', 'share.layout'] },
-    { group: 'Publish', big: ['share.publish'], small: ['share.package', 'home.copyLink'] },
+    { group: 'Publish', big: ['share.publish'], small: ['share.package', 'home.copyLink', 'home.review'] },
   ],
   help: [
     { group: 'Learn', big: ['help.tutorials', 'help.guide'], small: ['help.search', 'help.keys', 'help.faq'] },

@@ -83,6 +83,7 @@ const SEARCH_PARAMS: &[(&str, bool, &str)] = &[
     ("buffer", false, "margin in metres (default 10 %)"),
     ("max_km", false, "largest area side (default 120)"),
     ("days", false, "look back (default 90)"),
+    ("ago", false, "end the window this many days ago (365 = the same season last year)"),
     ("datetime", false, "explicit range start/end (ISO 8601)"),
     ("max_cloud", false, "scene cloud cover % (default 40)"),
     ("collection", false, "default sentinel-2-l2a"),
@@ -435,7 +436,7 @@ pub const CATALOGUE: &[StepSpec] = &[
         params: &[
             ("index", false, "ndvi (default), ndwi, nbr, ndmi, savi, evi"), ("min_clear", false, "share of the area that must be cloud-free (default 0.7)"), ("max_tries", false, "dates to try (default 5)"),
             ("resolution", false, "metres (default 10)"), ("mask", false, "mask clouds (default true)"), ("name", false, ""),
-            ("aoi", false, "box, layer id or auto"), ("buffer", false, "metres"), ("max_km", false, ""), ("days", false, "rs.search, when no search ran"), ("datetime", false, ""), ("max_cloud", false, ""), ("collection", false, ""), ("endpoint", false, ""), ("limit", false, ""),
+            ("aoi", false, "box, layer id or auto"), ("buffer", false, "metres"), ("max_km", false, ""), ("days", false, "rs.search, when no search ran"), ("ago", false, ""), ("datetime", false, ""), ("max_cloud", false, ""), ("collection", false, ""), ("endpoint", false, ""), ("limit", false, ""),
         ],
         borrowed: "ERDAS Indices, ArcGIS NDVI raster function, GRASS i.vi, SAGA Vegetation Index, Earth Engine normalizedDifference",
     },
