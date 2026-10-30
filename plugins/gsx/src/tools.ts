@@ -144,7 +144,7 @@ const landCheck = (ctx: Ctx, drop: boolean) => {
   });
 };
 const landParams: Param[] = [
-  { name: 'land_dem', label: 'Land mask: elevation / bathymetry raster', kind: 'raster', description: 'e.g. GEBCO; records with no cell at or below 0 m within the coastal tolerance count as on land.' },
+  { name: 'land_dem', label: 'Land mask raster (bathymetry / topography)', kind: 'raster', description: 'Never guessed: pick e.g. GEBCO; records with no cell at or below 0 m within the coastal tolerance count as on land.' },
   { name: 'land_polygons', label: 'Land mask: land polygons', kind: 'layer', description: 'Optional, e.g. OSM land polygons or Natural Earth 10 m land.' },
   { name: 'coastal_m', label: 'Coastal tolerance (m)', kind: 'number', default: 1000, description: 'A record is kept as marine if any sea cell lies within this distance (allows for coarse coastlines).' },
 ];
