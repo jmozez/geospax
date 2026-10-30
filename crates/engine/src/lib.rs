@@ -30,6 +30,7 @@ pub mod guest;
 pub mod sensors;
 pub mod sql;
 pub mod sta;
+pub mod sync;
 pub mod jobs;
 pub mod lidar;
 pub mod mvt;

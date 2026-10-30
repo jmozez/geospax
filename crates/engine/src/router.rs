@@ -401,6 +401,21 @@ impl Engine {
                 Ok(l) => ApiResponse::json(200, &json!({ "layer": self.layer_json(&l) })),
                 Err(e) => ApiResponse::error(400, e),
             },
+            ("POST", ["api", "layers", layer, "field-package"]) => match self.sync_package(layer) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("GET", ["api", "sync"]) => ApiResponse::json(200, &self.sync_packages()),
+            ("POST", ["api", "sync", what]) if *what == "review" || *what == "apply" => {
+                let b = body_json(&req.body);
+                let pkg = b["package"].as_str().unwrap_or("");
+                let ret = b["returned"].as_str();
+                let r = if *what == "review" { self.sync_review(pkg, ret) } else { self.sync_apply(pkg, ret, &b["choices"].as_object().cloned().unwrap_or_default()) };
+                match r {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
             ("POST", ["api", "layers", layer, "revert"]) => match self.revert_edits(layer) {
                 Ok(Some(l)) => ApiResponse::json(200, &json!({ "layer": self.layer_json(&l) })),
                 Ok(None) => ApiResponse::json(200, &json!({ "removed": layer })),
