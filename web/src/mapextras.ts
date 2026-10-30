@@ -147,10 +147,13 @@ export class MapExtras {
     const listHtml = (rows: { code: string; name: string; kind: string; area: string }[]) =>
       rows.map((r, i) => `<label class="crs-row"><input type="radio" name="crs" value="${esc(r.code)}" ${i === 0 ? 'checked' : ''}><b>${esc(r.code)}</b> ${esc(r.name)} <small class="dim">${esc(r.kind)} · ${esc(r.area)}</small></label>`).join('') || '<p class="dim">No match.</p>';
     const search = async (q: string) => this.h.backend.json<{ systems: { code: string; name: string; kind: string; area: string }[]; total: number }>(`api/crs?q=${encodeURIComponent(q)}&lon=${c.lng}&lat=${c.lat}`).catch(() => ({ systems: [], total: 0 }));
+    // the Pacific pack (PNG, Fiji, Solomons, Vanuatu, Samoa, Tonga ...) comes first when the search is empty
+    const pacific = await this.h.backend.json<{ systems: { code: string; name: string; kind: string; area: string; region: string; note: string }[] }>('api/crs/pacific').catch(() => ({ systems: [] }));
+    const pacificHtml = pacific.systems.length ? `<p class="dim" style="margin:4px 0"><b>Pacific pack</b></p>${pacific.systems.map((r) => `<label class="crs-row"><input type="radio" name="crs" value="${esc(r.code)}"><b>${esc(r.code)}</b> ${esc(r.note)} <small class="dim">${esc(r.region)}</small></label>`).join('')}<p class="dim" style="margin:8px 0 4px"><b>For this place</b></p>` : '';
     const first = await search('');
     const pending = dialog('Coordinate system', `<p class="dim">Show coordinates in a projected or geographic system from the EPSG registry. Systems whose area of use includes the map's centre come first.</p>
       <input name="q" placeholder="Search: code, name or area (e.g. PNG94, 32755, Lae)" autocomplete="off" style="width:100%">
-      <div class="crs-list" style="max-height:300px;overflow:auto;margin-top:8px">${listHtml(first.systems)}</div>`, [['ok', 'Use this system'], ['dd', 'Back to degrees'], ['', 'Cancel']]);
+      <div class="crs-list" style="max-height:300px;overflow:auto;margin-top:8px">${pacificHtml}${listHtml(first.systems)}</div>`, [['ok', 'Use this system'], ['dd', 'Back to degrees'], ['', 'Cancel']]);
     // live search while the dialog is open
     setTimeout(() => {
       const root = document.querySelector<HTMLElement>('.crs-list')?.closest<HTMLElement>('dialog, .modal, .dialog') ?? document.body;
@@ -161,7 +164,7 @@ export class MapExtras {
         clearTimeout(timer);
         timer = window.setTimeout(async () => {
           const r = await search(q.value);
-          if (list) list.innerHTML = listHtml(r.systems);
+          if (list) list.innerHTML = (q.value.trim() ? '' : pacificHtml) + listHtml(r.systems);
         }, 200);
       });
       q?.focus();

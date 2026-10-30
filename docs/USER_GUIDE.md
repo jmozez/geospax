@@ -320,7 +320,7 @@ it back, so the map can take the whole window when you need it.
   **Time slider** plays a layer that has a date or year field, by year, month or day, or adding up as it
   goes. It works through a definition query, so tools and exports see the same features as the map.
   **Grid** draws a labelled graticule. **Go to scale** zooms to a scale such as 1:50 000 and **Lock scale** keeps it while you pan.
-  **Coordinate system** searches the EPSG registry, with the systems for the area on the map first.
+  **Coordinate system** searches the EPSG registry, with the systems for the area on the map first. With the search box empty, a **Pacific pack** comes first: PNG94 and PNGMG94 zones 54 to 56, AGD66, the Fiji Map Grid, UTM zones for the Solomon Islands, Vanuatu, Samoa and Tonga, NZTM, MGA 55 and the Pacific-centred PDC Mercator.
 - **Edit**: **Split**, **Merge**, **Cut** and **Reshape** change shapes and keep their attributes, and each
   one can be undone. **Copy** and **Paste** (Ctrl+C and Ctrl+V) move features between layers; **Copy along
   line** places copies of the selected feature at equal steps along a line. **Trace** makes new edges follow existing features between snapped vertices.
