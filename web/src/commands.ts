@@ -841,6 +841,11 @@ export const COMMANDS: Command[] = [
     run: (h) => { h.showTab('bottom', 'automate'); h.setStatus('Recipe gallery: pick a workflow in the Automate pane below and press Run', 4000); },
   },
   {
+    id: 'analyze.sql', tab: 'analyze', group: 'Geoprocessing', title: 'SQL', icon: 'table',
+    hint: 'One read-only SQL query across every layer on the map (SQLite and SpatiaLite); a result with geometry becomes a layer',
+    run: (h) => void import('./sqlpane').then((m) => m.openSql(h)),
+  },
+  {
     id: 'analyze.toolbox', tab: 'analyze', group: 'Geoprocessing', title: 'Toolbox', icon: 'toolbox', big: true,
     hint: 'Every tool, by toolbox: Analysis, Conversion, Spatial Statistics, Terrain, Hydrology, Image Analysis … searchable (ArcGIS and QGIS names work)',
     run: (h) => { h.showTab('right', 'toolbox'); },
