@@ -22,7 +22,8 @@ const TURNS_KEY = 'geospax.ask.turns';
 
 interface Settings { provider: 'ollama' | 'openai' | 'anthropic'; url: string; model: string; has_key: boolean; tools: string[] }
 interface Step { tool: string; args: Record<string, unknown>; ok: boolean; error?: string }
-interface Turn { role: 'user' | 'assistant'; text: string; steps?: Step[]; error?: boolean }
+interface Plan { kind: 'plan'; recipe: string; title: string; inputs: { name: string; value: unknown; given: boolean }[]; args: Record<string, unknown>; steps: { id: string; use: string; title?: string }[]; state?: 'ran' | 'dismissed' }
+interface Turn { role: 'user' | 'assistant'; text: string; steps?: Step[]; error?: boolean; plans?: Plan[] }
 
 const PROVIDERS: Record<Settings['provider'], { title: string; where: string; url: string }> = {
   ollama: { title: 'Ollama (on this computer)', where: 'Nothing leaves this computer.', url: 'http://127.0.0.1:11434' },
@@ -82,12 +83,13 @@ export class AskPane {
   render() {
     const s = this.settings;
     const who = s ? `${PROVIDERS[s.provider]?.title ?? s.provider} · ${s.model || 'no model'}` : 'assistant unavailable';
-    const turns = this.turns.map((t) => {
+    const turns = this.turns.map((t, ti) => {
       if (t.role === 'user') return `<div class="ask-msg user">${esc(t.text)}</div>`;
       const steps = t.steps?.length
         ? `<details class="ask-steps"><summary>${icon('check', 11)} Looked at the data ${t.steps.length} time${t.steps.length > 1 ? 's' : ''}</summary><ol>${t.steps.map((x) => `<li class="${x.ok ? '' : 'bad'}"><code>${esc(x.tool)}</code> ${esc(stepText(x))}${x.error ? ` <span class="err">${esc(x.error)}</span>` : ''}</li>`).join('')}</ol></details>`
         : '';
-      return `<div class="ask-msg bot${t.error ? ' error' : ''}">${t.error ? `<p>${esc(t.text)}</p>` : md(t.text)}${steps}</div>`;
+      const plans = (t.plans ?? []).map((p, k) => planCard(p, ti, k)).join('');
+      return `<div class="ask-msg bot${t.error ? ' error' : ''}">${t.error ? `<p>${esc(t.text)}</p>` : md(t.text)}${plans}${steps}</div>`;
     }).join('');
     this.el.innerHTML = `
       <div class="ask-head"><span class="ask-who" title="Where the answers come from">${esc(who)}</span>
@@ -123,7 +125,8 @@ export class AskPane {
     try {
       const r = await this.host.backend.json<{ answer: string; steps: Step[]; actions: { kind: string; layer?: string; fids?: number[]; run?: string }[] }>(
         'api/ask', { method: 'POST', body: JSON.stringify({ question: q, history }), headers: { 'content-type': 'application/json' } });
-      this.turns.push({ role: 'assistant', text: r.answer || '(no answer)', steps: r.steps });
+      const plans = (r.actions ?? []).filter((a) => a.kind === 'plan') as unknown as Plan[];
+      this.turns.push({ role: 'assistant', text: r.answer || '(no answer)', steps: r.steps, plans: plans.length ? plans : undefined });
       for (const a of r.actions ?? []) {
         if (a.kind === 'select' && a.layer && a.fids) this.host.select(a.layer, a.fids);
         else if (a.kind === 'zoom' && a.layer) this.host.zoom(a.layer);
@@ -145,6 +148,23 @@ export class AskPane {
     switch (t.closest<HTMLElement>('[data-act]')?.dataset.act) {
       case 'clear': this.turns = []; this.keep(); return this.render();
       case 'settings': return this.openSettings();
+      case 'plan-run': case 'plan-no': {
+        const el = t.closest<HTMLElement>('[data-plan]')!;
+        const [ti, k] = el.dataset.plan!.split(':').map(Number);
+        const p = this.turns[ti]?.plans?.[k];
+        if (!p || p.state) return;
+        if (t.closest<HTMLElement>('[data-act]')!.dataset.act === 'plan-no') { p.state = 'dismissed'; this.keep(); return this.render(); }
+        try {
+          const run = await this.host.backend.json<{ id: string }>(`api/recipes/${encodeURIComponent(p.recipe)}/run`, { method: 'POST', body: JSON.stringify({ inputs: p.args }), headers: { 'content-type': 'application/json' } });
+          p.state = 'ran';
+          this.keep();
+          this.render();
+          this.host.showRun(run.id);
+        } catch (err) {
+          this.host.setStatus(err instanceof Error ? err.message : String(err), 6000);
+        }
+        return;
+      }
     }
   }
 
@@ -195,6 +215,16 @@ export class AskPane {
       },
     });
   }
+}
+
+/** A recipe the assistant proposes: what will run, with which inputs, and Run / Dismiss buttons. */
+function planCard(p: Plan, ti: number, k: number): string {
+  const v = (x: unknown) => (typeof x === 'string' ? x : JSON.stringify(x ?? null));
+  const inputs = p.inputs.length ? `<ul>${p.inputs.map((i) => `<li><code>${esc(i.name)}</code> = ${esc(v(i.value))}${i.given ? '' : ' <span class="dim">(default)</span>'}</li>`).join('')}</ul>` : '<p class="dim">No inputs.</p>';
+  const steps = `<ol>${p.steps.map((s) => `<li>${esc(s.title || s.id)} <code>${esc(s.use)}</code></li>`).join('')}</ol>`;
+  const foot = p.state === 'ran' ? '<p class="dim">Started.</p>' : p.state === 'dismissed' ? '<p class="dim">Dismissed.</p>'
+    : `<div class="ask-plan-btns"><button type="button" class="primary" data-act="plan-run">${icon('play', 12)} Run</button> <button type="button" data-act="plan-no">Dismiss</button></div>`;
+  return `<div class="ask-plan" data-plan="${ti}:${k}"><p><b>Plan: ${esc(p.title || p.recipe)}</b> <span class="dim">(not started)</span></p><p class="dim">Inputs</p>${inputs}<p class="dim">Steps</p>${steps}${foot}</div>`;
 }
 
 function stepText(s: Step): string {
