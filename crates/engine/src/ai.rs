@@ -311,6 +311,21 @@ impl Engine {
     }
 
     fn run_tool(self: &Arc<Self>, name: &str, args: &Value, steps: &mut Vec<Value>, actions: &mut Vec<Value>) -> (String, bool) {
+        // In the Ask pane a recipe is never started by the model: it becomes a plan the user reads and
+        // approves (Run) or dismisses. MCP clients start runs directly unless the server is --read-only.
+        if name == "run_recipe" {
+            return match self.recipe_plan(args) {
+                Ok(plan) => {
+                    steps.push(json!({ "tool": name, "args": args, "ok": true, "plan": true }));
+                    actions.push(plan);
+                    ("Not started: the plan (recipe, inputs and steps) is shown to the user, who runs it with the Run button. Tell the user what it will do.".into(), false)
+                }
+                Err(e) => {
+                    steps.push(json!({ "tool": name, "args": args, "ok": false, "error": e }));
+                    (format!("error: {e}"), true)
+                }
+            };
+        }
         match self.ai_tool(name, args) {
             Ok((v, a)) => {
                 if let Some(a) = a {
@@ -324,6 +339,26 @@ impl Engine {
                 (format!("error: {e}"), true)
             }
         }
+    }
+
+    /// A recipe run the assistant proposes, as a plan for the user to approve: the recipe, its inputs
+    /// (the model's values over the defaults) and the steps it will run, in order.
+    pub fn recipe_plan(&self, args: &Value) -> Result<Value, String> {
+        let id = args["recipe"].as_str().ok_or("'recipe' is missing")?;
+        let r = self.automation.recipe(id).ok_or_else(|| format!("there is no recipe '{id}' (call list_recipes)"))?;
+        if r.has_code_steps() {
+            return Err(format!("'{id}' runs Python or R code on this computer; start it yourself from the Automate pane"));
+        }
+        let s = r.summary_json();
+        let given = args["inputs"].as_object().cloned().unwrap_or_default();
+        if let Some(bad) = given.keys().find(|k| !s["inputs"].as_array().is_some_and(|a| a.iter().any(|i| i["name"] == **k))) {
+            return Err(format!("'{id}' has no input '{bad}' (call list_recipes)"));
+        }
+        let inputs: Vec<Value> = s["inputs"]
+            .as_array()
+            .map(|a| a.iter().map(|i| json!({ "name": i["name"], "value": given.get(i["name"].as_str().unwrap_or("")).cloned().unwrap_or(i["default"].clone()), "given": given.contains_key(i["name"].as_str().unwrap_or("")) })).collect())
+            .unwrap_or_default();
+        Ok(json!({ "kind": "plan", "recipe": id, "title": s["title"], "inputs": inputs, "args": Value::Object(given), "steps": s["steps"], "outputs": s["outputs"] }))
     }
 
     // ------------------------------------------------------------------ Ask
@@ -549,6 +584,26 @@ pub fn mcp_handle(engine: &Arc<Engine>, msg: &Value) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ask_turns_recipe_runs_into_plans() {
+        crate::raster::configure_gdal();
+        let dir = std::env::temp_dir().join(format!("gx-plan-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let e = Arc::new(Engine::open(crate::EngineConfig { data: vec![dir.clone()], state_dir: Some(dir.join(".state")), ..Default::default() }).unwrap());
+        let (mut steps, mut actions) = (Vec::new(), Vec::new());
+        let (text, err) = e.run_tool("run_recipe", &json!({ "recipe": "points-to-hexbins" }), &mut steps, &mut actions);
+        assert!(!err, "{text}");
+        assert!(text.starts_with("Not started"));
+        assert_eq!(actions[0]["kind"], "plan");
+        assert_eq!(actions[0]["recipe"], "points-to-hexbins");
+        assert!(!actions[0]["steps"].as_array().unwrap().is_empty());
+        assert!(e.automation.last_run("points-to-hexbins").is_none(), "nothing ran");
+        let (_, err) = e.run_tool("run_recipe", &json!({ "recipe": "points-to-hexbins", "inputs": { "nope": 1 } }), &mut steps, &mut actions);
+        assert!(err);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn schemas_are_strict_objects() {
