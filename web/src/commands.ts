@@ -674,7 +674,7 @@ export const COMMANDS: Command[] = [
     run: project('open'),
   },
   {
-    id: 'home.review', tab: 'home', group: 'Project', title: 'Review', icon: 'form',
+    id: 'home.review', tab: 'share', group: 'Publish', title: 'Review', icon: 'form',
     hint: 'Comments pinned to the map and the version history of this named project, for a team sharing one server',
     run: (h) => void import('./review').then((m) => m.openReview(h)),
   },

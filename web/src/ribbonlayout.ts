@@ -35,7 +35,7 @@ export const isSplit = (e: Entry): e is Split => typeof e !== 'string';
 // ------------------------------------------------------------------ layout
 export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
   home: [
-    { group: 'Project', big: ['home.new', 'home.open', { split: 'project-save', label: 'Save', icon: 'save', hint: 'Save the project, save a copy under a new name, or rename it', items: ['home.save', 'home.saveAs', 'home.rename'] }], small: ['home.review', 'home.start', 'home.settings', 'home.refresh'] },
+    { group: 'Project', big: ['home.new', 'home.open', { split: 'project-save', label: 'Save', icon: 'save', hint: 'Save the project, save a copy under a new name, or rename it', items: ['home.save', 'home.saveAs', 'home.rename'] }], small: ['home.start', 'home.settings', 'home.refresh'] },
     { group: 'Layer', big: ['home.addData', 'home.basemap'], small: ['home.contents', 'home.zoomLayer'] },
     { group: 'Navigate', small: ['view.zoomIn', 'view.zoomOut', 'view.zoomAll', 'home.prevExtent', 'home.nextExtent', 'home.goto', 'view.bookmarks', 'view.addBookmark'] },
     { group: 'Selection', big: [{ split: 'home-select', label: 'Select', icon: 'select', hint: 'Select features by attributes, by location or with a lasso', items: ['sel.attributes', 'sel.location', 'home.lasso'] }], small: ['home.attributes', 'sel.zoom', 'sel.clear'] },
@@ -110,7 +110,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
       small: ['edit.export'],
     },
     { group: 'Layout', big: ['home.finish', 'share.layout'] },
-    { group: 'Publish', big: ['share.publish'], small: ['share.package', 'home.copyLink'] },
+    { group: 'Publish', big: ['share.publish'], small: ['share.package', 'home.copyLink', 'home.review'] },
   ],
   help: [
     { group: 'Learn', big: ['help.tutorials', 'help.guide'], small: ['help.search', 'help.keys', 'help.faq'] },
