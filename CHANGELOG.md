@@ -6,6 +6,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased] (planned 3.0.9)
 
 ### Added
+- Earth observation recipes: "Vegetation change since last year" (Sentinel-2 NDVI, same season a year apart) and "Burn severity" (Sentinel-2 dNBR). `rs.search` and `rs.index` take a new `ago` parameter that ends the search window that many days back, so one recipe can compare two periods.
 - View › Coordinate system: a Pacific pack of 17 checked systems (PNG94 and PNGMG94 zones 54 to 56, AGD66, Fiji Map Grid, UTM zones for the Solomons, Vanuatu, Samoa and Tonga, NZTM, MGA 55 and Pacific-centred PDC Mercator) shown first, also at `GET /api/crs/pacific`.
 - Supply chain: a CI gate runs `cargo audit` and `npm audit` on every push and before any release, and each release now carries CycloneDX SBOMs (`scripts/sbom.sh`). See SECURITY.md.
 - Share › Export data › PMTiles: a layer as one vector tile archive that any static web host or MapLibre map can serve, no tile server needed.
