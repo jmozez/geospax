@@ -211,6 +211,7 @@ try:
         "connectivity": ({"patches": L("patches"), "threshold_m": 450}, lambda r: num(r["message"], r"(\d+) component") == 1),
         "change": ({"t1": L("habitat"), "t2": L("habitat_2024"), "year1": 2015, "year2": 2024}, lambda r: abs((num(r["message"], r"lost ([\d.]+) ha") or num(r["message"], r"loss ([\d.]+) ha") or -1) - 5) < 0.1),
         "dbscan": ({"points": L("sites"), "epsilon_m": 60, "min_points": 4}, lambda r: num(r["message"], r"(\d+) cluster") == 3),
+        "on-land": ({"points": L("sites"), "land_polygons": L("habitat")}, lambda r: num(r["message"], r"of (\d+) record") == 30),
         "nearest-neighbour": ({"points": L("sites")}, lambda r: "cluster" in r["message"].lower()),
         "diversity": ({"occurrences": L("sites"), "species": "species"}, lambda r: num(r["message"], r"(\d+) (?:species|taxa)") == 3),
         "local-moran": ({"layer": L("sites"), "field": "score", "neighbours": "k-nearest", "k": 6, "permutations": 199}, lambda r: num(r["message"], r"(\d+) (?:in )?high[- ]high") == 10 or "10 High-High" in r["message"] or "High-High 10" in r["message"]),

@@ -26,7 +26,7 @@ export const DOMAINS = [
   ['forestry', 'Forestry', 'tree', 'Forest and burn extent, landscape metrics, connectivity, loss and gain, forest protection gaps, harvest coupe net areas, and logging road routes and buffers.',
     ['spectral-index', 'fragmentation', 'connectivity', 'raster-change', 'change', 'protection-gap', 'harvest-coupes', 'route-suitability', 'corridor-zones']],
   ['marine', 'Marine', 'wave', 'Richness and diversity, point patterns, clusters, species distribution, habitat extent, priorities and marine protected area gaps.',
-    ['diversity', 'nearest-neighbour', 'dbscan', 'sdm', 'spectral-index', 'suitability', 'hotspot-grid', 'priority-sites', 'protection-gap']],
+    ['on-land', 'diversity', 'nearest-neighbour', 'dbscan', 'sdm', 'spectral-index', 'suitability', 'hotspot-grid', 'priority-sites', 'protection-gap']],
   ['climate', 'Climate', 'sun', 'ENSO indices (ONI, Niño 3.4, SOI), rainfall anomalies, El Niño drought and frost risk, seasonal outlooks, moisture and burn stress, climate vulnerability and change.',
     ['enso-index', 'rainfall-anomaly', 'drought-risk', 'seasonal-outlook', 'spectral-index', 'suitability', 'distance-decay', 'raster-change', 'change']],
   ['disaster', 'Disaster', 'alert', 'Multi-hazard susceptibility, slope triggers, hazard footprints, response access, priorities, impact change and hot spots.',

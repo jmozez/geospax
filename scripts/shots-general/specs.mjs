@@ -53,8 +53,8 @@ export default [
  { file: 'plugin-conservation', keep: [r('g-gebco2.gebco_2026'), 'hotspot-grid-8-km-20261029-223124.geojson'],
    style: { 'hotspot-grid-8-km-20261029-223124.geojson': g('hotspot_score', [0.25, 1, 3, 10, 30, 93], ['rgba(0,0,0,0)', '#fdd49e', '#fc8d59', '#e34a33', '#b30000', '#7f0000'], { method: 'jenks', ramp: 'ylorrd', counts: [672, 23, 14, 15, 8, 8], min: 0, fill: { strokeColor: 'rgba(255,255,255,0.35)', strokeWidth: 0.6 }, opacity: 0.88 }) },
    view: { center: [147.75, -6.65], zoom: 8.35 }, focus: 'hotspot-grid-8-km-20261029-223124.geojson' },
- { file: 'plugin-marine', keep: [r('g-gebco2.gebco_2026'), 'g-obis2-obis-actinopteri-clusters-20261029-223123.geojson'], style: { 'g-obis2-obis-actinopteri-clusters-20261029-223123.geojson': MARINE },
-   view: { center: [147.75, -6.65], zoom: 8.6 }, focus: 'g-obis2-obis-actinopteri-clusters-20261029-223123.geojson' },
+ { file: 'plugin-marine', keep: [r('g-gebco2.gebco_2026'), 'g-obis2-obis-actinopteri-clusters-20261030-011646.geojson'], style: { 'g-obis2-obis-actinopteri-clusters-20261030-011646.geojson': MARINE },
+   view: { center: [147.75, -6.65], zoom: 8.6 }, focus: 'g-obis2-obis-actinopteri-clusters-20261030-011646.geojson' },
 
  { file: 'plugin-biodiversity', keep: ['g-birds.bird_richness_5km'],
    style: { 'g-birds.bird_richness_5km': q('bird_richness_5km', 'richness', ['#edf8fb', '#b3cde3', '#8c96c6', '#8856a7', '#810f7c'], { ramp: 'magma', fill: { strokeColor: 'rgba(255,255,255,0.4)', strokeWidth: 0.6 }, opacity: 0.85 }) },
