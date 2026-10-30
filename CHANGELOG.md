@@ -9,6 +9,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Code health: clippy warnings in the engine and server cut from 137 to 51 (collapsed `if`s, `is_multiple_of`, `chunks_exact` and similar); no behaviour change.
 
 ### Added
+- View › GPU points (off by default, per layer): draws a large point layer with deck.gl from the Arrow stream instead of vector tiles, aimed at layers too large for smooth vector tile display. WebGL2 for now; WebGPU, lines and polygons later.
 - Share › Review: comments pinned to the map (with replies and resolve) and version history with restore (the last 50 saves) for named projects on a shared, self-hosted web edition. Sign-in and roles are not included yet.
 - Edit › Field sync (offline first): package a layer as a GeoPackage for a USB stick, laptop or phone, then merge the returned copy with a three way, per feature comparison. One-sided and different-field edits merge on their own; conflicts are listed for a decision and nothing is written until Apply. API: `POST /api/layers/{id}/field-package`, `GET /api/sync`, `POST /api/sync/review` and `/api/sync/apply` (refused in the guest demo).
 - Earth observation recipes: "Vegetation change since last year" (Sentinel-2 NDVI, same season a year apart) and "Burn severity" (Sentinel-2 dNBR). `rs.search` and `rs.index` take a new `ago` parameter that ends the search window that many days back, so one recipe can compare two periods.

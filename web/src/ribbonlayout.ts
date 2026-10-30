@@ -45,7 +45,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
   view: [
     { group: 'Basemap', big: [{ split: 'view-basemap', label: 'Basemap', icon: 'gallery', hint: 'The basemap gallery, the offline world, OpenStreetMap or none', items: ['view.basemapGallery', 'view.basemapOffline', 'view.basemapOsm', 'view.basemapNone'] }] },
     { group: 'Compare', big: ['view.swipe', 'view.spyglass'] },
-    { group: 'Projection', small: ['view.projMercator', 'view.projGlobe', 'view.terrain3d', 'view.crs'] },
+    { group: 'Projection', small: ['view.projMercator', 'view.projGlobe', 'view.terrain3d', 'view.crs', 'view.gpupoints'] },
     { group: 'Time', big: ['view.time'] },
     { group: 'Map grid', small: ['view.grid', 'view.scale', 'view.lockscale'] },
     { group: 'Theme', small: ['view.themeLight', 'view.themeDark', 'view.themeSystem'] },
