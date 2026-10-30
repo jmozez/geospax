@@ -106,11 +106,10 @@ pub(super) fn pick_raster(sc: &mut StepCtx, spec: Option<&Value>, kinds: &[&str]
         }
         _ => {
             for id in sc.rasters.iter().rev() {
-                if let Some(r) = sc.engine.raster(id) {
-                    if ok(&r) {
+                if let Some(r) = sc.engine.raster(id)
+                    && ok(&r) {
                         return Ok(r);
                     }
-                }
             }
             sc.engine.rasters().into_iter().rev().find(|r| ok(r)).ok_or_else(|| {
                 if kinds.is_empty() { "no raster yet: run dem.fetch or rs.index first, or name one with raster:".to_string() } else { format!("no {} raster yet: run dem.fetch or rs.index first, or name one", kinds.join("/")) }
@@ -827,7 +826,7 @@ pub(super) fn rs_index(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         raster::write_tif_f32(&out, w, h, gt, &wkt, out_v, Some(NODATA))?;
         let date = scene["date"].as_str().unwrap_or("").to_string();
         let title = format!("{} · Sentinel-2 · {}", index.to_uppercase(), human_date(&date));
-        let desc = format!("{} · {:.0} % cloud in the scene, {:.0} % clear over the area · © Copernicus Sentinel data {}", scene["id"].as_str().unwrap_or(""), scene["cloud"].as_f64().unwrap_or(0.0), clear_frac * 100.0, &date.get(..4).unwrap_or(""));
+        let desc = format!("{} · {:.0} % cloud in the scene, {:.0} % clear over the area · © Copernicus Sentinel data {}", scene["id"].as_str().unwrap_or(""), scene["cloud"].as_f64().unwrap_or(0.0), clear_frac * 100.0, date.get(..4).unwrap_or(""));
         let hnd = register(sc, &out, &name, json!({ "kind": index, "title": title, "units": "", "description": desc, "scene": scene["id"], "date": date, "credit": format!("Copernicus Sentinel-2 data {} (ESA)", date.get(..4).unwrap_or("")) }))?;
         let st = hnd.info.stats[0].clone();
         // the chosen scene goes first, so rs.fetch and the report use the same date

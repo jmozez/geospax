@@ -176,11 +176,10 @@ impl LayerHandle {
                 let Some(g) = f.geometry() else { continue };
                 let e = g.envelope();
                 let (mut x, mut y) = ([(e.MinX + e.MaxX) / 2.0], [(e.MinY + e.MaxY) / 2.0]);
-                if let Some(ct) = &h.to_wgs84 {
-                    if ct.0.transform_coords(&mut x, &mut y, &mut [0.0]).is_err() {
+                if let Some(ct) = &h.to_wgs84
+                    && ct.0.transform_coords(&mut x, &mut y, &mut [0.0]).is_err() {
                         continue;
                     }
-                }
                 out.push([x[0], y[0]]);
             }
         }
@@ -363,13 +362,11 @@ pub(crate) fn load_layers_plain(path: &Path) -> Result<Vec<LayerHandle>, String>
             Err(_) => [-180.0, -85.0, 180.0, 85.0],
         };
         let mut geometry = geom_kind(lyr.defn().geometry_type());
-        if geometry == GeomKind::Unknown {
-            if let Some(f) = lyr.features().next() {
-                if let Some(g) = f.geometry() {
+        if geometry == GeomKind::Unknown
+            && let Some(f) = lyr.features().next()
+                && let Some(g) = f.geometry() {
                     geometry = geom_kind(g.geometry_type());
                 }
-            }
-        }
         let fields: Vec<FieldInfo> =
             lyr.defn().fields().map(|f| FieldInfo { name: f.name(), kind: field_kind(f.field_type()) }).collect();
         // Tile attributes: preferred names first, then others, max MAX_TILE_FIELDS.

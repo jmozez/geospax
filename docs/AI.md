@@ -99,6 +99,18 @@ data path.
 Options: `--data DIR` (repeatable), `--state-dir DIR` (default `<first data folder>/.geospax`, shared with
 the app, so recipes and runs are the same), `--recipes DIR`, `--threads N`.
 
+**Limiting what an assistant can do**
+
+| Option | Effect |
+|---|---|
+| `--read-only` (or `GEOSPAX_MCP_READ_ONLY=1`) | Hides and refuses `run_recipe`, the one tool that writes files or starts work. The assistant can still read layers, describe fields, query and select. |
+| `--tools list_layers,query_features` | Only the named tools are listed and callable. |
+| `--audit FILE` | Appends one JSON line per tool call: time (Unix seconds), tool, arguments, ok, milliseconds and any error, including refused calls. |
+
+The MCP server runs over stdio, so it is only reachable by the program that started it on this
+computer; there is no network port to protect. Serving MCP over the network to other people's
+assistants (with per-client tokens) is not built yet.
+
 Tool errors come back as results with `isError: true`, so the assistant can correct its request (a wrong
 field name, for example). Results longer than 12,000 characters are cut, and the cut is marked.
 
@@ -184,3 +196,7 @@ In recipes the step is `ai.detect` ([AUTOMATION.md](AUTOMATION.md)). The models 
   the same read-only tools or start a non-code recipe, whose results go only into the runs folder.
 - Beyond `localhost`, the web edition's API needs its access token (README › Security), so another
   device cannot use your key.
+
+## Plan preview in the Ask pane
+
+The Ask pane never starts a recipe by itself. When the assistant decides a recipe fits your question, it shows a plan card: the recipe, each input with its value (defaults are marked) and the steps it will run, in order. Press **Run** to start it (the run opens in the Automate pane) or **Dismiss** to drop it. Recipes with Python or R code steps are never proposed; start those yourself. MCP clients still call `run_recipe` directly unless the server runs with `--read-only`.

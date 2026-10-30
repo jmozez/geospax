@@ -241,12 +241,11 @@ fn fields_of(schema: &arrow_schema::Schema, geom: &str) -> Vec<(String, Kind, So
         }
         if let Some(k) = column_kind(f.data_type()) {
             out.push((n.clone(), k, Source::Plain(n.clone())));
-        } else if let DataType::Struct(kids) = f.data_type() {
-            if let Some(p) = kids.iter().find(|c| c.name() == "primary").filter(|c| column_kind(c.data_type()) == Some(Kind::Text)) {
+        } else if let DataType::Struct(kids) = f.data_type()
+            && let Some(p) = kids.iter().find(|c| c.name() == "primary").filter(|c| column_kind(c.data_type()) == Some(Kind::Text)) {
                 let out_name = if n == "names" { "name".to_string() } else { format!("{n}_primary") };
                 out.push((out_name, Kind::Text, Source::Nested(n.clone(), p.name().clone())));
             }
-        }
     }
     out
 }
@@ -311,11 +310,10 @@ pub fn write_gpkg(plans: &[Plan], area: Option<[f64; 4]>, out: &Path, layer: &st
                 let (bx0, by0, bx1, by1) = (bb("xmin"), bb("ymin"), bb("xmax"), bb("ymax"));
                 let cols: Vec<Option<ArrayRef>> = fields.iter().map(|(_, _, s)| get_col(&b, s)).collect();
                 for i in 0..b.num_rows() {
-                    if let (Some(a), Some(x0), Some(y0), Some(x1), Some(y1)) = (area, &bx0, &by0, &bx1, &by1) {
-                        if x0[i] > a[2] || x1[i] < a[0] || y0[i] > a[3] || y1[i] < a[1] {
+                    if let (Some(a), Some(x0), Some(y0), Some(x1), Some(y1)) = (area, &bx0, &by0, &bx1, &by1)
+                        && (x0[i] > a[2] || x1[i] < a[0] || y0[i] > a[3] || y1[i] < a[1]) {
                             continue;
                         }
-                    }
                     let Some(w) = wkb(&gcol, i) else { continue };
                     let Ok(gm) = Geometry::from_wkb(w) else { continue };
                     if let (Some(a), None) = (area, &bx0) {

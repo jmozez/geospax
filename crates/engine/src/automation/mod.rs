@@ -348,11 +348,10 @@ impl Automation {
     /// Save a recipe to `<state>/recipes/<id>.yaml` (replacing a user recipe with the same id).
     pub fn save_user(&self, text: &str) -> Result<(Arc<Recipe>, Vec<String>), Vec<String>> {
         let (r, warns) = self.validate(text, Origin::Api)?;
-        if let Some(existing) = self.recipe(&r.id) {
-            if existing.origin == Origin::Gallery {
+        if let Some(existing) = self.recipe(&r.id)
+            && existing.origin == Origin::Gallery {
                 return Err(vec![format!("'{}' is a gallery recipe; save yours under another id", r.id)]);
             }
-        }
         let dir = self.user_dir();
         let path = dir.join(format!("{}.yaml", r.id));
         std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, text)).map_err(|e| vec![format!("{}: {e}", path.display())])?;
@@ -806,11 +805,10 @@ impl Automation {
             }
         }
         let pending = self.pending.lock().unwrap().get_mut(&run.recipe.id).and_then(|q| q.pop_front());
-        if let Some((given, trig)) = pending {
-            if let Err(e) = self.start_run(engine, &run.recipe.id, given, trig) {
+        if let Some((given, trig)) = pending
+            && let Err(e) = self.start_run(engine, &run.recipe.id, given, trig) {
                 eprintln!("automation: queued re-run of {} failed: {e}", run.recipe.id);
             }
-        }
     }
 
     /// A device with geodata showed up (called by the device hub). True if a recipe took it.
@@ -935,11 +933,10 @@ impl Automation {
     }
 
     fn fence(&self, engine: &Engine, layer: &str) -> Result<Arc<Vec<Vec<Vec<[f64; 2]>>>>, String> {
-        if let Some((at, p)) = self.fences.lock().unwrap().get(layer) {
-            if at.elapsed() < std::time::Duration::from_secs(60) {
+        if let Some((at, p)) = self.fences.lock().unwrap().get(layer)
+            && at.elapsed() < std::time::Duration::from_secs(60) {
                 return Ok(p.clone());
             }
-        }
         let l = engine.layer(layer).ok_or_else(|| format!("unknown layer '{layer}'"))?;
         let fs = features::read_layer(engine, &l, None, Some(&[]), 200_000)?;
         let polys: Vec<Vec<Vec<[f64; 2]>>> = fs.feats.into_iter().flat_map(|f| if let crate::wkb::Geom::Polygons(p) = f.geom { p } else { Vec::new() }).collect();

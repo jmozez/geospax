@@ -111,11 +111,10 @@ fn vrt_bounds(head: &str) -> Option<[f64; 4]> {
 /// Every file of one year and zone with its extent (cached).
 fn zone_index(cache: &Path, year: i32, zone: &str) -> Result<Vec<Tile>, String> {
     let file = cache.join(format!("{year}-{zone}.json"));
-    if let Ok(b) = std::fs::read(&file) {
-        if let Ok(t) = serde_json::from_slice::<Vec<Tile>>(&b) {
+    if let Ok(b) = std::fs::read(&file)
+        && let Ok(t) = serde_json::from_slice::<Vec<Tile>>(&b) {
             return Ok(t);
         }
-    }
     let base = base();
     let epsg = zone_epsg(zone);
     let mut vrts: Vec<String> = Vec::new();
