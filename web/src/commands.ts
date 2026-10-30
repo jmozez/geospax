@@ -460,6 +460,11 @@ const EXTRA_COMMANDS: Command[] = [
   { id: 'analyze.profile', tab: 'analyze', group: 'Spatial statistics', title: 'Profile chart', icon: 'lineChart', hint: 'Elevation profile chart (distance against elevation) of profile points, with A and B and km ticks on the map', run: xCmd('profile') },
   { id: 'view.swipe', tab: 'view', group: 'Compare', title: 'Swipe', icon: 'swipe', big: true, hint: 'Drag a divider to see the map with and without the selected layer', run: xCmd('swipe') },
   { id: 'view.spyglass', tab: 'view', group: 'Compare', title: 'Spyglass', icon: 'search', hint: 'A lens around the pointer shows the map without the selected layer', run: xCmd('spyglass') },
+  {
+    id: 'view.gpupoints', tab: 'view', group: 'Big data', title: 'GPU points', icon: 'speed',
+    hint: 'Draw the selected point layer with deck.gl on the GPU (Arrow stream) for millions of points; run again to switch back',
+    run: (h) => void import('./gpupoints').then((m) => m.toggleGpuPoints(h)),
+  },
   { id: 'view.time', tab: 'view', group: 'Time', title: 'Time slider', icon: 'clock', big: true, hint: 'Step the selected layer through time by a date or year field', run: xCmd('time') },
   { id: 'view.grid', tab: 'view', group: 'Map grid', title: 'Grid', icon: 'grid', hint: 'Latitude and longitude lines with labels', run: xCmd('grid') },
   { id: 'view.scale', tab: 'view', group: 'Map grid', title: 'Go to scale', icon: 'ruler', hint: 'Zoom to a map scale such as 1:50 000', run: xCmd('scale') },

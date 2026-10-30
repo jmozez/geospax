@@ -101,7 +101,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .swatch.line { height: 4px; margin-top: 7px; border-radius: 2px; }
 .swatch.point { border-radius: 50%; width: 10px; height: 10px; margin: 4px 2px; }
 #map { height: 100%; position: relative; min-height: 0; background: var(--map-space); }
-#deck-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+#deck-canvas, .gpu-points { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
 #hud {
   position: absolute; top: 10px; left: 10px; min-width: 210px; padding: 8px 10px;
   background: rgba(13, 22, 31, 0.86); border: 1px solid var(--line); border-radius: 4px;
