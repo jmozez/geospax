@@ -5,6 +5,9 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased] (planned 3.0.9)
 
+### Changed
+- Code health: clippy warnings in the engine and server cut from 137 to 51 (collapsed `if`s, `is_multiple_of`, `chunks_exact` and similar); no behaviour change.
+
 ### Added
 
 - Analyze › SQL: one read-only SQL query across every layer on the map (GDAL SQLite dialect with SpatiaLite functions), joining layers from different files. Results with geometry become a layer (`sql.<name>`); tables show in the window. Also `POST /api/sql`. Writes, ATTACH, PRAGMA and file paths are refused.
@@ -12,6 +15,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Supply chain: a CI gate runs `cargo audit` and `npm audit` on every push and before any release, and each release now carries CycloneDX SBOMs (`scripts/sbom.sh`). See SECURITY.md.
 - Share › Export data › PMTiles: a layer as one vector tile archive that any static web host or MapLibre map can serve, no tile server needed.
 - GeoParquet export writes a GeoParquet 1.1 `bbox` covering column and 65,536-row groups, so readers can skip row groups outside an area.
+- Raster results and STAC downloads are written as cloud-optimised GeoTIFFs (COG) with internal overviews by default; `GEOSPAX_RASTER_COG=0` restores plain GeoTIFF.
+- MCP server: `--read-only`, a `--tools` allow list and an `--audit` JSON Lines log of every tool call (docs/AI.md).
 - Analysis › Profile chart: a distance-against-elevation panel for profile point layers, with min, max, relief, total climb and descent, an elevation legend, A/B ends, km ticks on the map and a hover marker linking chart and map.
 
 ### Changed

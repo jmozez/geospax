@@ -512,8 +512,8 @@ pub fn scan(root: &Path) -> ScanResult {
     place_by_time(&mut r);
     cloud_paths.sort();
     for p in cloud_paths {
-        if let Ok(h) = crate::lidar::read_header(&p) {
-            if h.points > 0 {
+        if let Ok(h) = crate::lidar::read_header(&p)
+            && h.points > 0 {
                 r.point_clouds.push(PointCloud {
                     source: p.strip_prefix(root).unwrap_or(&p).to_string_lossy().to_string(),
                     points: h.points,
@@ -525,7 +525,6 @@ pub fn scan(root: &Path) -> ScanResult {
                     lonlat: h.lonlat_bounds(),
                 });
             }
-        }
     }
     r.entries = entries;
     r.truncated = truncated;
@@ -852,7 +851,7 @@ fn read_gdal_tracks(path: &Path, src: &str, tracks: &mut Vec<Track>, waypoints: 
                     waypoints.push(Waypoint { source: src.into(), name: label, lon: x, lat: y, ele });
                 }
                 G::wkbLineString => {
-                    let part = line_points(&g);
+                    let part = line_points(g);
                     if part.len() >= 2 {
                         tracks.push(Track { source: src.into(), name: label, parts: vec![part], ..Default::default() });
                     }
@@ -1335,11 +1334,10 @@ impl Hub {
                 s.ms,
                 if claimed { " -> recipe" } else if auto { " -> auto-import" } else if unchanged && s.has_geodata() { " (unchanged since last session, not re-processed)" } else { "" }
             );
-            if auto {
-                if let Err(err) = self.import(engine, &id) {
+            if auto
+                && let Err(err) = self.import(engine, &id) {
                     eprintln!("devices: auto-import of {id} failed: {err}");
                 }
-            }
         }
     }
 

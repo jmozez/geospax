@@ -157,13 +157,12 @@ pub async fn middleware(State(auth): State<Arc<Auth>>, req: Request, next: Next)
         _ => None,
     };
     let mut res = next.run(req).await;
-    if let Some(t) = login {
-        if let Ok(v) =
+    if let Some(t) = login
+        && let Ok(v) =
             HeaderValue::from_str(&format!("{COOKIE}={t}; Path=/; HttpOnly; SameSite=Strict"))
         {
             res.headers_mut().append(header::SET_COOKIE, v);
         }
-    }
     res
 }
 

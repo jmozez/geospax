@@ -309,11 +309,10 @@ pub fn position_of(m: &Map<String, Value>) -> Option<(f64, f64)> {
         return (y.abs() <= 90.0 && x.abs() <= 180.0 && !(x == 0.0 && y == 0.0)).then_some((x, y));
     }
     for k in ["location", "position", "coords", "gps", "geo"] {
-        if let Some(Value::Object(inner)) = m.get(k) {
-            if let Some(p) = position_of(inner) {
+        if let Some(Value::Object(inner)) = m.get(k)
+            && let Some(p) = position_of(inner) {
                 return Some(p);
             }
-        }
     }
     let c = m.get("geometry")?.get("coordinates")?.as_array()?;
     let (x, y) = (c.first()?.as_f64()?, c.get(1)?.as_f64()?);
@@ -343,11 +342,10 @@ pub fn values_of(m: &Map<String, Value>) -> Vec<(String, f64)> {
         if is_lat(&n) || is_lon(&n) || is_time(&n) || skip_name(&n) {
             continue;
         }
-        if let Some(x) = num(v) {
-            if !out.iter().any(|(e, _)| *e == n) && out.len() < MAX_FIELDS {
+        if let Some(x) = num(v)
+            && !out.iter().any(|(e, _)| *e == n) && out.len() < MAX_FIELDS {
                 out.push((n, x));
             }
-        }
     }
     out
 }

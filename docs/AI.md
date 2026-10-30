@@ -99,6 +99,18 @@ data path.
 Options: `--data DIR` (repeatable), `--state-dir DIR` (default `<first data folder>/.geospax`, shared with
 the app, so recipes and runs are the same), `--recipes DIR`, `--threads N`.
 
+**Limiting what an assistant can do**
+
+| Option | Effect |
+|---|---|
+| `--read-only` (or `GEOSPAX_MCP_READ_ONLY=1`) | Hides and refuses `run_recipe`, the one tool that writes files or starts work. The assistant can still read layers, describe fields, query and select. |
+| `--tools list_layers,query_features` | Only the named tools are listed and callable. |
+| `--audit FILE` | Appends one JSON line per tool call: time (Unix seconds), tool, arguments, ok, milliseconds and any error, including refused calls. |
+
+The MCP server runs over stdio, so it is only reachable by the program that started it on this
+computer; there is no network port to protect. Serving MCP over the network to other people's
+assistants (with per-client tokens) is not built yet.
+
 Tool errors come back as results with `isError: true`, so the assistant can correct its request (a wrong
 field name, for example). Results longer than 12,000 characters are cut, and the cut is marked.
 
