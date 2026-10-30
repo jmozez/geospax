@@ -332,7 +332,7 @@ fn tree_list(sc: &StepCtx, l: &LayerHandle, ct: &CoordTransform) -> Result<Vec<T
 }
 
 /// Point colours: the file's own RGB when it has them, else ASPRS classes, else elevation.
-fn point_colors(s: &[SamplePoint]) -> (Vec<[u8; 3]>, &'static str) {
+pub(super) fn point_colors(s: &[SamplePoint]) -> (Vec<[u8; 3]>, &'static str) {
     let with_rgb = s.iter().filter(|q| q.rgb != [0, 0, 0]).count();
     if with_rgb * 2 > s.len() {
         let deep = s.iter().any(|q| q.rgb.iter().any(|c| *c > 255));
