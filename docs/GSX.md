@@ -167,6 +167,8 @@ Ready-made recipes that chain online data, the tools above, a finished map and a
 | Forestry | **Forest fragmentation and connectivity** | Forest patches → landscape metrics, core areas, patches linked within a dispersal distance |
 | Land use and land cover | **Land cover change (two dates)** | Two extents (mangrove, forest, wetland …) → loss, gain, persistence, annual rate |
 | Agriculture and environment | **Vegetation change (two rasters)** | Two NDVI rasters → the difference, loss and gain with their areas |
+| Agriculture and environment | **Vegetation change since last year (Sentinel-2)** | An area → cloud-masked NDVI now and in the same season a year earlier (Earth Search STAC, no account), loss and gain with their areas, both scene ids and dates in the report |
+| Disaster and geoscience | **Burn severity (Sentinel-2 dNBR)** | An area and the days since a fire → NBR before and after, the change and burnt areas, both scenes in the report |
 | Disaster and geoscience | **Steep slopes** | An area → Copernicus 30 m DEM, slope zones (default 15° and 30°, landslide screening), relief |
 | Soil | **Topsoil properties (SoilGrids)** | An area → pH, organic carbon and clay at a chosen depth |
 | Surveying and cartography | **Traverse adjustment and survey plan** | Traverse legs (bearing, distance) → Bowditch adjustment with misclosure and accuracy ratio, bearings and distances, a plan sheet with grid, north point and scale bar |
