@@ -1163,6 +1163,9 @@ table.props td { padding: 5px 0; word-break: break-word; }
 .ask-msg { padding: 7px 10px; border-radius: 4px; font-size: 13px; line-height: 1.45; max-width: 92%; overflow-wrap: anywhere; }
 .ask-msg p { margin: 0 0 6px; } .ask-msg p:last-child { margin-bottom: 0; }
 .ask-msg ul { margin: 0 0 6px; padding-left: 18px; }
+.ask-plan { margin: 6px 0; padding: 6px 8px; border: 1px solid var(--border, #ccc); border-radius: 4px; background: var(--panel, transparent); }
+.ask-plan ol, .ask-plan ul { margin: 0 0 6px; padding-left: 18px; }
+.ask-plan-btns { display: flex; gap: 6px; margin-top: 4px; }
 .ask-msg code { font-size: 12px; background: var(--hover); padding: 0 3px; border-radius: 3px; }
 .ask-msg.user { align-self: flex-end; background: color-mix(in srgb, var(--accent) 18%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
 .ask-msg.bot { align-self: flex-start; background: var(--hover); border: 1px solid var(--line); }
