@@ -7,9 +7,9 @@
 //!   the layers. With `auto_import`, new devices import themselves: the first automation trigger.
 //! * Keeps live GNSS positions from the phone page, NMEA (serial/TCP/file) and gpsd.
 
-use crate::Engine;
 use crate::jobs::{Job, Status};
-use serde_json::{Map, Value, json};
+use crate::Engine;
+use serde_json::{json, Map, Value};
 use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -80,19 +80,10 @@ impl Unlocated {
     pub fn epoch(&self) -> Option<f64> {
         use chrono::{NaiveDateTime, TimeZone};
         let naive = NaiveDateTime::parse_from_str(&self.taken_at, "%Y-%m-%dT%H:%M:%S").ok()?;
-        let off = self
-            .offset
-            .as_deref()
-            .and_then(|o| {
-                chrono::DateTime::parse_from_rfc3339(&format!("2000-01-01T00:00:00{o}")).ok()
-            })
-            .map(|d| *d.offset());
+        let off = self.offset.as_deref().and_then(|o| chrono::DateTime::parse_from_rfc3339(&format!("2000-01-01T00:00:00{o}")).ok()).map(|d| *d.offset());
         let t = match off {
             Some(o) => o.from_local_datetime(&naive).single()?.timestamp(),
-            None => chrono::Local
-                .from_local_datetime(&naive)
-                .earliest()?
-                .timestamp(),
+            None => chrono::Local.from_local_datetime(&naive).earliest()?.timestamp(),
         };
         Some(t as f64)
     }
@@ -165,11 +156,7 @@ pub struct ScanResult {
 
 impl ScanResult {
     pub fn has_geodata(&self) -> bool {
-        !self.photos.is_empty()
-            || !self.tracks.is_empty()
-            || !self.waypoints.is_empty()
-            || !self.readings.is_empty()
-            || !self.point_clouds.is_empty()
+        !self.photos.is_empty() || !self.tracks.is_empty() || !self.waypoints.is_empty() || !self.readings.is_empty() || !self.point_clouds.is_empty()
     }
 
     /// Points in all LAS/LAZ files.
@@ -178,10 +165,7 @@ impl ScanResult {
     }
 
     pub fn field_names(&self) -> Vec<&str> {
-        self.reading_fields
-            .iter()
-            .map(|(n, _)| n.as_str())
-            .collect()
+        self.reading_fields.iter().map(|(n, _)| n.as_str()).collect()
     }
 }
 
@@ -286,39 +270,19 @@ pub struct Hub {
 
 /// `<state>/devices/seen.json`: `{ "<device id>": { "files": n, "newest": unix_s } }`.
 fn load_seen(state_dir: &Path) -> HashMap<String, (usize, u64)> {
-    let Ok(bytes) = std::fs::read(state_dir.join("devices").join("seen.json")) else {
-        return HashMap::new();
-    };
-    let Ok(Value::Object(m)) = serde_json::from_slice::<Value>(&bytes) else {
-        return HashMap::new();
-    };
+    let Ok(bytes) = std::fs::read(state_dir.join("devices").join("seen.json")) else { return HashMap::new() };
+    let Ok(Value::Object(m)) = serde_json::from_slice::<Value>(&bytes) else { return HashMap::new() };
     m.into_iter()
-        .filter_map(|(id, v)| {
-            Some((
-                id,
-                (
-                    v.get("files")?.as_u64()? as usize,
-                    v.get("newest")?.as_u64()?,
-                ),
-            ))
-        })
+        .filter_map(|(id, v)| Some((id, (v.get("files")?.as_u64()? as usize, v.get("newest")?.as_u64()?))))
         .collect()
 }
 
 fn save_seen(state_dir: &Path, seen: &HashMap<String, (usize, u64)>) {
     let dir = state_dir.join("devices");
-    let doc: Map<String, Value> = seen
-        .iter()
-        .map(|(id, (n, newest))| (id.clone(), json!({ "files": n, "newest": newest })))
-        .collect();
+    let doc: Map<String, Value> = seen.iter().map(|(id, (n, newest))| (id.clone(), json!({ "files": n, "newest": newest }))).collect();
     let tmp = dir.join("seen.json.tmp");
     let res = std::fs::create_dir_all(&dir)
-        .and_then(|_| {
-            std::fs::write(
-                &tmp,
-                serde_json::to_vec_pretty(&Value::Object(doc)).unwrap_or_default(),
-            )
-        })
+        .and_then(|_| std::fs::write(&tmp, serde_json::to_vec_pretty(&Value::Object(doc)).unwrap_or_default()))
         .and_then(|_| std::fs::rename(&tmp, dir.join("seen.json")));
     if let Err(e) = res {
         eprintln!("devices: could not save seen.json: {e}");
@@ -326,10 +290,7 @@ fn save_seen(state_dir: &Path, seen: &HashMap<String, (usize, u64)>) {
 }
 
 pub(crate) fn now_s() -> f64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs_f64())
-        .unwrap_or(0.0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
 
 pub fn slug(s: &str) -> String {
@@ -351,15 +312,7 @@ pub fn device_id(root: &Path) -> String {
     let name = device_label(root);
     let mut h = std::collections::hash_map::DefaultHasher::new();
     root.hash(&mut h);
-    format!(
-        "{}-{:04x}",
-        slug(
-            name.rsplit(['=', ':'])
-                .find(|p| !p.is_empty())
-                .unwrap_or(&name)
-        ),
-        h.finish() & 0xffff
-    )
+    format!("{}-{:04x}", slug(name.rsplit(['=', ':']).find(|p| !p.is_empty()).unwrap_or(&name)), h.finish() & 0xffff)
 }
 
 /// Display name of a device root, used in the device list and in map titles: the folder name (Linux and macOS
@@ -369,14 +322,8 @@ pub fn device_label(root: &Path) -> String {
     if let Some(n) = root.file_name() {
         return n.to_string_lossy().to_string();
     }
-    let letter = root
-        .to_string_lossy()
-        .trim_end_matches(['\\', '/'])
-        .trim_end_matches(':')
-        .to_string();
-    volume_label(root)
-        .filter(|l| !l.is_empty())
-        .unwrap_or_else(|| format!("Drive {letter}:"))
+    let letter = root.to_string_lossy().trim_end_matches(['\\', '/']).trim_end_matches(':').to_string();
+    volume_label(root).filter(|l| !l.is_empty()).unwrap_or_else(|| format!("Drive {letter}:"))
 }
 
 #[cfg(windows)]
@@ -384,33 +331,12 @@ fn volume_label(root: &Path) -> Option<String> {
     use std::os::windows::ffi::OsStrExt;
     #[link(name = "kernel32")]
     unsafe extern "system" {
-        fn GetVolumeInformationW(
-            root: *const u16,
-            name: *mut u16,
-            name_len: u32,
-            serial: *mut u32,
-            max_component: *mut u32,
-            flags: *mut u32,
-            fs_name: *mut u16,
-            fs_len: u32,
-        ) -> i32;
+        fn GetVolumeInformationW(root: *const u16, name: *mut u16, name_len: u32, serial: *mut u32, max_component: *mut u32, flags: *mut u32, fs_name: *mut u16, fs_len: u32) -> i32;
     }
     let r: Vec<u16> = root.as_os_str().encode_wide().chain(Some(0)).collect();
     let mut buf = [0u16; 261];
     let null = std::ptr::null_mut();
-    if unsafe {
-        GetVolumeInformationW(
-            r.as_ptr(),
-            buf.as_mut_ptr(),
-            buf.len() as u32,
-            null,
-            null,
-            null,
-            std::ptr::null_mut(),
-            0,
-        )
-    } == 0
-    {
+    if unsafe { GetVolumeInformationW(r.as_ptr(), buf.as_mut_ptr(), buf.len() as u32, null, null, null, std::ptr::null_mut(), 0) } == 0 {
         return None;
     }
     let n = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
@@ -423,25 +349,17 @@ fn volume_label(_root: &Path) -> Option<String> {
 }
 
 fn ext_of(p: &Path) -> String {
-    p.extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase()
+    p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase()
 }
 
 pub(crate) fn is_image(ext: &str) -> bool {
-    matches!(
-        ext,
-        "jpg" | "jpeg" | "heic" | "heif" | "dng" | "tif" | "tiff" | "png" | "webp"
-    )
+    matches!(ext, "jpg" | "jpeg" | "heic" | "heif" | "dng" | "tif" | "tiff" | "png" | "webp")
 }
 
 fn is_track_file(p: &Path, ext: &str) -> bool {
     match ext {
         "gpx" | "kml" | "kmz" | "nmea" | "nma" | "srt" => true,
-        "log" | "txt" => head_bytes(p, 2048)
-            .map(|b| looks_like_nmea(&b))
-            .unwrap_or(false),
+        "log" | "txt" => head_bytes(p, 2048).map(|b| looks_like_nmea(&b)).unwrap_or(false),
         _ => false,
     }
 }
@@ -456,9 +374,7 @@ fn head_bytes(p: &Path, n: usize) -> Option<Vec<u8>> {
 
 fn looks_like_nmea(b: &[u8]) -> bool {
     let s = String::from_utf8_lossy(b);
-    ["$GPGGA", "$GNGGA", "$GPRMC", "$GNRMC"]
-        .iter()
-        .any(|k| s.contains(k))
+    ["$GPGGA", "$GNGGA", "$GPRMC", "$GNRMC"].iter().any(|k| s.contains(k))
 }
 
 /// Walk a device root (bounded by MAX_DEPTH and MAX_ENTRIES, so symlink loops end): skips hidden
@@ -467,9 +383,7 @@ fn walk(root: &Path, mut visit: impl FnMut(&Path, &std::fs::Metadata) -> bool) -
     let mut stack = vec![(root.to_path_buf(), 0usize)];
     let mut entries = 0;
     while let Some((dir, depth)) = stack.pop() {
-        let Ok(rd) = std::fs::read_dir(&dir) else {
-            continue;
-        };
+        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
         for e in rd.flatten() {
             entries += 1;
             if entries > MAX_ENTRIES {
@@ -506,34 +420,9 @@ fn signature(root: &Path) -> (usize, u64) {
         let ext = ext_of(p);
         // tracks, flight logs and sensor logs (csv/tsv/json/fit) all count, so appending readings
         // to a logger's CSV is noticed like a new photo
-        if is_image(&ext)
-            || matches!(
-                ext.as_str(),
-                "gpx"
-                    | "kml"
-                    | "kmz"
-                    | "nmea"
-                    | "nma"
-                    | "srt"
-                    | "log"
-                    | "txt"
-                    | "csv"
-                    | "tsv"
-                    | "json"
-                    | "jsonl"
-                    | "ndjson"
-                    | "fit"
-                    | "las"
-                    | "laz"
-            )
-        {
+        if is_image(&ext) || matches!(ext.as_str(), "gpx" | "kml" | "kmz" | "nmea" | "nma" | "srt" | "log" | "txt" | "csv" | "tsv" | "json" | "jsonl" | "ndjson" | "fit" | "las" | "laz") {
             n += 1;
-            let m = md
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
+            let m = md.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
             newest = newest.max(m);
         }
         true
@@ -576,36 +465,19 @@ pub fn scan(root: &Path) -> ScanResult {
     });
     for top in ["Android", "Garmin", "GARMIN"] {
         if root.join(top).is_dir() {
-            if top == "Android" {
-                r.has_android = true
-            } else {
-                r.has_garmin = true
-            }
+            if top == "Android" { r.has_android = true } else { r.has_garmin = true }
         }
     }
     for p in track_paths {
-        let src = p
-            .strip_prefix(root)
-            .unwrap_or(&p)
-            .to_string_lossy()
-            .to_string();
-        let name = p
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("track")
-            .to_string();
+        let src = p.strip_prefix(root).unwrap_or(&p).to_string_lossy().to_string();
+        let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("track").to_string();
         let before = (r.tracks.len(), r.waypoints.len());
         match ext_of(&p).as_str() {
             "srt" => {
                 if let Ok(text) = std::fs::read_to_string(&p) {
                     let pts = parse_srt(&text);
                     if pts.len() >= 2 {
-                        r.tracks.push(Track {
-                            source: src.clone(),
-                            name,
-                            parts: vec![pts],
-                            ..Default::default()
-                        });
+                        r.tracks.push(Track { source: src.clone(), name, parts: vec![pts], ..Default::default() });
                     }
                 }
             }
@@ -619,12 +491,7 @@ pub fn scan(root: &Path) -> ScanResult {
                     }
                     let pts: Vec<(f64, f64)> = fixes.iter().map(|f| (f.lon, f.lat)).collect();
                     if pts.len() >= 2 {
-                        r.tracks.push(Track {
-                            source: src.clone(),
-                            name,
-                            parts: vec![pts],
-                            ..Default::default()
-                        });
+                        r.tracks.push(Track { source: src.clone(), name, parts: vec![pts], ..Default::default() });
                     }
                 }
             }
@@ -639,9 +506,7 @@ pub fn scan(root: &Path) -> ScanResult {
     }
     // sensor readings with a zoned time (RFC 3339) are timestamped positions too
     r.timed.extend(r.readings.iter().filter_map(|x| {
-        let t = chrono::DateTime::parse_from_rfc3339(x.t.as_deref()?)
-            .ok()?
-            .timestamp() as f64;
+        let t = chrono::DateTime::parse_from_rfc3339(x.t.as_deref()?).ok()?.timestamp() as f64;
         Some((t, x.lon, x.lat))
     }));
     place_by_time(&mut r);
@@ -650,11 +515,7 @@ pub fn scan(root: &Path) -> ScanResult {
         if let Ok(h) = crate::lidar::read_header(&p) {
             if h.points > 0 {
                 r.point_clouds.push(PointCloud {
-                    source: p
-                        .strip_prefix(root)
-                        .unwrap_or(&p)
-                        .to_string_lossy()
-                        .to_string(),
+                    source: p.strip_prefix(root).unwrap_or(&p).to_string_lossy().to_string(),
                     points: h.points,
                     bytes: h.bytes,
                     crs: h.crs_label(),
@@ -676,19 +537,14 @@ pub fn scan(root: &Path) -> ScanResult {
 fn is_sensor_file(p: &Path, ext: &str) -> bool {
     match ext {
         "fit" => true,
-        "csv" | "tsv" | "txt" | "jsonl" | "ndjson" | "json" => head_bytes(p, 4096)
-            .map(|b| crate::sensors::sniff(&b, ext))
-            .unwrap_or(false),
+        "csv" | "tsv" | "txt" | "jsonl" | "ndjson" | "json" => head_bytes(p, 4096).map(|b| crate::sensors::sniff(&b, ext)).unwrap_or(false),
         _ => false,
     }
 }
 
 fn read_sensor_file(root: &Path, p: &Path, r: &mut ScanResult) {
     const MAX_BYTES: u64 = 256 << 20;
-    if std::fs::metadata(p)
-        .map(|m| m.len() > MAX_BYTES)
-        .unwrap_or(true)
-    {
+    if std::fs::metadata(p).map(|m| m.len() > MAX_BYTES).unwrap_or(true) {
         return;
     }
     let ext = ext_of(p);
@@ -697,60 +553,33 @@ fn read_sensor_file(root: &Path, p: &Path, r: &mut ScanResult) {
             r.has_fit = true;
             crate::sensors::read_fit(p)
         }
-        "jsonl" | "ndjson" | "json" => std::fs::read_to_string(p)
-            .ok()
-            .and_then(|t| crate::sensors::read_json(&t)),
-        _ => std::fs::read_to_string(p)
-            .ok()
-            .and_then(|t| crate::sensors::read_csv(&t)),
+        "jsonl" | "ndjson" | "json" => std::fs::read_to_string(p).ok().and_then(|t| crate::sensors::read_json(&t)),
+        _ => std::fs::read_to_string(p).ok().and_then(|t| crate::sensors::read_csv(&t)),
     };
     let Some(log) = log else { return };
-    let src = p
-        .strip_prefix(root)
-        .unwrap_or(p)
-        .to_string_lossy()
-        .to_string();
-    let name = p
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("log")
-        .to_string();
+    let src = p.strip_prefix(root).unwrap_or(p).to_string_lossy().to_string();
+    let name = p.file_stem().and_then(|s| s.to_str()).unwrap_or("log").to_string();
     // this file's fields -> the device's field list
     let map: Vec<Option<u16>> = log
         .fields
         .iter()
-        .map(
-            |(n, u)| match r.reading_fields.iter().position(|(e, _)| e == n) {
-                Some(i) => Some(i as u16),
-                None if r.reading_fields.len() < 64 => {
-                    r.reading_fields.push((n.clone(), u.clone()));
-                    Some((r.reading_fields.len() - 1) as u16)
-                }
-                None => None,
-            },
-        )
+        .map(|(n, u)| match r.reading_fields.iter().position(|(e, _)| e == n) {
+            Some(i) => Some(i as u16),
+            None if r.reading_fields.len() < 64 => {
+                r.reading_fields.push((n.clone(), u.clone()));
+                Some((r.reading_fields.len() - 1) as u16)
+            }
+            None => None,
+        })
         .collect();
-    let (first_t, last_t) = (
-        log.readings.first().and_then(|x| x.t.clone()),
-        log.readings.last().and_then(|x| x.t.clone()),
-    );
+    let (first_t, last_t) = (log.readings.first().and_then(|x| x.t.clone()), log.readings.last().and_then(|x| x.t.clone()));
     for mut rd in log.readings {
         rd.source = src.clone();
-        rd.values = rd
-            .values
-            .into_iter()
-            .filter_map(|(k, v)| map.get(k as usize).copied().flatten().map(|g| (g, v)))
-            .collect();
+        rd.values = rd.values.into_iter().filter_map(|(k, v)| map.get(k as usize).copied().flatten().map(|g| (g, v))).collect();
         r.readings.push(rd);
     }
     if let Some(track) = log.track {
-        r.tracks.push(Track {
-            source: src,
-            name,
-            parts: vec![track],
-            started_at: first_t,
-            ended_at: last_t,
-        });
+        r.tracks.push(Track { source: src, name, parts: vec![track], started_at: first_t, ended_at: last_t });
     }
     r.sensor_files += 1;
 }
@@ -759,19 +588,11 @@ pub fn kind_of(root: &Path, s: &ScanResult) -> &'static str {
     let p = root.to_string_lossy();
     if p.contains("mtp:") || (s.has_dcim && s.has_android) {
         "phone"
-    } else if s.has_dji
-        || s.tracks
-            .iter()
-            .any(|t| t.source.to_ascii_lowercase().ends_with(".srt"))
-    {
+    } else if s.has_dji || s.tracks.iter().any(|t| t.source.to_ascii_lowercase().ends_with(".srt")) {
         "drone"
     } else if p.contains("gphoto2:") || s.has_dcim {
         "camera"
-    } else if !s.point_clouds.is_empty()
-        && s.photos.is_empty()
-        && s.tracks.is_empty()
-        && s.readings.is_empty()
-    {
+    } else if !s.point_clouds.is_empty() && s.photos.is_empty() && s.tracks.is_empty() && s.readings.is_empty() {
         "lidar"
     } else if !s.readings.is_empty() && s.photos.is_empty() && !s.has_garmin && !s.has_fit {
         "sensor"
@@ -786,9 +607,7 @@ pub fn kind_of(root: &Path, s: &ScanResult) -> &'static str {
 
 fn rational3(v: &exif::Value) -> Option<f64> {
     match v {
-        exif::Value::Rational(r) if r.len() >= 3 => {
-            Some(r[0].to_f64() + r[1].to_f64() / 60.0 + r[2].to_f64() / 3600.0)
-        }
+        exif::Value::Rational(r) if r.len() >= 3 => Some(r[0].to_f64() + r[1].to_f64() / 60.0 + r[2].to_f64() / 3600.0),
         exif::Value::Rational(r) if r.len() == 1 => Some(r[0].to_f64()),
         _ => None,
     }
@@ -803,15 +622,7 @@ fn rational1(v: &exif::Value) -> Option<f64> {
 
 fn ascii(v: &exif::Value) -> Option<String> {
     match v {
-        exif::Value::Ascii(parts) => parts
-            .first()
-            .map(|b| {
-                String::from_utf8_lossy(b)
-                    .trim()
-                    .trim_end_matches('\0')
-                    .to_string()
-            })
-            .filter(|s| !s.is_empty()),
+        exif::Value::Ascii(parts) => parts.first().map(|b| String::from_utf8_lossy(b).trim().trim_end_matches('\0').to_string()).filter(|s| !s.is_empty()),
         _ => None,
     }
 }
@@ -851,33 +662,14 @@ pub fn read_photo_full(path: &Path) -> (Option<Photo>, Option<Unlocated>) {
             .or_else(|e| e.distill_partial_result(|_errors| {}))
             .ok()
     });
-    let get = |t: exif::Tag| {
-        ex.as_ref()
-            .and_then(|ex| ex.get_field(t, exif::In::PRIMARY))
-            .map(|f| &f.value)
-    };
-    let taken_at = get(exif::Tag::DateTimeOriginal)
-        .or_else(|| get(exif::Tag::DateTime))
-        .and_then(ascii)
-        .map(|s| exif_time(&s));
+    let get = |t: exif::Tag| ex.as_ref().and_then(|ex| ex.get_field(t, exif::In::PRIMARY)).map(|f| &f.value);
+    let taken_at = get(exif::Tag::DateTimeOriginal).or_else(|| get(exif::Tag::DateTime)).and_then(ascii).map(|s| exif_time(&s));
     let make = get(exif::Tag::Make).and_then(ascii);
     let model = get(exif::Tag::Model).and_then(ascii);
-    let valid = |lat: f64, lon: f64| {
-        lat.is_finite()
-            && lon.is_finite()
-            && lat.abs() <= 90.0
-            && lon.abs() <= 180.0
-            && !(lat == 0.0 && lon == 0.0)
-    };
+    let valid = |lat: f64, lon: f64| lat.is_finite() && lon.is_finite() && lat.abs() <= 90.0 && lon.abs() <= 180.0 && !(lat == 0.0 && lon == 0.0);
     let exif_pos = (|| {
-        let lat = signed(
-            rational3(get(exif::Tag::GPSLatitude)?)?,
-            get(exif::Tag::GPSLatitudeRef).and_then(ascii).as_deref(),
-        );
-        let lon = signed(
-            rational3(get(exif::Tag::GPSLongitude)?)?,
-            get(exif::Tag::GPSLongitudeRef).and_then(ascii).as_deref(),
-        );
+        let lat = signed(rational3(get(exif::Tag::GPSLatitude)?)?, get(exif::Tag::GPSLatitudeRef).and_then(ascii).as_deref());
+        let lon = signed(rational3(get(exif::Tag::GPSLongitude)?)?, get(exif::Tag::GPSLongitudeRef).and_then(ascii).as_deref());
         valid(lat, lon).then_some((lat, lon))
     })();
     let (pos, placed, sidecar_time) = match exif_pos {
@@ -898,13 +690,7 @@ pub fn read_photo_full(path: &Path) -> (Option<Photo>, Option<Unlocated>) {
         return (None, unlocated);
     };
     let below = matches!(get(exif::Tag::GPSAltitudeRef), Some(exif::Value::Byte(b)) if b.first() == Some(&1));
-    let alt = if placed.is_none() {
-        get(exif::Tag::GPSAltitude)
-            .and_then(rational1)
-            .map(|a| if below { -a } else { a })
-    } else {
-        None
-    };
+    let alt = if placed.is_none() { get(exif::Tag::GPSAltitude).and_then(rational1).map(|a| if below { -a } else { a }) } else { None };
     let (gimbal_yaw, rel_alt) = dji_xmp(path);
     let photo = Photo {
         path: path.to_string_lossy().to_string(),
@@ -925,23 +711,13 @@ pub fn read_photo_full(path: &Path) -> (Option<Photo>, Option<Unlocated>) {
 /// XMP sidecar next to a photo: `exif:GPSLatitude="5,52.12345S"` (XMP's `DDD,MM.mmk` or `DDD,MM,SSk`), as an
 /// attribute or an element. Returns (lat, lon, capture time).
 fn xmp_sidecar(path: &Path) -> Option<(f64, f64, Option<String>)> {
-    let mut candidates = vec![
-        PathBuf::from(format!("{}.xmp", path.display())),
-        path.with_extension("xmp"),
-        path.with_extension("XMP"),
-    ];
+    let mut candidates = vec![PathBuf::from(format!("{}.xmp", path.display())), path.with_extension("xmp"), path.with_extension("XMP")];
     candidates.dedup();
-    let text = candidates
-        .iter()
-        .find_map(|c| std::fs::read_to_string(c).ok())?;
+    let text = candidates.iter().find_map(|c| std::fs::read_to_string(c).ok())?;
     let value = |key: &str| -> Option<String> {
         let i = text.find(key)? + key.len();
         let rest = text[i..].trim_start();
-        let (open, close) = if let Some(r) = rest.strip_prefix('=') {
-            (r.trim_start(), None)
-        } else {
-            (rest.strip_prefix('>')?, Some('<'))
-        };
+        let (open, close) = if let Some(r) = rest.strip_prefix('=') { (r.trim_start(), None) } else { (rest.strip_prefix('>')?, Some('<')) };
         let v = match close {
             Some(c) => &open[..open.find(c)?],
             None => {
@@ -954,33 +730,19 @@ fn xmp_sidecar(path: &Path) -> Option<(f64, f64, Option<String>)> {
     };
     let coord = |v: String| -> Option<f64> {
         let hemi = v.chars().last().filter(|c| c.is_ascii_alphabetic());
-        let body = if hemi.is_some() {
-            &v[..v.len() - 1]
-        } else {
-            &v[..]
-        };
-        let parts: Vec<f64> = body
-            .split(',')
-            .map(|x| x.trim().parse::<f64>())
-            .collect::<Result<_, _>>()
-            .ok()?;
+        let body = if hemi.is_some() { &v[..v.len() - 1] } else { &v[..] };
+        let parts: Vec<f64> = body.split(',').map(|x| x.trim().parse::<f64>()).collect::<Result<_, _>>().ok()?;
         let deg = match parts.as_slice() {
             [d] => *d,
             [d, m] => d + m / 60.0,
             [d, m, s] => d + m / 60.0 + s / 3600.0,
             _ => return None,
         };
-        Some(if matches!(hemi, Some('S' | 's' | 'W' | 'w')) {
-            -deg
-        } else {
-            deg
-        })
+        Some(if matches!(hemi, Some('S' | 's' | 'W' | 'w')) { -deg } else { deg })
     };
     let lat = coord(value("exif:GPSLatitude")?)?;
     let lon = coord(value("exif:GPSLongitude")?)?;
-    let t = value("exif:DateTimeOriginal")
-        .or_else(|| value("xmp:CreateDate"))
-        .map(|t| t.chars().take(19).collect::<String>());
+    let t = value("exif:DateTimeOriginal").or_else(|| value("xmp:CreateDate")).map(|t| t.chars().take(19).collect::<String>());
     Some((lat, lon, t))
 }
 
@@ -1032,10 +794,7 @@ pub fn interpolate_track(pts: &[(f64, f64, f64)], t: f64) -> Option<(f64, f64)> 
             Some((a.1 + (b.1 - a.1) * f, a.2 + (b.2 - a.2) * f))
         }
         (a, b) => {
-            let near = [a, b]
-                .into_iter()
-                .flatten()
-                .min_by(|x, y| (x.0 - t).abs().total_cmp(&(y.0 - t).abs()))?;
+            let near = [a, b].into_iter().flatten().min_by(|x, y| (x.0 - t).abs().total_cmp(&(y.0 - t).abs()))?;
             ((near.0 - t).abs() <= PLACE_SNAP_S).then_some((near.1, near.2))
         }
     }
@@ -1051,40 +810,25 @@ fn xmp_attr(xmp: &str, key: &str) -> Option<f64> {
 
 /// DJI drones write gimbal yaw and height above take-off into XMP (`drone-dji:` namespace).
 fn dji_xmp(path: &Path) -> (Option<f64>, Option<f64>) {
-    let Some(b) = head_bytes(path, 128 * 1024) else {
-        return (None, None);
-    };
+    let Some(b) = head_bytes(path, 128 * 1024) else { return (None, None) };
     let s = String::from_utf8_lossy(&b);
     if !s.contains("drone-dji:") {
         return (None, None);
     }
-    (
-        xmp_attr(&s, "drone-dji:GimbalYawDegree"),
-        xmp_attr(&s, "drone-dji:RelativeAltitude"),
-    )
+    (xmp_attr(&s, "drone-dji:GimbalYawDegree"), xmp_attr(&s, "drone-dji:RelativeAltitude"))
 }
 
 // ---------------------------------------------------------------- tracks
 
-fn read_gdal_tracks(
-    path: &Path,
-    src: &str,
-    tracks: &mut Vec<Track>,
-    waypoints: &mut Vec<Waypoint>,
-    timed: &mut Vec<(f64, f64, f64)>,
-) {
-    use gdal::vector::{LayerAccess, OGRwkbGeometryType as G, geometry_type_flatten};
-    let Ok(ds) = gdal::Dataset::open(path) else {
-        return;
-    };
+fn read_gdal_tracks(path: &Path, src: &str, tracks: &mut Vec<Track>, waypoints: &mut Vec<Waypoint>, timed: &mut Vec<(f64, f64, f64)>) {
+    use gdal::vector::{geometry_type_flatten, LayerAccess, OGRwkbGeometryType as G};
+    let Ok(ds) = gdal::Dataset::open(path) else { return };
     let mut times: Vec<String> = Vec::new();
     let first_track = tracks.len();
     for mut lyr in ds.layers() {
         let lname = lyr.name();
         let defn_names: Vec<String> = lyr.defn().fields().map(|f| f.name()).collect();
-        let name_idx = defn_names
-            .iter()
-            .position(|n| n.eq_ignore_ascii_case("name"));
+        let name_idx = defn_names.iter().position(|n| n.eq_ignore_ascii_case("name"));
         let time_idx = defn_names.iter().position(|n| n == "time");
         let ele_idx = defn_names.iter().position(|n| n == "ele");
         let is_points_of_track = lname == "track_points" || lname == "route_points";
@@ -1100,44 +844,23 @@ fn read_gdal_tracks(
                 continue;
             }
             let Some(g) = f.geometry() else { continue };
-            let label = name_idx
-                .and_then(|i| f.field_as_string(i).ok().flatten())
-                .unwrap_or_default();
+            let label = name_idx.and_then(|i| f.field_as_string(i).ok().flatten()).unwrap_or_default();
             match geometry_type_flatten(g.geometry_type()) {
                 G::wkbPoint => {
                     let (x, y, _) = g.get_point(0);
                     let ele = ele_idx.and_then(|i| f.field_as_double(i).ok().flatten());
-                    waypoints.push(Waypoint {
-                        source: src.into(),
-                        name: label,
-                        lon: x,
-                        lat: y,
-                        ele,
-                    });
+                    waypoints.push(Waypoint { source: src.into(), name: label, lon: x, lat: y, ele });
                 }
                 G::wkbLineString => {
                     let part = line_points(&g);
                     if part.len() >= 2 {
-                        tracks.push(Track {
-                            source: src.into(),
-                            name: label,
-                            parts: vec![part],
-                            ..Default::default()
-                        });
+                        tracks.push(Track { source: src.into(), name: label, parts: vec![part], ..Default::default() });
                     }
                 }
                 G::wkbMultiLineString => {
-                    let parts: Vec<_> = (0..g.geometry_count())
-                        .map(|i| line_points(&g.get_geometry(i)))
-                        .filter(|p| p.len() >= 2)
-                        .collect();
+                    let parts: Vec<_> = (0..g.geometry_count()).map(|i| line_points(&g.get_geometry(i))).filter(|p| p.len() >= 2).collect();
                     if !parts.is_empty() {
-                        tracks.push(Track {
-                            source: src.into(),
-                            name: label,
-                            parts,
-                            ..Default::default()
-                        });
+                        tracks.push(Track { source: src.into(), name: label, parts, ..Default::default() });
                     }
                 }
                 _ => {}
@@ -1166,16 +889,11 @@ pub fn gdal_time_epoch(t: &str) -> Option<f64> {
         5 => format!("{}:{}", &off[..3], &off[3..]),
         _ => off.to_string(),
     };
-    chrono::DateTime::parse_from_rfc3339(&format!("{body}{off}"))
-        .ok()
-        .map(|d| d.timestamp_millis() as f64 / 1000.0)
+    chrono::DateTime::parse_from_rfc3339(&format!("{body}{off}")).ok().map(|d| d.timestamp_millis() as f64 / 1000.0)
 }
 
 fn line_points(g: &gdal::vector::Geometry) -> Vec<(f64, f64)> {
-    (0..g.point_count() as i32)
-        .map(|i| g.get_point(i))
-        .map(|(x, y, _)| (x, y))
-        .collect()
+    (0..g.point_count() as i32).map(|i| g.get_point(i)).map(|(x, y, _)| (x, y)).collect()
 }
 
 /// DJI `.SRT` telemetry: `[latitude: 22.57] [longitude: 113.86]` (newer) or `GPS(113.86,22.57,19)` (older).
@@ -1183,23 +901,16 @@ pub fn parse_srt(text: &str) -> Vec<(f64, f64)> {
     let num_after = |s: &str, key: &str| -> Option<f64> {
         let i = s.find(key)? + key.len();
         let rest = s[i..].trim_start().trim_start_matches(':').trim_start();
-        let end = rest
-            .find(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-'))
-            .unwrap_or(rest.len());
+        let end = rest.find(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-')).unwrap_or(rest.len());
         rest[..end].parse().ok()
     };
     let mut out: Vec<(f64, f64)> = Vec::new();
     for line in text.lines() {
-        let p = if let (Some(lat), Some(lon)) =
-            (num_after(line, "latitude"), num_after(line, "longitude"))
-        {
+        let p = if let (Some(lat), Some(lon)) = (num_after(line, "latitude"), num_after(line, "longitude")) {
             Some((lon, lat))
         } else if let Some(i) = line.find("GPS(") {
             let inner = &line[i + 4..line[i..].find(')').map(|j| i + j).unwrap_or(line.len())];
-            let v: Vec<f64> = inner
-                .split(',')
-                .filter_map(|x| x.trim().parse().ok())
-                .collect();
+            let v: Vec<f64> = inner.split(',').filter_map(|x| x.trim().parse().ok()).collect();
             (v.len() >= 2).then(|| (v[0], v[1]))
         } else {
             None
@@ -1218,9 +929,7 @@ pub fn parse_srt(text: &str) -> Vec<(f64, f64)> {
 
 pub fn nmea_checksum_ok(line: &str) -> bool {
     let line = line.trim();
-    let Some(body) = line.strip_prefix('$') else {
-        return false;
-    };
+    let Some(body) = line.strip_prefix('$') else { return false };
     match body.split_once('*') {
         Some((data, cs)) => match u8::from_str_radix(cs.trim(), 16) {
             Ok(want) => data.bytes().fold(0u8, |a, b| a ^ b) == want,
@@ -1285,8 +994,7 @@ impl NmeaState {
 /// gpsd JSON `TPV` report -> fix.
 pub fn parse_gpsd(line: &str) -> Option<Fix> {
     let v: Value = serde_json::from_str(line).ok()?;
-    if v.get("class")?.as_str()? != "TPV" || v.get("mode").and_then(Value::as_u64).unwrap_or(0) < 2
-    {
+    if v.get("class")?.as_str()? != "TPV" || v.get("mode").and_then(Value::as_u64).unwrap_or(0) < 2 {
         return None;
     }
     let f = |k: &str| v.get(k).and_then(Value::as_f64);
@@ -1311,10 +1019,7 @@ pub fn parse_gpsd(line: &str) -> Option<Fix> {
 
 pub(crate) fn write_gpkg(path: &Path, device: &str, s: &ScanResult) -> Result<(), String> {
     use gdal::spatial_ref::{AxisMappingStrategy, SpatialRef};
-    use gdal::vector::{
-        Feature, FieldDefn, Geometry, LayerAccess, LayerOptions, OGRFieldType as F,
-        OGRwkbGeometryType as G,
-    };
+    use gdal::vector::{Feature, FieldDefn, Geometry, LayerAccess, LayerOptions, OGRFieldType as F, OGRwkbGeometryType as G};
     let e = |x: gdal::errors::GdalError| x.to_string();
     let _ = std::fs::remove_file(path);
     let drv = gdal::DriverManager::get_driver_by_name("GPKG").map_err(e)?;
@@ -1324,193 +1029,77 @@ pub(crate) fn write_gpkg(path: &Path, device: &str, s: &ScanResult) -> Result<()
     let mut txn = ds.start_transaction().map_err(e)?;
     let opt = |s: &Option<String>| s.clone().unwrap_or_default();
     if !s.photos.is_empty() {
-        let lyr = txn
-            .create_layer(LayerOptions {
-                name: "photos",
-                srs: Some(&srs),
-                ty: G::wkbPoint,
-                options: None,
-            })
-            .map_err(e)?;
-        for (n, t) in [
-            ("name", F::OFTString),
-            ("taken_at", F::OFTString),
-            ("altitude", F::OFTReal),
-            ("direction", F::OFTReal),
-            ("make", F::OFTString),
-            ("model", F::OFTString),
-            ("gimbal_yaw", F::OFTReal),
-            ("rel_alt", F::OFTReal),
-            ("device", F::OFTString),
-            ("path", F::OFTString),
-            ("placed", F::OFTString),
-        ] {
-            FieldDefn::new(n, t)
-                .map_err(e)?
-                .add_to_layer(&lyr)
-                .map_err(e)?;
+        let lyr = txn.create_layer(LayerOptions { name: "photos", srs: Some(&srs), ty: G::wkbPoint, options: None }).map_err(e)?;
+        for (n, t) in [("name", F::OFTString), ("taken_at", F::OFTString), ("altitude", F::OFTReal), ("direction", F::OFTReal), ("make", F::OFTString), ("model", F::OFTString), ("gimbal_yaw", F::OFTReal), ("rel_alt", F::OFTReal), ("device", F::OFTString), ("path", F::OFTString), ("placed", F::OFTString)] {
+            FieldDefn::new(n, t).map_err(e)?.add_to_layer(&lyr).map_err(e)?;
         }
         for p in &s.photos {
             let mut f = Feature::new(lyr.defn()).map_err(e)?;
-            let file = Path::new(&p.path)
-                .file_name()
-                .map(|x| x.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let file = Path::new(&p.path).file_name().map(|x| x.to_string_lossy().to_string()).unwrap_or_default();
             f.set_field_string(0, &file).map_err(e)?;
             f.set_field_string(1, &opt(&p.taken_at)).map_err(e)?;
-            for (i, v) in [
-                (2, p.alt),
-                (3, p.direction),
-                (6, p.gimbal_yaw),
-                (7, p.rel_alt),
-            ] {
-                if let Some(v) = v {
-                    f.set_field_double(i, v).map_err(e)?
-                } else {
-                    f.set_field_null(i).map_err(e)?
-                }
+            for (i, v) in [(2, p.alt), (3, p.direction), (6, p.gimbal_yaw), (7, p.rel_alt)] {
+                if let Some(v) = v { f.set_field_double(i, v).map_err(e)? } else { f.set_field_null(i).map_err(e)? }
             }
             f.set_field_string(4, &opt(&p.make)).map_err(e)?;
             f.set_field_string(5, &opt(&p.model)).map_err(e)?;
             f.set_field_string(8, device).map_err(e)?;
             f.set_field_string(9, &p.path).map_err(e)?;
-            f.set_field_string(10, p.placed.unwrap_or("exif"))
-                .map_err(e)?;
-            f.set_geometry(Geometry::from_wkt(&format!("POINT ({} {})", p.lon, p.lat)).map_err(e)?)
-                .map_err(e)?;
+            f.set_field_string(10, p.placed.unwrap_or("exif")).map_err(e)?;
+            f.set_geometry(Geometry::from_wkt(&format!("POINT ({} {})", p.lon, p.lat)).map_err(e)?).map_err(e)?;
             f.create(&lyr).map_err(e)?;
         }
     }
     if !s.tracks.is_empty() {
-        let lyr = txn
-            .create_layer(LayerOptions {
-                name: "tracks",
-                srs: Some(&srs),
-                ty: G::wkbMultiLineString,
-                options: None,
-            })
-            .map_err(e)?;
-        for (n, t) in [
-            ("name", F::OFTString),
-            ("source", F::OFTString),
-            ("points", F::OFTInteger),
-            ("length_m", F::OFTReal),
-            ("started_at", F::OFTString),
-            ("ended_at", F::OFTString),
-            ("device", F::OFTString),
-        ] {
-            FieldDefn::new(n, t)
-                .map_err(e)?
-                .add_to_layer(&lyr)
-                .map_err(e)?;
+        let lyr = txn.create_layer(LayerOptions { name: "tracks", srs: Some(&srs), ty: G::wkbMultiLineString, options: None }).map_err(e)?;
+        for (n, t) in [("name", F::OFTString), ("source", F::OFTString), ("points", F::OFTInteger), ("length_m", F::OFTReal), ("started_at", F::OFTString), ("ended_at", F::OFTString), ("device", F::OFTString)] {
+            FieldDefn::new(n, t).map_err(e)?.add_to_layer(&lyr).map_err(e)?;
         }
         for t in &s.tracks {
             let mut f = Feature::new(lyr.defn()).map_err(e)?;
             let points: usize = t.parts.iter().map(Vec::len).sum();
-            let length: f64 = t
-                .parts
-                .iter()
-                .map(|p| p.windows(2).map(|w| haversine(w[0], w[1])).sum::<f64>())
-                .sum();
+            let length: f64 = t.parts.iter().map(|p| p.windows(2).map(|w| haversine(w[0], w[1])).sum::<f64>()).sum();
             let wkt = format!(
                 "MULTILINESTRING ({})",
-                t.parts
-                    .iter()
-                    .map(|p| format!(
-                        "({})",
-                        p.iter()
-                            .map(|(x, y)| format!("{x} {y}"))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ))
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                t.parts.iter().map(|p| format!("({})", p.iter().map(|(x, y)| format!("{x} {y}")).collect::<Vec<_>>().join(", "))).collect::<Vec<_>>().join(", ")
             );
-            f.set_field_string(
-                0,
-                if t.name.is_empty() {
-                    &t.source
-                } else {
-                    &t.name
-                },
-            )
-            .map_err(e)?;
+            f.set_field_string(0, if t.name.is_empty() { &t.source } else { &t.name }).map_err(e)?;
             f.set_field_string(1, &t.source).map_err(e)?;
             f.set_field_integer(2, points as i32).map_err(e)?;
-            f.set_field_double(3, (length * 10.0).round() / 10.0)
-                .map_err(e)?;
+            f.set_field_double(3, (length * 10.0).round() / 10.0).map_err(e)?;
             f.set_field_string(4, &opt(&t.started_at)).map_err(e)?;
             f.set_field_string(5, &opt(&t.ended_at)).map_err(e)?;
             f.set_field_string(6, device).map_err(e)?;
-            f.set_geometry(Geometry::from_wkt(&wkt).map_err(e)?)
-                .map_err(e)?;
+            f.set_geometry(Geometry::from_wkt(&wkt).map_err(e)?).map_err(e)?;
             f.create(&lyr).map_err(e)?;
         }
     }
     if !s.waypoints.is_empty() {
-        let lyr = txn
-            .create_layer(LayerOptions {
-                name: "waypoints",
-                srs: Some(&srs),
-                ty: G::wkbPoint,
-                options: None,
-            })
-            .map_err(e)?;
-        for (n, t) in [
-            ("name", F::OFTString),
-            ("source", F::OFTString),
-            ("ele", F::OFTReal),
-            ("device", F::OFTString),
-        ] {
-            FieldDefn::new(n, t)
-                .map_err(e)?
-                .add_to_layer(&lyr)
-                .map_err(e)?;
+        let lyr = txn.create_layer(LayerOptions { name: "waypoints", srs: Some(&srs), ty: G::wkbPoint, options: None }).map_err(e)?;
+        for (n, t) in [("name", F::OFTString), ("source", F::OFTString), ("ele", F::OFTReal), ("device", F::OFTString)] {
+            FieldDefn::new(n, t).map_err(e)?.add_to_layer(&lyr).map_err(e)?;
         }
         for w in &s.waypoints {
             let mut f = Feature::new(lyr.defn()).map_err(e)?;
             f.set_field_string(0, &w.name).map_err(e)?;
             f.set_field_string(1, &w.source).map_err(e)?;
-            if let Some(v) = w.ele {
-                f.set_field_double(2, v).map_err(e)?
-            } else {
-                f.set_field_null(2).map_err(e)?
-            }
+            if let Some(v) = w.ele { f.set_field_double(2, v).map_err(e)? } else { f.set_field_null(2).map_err(e)? }
             f.set_field_string(3, device).map_err(e)?;
-            f.set_geometry(Geometry::from_wkt(&format!("POINT ({} {})", w.lon, w.lat)).map_err(e)?)
-                .map_err(e)?;
+            f.set_geometry(Geometry::from_wkt(&format!("POINT ({} {})", w.lon, w.lat)).map_err(e)?).map_err(e)?;
             f.create(&lyr).map_err(e)?;
         }
     }
     if !s.readings.is_empty() {
-        let lyr = txn
-            .create_layer(LayerOptions {
-                name: "readings",
-                srs: Some(&srs),
-                ty: G::wkbPoint,
-                options: None,
-            })
-            .map_err(e)?;
-        for (n, t) in [
-            ("time", F::OFTString),
-            ("source", F::OFTString),
-            ("device", F::OFTString),
-        ] {
-            FieldDefn::new(n, t)
-                .map_err(e)?
-                .add_to_layer(&lyr)
-                .map_err(e)?;
+        let lyr = txn.create_layer(LayerOptions { name: "readings", srs: Some(&srs), ty: G::wkbPoint, options: None }).map_err(e)?;
+        for (n, t) in [("time", F::OFTString), ("source", F::OFTString), ("device", F::OFTString)] {
+            FieldDefn::new(n, t).map_err(e)?.add_to_layer(&lyr).map_err(e)?;
         }
         for (n, _) in &s.reading_fields {
-            FieldDefn::new(n, F::OFTReal)
-                .map_err(e)?
-                .add_to_layer(&lyr)
-                .map_err(e)?;
+            FieldDefn::new(n, F::OFTReal).map_err(e)?.add_to_layer(&lyr).map_err(e)?;
         }
         for r in &s.readings {
             let mut f = Feature::new(lyr.defn()).map_err(e)?;
-            f.set_field_string(0, r.t.as_deref().unwrap_or(""))
-                .map_err(e)?;
+            f.set_field_string(0, r.t.as_deref().unwrap_or("")).map_err(e)?;
             f.set_field_string(1, &r.source).map_err(e)?;
             f.set_field_string(2, device).map_err(e)?;
             for (k, v) in &r.values {
@@ -1522,34 +1111,11 @@ pub(crate) fn write_gpkg(path: &Path, device: &str, s: &ScanResult) -> Result<()
             f.create(&lyr).map_err(e)?;
         }
     }
-    let clouds: Vec<&PointCloud> = s
-        .point_clouds
-        .iter()
-        .filter(|c| c.lonlat.is_some())
-        .collect();
+    let clouds: Vec<&PointCloud> = s.point_clouds.iter().filter(|c| c.lonlat.is_some()).collect();
     if !clouds.is_empty() {
-        let lyr = txn
-            .create_layer(LayerOptions {
-                name: "point_clouds",
-                srs: Some(&srs),
-                ty: G::wkbPolygon,
-                options: None,
-            })
-            .map_err(e)?;
-        for (n, t) in [
-            ("file", F::OFTString),
-            ("points", F::OFTInteger64),
-            ("crs", F::OFTString),
-            ("las", F::OFTString),
-            ("z_min", F::OFTReal),
-            ("z_max", F::OFTReal),
-            ("size_mb", F::OFTReal),
-            ("device", F::OFTString),
-        ] {
-            FieldDefn::new(n, t)
-                .map_err(e)?
-                .add_to_layer(&lyr)
-                .map_err(e)?;
+        let lyr = txn.create_layer(LayerOptions { name: "point_clouds", srs: Some(&srs), ty: G::wkbPolygon, options: None }).map_err(e)?;
+        for (n, t) in [("file", F::OFTString), ("points", F::OFTInteger64), ("crs", F::OFTString), ("las", F::OFTString), ("z_min", F::OFTReal), ("z_max", F::OFTReal), ("size_mb", F::OFTReal), ("device", F::OFTString)] {
+            FieldDefn::new(n, t).map_err(e)?.add_to_layer(&lyr).map_err(e)?;
         }
         for c in clouds {
             let b = c.lonlat.unwrap();
@@ -1557,23 +1123,12 @@ pub(crate) fn write_gpkg(path: &Path, device: &str, s: &ScanResult) -> Result<()
             f.set_field_string(0, &c.source).map_err(e)?;
             f.set_field_integer64(1, c.points as i64).map_err(e)?;
             f.set_field_string(2, &c.crs).map_err(e)?;
-            f.set_field_string(3, &format!("LAS {} · format {}", c.version, c.format))
-                .map_err(e)?;
-            f.set_field_double(4, (c.z.0 * 10.0).round() / 10.0)
-                .map_err(e)?;
-            f.set_field_double(5, (c.z.1 * 10.0).round() / 10.0)
-                .map_err(e)?;
-            f.set_field_double(6, (c.bytes as f64 / 1e5).round() / 10.0)
-                .map_err(e)?;
+            f.set_field_string(3, &format!("LAS {} · format {}", c.version, c.format)).map_err(e)?;
+            f.set_field_double(4, (c.z.0 * 10.0).round() / 10.0).map_err(e)?;
+            f.set_field_double(5, (c.z.1 * 10.0).round() / 10.0).map_err(e)?;
+            f.set_field_double(6, (c.bytes as f64 / 1e5).round() / 10.0).map_err(e)?;
             f.set_field_string(7, device).map_err(e)?;
-            let g = Geometry::from_wkt(&format!(
-                "POLYGON(({w} {s0}, {e1} {s0}, {e1} {n}, {w} {n}, {w} {s0}))",
-                w = b[0],
-                s0 = b[1],
-                e1 = b[2],
-                n = b[3]
-            ))
-            .map_err(e)?;
+            let g = Geometry::from_wkt(&format!("POLYGON(({w} {s0}, {e1} {s0}, {e1} {n}, {w} {n}, {w} {s0}))", w = b[0], s0 = b[1], e1 = b[2], n = b[3])).map_err(e)?;
             f.set_geometry(g).map_err(e)?;
             f.create(&lyr).map_err(e)?;
         }
@@ -1594,34 +1149,13 @@ pub fn haversine(a: (f64, f64), b: (f64, f64)) -> f64 {
 
 impl Hub {
     pub fn new(cfg: DevicesConfig) -> Hub {
-        Hub {
-            hook: Mutex::new(None),
-            sensor_hook: Mutex::new(None),
-            mqtt: Mutex::new(Vec::new()),
-            sta: Mutex::new(Vec::new()),
-            cfg,
-            devices: Mutex::new(HashMap::new()),
-            live: Mutex::new(HashMap::new()),
-            rescan: AtomicBool::new(false),
-            started: AtomicBool::new(false),
-            restored: Mutex::new(HashMap::new()),
-            seen: Mutex::new(HashMap::new()),
-            extra_inbox: Mutex::new(Vec::new()),
-        }
+        Hub { hook: Mutex::new(None), sensor_hook: Mutex::new(None), mqtt: Mutex::new(Vec::new()), sta: Mutex::new(Vec::new()), cfg, devices: Mutex::new(HashMap::new()), live: Mutex::new(HashMap::new()), rescan: AtomicBool::new(false), started: AtomicBool::new(false), restored: Mutex::new(HashMap::new()), seen: Mutex::new(HashMap::new()), extra_inbox: Mutex::new(Vec::new()) }
     }
 
     /// Device roots to look at right now.
     fn roots(&self) -> Vec<PathBuf> {
         let extra = self.extra_inbox.lock().unwrap().clone();
-        let mut out: Vec<PathBuf> = self
-            .cfg
-            .watch
-            .iter()
-            .chain(&self.cfg.inbox)
-            .chain(&extra)
-            .filter(|p| p.is_dir())
-            .cloned()
-            .collect();
+        let mut out: Vec<PathBuf> = self.cfg.watch.iter().chain(&self.cfg.inbox).chain(&extra).filter(|p| p.is_dir()).cloned().collect();
         if self.cfg.scan_mounts {
             out.extend(mount_roots());
         }
@@ -1631,17 +1165,12 @@ impl Hub {
     }
 
     fn is_inbox(&self, root: &Path) -> bool {
-        self.cfg.inbox.iter().any(|p| p == root)
-            || self.extra_inbox.lock().unwrap().iter().any(|p| p == root)
+        self.cfg.inbox.iter().any(|p| p == root) || self.extra_inbox.lock().unwrap().iter().any(|p| p == root)
     }
 
     /// The first drop folder (configured, or added at run time), if any.
     pub(crate) fn inbox_dir(&self) -> Option<PathBuf> {
-        self.cfg
-            .inbox
-            .first()
-            .cloned()
-            .or_else(|| self.extra_inbox.lock().unwrap().first().cloned())
+        self.cfg.inbox.first().cloned().or_else(|| self.extra_inbox.lock().unwrap().first().cloned())
     }
 
     /// Treat another folder as a drop folder from now on.
@@ -1654,12 +1183,7 @@ impl Hub {
 
     /// The live fixes held for one live device (phone page, GNSS source, OwnTracks), oldest first.
     pub(crate) fn live_fixes(&self, id: &str) -> Vec<Fix> {
-        self.live
-            .lock()
-            .unwrap()
-            .get(id)
-            .map(|d| d.fixes.iter().copied().collect())
-            .unwrap_or_default()
+        self.live.lock().unwrap().get(id).map(|d| d.fixes.iter().copied().collect()).unwrap_or_default()
     }
 
     /// Start the watcher thread (device trigger) and the live GNSS sources.
@@ -1672,31 +1196,21 @@ impl Hub {
         let e = engine.clone();
         std::thread::Builder::new()
             .name("device-watcher".into())
-            .spawn(move || {
-                loop {
-                    e.devices.poll(&e);
-                    let t0 = Instant::now();
-                    while t0.elapsed() < POLL && !e.devices.rescan.swap(false, Ordering::SeqCst) {
-                        std::thread::sleep(Duration::from_millis(200));
-                    }
+            .spawn(move || loop {
+                e.devices.poll(&e);
+                let t0 = Instant::now();
+                while t0.elapsed() < POLL && !e.devices.rescan.swap(false, Ordering::SeqCst) {
+                    std::thread::sleep(Duration::from_millis(200));
                 }
             })
             .expect("spawn device watcher");
         for src in self.cfg.gps.clone() {
             let e = engine.clone();
-            std::thread::Builder::new()
-                .name("gnss-source".into())
-                .spawn(move || run_gnss_source(&e, &src))
-                .expect("spawn gnss source");
+            std::thread::Builder::new().name("gnss-source".into()).spawn(move || run_gnss_source(&e, &src)).expect("spawn gnss source");
         }
         for (i, url) in self.cfg.mqtt.clone().into_iter().enumerate() {
-            let shown = crate::sensors::parse_mqtt_url(&url)
-                .map(|u| u.display())
-                .unwrap_or_else(|_| url.clone());
-            self.mqtt.lock().unwrap().push(crate::sensors::MqttStatus {
-                url: shown,
-                ..Default::default()
-            });
+            let shown = crate::sensors::parse_mqtt_url(&url).map(|u| u.display()).unwrap_or_else(|_| url.clone());
+            self.mqtt.lock().unwrap().push(crate::sensors::MqttStatus { url: shown, ..Default::default() });
             let e = engine.clone();
             std::thread::Builder::new()
                 .name("mqtt-source".into())
@@ -1706,10 +1220,7 @@ impl Hub {
                             f(s)
                         }
                     };
-                    let on_message = |topic: &str, payload: &[u8]| match crate::sensors::parse_live(
-                        payload,
-                        Some(topic),
-                    ) {
+                    let on_message = |topic: &str, payload: &[u8]| match crate::sensors::parse_live(payload, Some(topic)) {
                         Ok(p) => e.devices.push_live(p, "mqtt").is_ok(),
                         Err(_) => false,
                     };
@@ -1718,13 +1229,8 @@ impl Hub {
                 .expect("spawn mqtt source");
         }
         for (i, url) in self.cfg.sta.clone().into_iter().enumerate() {
-            let shown = crate::sta::parse_sta_url(&url)
-                .map(|s| s.display())
-                .unwrap_or_else(|_| url.clone());
-            self.sta.lock().unwrap().push(crate::sta::StaStatus {
-                url: shown,
-                ..Default::default()
-            });
+            let shown = crate::sta::parse_sta_url(&url).map(|s| s.display()).unwrap_or_else(|_| url.clone());
+            self.sta.lock().unwrap().push(crate::sta::StaStatus { url: shown, ..Default::default() });
             let e = engine.clone();
             std::thread::Builder::new()
                 .name("sta-source".into())
@@ -1742,14 +1248,9 @@ impl Hub {
 
     /// Re-register layers imported in earlier sessions (`<state>/devices/*.gpkg`).
     fn restore_imports(&self, engine: &Arc<Engine>) {
-        let Ok(rd) = std::fs::read_dir(engine.state_dir.join("devices")) else {
-            return;
-        };
+        let Ok(rd) = std::fs::read_dir(engine.state_dir.join("devices")) else { return };
         for path in rd.flatten().map(|e| e.path()) {
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
             if !name.ends_with(".gpkg") || name.ends_with(".importing.gpkg") {
                 continue;
             }
@@ -1757,14 +1258,8 @@ impl Hub {
                 Ok(handles) => {
                     let layers = engine.register_layers(handles);
                     let id = name.trim_end_matches(".gpkg").to_string();
-                    eprintln!(
-                        "devices: restored {} layers from an earlier import of {id}",
-                        layers.len()
-                    );
-                    self.restored
-                        .lock()
-                        .unwrap()
-                        .insert(id, json!({ "layers": layers, "restored": true }));
+                    eprintln!("devices: restored {} layers from an earlier import of {id}", layers.len());
+                    self.restored.lock().unwrap().insert(id, json!({ "layers": layers, "restored": true }));
                 }
                 Err(e) => eprintln!("devices: could not restore {}: {e}", path.display()),
             }
@@ -1787,17 +1282,8 @@ impl Hub {
         for (root, id) in roots.iter().zip(ids) {
             // MTP/PTP mounts are slow: scan once per connection instead of polling signatures.
             let slow = root.to_string_lossy().contains("gvfs");
-            let known = self
-                .devices
-                .lock()
-                .unwrap()
-                .get(&id)
-                .map(|e| (e.signature, e.scan.is_some()));
-            let sig = if slow && known.map(|k| k.1).unwrap_or(false) {
-                known.unwrap().0
-            } else {
-                signature(root)
-            };
+            let known = self.devices.lock().unwrap().get(&id).map(|e| (e.signature, e.scan.is_some()));
+            let sig = if slow && known.map(|k| k.1).unwrap_or(false) { known.unwrap().0 } else { signature(root) };
             if known.map(|k| k.0 == sig && k.1).unwrap_or(false) {
                 continue;
             }
@@ -1809,18 +1295,7 @@ impl Hub {
             let unchanged = known.is_none() && self.seen.lock().unwrap().get(&id) == Some(&sig);
             // device trigger: an enabled recipe may take the device (docs/AUTOMATION.md §3)
             let claimed = s.has_geodata() && !unchanged && {
-                let ev = DeviceEvent {
-                    id: id.clone(),
-                    name: name.clone(),
-                    kind,
-                    root: root.clone(),
-                    photos: s.photos.len(),
-                    tracks: s.tracks.len(),
-                    waypoints: s.waypoints.len(),
-                    readings: s.readings.len(),
-                    point_clouds: s.point_clouds.len(),
-                    inbox: self.is_inbox(root),
-                };
+                let ev = DeviceEvent { id: id.clone(), name: name.clone(), kind, root: root.clone(), photos: s.photos.len(), tracks: s.tracks.len(), waypoints: s.waypoints.len(), readings: s.readings.len(), point_clouds: s.point_clouds.len(), inbox: self.is_inbox(root) };
                 self.hook.lock().unwrap().as_ref().is_some_and(|h| h(&ev))
             };
             let auto = self.cfg.auto_import && s.has_geodata() && !claimed && !unchanged;
@@ -1858,15 +1333,7 @@ impl Hub {
                 s.point_clouds.len(),
                 s.cloud_points(),
                 s.ms,
-                if claimed {
-                    " -> recipe"
-                } else if auto {
-                    " -> auto-import"
-                } else if unchanged && s.has_geodata() {
-                    " (unchanged since last session, not re-processed)"
-                } else {
-                    ""
-                }
+                if claimed { " -> recipe" } else if auto { " -> auto-import" } else if unchanged && s.has_geodata() { " (unchanged since last session, not re-processed)" } else { "" }
             );
             if auto {
                 if let Err(err) = self.import(engine, &id) {
@@ -1881,31 +1348,16 @@ impl Hub {
         let (scan, name) = {
             let d = self.devices.lock().unwrap();
             let entry = d.get(id).ok_or_else(|| format!("unknown device '{id}'"))?;
-            (
-                entry.scan.clone().ok_or("device not scanned yet")?,
-                entry.name.clone(),
-            )
+            (entry.scan.clone().ok_or("device not scanned yet")?, entry.name.clone())
         };
         if !scan.has_geodata() {
-            return Err(
-                "no geotagged photos, tracks, sensor readings or point clouds on this device"
-                    .into(),
-            );
+            return Err("no geotagged photos, tracks, sensor readings or point clouds on this device".into());
         }
         if let Some(j) = engine.jobs.active("device-import", id) {
-            return Err(format!(
-                "import job {} is already running for this device",
-                j.id
-            ));
+            return Err(format!("import job {} is already running for this device", j.id));
         }
         let job = engine.jobs.create("device-import", id);
-        job.update(|s| {
-            s.total = (scan.photos.len()
-                + scan.tracks.len()
-                + scan.waypoints.len()
-                + scan.readings.len()
-                + scan.point_clouds.len()) as u64
-        });
+        job.update(|s| s.total = (scan.photos.len() + scan.tracks.len() + scan.waypoints.len() + scan.readings.len() + scan.point_clouds.len()) as u64);
         let (e, j, id) = (engine.clone(), job.clone(), id.to_string());
         engine.job_pool.spawn(move || {
             j.update(|s| s.status = Status::Running);
@@ -1967,9 +1419,7 @@ impl Hub {
     /// Root folder of a known device, by id or name (case-insensitive).
     pub fn find_root(&self, key: &str) -> Option<PathBuf> {
         let d = self.devices.lock().unwrap();
-        d.values()
-            .find(|e| e.id == key || e.name.eq_ignore_ascii_case(key))
-            .map(|e| e.root.clone())
+        d.values().find(|e| e.id == key || e.name.eq_ignore_ascii_case(key)).map(|e| e.root.clone())
     }
 
     /// The connected device a recipe with `source: auto` should use: phones and cameras first,
@@ -1988,23 +1438,13 @@ impl Hub {
             .filter(|e| e.connected && e.scan.as_ref().is_some_and(|s| s.has_geodata()))
             .min_by_key(|e| {
                 let s = e.scan.as_ref().unwrap();
-                (
-                    rank(e.kind),
-                    usize::MAX
-                        - (s.photos.len() + s.tracks.len() + s.waypoints.len() + s.readings.len()),
-                )
+                (rank(e.kind), usize::MAX - (s.photos.len() + s.tracks.len() + s.waypoints.len() + s.readings.len()))
             })
             .map(|e| e.root.clone())
     }
 
     pub fn names(&self) -> Vec<String> {
-        let mut v: Vec<String> = self
-            .devices
-            .lock()
-            .unwrap()
-            .values()
-            .map(|e| format!("{} ({})", e.name, e.id))
-            .collect();
+        let mut v: Vec<String> = self.devices.lock().unwrap().values().map(|e| format!("{} ({})", e.name, e.id)).collect();
         v.sort();
         v
     }
@@ -2050,9 +1490,7 @@ impl Hub {
     pub fn push_fix(&self, id: &str, name: &str, source: &str, fix: Fix) {
         let shown = {
             let mut live = self.live.lock().unwrap();
-            let d = live
-                .entry(id.to_string())
-                .or_insert_with(|| LiveDevice::new(name, source, "gps"));
+            let d = live.entry(id.to_string()).or_insert_with(|| LiveDevice::new(name, source, "gps"));
             if d.fixes.len() >= LIVE_FIXES {
                 d.fixes.pop_front();
             }
@@ -2063,16 +1501,7 @@ impl Hub {
             }
             (d.name.clone(), d.kind)
         };
-        self.emit(SensorEvent {
-            device_id: id.to_string(),
-            name: shown.0,
-            kind: shown.1,
-            source: source.to_string(),
-            lon: fix.lon,
-            lat: fix.lat,
-            t: fix.t,
-            values: Vec::new(),
-        });
+        self.emit(SensorEvent { device_id: id.to_string(), name: shown.0, kind: shown.1, source: source.to_string(), lon: fix.lon, lat: fix.lat, t: fix.t, values: Vec::new() });
     }
 
     /// A parsed live message (phone page, sensor JSON over HTTP, MQTT). Messages without a
@@ -2092,47 +1521,21 @@ impl Hub {
         let t = p.t.unwrap_or_else(now_s);
         let (name, kind, lon, lat) = {
             let mut live = self.live.lock().unwrap();
-            let last = live
-                .get(&id)
-                .and_then(|d| d.fixes.back().map(|f| (f.lon, f.lat)));
-            let (lon, lat) = p
-                .pos
-                .or(last)
-                .ok_or_else(|| format!("no position for '{id}' yet: send lat/lon at least once"))?;
-            let default_name = if p.kind == "phone" {
-                "Phone".to_string()
-            } else {
-                id.clone()
-            };
-            let d = live.entry(id.clone()).or_insert_with(|| {
-                LiveDevice::new(p.name.as_deref().unwrap_or(&default_name), &source, p.kind)
-            });
+            let last = live.get(&id).and_then(|d| d.fixes.back().map(|f| (f.lon, f.lat)));
+            let (lon, lat) = p.pos.or(last).ok_or_else(|| format!("no position for '{id}' yet: send lat/lon at least once"))?;
+            let default_name = if p.kind == "phone" { "Phone".to_string() } else { id.clone() };
+            let d = live.entry(id.clone()).or_insert_with(|| LiveDevice::new(p.name.as_deref().unwrap_or(&default_name), &source, p.kind));
             if p.pos.is_some() {
                 if d.fixes.len() >= LIVE_FIXES {
                     d.fixes.pop_front();
                 }
-                d.fixes.push_back(Fix {
-                    lon,
-                    lat,
-                    alt: p.alt,
-                    speed: p.speed,
-                    course: p.course,
-                    accuracy: p.accuracy,
-                    sats: None,
-                    quality: None,
-                    t,
-                });
+                d.fixes.push_back(Fix { lon, lat, alt: p.alt, speed: p.speed, course: p.course, accuracy: p.accuracy, sats: None, quality: None, t });
             }
             if !p.values.is_empty() {
                 if d.readings.len() >= LIVE_FIXES {
                     d.readings.pop_front();
                 }
-                d.readings.push_back(LiveReading {
-                    t,
-                    lon,
-                    lat,
-                    values: p.values.clone(),
-                });
+                d.readings.push_back(LiveReading { t, lon, lat, values: p.values.clone() });
                 if p.kind == "sensor" {
                     d.kind = "sensor";
                 }
@@ -2143,16 +1546,7 @@ impl Hub {
             d.last = Instant::now();
             (d.name.clone(), d.kind, lon, lat)
         };
-        self.emit(SensorEvent {
-            device_id: id.clone(),
-            name,
-            kind,
-            source,
-            lon,
-            lat,
-            t,
-            values: p.values,
-        });
+        self.emit(SensorEvent { device_id: id.clone(), name, kind, source, lon, lat, t, values: p.values });
         Ok(id)
     }
 
@@ -2169,63 +1563,24 @@ impl Hub {
 
     /// Live readings since `since` (Unix s), oldest first: (device id, name, reading).
     /// `device` is a glob on the id or name (`aq-*`).
-    pub fn live_readings(
-        &self,
-        device: Option<&str>,
-        since: f64,
-    ) -> Vec<(String, String, LiveReading)> {
+    pub fn live_readings(&self, device: Option<&str>, since: f64) -> Vec<(String, String, LiveReading)> {
         let live = self.live.lock().unwrap();
         let mut out: Vec<(String, String, LiveReading)> = live
             .iter()
-            .filter(|(id, d)| {
-                device.is_none_or(|g| {
-                    g == "auto"
-                        || g == "all"
-                        || crate::automation::triggers::glob(g, id)
-                        || crate::automation::triggers::glob(g, &d.name)
-                })
-            })
-            .flat_map(|(id, d)| {
-                d.readings
-                    .iter()
-                    .filter(|r| r.t >= since)
-                    .map(move |r| (id.clone(), d.name.clone(), r.clone()))
-            })
+            .filter(|(id, d)| device.is_none_or(|g| g == "auto" || g == "all" || crate::automation::triggers::glob(g, id) || crate::automation::triggers::glob(g, &d.name)))
+            .flat_map(|(id, d)| d.readings.iter().filter(|r| r.t >= since).map(move |r| (id.clone(), d.name.clone(), r.clone())))
             .collect();
         out.sort_by(|a, b| a.2.t.total_cmp(&b.2.t));
         out
     }
 
     /// Recent fixes per live device (for snapshot tracks).
-    pub fn live_tracks(
-        &self,
-        device: Option<&str>,
-        since: f64,
-    ) -> Vec<(String, String, Vec<(f64, f64)>)> {
+    pub fn live_tracks(&self, device: Option<&str>, since: f64) -> Vec<(String, String, Vec<(f64, f64)>)> {
         let live = self.live.lock().unwrap();
         live.iter()
-            .filter(|(id, d)| {
-                device.is_none_or(|g| {
-                    g == "auto"
-                        || g == "all"
-                        || crate::automation::triggers::glob(g, id)
-                        || crate::automation::triggers::glob(g, &d.name)
-                })
-            })
-            .map(|(id, d)| {
-                (
-                    id.clone(),
-                    d.name.clone(),
-                    d.fixes
-                        .iter()
-                        .filter(|f| f.t >= since)
-                        .map(|f| (f.lon, f.lat))
-                        .collect::<Vec<_>>(),
-                )
-            })
-            .filter(|(_, _, pts)| {
-                pts.len() >= 2 && pts.windows(2).map(|w| haversine(w[0], w[1])).sum::<f64>() > 5.0
-            })
+            .filter(|(id, d)| device.is_none_or(|g| g == "auto" || g == "all" || crate::automation::triggers::glob(g, id) || crate::automation::triggers::glob(g, &d.name)))
+            .map(|(id, d)| (id.clone(), d.name.clone(), d.fixes.iter().filter(|f| f.t >= since).map(|f| (f.lon, f.lat)).collect::<Vec<_>>()))
+            .filter(|(_, _, pts)| pts.len() >= 2 && pts.windows(2).map(|w| haversine(w[0], w[1])).sum::<f64>() > 5.0)
             .collect()
     }
 
@@ -2261,10 +1616,7 @@ impl Hub {
         let mut feats = Vec::new();
         for (id, d) in live.iter() {
             let Some(last) = d.fixes.back() else { continue };
-            let moved = d
-                .fixes
-                .iter()
-                .any(|f| (f.lon - last.lon).abs() > 1e-6 || (f.lat - last.lat).abs() > 1e-6);
+            let moved = d.fixes.iter().any(|f| (f.lon - last.lon).abs() > 1e-6 || (f.lat - last.lat).abs() > 1e-6);
             if d.fixes.len() >= 2 && moved {
                 let coords: Vec<[f64; 2]> = d.fixes.iter().map(|f| [f.lon, f.lat]).collect();
                 feats.push(json!({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": coords }, "properties": { "device": id, "role": "track" } }));
@@ -2284,30 +1636,14 @@ impl Hub {
 
 impl LiveDevice {
     fn new(name: &str, source: &str, kind: &'static str) -> LiveDevice {
-        LiveDevice {
-            name: name.to_string(),
-            source: source.to_string(),
-            kind,
-            fixes: VecDeque::new(),
-            readings: VecDeque::new(),
-            last: Instant::now(),
-        }
+        LiveDevice { name: name.to_string(), source: source.to_string(), kind, fixes: VecDeque::new(), readings: VecDeque::new(), last: Instant::now() }
     }
 }
 
 /// Removable media and phone mounts for the current OS.
 fn mount_roots() -> Vec<PathBuf> {
     let mut out = Vec::new();
-    let children = |p: &Path| -> Vec<PathBuf> {
-        std::fs::read_dir(p)
-            .map(|rd| {
-                rd.flatten()
-                    .map(|e| e.path())
-                    .filter(|p| p.is_dir())
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
+    let children = |p: &Path| -> Vec<PathBuf> { std::fs::read_dir(p).map(|rd| rd.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect()).unwrap_or_default() };
     if cfg!(target_os = "linux") {
         let user = std::env::var("USER").unwrap_or_default();
         for base in [format!("/media/{user}"), format!("/run/media/{user}")] {
@@ -2317,34 +1653,21 @@ fn mount_roots() -> Vec<PathBuf> {
         {
             use std::os::unix::fs::MetadataExt;
             if let Ok(md) = std::fs::metadata("/proc/self") {
-                out.extend(
-                    children(Path::new(&format!("/run/user/{}/gvfs", md.uid())))
-                        .into_iter()
-                        .filter(|p| {
-                            let s = p.to_string_lossy();
-                            s.contains("mtp:") || s.contains("gphoto2:")
-                        }),
-                );
+                out.extend(children(Path::new(&format!("/run/user/{}/gvfs", md.uid()))).into_iter().filter(|p| {
+                    let s = p.to_string_lossy();
+                    s.contains("mtp:") || s.contains("gphoto2:")
+                }));
             }
         }
     } else if cfg!(target_os = "macos") {
-        out.extend(
-            children(Path::new("/Volumes"))
-                .into_iter()
-                .filter(|p| std::fs::read_link(p).is_err() && !p.ends_with("Macintosh HD")),
-        );
+        out.extend(children(Path::new("/Volumes")).into_iter().filter(|p| std::fs::read_link(p).is_err() && !p.ends_with("Macintosh HD")));
     } else if cfg!(windows) {
         // Removable drives (SD cards, USB sticks, cameras/GPS units/drones in mass-storage mode), plus any other
         // drive whose top level looks like a camera, GPS or drone card. Fixed data disks are left alone: walking
         // a whole disk every few seconds would be wasteful. (Phones in MTP mode need the WPD API: not yet.)
         for letter in b'D'..=b'Z' {
             let p = PathBuf::from(format!("{}:\\", letter as char));
-            if p.is_dir()
-                && (drive_is_removable(letter)
-                    || ["DCIM", "GARMIN", "Garmin", "PRIVATE"]
-                        .iter()
-                        .any(|m| p.join(m).is_dir()))
-            {
+            if p.is_dir() && (drive_is_removable(letter) || ["DCIM", "GARMIN", "Garmin", "PRIVATE"].iter().any(|m| p.join(m).is_dir())) {
                 out.push(p);
             }
         }
@@ -2358,10 +1681,7 @@ fn drive_is_removable(letter: u8) -> bool {
     unsafe extern "system" {
         fn GetDriveTypeW(root: *const u16) -> u32;
     }
-    let root: Vec<u16> = format!("{}:\\", letter as char)
-        .encode_utf16()
-        .chain(Some(0))
-        .collect();
+    let root: Vec<u16> = format!("{}:\\", letter as char).encode_utf16().chain(Some(0)).collect();
     unsafe { GetDriveTypeW(root.as_ptr()) == 2 } // DRIVE_REMOVABLE
 }
 
@@ -2374,12 +1694,7 @@ fn drive_is_removable(_letter: u8) -> bool {
 
 /// Friendly label for a live GNSS source.
 pub fn gnss_name(src: &str) -> String {
-    let file = |p: &str| {
-        Path::new(p.split('?').next().unwrap_or(p))
-            .file_name()
-            .map(|f| f.to_string_lossy().to_string())
-            .unwrap_or_else(|| p.to_string())
-    };
+    let file = |p: &str| Path::new(p.split('?').next().unwrap_or(p)).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_else(|| p.to_string());
     if let Some(r) = src.strip_prefix("file://") {
         format!("GNSS replay · {}", file(r))
     } else if let Some(r) = src.strip_prefix("gpsd://") {
@@ -2387,14 +1702,7 @@ pub fn gnss_name(src: &str) -> String {
     } else if let Some(r) = src.strip_prefix("tcp://") {
         format!("NMEA · {r}")
     } else {
-        format!(
-            "GNSS · {}",
-            src.strip_prefix("serial://")
-                .unwrap_or(src)
-                .split('?')
-                .next()
-                .unwrap_or(src)
-        )
+        format!("GNSS · {}", src.strip_prefix("serial://").unwrap_or(src).split('?').next().unwrap_or(src))
     }
 }
 
@@ -2407,8 +1715,7 @@ fn run_gnss_source(engine: &Arc<Engine>, src: &str) {
         let res: Result<(), String> = (|| {
             if let Some(rest) = src.strip_prefix("gpsd://") {
                 let mut s = std::net::TcpStream::connect(rest).map_err(|e| e.to_string())?;
-                s.write_all(b"?WATCH={\"enable\":true,\"json\":true}\n")
-                    .map_err(|e| e.to_string())?;
+                s.write_all(b"?WATCH={\"enable\":true,\"json\":true}\n").map_err(|e| e.to_string())?;
                 for line in BufReader::new(s).lines() {
                     if let Some(f) = parse_gpsd(&line.map_err(|e| e.to_string())?) {
                         push(f);
@@ -2426,10 +1733,7 @@ fn run_gnss_source(engine: &Arc<Engine>, src: &str) {
                 Err("NMEA stream closed".into())
             } else if let Some(rest) = src.strip_prefix("file://") {
                 let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
-                let rate: f64 = query
-                    .strip_prefix("rate=")
-                    .and_then(|r| r.parse().ok())
-                    .unwrap_or(1.0);
+                let rate: f64 = query.strip_prefix("rate=").and_then(|r| r.parse().ok()).unwrap_or(1.0);
                 let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
                 let mut st = NmeaState::default();
                 for line in text.lines() {
@@ -2440,29 +1744,15 @@ fn run_gnss_source(engine: &Arc<Engine>, src: &str) {
                 }
                 Ok(()) // replay finished
             } else {
-                let (dev, query) = src
-                    .strip_prefix("serial://")
-                    .unwrap_or(src)
-                    .split_once('?')
-                    .unwrap_or((src.strip_prefix("serial://").unwrap_or(src), ""));
+                let (dev, query) = src.strip_prefix("serial://").unwrap_or(src).split_once('?').unwrap_or((src.strip_prefix("serial://").unwrap_or(src), ""));
                 let baud = query.strip_prefix("baud=").unwrap_or("9600");
                 #[cfg(unix)]
-                let _ = std::process::Command::new("stty")
-                    .args(["-F", dev, baud, "raw", "-echo"])
-                    .status();
+                let _ = std::process::Command::new("stty").args(["-F", dev, baud, "raw", "-echo"]).status();
                 // Windows: serial://COM3?baud=4800 → set the line with mode.com, open \\.\COM3
                 #[cfg(windows)]
                 let dev = &{
                     let port = dev.trim_start_matches("\\\\.\\");
-                    let _ = crate::command("mode.com")
-                        .args([
-                            format!("{port}:"),
-                            format!("BAUD={baud}"),
-                            "PARITY=n".into(),
-                            "DATA=8".into(),
-                            "STOP=1".into(),
-                        ])
-                        .status();
+                    let _ = crate::command("mode.com").args([format!("{port}:"), format!("BAUD={baud}"), "PARITY=n".into(), "DATA=8".into(), "STOP=1".into()]).status();
                     format!("\\\\.\\{port}")
                 };
                 let f = std::fs::File::open(dev).map_err(|e| format!("{dev}: {e}"))?;
@@ -2495,37 +1785,20 @@ mod tests {
         let mut st = NmeaState::default();
         let gga = "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47";
         let f = st.feed(gga).expect("gga fix");
-        assert!(
-            (f.lat - 48.1173).abs() < 1e-4 && (f.lon - 11.516_666).abs() < 1e-4,
-            "{f:?}"
-        );
+        assert!((f.lat - 48.1173).abs() < 1e-4 && (f.lon - 11.516_666).abs() < 1e-4, "{f:?}");
         assert_eq!((f.sats, f.quality, f.alt), (Some(8), Some(1), Some(545.4)));
         let rmc = "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A";
         let f = st.feed(rmc).expect("rmc fix");
         assert!((f.speed.unwrap() - 22.4 * 0.514444).abs() < 1e-6 && f.course == Some(84.4));
-        assert!(
-            st.feed("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*48")
-                .is_none(),
-            "bad checksum"
-        );
-        assert!(
-            st.feed("$GPRMC,123519,V,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*7D")
-                .is_none(),
-            "void fix"
-        );
-        assert_eq!(
-            nmea_coord("0947.123", "S").map(|v| (v * 1e4).round() / 1e4),
-            Some(-9.7854)
-        );
+        assert!(st.feed("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*48").is_none(), "bad checksum");
+        assert!(st.feed("$GPRMC,123519,V,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*7D").is_none(), "void fix");
+        assert_eq!(nmea_coord("0947.123", "S").map(|v| (v * 1e4).round() / 1e4), Some(-9.7854));
     }
 
     #[test]
     fn gpsd_tpv() {
         let f = parse_gpsd(r#"{"class":"TPV","mode":3,"lat":-9.44,"lon":147.18,"altMSL":35.0,"speed":1.5,"track":90,"epx":3.0,"epy":4.5}"#).unwrap();
-        assert_eq!(
-            (f.lat, f.lon, f.alt, f.accuracy),
-            (-9.44, 147.18, Some(35.0), Some(4.5))
-        );
+        assert_eq!((f.lat, f.lon, f.alt, f.accuracy), (-9.44, 147.18, Some(35.0), Some(4.5)));
         assert!(parse_gpsd(r#"{"class":"TPV","mode":1}"#).is_none());
         assert!(parse_gpsd(r#"{"class":"SKY"}"#).is_none());
     }
@@ -2533,10 +1806,7 @@ mod tests {
     #[test]
     fn dji_srt_both_formats() {
         let new = "1\n00:00:00,000 --> 00:00:00,033\n<font size=\"28\">FrameCnt: 1 [iso : 100] [latitude: -6.081234] [longitude: 145.391234] [rel_alt: 50.0 abs_alt: 1650.2]</font>\n\n2\n00:00:00,033 --> 00:00:00,066\n[latitude : -6.081300] [longitude : 145.391300] [rel_alt: 50.1 abs_alt: 1650.3]\n";
-        assert_eq!(
-            parse_srt(new),
-            vec![(145.391234, -6.081234), (145.3913, -6.0813)]
-        );
+        assert_eq!(parse_srt(new), vec![(145.391234, -6.081234), (145.3913, -6.0813)]);
         let old = "1\n00:00:01,000 --> 00:00:02,000\nHOME(145.3900,-6.0800) 2019.01.01 10:00:00\nGPS(145.3912,-6.0812,19) BAROMETER:50.3\n";
         assert_eq!(parse_srt(old), vec![(145.3912, -6.0812)]);
     }
@@ -2547,84 +1817,28 @@ mod tests {
         assert_eq!(signed(147.2, Some("E")), 147.2);
         assert_eq!(exif_time("2026:10:14 09:30:00"), "2026-10-14T09:30:00");
         // GDAL date-time text -> Unix seconds
-        assert_eq!(
-            gdal_time_epoch("2026/10/13 08:00:00+00"),
-            Some(1_791_878_400.0)
-        );
-        assert_eq!(
-            gdal_time_epoch("2026/10/13 18:00:00+10"),
-            Some(1_791_878_400.0)
-        );
-        assert_eq!(
-            gdal_time_epoch("2026/10/13 18:30:00+1030"),
-            Some(1_791_878_400.0)
-        );
-        assert_eq!(
-            gdal_time_epoch("2026/10/13 08:00:00.5"),
-            Some(1_791_878_400.5)
-        );
+        assert_eq!(gdal_time_epoch("2026/10/13 08:00:00+00"), Some(1_791_878_400.0));
+        assert_eq!(gdal_time_epoch("2026/10/13 18:00:00+10"), Some(1_791_878_400.0));
+        assert_eq!(gdal_time_epoch("2026/10/13 18:30:00+1030"), Some(1_791_878_400.0));
+        assert_eq!(gdal_time_epoch("2026/10/13 08:00:00.5"), Some(1_791_878_400.5));
         // placing photos on a track by time: between two points, snapping near the ends, never across long gaps
-        let pts = [
-            (1000.0, 144.0, -5.0),
-            (1010.0, 144.001, -5.001),
-            (2000.0, 145.0, -6.0),
-        ];
+        let pts = [(1000.0, 144.0, -5.0), (1010.0, 144.001, -5.001), (2000.0, 145.0, -6.0)];
         let (x, y) = interpolate_track(&pts, 1005.0).unwrap();
-        assert!(
-            (x - 144.0005).abs() < 1e-9 && (y + 5.0005).abs() < 1e-9,
-            "{x} {y}"
-        );
+        assert!((x - 144.0005).abs() < 1e-9 && (y + 5.0005).abs() < 1e-9, "{x} {y}");
         assert_eq!(interpolate_track(&pts, 1010.0), Some((144.001, -5.001)));
-        assert_eq!(
-            interpolate_track(&pts, 970.0),
-            Some((144.0, -5.0)),
-            "30 s before the first point snaps to it"
-        );
-        assert_eq!(
-            interpolate_track(&pts, 900.0),
-            None,
-            "100 s before: too far"
-        );
-        assert_eq!(
-            interpolate_track(&pts, 1500.0),
-            None,
-            "inside a 990 s gap: unknown"
-        );
-        assert_eq!(
-            interpolate_track(&pts, 1040.0),
-            Some((144.001, -5.001)),
-            "30 s after a point, gap too long: snap"
-        );
+        assert_eq!(interpolate_track(&pts, 970.0), Some((144.0, -5.0)), "30 s before the first point snaps to it");
+        assert_eq!(interpolate_track(&pts, 900.0), None, "100 s before: too far");
+        assert_eq!(interpolate_track(&pts, 1500.0), None, "inside a 990 s gap: unknown");
+        assert_eq!(interpolate_track(&pts, 1040.0), Some((144.001, -5.001)), "30 s after a point, gap too long: snap");
         // photo time with an EXIF offset
-        let u = Unlocated {
-            path: "x.jpg".into(),
-            taken_at: "2026-10-13T18:00:00".into(),
-            offset: Some("+10:00".into()),
-            make: None,
-            model: None,
-        };
+        let u = Unlocated { path: "x.jpg".into(), taken_at: "2026-10-13T18:00:00".into(), offset: Some("+10:00".into()), make: None, model: None };
         assert_eq!(u.epoch(), Some(1_791_878_400.0));
-        assert_eq!(
-            xmp_attr(
-                r#"drone-dji:GimbalYawDegree="-12.30" drone-dji:RelativeAltitude="+80.10""#,
-                "drone-dji:RelativeAltitude"
-            ),
-            Some(80.1)
-        );
+        assert_eq!(xmp_attr(r#"drone-dji:GimbalYawDegree="-12.30" drone-dji:RelativeAltitude="+80.10""#, "drone-dji:RelativeAltitude"), Some(80.1));
         assert_eq!(slug("TEST PHONE (Pixel 8)"), "test-phone-pixel-8");
-        assert!(
-            device_id(Path::new("/run/user/1000/gvfs/mtp:host=Google_Pixel_8_ABC"))
-                .starts_with("google-pixel-8-abc-")
-        );
+        assert!(device_id(Path::new("/run/user/1000/gvfs/mtp:host=Google_Pixel_8_ABC")).starts_with("google-pixel-8-abc-"));
         assert!((haversine((147.0, -9.0), (147.0, -10.0)) - 111_195.0).abs() < 50.0);
-        assert_eq!(
-            gnss_name("file:///tmp/x/live-replay.nmea?rate=5"),
-            "GNSS replay · live-replay.nmea"
-        );
-        assert_eq!(
-            gnss_name("serial:///dev/ttyACM0?baud=9600"),
-            "GNSS · /dev/ttyACM0"
-        );
+        assert_eq!(gnss_name("file:///tmp/x/live-replay.nmea?rate=5"), "GNSS replay · live-replay.nmea");
+        assert_eq!(gnss_name("serial:///dev/ttyACM0?baud=9600"), "GNSS · /dev/ttyACM0");
         assert_eq!(gnss_name("gpsd://localhost:2947"), "gpsd · localhost:2947");
     }
 }

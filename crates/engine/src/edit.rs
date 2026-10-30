@@ -12,17 +12,14 @@
 //!   contain, within a distance of another layer's features), definition queries (see
 //!   `LayerHandle::set_filter`) and the attribute table's sorted, filtered pages.
 
-use crate::Engine;
 use crate::catalog::{self, LayerHandle};
 use crate::wkb::{self, Geom};
+use crate::Engine;
 use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
 use gdal::vector::sql::Dialect;
-use gdal::vector::{
-    Feature, FieldDefn, FieldValue, Geometry, LayerAccess, LayerOptions, OGRFieldType,
-    OGRwkbGeometryType as G,
-};
+use gdal::vector::{Feature, FieldDefn, FieldValue, Geometry, LayerAccess, LayerOptions, OGRFieldType, OGRwkbGeometryType as G};
 use gdal::{Dataset, DatasetOptions, DriverManager, GdalOpenFlags};
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -40,17 +37,10 @@ fn gerr(e: gdal::errors::GdalError) -> String {
 /// GDAL's error text without its wrapping: "CPL error class: '3', error number: '1', error msg:
 /// 'In ExecuteSQL(): sqlite3_prepare_v2(…): no such column: x'" → "no such column: x".
 pub fn tidy(msg: &str) -> String {
-    let m = msg
-        .split_once("error msg: '")
-        .map(|(_, m)| m.trim_end_matches('\''))
-        .unwrap_or(msg);
+    let m = msg.split_once("error msg: '").map(|(_, m)| m.trim_end_matches('\'')).unwrap_or(msg);
     let m = m.rsplit_once("):").map(|(_, t)| t).unwrap_or(m);
     let m = m.trim();
-    if m.is_empty() {
-        msg.to_string()
-    } else {
-        m.to_string()
-    }
+    if m.is_empty() { msg.to_string() } else { m.to_string() }
 }
 
 /// `"name"` for SQL (double quotes doubled).
@@ -64,10 +54,7 @@ pub fn literal(s: &str) -> String {
 }
 
 fn open_update(path: &Path) -> Result<Dataset, String> {
-    let opts = DatasetOptions {
-        open_flags: GdalOpenFlags::GDAL_OF_VECTOR | GdalOpenFlags::GDAL_OF_UPDATE,
-        ..Default::default()
-    };
+    let opts = DatasetOptions { open_flags: GdalOpenFlags::GDAL_OF_VECTOR | GdalOpenFlags::GDAL_OF_UPDATE, ..Default::default() };
     Dataset::open_ex(path, opts).map_err(|e| format!("{}: {e}", path.display()))
 }
 
@@ -76,9 +63,7 @@ fn fid_column<L: LayerAccess>(lyr: &L) -> String {
     if p.is_null() {
         return String::new();
     }
-    unsafe { std::ffi::CStr::from_ptr(p) }
-        .to_string_lossy()
-        .to_string()
+    unsafe { std::ffi::CStr::from_ptr(p) }.to_string_lossy().to_string()
 }
 
 fn ogr_type(kind: &str) -> Result<OGRFieldType::Type, String> {
@@ -88,11 +73,7 @@ fn ogr_type(kind: &str) -> Result<OGRFieldType::Type, String> {
         "string" | "text" => OGRFieldType::OFTString,
         "date" => OGRFieldType::OFTDate,
         "datetime" => OGRFieldType::OFTDateTime,
-        _ => {
-            return Err(format!(
-                "unknown field type '{kind}' (integer, real, text, date or datetime)"
-            ));
-        }
+        _ => return Err(format!("unknown field type '{kind}' (integer, real, text, date or datetime)")),
     })
 }
 
@@ -114,38 +95,20 @@ pub fn value_json(v: Option<FieldValue>) -> Value {
 fn set_value(f: &mut Feature, idx: usize, t: OGRFieldType::Type, v: &Value) -> Result<(), String> {
     let name = || f.field_count().to_string();
     let _ = name;
-    if v.is_null()
-        || v.as_str()
-            .is_some_and(|s| s.trim().is_empty() && t != OGRFieldType::OFTString)
-    {
+    if v.is_null() || v.as_str().is_some_and(|s| s.trim().is_empty() && t != OGRFieldType::OFTString) {
         return f.set_field_null(idx).map_err(gerr);
     }
-    let as_f = || {
-        v.as_f64().or_else(|| {
-            v.as_str()
-                .and_then(|s| s.trim().replace(',', ".").parse::<f64>().ok())
-        })
-    };
+    let as_f = || v.as_f64().or_else(|| v.as_str().and_then(|s| s.trim().replace(',', ".").parse::<f64>().ok()));
     match t {
         OGRFieldType::OFTInteger | OGRFieldType::OFTInteger64 => {
-            let x = as_f().ok_or_else(|| {
-                format!(
-                    "'{}' is not a whole number",
-                    v.as_str().map(String::from).unwrap_or(v.to_string())
-                )
-            })?;
+            let x = as_f().ok_or_else(|| format!("'{}' is not a whole number", v.as_str().map(String::from).unwrap_or(v.to_string())))?;
             if x.fract() != 0.0 {
                 return Err(format!("{x} is not a whole number"));
             }
             f.set_field_integer64(idx, x as i64).map_err(gerr)
         }
         OGRFieldType::OFTReal => {
-            let x = as_f().ok_or_else(|| {
-                format!(
-                    "'{}' is not a number",
-                    v.as_str().map(String::from).unwrap_or(v.to_string())
-                )
-            })?;
+            let x = as_f().ok_or_else(|| format!("'{}' is not a number", v.as_str().map(String::from).unwrap_or(v.to_string())))?;
             f.set_field_double(idx, x).map_err(gerr)
         }
         _ => {
@@ -165,8 +128,7 @@ fn wgs84() -> Result<SpatialRef, String> {
 /// GeoJSON geometry (WGS 84) → the layer's CRS and geometry type (single → multi when the layer
 /// holds multi-part geometries).
 fn geometry_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
-    let mut geom =
-        Geometry::from_geojson(&g.to_string()).map_err(|e| format!("bad geometry: {e}"))?;
+    let mut geom = Geometry::from_geojson(&g.to_string()).map_err(|e| format!("bad geometry: {e}"))?;
     if !geom.is_valid() && geom.geometry_type() != G::wkbPoint {
         // allowed (the user may still be shaping it) but say so in the server log
         eprintln!("edit: invalid geometry saved as drawn");
@@ -182,9 +144,7 @@ fn geometry_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
     let want = gdal::vector::geometry_type_flatten(lyr.defn().geometry_type());
     let have = gdal::vector::geometry_type_flatten(geom.geometry_type());
     let multi = match (want, have) {
-        (G::wkbMultiPoint, G::wkbPoint)
-        | (G::wkbMultiLineString, G::wkbLineString)
-        | (G::wkbMultiPolygon, G::wkbPolygon) => Some(want),
+        (G::wkbMultiPoint, G::wkbPoint) | (G::wkbMultiLineString, G::wkbLineString) | (G::wkbMultiPolygon, G::wkbPolygon) => Some(want),
         _ => None,
     };
     if let Some(m) = multi {
@@ -193,11 +153,7 @@ fn geometry_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
         geom = out;
     } else if want != G::wkbUnknown && want != have && !matches!(want, G::wkbGeometryCollection) {
         let kind = |t| gdal::vector::geometry_type_to_name(t);
-        return Err(format!(
-            "this layer holds {} geometries; a {} cannot be added",
-            kind(want),
-            kind(have)
-        ));
+        return Err(format!("this layer holds {} geometries; a {} cannot be added", kind(want), kind(have)));
     }
     Ok(geom)
 }
@@ -216,41 +172,24 @@ fn geometry_out(g: &Geometry, srs: Option<&SpatialRef>) -> Result<Value, String>
 
 /// Copy a layer (or the features matching `filter`) into a new GeoPackage layer: same CRS,
 /// geometry type and fields. Returns the number of features copied.
-fn copy_layer(
-    src: &Path,
-    src_layer: &str,
-    filter: Option<&str>,
-    dst: &Path,
-    dst_layer: &str,
-) -> Result<u64, String> {
+fn copy_layer(src: &Path, src_layer: &str, filter: Option<&str>, dst: &Path, dst_layer: &str) -> Result<u64, String> {
     let ds = catalog::open_vector(src)?;
     let mut sl = ds.layer_by_name(src_layer).map_err(gerr)?;
     if let Some(w) = filter {
-        sl.set_attribute_filter(w)
-            .map_err(|e| format!("{w}: {e}"))?;
+        sl.set_attribute_filter(w).map_err(|e| format!("{w}: {e}"))?;
     }
     let drv = DriverManager::get_driver_by_name("GPKG").map_err(gerr)?;
     let _ = std::fs::remove_file(dst);
     let mut out = drv.create_vector_only(dst).map_err(gerr)?;
     let srs = sl.spatial_ref();
     let ty = sl.defn().geometry_type();
-    let fields: Vec<(String, OGRFieldType::Type, i32, i32)> = sl
-        .defn()
-        .fields()
-        .map(|f| (f.name(), f.field_type(), f.width(), f.precision()))
-        .collect();
+    let fields: Vec<(String, OGRFieldType::Type, i32, i32)> =
+        sl.defn().fields().map(|f| (f.name(), f.field_type(), f.width(), f.precision())).collect();
     let mut n = 0u64;
     let mut txn = out.start_transaction().map_err(gerr)?;
     {
         let opts = ["FID=fid", "GEOMETRY_NAME=geom"];
-        let dl = txn
-            .create_layer(LayerOptions {
-                name: dst_layer,
-                srs: srs.as_ref(),
-                ty,
-                options: Some(&opts),
-            })
-            .map_err(gerr)?;
+        let dl = txn.create_layer(LayerOptions { name: dst_layer, srs: srs.as_ref(), ty, options: Some(&opts) }).map_err(gerr)?;
         let mut slot = Vec::with_capacity(fields.len());
         for (name, t, w, p) in &fields {
             let fd = FieldDefn::new(name, *t).map_err(gerr)?;
@@ -258,13 +197,8 @@ fn copy_layer(
                 fd.set_width(*w);
                 fd.set_precision(*p);
             }
-            fd.add_to_layer(&dl)
-                .map_err(|e| format!("field {name}: {e}"))?;
-            slot.push(
-                dl.defn()
-                    .fields()
-                    .position(|f| f.name().eq_ignore_ascii_case(name)),
-            );
+            fd.add_to_layer(&dl).map_err(|e| format!("field {name}: {e}"))?;
+            slot.push(dl.defn().fields().position(|f| f.name().eq_ignore_ascii_case(name)));
         }
         for feat in sl.features() {
             let mut nf = Feature::new(dl.defn()).map_err(gerr)?;
@@ -323,33 +257,10 @@ pub fn measure(g: &Geom) -> (f64, f64, Option<[f64; 2]>) {
     match g {
         Geom::Empty => (0.0, 0.0, None),
         Geom::Points(p) => (0.0, 0.0, p.first().copied()),
-        Geom::Lines(ls) => (
-            0.0,
-            ls.iter().map(|l| line_length_m(l)).sum(),
-            crate::automation::features::anchor(g),
-        ),
+        Geom::Lines(ls) => (0.0, ls.iter().map(|l| line_length_m(l)).sum(), crate::automation::features::anchor(g)),
         Geom::Polygons(ps) => {
-            let area = ps
-                .iter()
-                .map(|rings| {
-                    rings
-                        .iter()
-                        .enumerate()
-                        .map(|(i, r)| {
-                            if i == 0 {
-                                ring_area_m2(r)
-                            } else {
-                                -ring_area_m2(r)
-                            }
-                        })
-                        .sum::<f64>()
-                })
-                .sum();
-            let perim = ps
-                .iter()
-                .flat_map(|rings| rings.iter())
-                .map(|r| line_length_m(r))
-                .sum();
+            let area = ps.iter().map(|rings| rings.iter().enumerate().map(|(i, r)| if i == 0 { ring_area_m2(r) } else { -ring_area_m2(r) }).sum::<f64>()).sum();
+            let perim = ps.iter().flat_map(|rings| rings.iter()).map(|r| line_length_m(r)).sum();
             (area, perim, crate::automation::features::anchor(g))
         }
     }
@@ -393,10 +304,7 @@ impl Engine {
     }
 
     fn edit_index(&self) -> BTreeMap<String, Entry> {
-        std::fs::read(self.edits_dir().join("index.json"))
-            .ok()
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default()
+        std::fs::read(self.edits_dir().join("index.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
     }
 
     /// Ids of edited layers whose original is `file` (the Catalog counts those as on the map).
@@ -404,25 +312,14 @@ impl Engine {
         let f = std::fs::canonicalize(file).ok();
         self.edit_index()
             .into_iter()
-            .filter(|(id, e)| {
-                f.is_some()
-                    && e.source
-                        .as_ref()
-                        .and_then(|s| std::fs::canonicalize(s).ok())
-                        == f
-                    && self.layer(id).is_some()
-            })
+            .filter(|(id, e)| f.is_some() && e.source.as_ref().and_then(|s| std::fs::canonicalize(s).ok()) == f && self.layer(id).is_some())
             .map(|(id, _)| id)
             .collect()
     }
 
     fn save_edit_index(&self, idx: &BTreeMap<String, Entry>) -> Result<(), String> {
         std::fs::create_dir_all(self.edits_dir()).map_err(|e| e.to_string())?;
-        std::fs::write(
-            self.edits_dir().join("index.json"),
-            serde_json::to_vec_pretty(idx).unwrap_or_default(),
-        )
-        .map_err(|e| e.to_string())
+        std::fs::write(self.edits_dir().join("index.json"), serde_json::to_vec_pretty(idx).unwrap_or_default()).map_err(|e| e.to_string())
     }
 
     /// True when the layer reads an edit copy (or a layer made in GeoSpaX).
@@ -441,13 +338,7 @@ impl Engine {
         }
     }
 
-    fn reload_layer(
-        &self,
-        id: &str,
-        path: &Path,
-        layer: &str,
-        name: &str,
-    ) -> Result<Arc<LayerHandle>, String> {
+    fn reload_layer(&self, id: &str, path: &Path, layer: &str, name: &str) -> Result<Arc<LayerHandle>, String> {
         let prev = self.layer(id);
         let mut hs = catalog::load_layers(path)?;
         let i = hs.iter().position(|h| h.layer_name() == layer).unwrap_or(0);
@@ -465,19 +356,12 @@ impl Engine {
     }
 
     fn reload(&self, l: &LayerHandle) -> Result<Arc<LayerHandle>, String> {
-        self.reload_layer(
-            &l.info.id,
-            &l.path().to_path_buf(),
-            &l.layer_name().to_string(),
-            &l.info.name.clone(),
-        )
+        self.reload_layer(&l.info.id, &l.path().to_path_buf(), &l.layer_name().to_string(), &l.info.name.clone())
     }
 
     /// The layer, made editable: the first call copies it into `<state>/edits` (see module docs).
     pub fn edit_layer(&self, id: &str) -> Result<Arc<LayerHandle>, String> {
-        let l = self
-            .layer(id)
-            .ok_or_else(|| format!("unknown layer '{id}'"))?;
+        let l = self.layer(id).ok_or_else(|| format!("unknown layer '{id}'"))?;
         if self.is_edited(&l) {
             return Ok(l);
         }
@@ -487,21 +371,12 @@ impl Engine {
         let copy = dir.join(format!("{stem}.gpkg"));
         let n = copy_layer(l.path(), l.layer_name(), None, &copy, &stem)?;
         if n != l.info.feature_count && l.info.feature_count > 0 {
-            eprintln!(
-                "edit: {id}: copied {n} of {} features",
-                l.info.feature_count
-            );
+            eprintln!("edit: {id}: copied {n} of {} features", l.info.feature_count);
         }
         let mut idx = self.edit_index();
         idx.insert(
             id.to_string(),
-            Entry {
-                copy: copy.clone(),
-                layer: stem.clone(),
-                source: Some(l.path().to_path_buf()),
-                source_layer: Some(l.layer_name().to_string()),
-                name: l.info.name.clone(),
-            },
+            Entry { copy: copy.clone(), layer: stem.clone(), source: Some(l.path().to_path_buf()), source_layer: Some(l.layer_name().to_string()), name: l.info.name.clone() },
         );
         self.save_edit_index(&idx)?;
         self.reload_layer(id, &copy, &stem, &l.info.name)
@@ -529,9 +404,7 @@ impl Engine {
     pub fn feature_json(&self, l: &LayerHandle, fid: u64) -> Result<Value, String> {
         let ds = catalog::open_vector(l.path())?;
         let lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
-        let f = lyr
-            .feature(fid)
-            .ok_or_else(|| format!("{} has no feature {fid}", l.info.id))?;
+        let f = lyr.feature(fid).ok_or_else(|| format!("{} has no feature {fid}", l.info.id))?;
         let srs = lyr.spatial_ref();
         let geometry = match f.geometry() {
             Some(g) => geometry_out(g, srs.as_ref())?,
@@ -551,11 +424,7 @@ impl Engine {
         let fid = {
             let ds = open_update(l.path())?;
             let lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
-            let types: Vec<(String, OGRFieldType::Type)> = lyr
-                .defn()
-                .fields()
-                .map(|f| (f.name(), f.field_type()))
-                .collect();
+            let types: Vec<(String, OGRFieldType::Type)> = lyr.defn().fields().map(|f| (f.name(), f.field_type())).collect();
             let mut f = Feature::new(lyr.defn()).map_err(gerr)?;
             match body.get("geometry").filter(|g| !g.is_null()) {
                 Some(g) => f.set_geometry(geometry_in(&lyr, g)?).map_err(gerr)?,
@@ -575,34 +444,20 @@ impl Engine {
     }
 
     /// Change a feature's geometry and/or attributes (only the properties given).
-    pub fn feature_update(
-        &self,
-        id: &str,
-        fid: u64,
-        body: &Value,
-    ) -> Result<Arc<LayerHandle>, String> {
+    pub fn feature_update(&self, id: &str, fid: u64, body: &Value) -> Result<Arc<LayerHandle>, String> {
         let _g = EDIT.lock().unwrap();
         let l = self.edit_layer(id)?;
         {
             let ds = open_update(l.path())?;
             let lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
-            let types: Vec<(String, OGRFieldType::Type)> = lyr
-                .defn()
-                .fields()
-                .map(|f| (f.name(), f.field_type()))
-                .collect();
-            let mut f = lyr
-                .feature(fid)
-                .ok_or_else(|| format!("no feature {fid}"))?;
+            let types: Vec<(String, OGRFieldType::Type)> = lyr.defn().fields().map(|f| (f.name(), f.field_type())).collect();
+            let mut f = lyr.feature(fid).ok_or_else(|| format!("no feature {fid}"))?;
             if let Some(g) = body.get("geometry").filter(|g| !g.is_null()) {
                 f.set_geometry(geometry_in(&lyr, g)?).map_err(gerr)?;
             }
             if let Some(p) = body.get("properties").and_then(|p| p.as_object()) {
                 for (k, v) in p {
-                    let i = types
-                        .iter()
-                        .position(|(n, _)| n.eq_ignore_ascii_case(k))
-                        .ok_or_else(|| format!("there is no field '{k}'"))?;
+                    let i = types.iter().position(|(n, _)| n.eq_ignore_ascii_case(k)).ok_or_else(|| format!("there is no field '{k}'"))?;
                     set_value(&mut f, i, types[i].1, v).map_err(|e| format!("{k}: {e}"))?;
                 }
             }
@@ -612,11 +467,7 @@ impl Engine {
     }
 
     /// Delete features. Returns how many were deleted.
-    pub fn features_delete(
-        &self,
-        id: &str,
-        fids: &[u64],
-    ) -> Result<(usize, Arc<LayerHandle>), String> {
+    pub fn features_delete(&self, id: &str, fids: &[u64]) -> Result<(usize, Arc<LayerHandle>), String> {
         let _g = EDIT.lock().unwrap();
         let l = self.edit_layer(id)?;
         let mut n = 0;
@@ -646,20 +497,13 @@ impl Engine {
         let t = ogr_type(kind)?;
         let _g = EDIT.lock().unwrap();
         let l = self.edit_layer(id)?;
-        if l.info
-            .fields
-            .iter()
-            .any(|f| f.name.eq_ignore_ascii_case(name))
-        {
+        if l.info.fields.iter().any(|f| f.name.eq_ignore_ascii_case(name)) {
             return Err(format!("{} already has a field '{name}'", l.info.name));
         }
         {
             let ds = open_update(l.path())?;
             let lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
-            FieldDefn::new(name, t)
-                .map_err(gerr)?
-                .add_to_layer(&lyr)
-                .map_err(gerr)?;
+            FieldDefn::new(name, t).map_err(gerr)?.add_to_layer(&lyr).map_err(gerr)?;
         }
         self.reload(&l)
     }
@@ -670,11 +514,7 @@ impl Engine {
         {
             let ds = open_update(l.path())?;
             let lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
-            let i = lyr
-                .defn()
-                .fields()
-                .position(|f| f.name() == name)
-                .ok_or_else(|| format!("there is no field '{name}'"))?;
+            let i = lyr.defn().fields().position(|f| f.name() == name).ok_or_else(|| format!("there is no field '{name}'"))?;
             let err = unsafe { gdal_sys::OGR_L_DeleteField(lyr.c_layer(), i as i32) };
             if err != gdal_sys::OGRErr::OGRERR_NONE {
                 return Err(format!("could not delete field '{name}' (OGR error {err})"));
@@ -691,54 +531,28 @@ impl Engine {
         }
         if let Some(f) = fids {
             let list: Vec<String> = f.iter().map(|x| x.to_string()).collect();
-            parts.push(format!(
-                "{} IN ({})",
-                ident(fid_col),
-                if list.is_empty() {
-                    "NULL".into()
-                } else {
-                    list.join(",")
-                }
-            ));
+            parts.push(format!("{} IN ({})", ident(fid_col), if list.is_empty() { "NULL".into() } else { list.join(",") }));
         }
-        if parts.is_empty() {
-            String::new()
-        } else {
-            format!(" WHERE {}", parts.join(" AND "))
-        }
+        if parts.is_empty() { String::new() } else { format!(" WHERE {}", parts.join(" AND ")) }
     }
 
     /// Field calculator: `field = expression` (SQLite SQL: arithmetic, `||`, CASE WHEN, round(),
     /// substr(), upper(), coalesce() …) for every feature, the selected ones (`fids`) or those
     /// matching `where_`. Creates the field first when `kind` is given and it does not exist.
-    pub fn calculate(
-        &self,
-        id: &str,
-        field: &str,
-        expr: &str,
-        kind: Option<&str>,
-        where_: Option<&str>,
-        fids: Option<&[u64]>,
-    ) -> Result<(u64, Arc<LayerHandle>), String> {
+    pub fn calculate(&self, id: &str, field: &str, expr: &str, kind: Option<&str>, where_: Option<&str>, fids: Option<&[u64]>) -> Result<(u64, Arc<LayerHandle>), String> {
         if expr.trim().is_empty() {
             return Err("write an expression, e.g. \"elevation_m\" / 1000 or CASE WHEN \"cover\" > 50 THEN 'forest' ELSE 'open' END".into());
         }
         if expr.contains(';') {
             return Err("one expression only (no ';')".into());
         }
-        let l = self
-            .layer(id)
-            .ok_or_else(|| format!("unknown layer '{id}'"))?;
+        let l = self.layer(id).ok_or_else(|| format!("unknown layer '{id}'"))?;
         if !l.info.fields.iter().any(|f| f.name == field) {
             match kind {
                 Some(k) => {
                     self.field_add(id, field, k)?;
                 }
-                None => {
-                    return Err(format!(
-                        "there is no field '{field}' (choose a type to create it)"
-                    ));
-                }
+                None => return Err(format!("there is no field '{field}' (choose a type to create it)")),
             }
         }
         let _g = EDIT.lock().unwrap();
@@ -747,27 +561,14 @@ impl Engine {
             let ds = open_update(l.path())?;
             let lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
             let fid_col = fid_column(&lyr);
-            let fid_col = if fid_col.is_empty() {
-                "fid".to_string()
-            } else {
-                fid_col
-            };
+            let fid_col = if fid_col.is_empty() { "fid".to_string() } else { fid_col };
             let scope = Self::scope_sql(&fid_col, where_, fids);
             let table = ident(l.layer_name());
             let n = count(&ds, &format!("SELECT COUNT(*) FROM {table}{scope}"))?;
             // try the expression on one row first: a bad expression is an error, not a half-done table
-            ds.execute_sql(
-                format!("SELECT ({expr}) FROM {table} LIMIT 1"),
-                None,
-                Dialect::DEFAULT,
-            )
-            .map_err(|e| format!("the expression did not work: {}", tidy(&e.to_string())))?;
-            ds.execute_sql(
-                format!("UPDATE {table} SET {} = ({expr}){scope}", ident(field)),
-                None,
-                Dialect::DEFAULT,
-            )
-            .map_err(|e| format!("the calculation failed: {}", tidy(&e.to_string())))?;
+            ds.execute_sql(format!("SELECT ({expr}) FROM {table} LIMIT 1"), None, Dialect::DEFAULT).map_err(|e| format!("the expression did not work: {}", tidy(&e.to_string())))?;
+            ds.execute_sql(format!("UPDATE {table} SET {} = ({expr}){scope}", ident(field)), None, Dialect::DEFAULT)
+                .map_err(|e| format!("the calculation failed: {}", tidy(&e.to_string())))?;
             n
         };
         Ok((n, self.reload(&l)?))
@@ -775,13 +576,7 @@ impl Engine {
 
     /// Calculate geometry attributes: `what` = area_m2, area_ha, area_km2, length_m, length_km,
     /// perimeter_m, x, y (geodesic, on the sphere; x and y in WGS 84 degrees).
-    pub fn calculate_geometry(
-        &self,
-        id: &str,
-        field: &str,
-        what: &str,
-        fids: Option<&[u64]>,
-    ) -> Result<(u64, Arc<LayerHandle>), String> {
+    pub fn calculate_geometry(&self, id: &str, field: &str, what: &str, fids: Option<&[u64]>) -> Result<(u64, Arc<LayerHandle>), String> {
         let f: fn(f64, f64, Option<[f64; 2]>) -> Option<f64> = match what {
             "area_m2" => |a, _, _| Some(a),
             "area_ha" => |a, _, _| Some(a / 1e4),
@@ -790,15 +585,9 @@ impl Engine {
             "length_km" | "perimeter_km" => |_, l, _| Some(l / 1e3),
             "x" => |_, _, p| p.map(|p| p[0]),
             "y" => |_, _, p| p.map(|p| p[1]),
-            _ => {
-                return Err(format!(
-                    "unknown measure '{what}' (area_m2, area_ha, area_km2, length_m, length_km, perimeter_m, x, y)"
-                ));
-            }
+            _ => return Err(format!("unknown measure '{what}' (area_m2, area_ha, area_km2, length_m, length_km, perimeter_m, x, y)")),
         };
-        let l = self
-            .layer(id)
-            .ok_or_else(|| format!("unknown layer '{id}'"))?;
+        let l = self.layer(id).ok_or_else(|| format!("unknown layer '{id}'"))?;
         if !l.info.fields.iter().any(|x| x.name == field) {
             self.field_add(id, field, "real")?;
         }
@@ -810,11 +599,7 @@ impl Engine {
             let txn = ds.start_transaction().map_err(gerr)?;
             {
                 let mut lyr = txn.layer_by_name(l.layer_name()).map_err(gerr)?;
-                let fi = lyr
-                    .defn()
-                    .fields()
-                    .position(|x| x.name() == field)
-                    .ok_or("field vanished")?;
+                let fi = lyr.defn().fields().position(|x| x.name() == field).ok_or("field vanished")?;
                 let to = match lyr.spatial_ref().filter(|s| !catalog::is_wgs84(s)) {
                     Some(s) => Some(catalog::transforms(&s)?.0),
                     None => None,
@@ -834,9 +619,7 @@ impl Engine {
                         }
                     }
                     let Ok(bytes) = g.wkb() else { continue };
-                    let Ok(geom) = wkb::parse(&bytes) else {
-                        continue;
-                    };
+                    let Ok(geom) = wkb::parse(&bytes) else { continue };
                     let (a, len, p) = measure(&geom);
                     updates.push((fid, f(a, len, p)));
                 }
@@ -859,39 +642,17 @@ impl Engine {
 
     /// The definition query combined with `extra` (both SQL WHERE clauses).
     fn with_filter(l: &LayerHandle, extra: Option<&str>) -> Option<String> {
-        let parts: Vec<String> = [
-            l.filter(),
-            extra
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(String::from),
-        ]
-        .into_iter()
-        .flatten()
-        .map(|w| format!("({w})"))
-        .collect();
+        let parts: Vec<String> = [l.filter(), extra.map(str::trim).filter(|s| !s.is_empty()).map(String::from)].into_iter().flatten().map(|w| format!("({w})")).collect();
         (!parts.is_empty()).then(|| parts.join(" AND "))
     }
 
     /// Select by attributes and/or location. `within` limits the result to an existing selection
     /// (the "select from current selection" method; add/remove are done by the caller).
-    pub fn select(
-        &self,
-        l: &LayerHandle,
-        where_: Option<&str>,
-        location: Option<&Location>,
-        within: Option<&[u64]>,
-    ) -> Result<Vec<u64>, String> {
+    pub fn select(&self, l: &LayerHandle, where_: Option<&str>, location: Option<&Location>, within: Option<&[u64]>) -> Result<Vec<u64>, String> {
         let ds = catalog::open_vector(l.path())?;
         let mut lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
         if let Some(w) = Self::with_filter(l, where_) {
-            lyr.set_attribute_filter(&w).map_err(|e| {
-                format!(
-                    "'{}' is not a valid query: {}",
-                    where_.unwrap_or(""),
-                    tidy(&e.to_string())
-                )
-            })?;
+            lyr.set_attribute_filter(&w).map_err(|e| format!("'{}' is not a valid query: {}", where_.unwrap_or(""), tidy(&e.to_string())))?;
         }
         let only: Option<HashSet<u64>> = within.map(|w| w.iter().copied().collect());
         let mut out = Vec::new();
@@ -931,14 +692,8 @@ impl Engine {
     }
 
     /// The selecting layer's geometries in `srs` (buffered by the distance), their bbox and the relation.
-    fn selectors(
-        &self,
-        loc: &Location,
-        srs: Option<&SpatialRef>,
-    ) -> Result<(Vec<Geometry>, [f64; 4], String), String> {
-        let other = self
-            .layer(&loc.layer)
-            .ok_or_else(|| format!("unknown layer '{}'", loc.layer))?;
+    fn selectors(&self, loc: &Location, srs: Option<&SpatialRef>) -> Result<(Vec<Geometry>, [f64; 4], String), String> {
+        let other = self.layer(&loc.layer).ok_or_else(|| format!("unknown layer '{}'", loc.layer))?;
         let ds = catalog::open_vector(other.path())?;
         let mut ol = ds.layer_by_name(other.layer_name()).map_err(gerr)?;
         if let Some(w) = other.filter() {
@@ -947,27 +702,18 @@ impl Engine {
         let want: Option<HashSet<u64>> = loc.fids.as_ref().map(|f| f.iter().copied().collect());
         let mut geoms = Vec::new();
         for f in ol.features() {
-            if want
-                .as_ref()
-                .is_some_and(|w| f.fid().is_none_or(|x| !w.contains(&x)))
-            {
+            if want.as_ref().is_some_and(|w| f.fid().is_none_or(|x| !w.contains(&x))) {
                 continue;
             }
             if let Some(g) = f.geometry() {
                 geoms.push(g.clone());
             }
             if geoms.len() > 200_000 {
-                return Err(format!(
-                    "{} has too many features to select with; select some of them first",
-                    other.info.name
-                ));
+                return Err(format!("{} has too many features to select with; select some of them first", other.info.name));
             }
         }
         if geoms.is_empty() {
-            return Err(format!(
-                "{} has no features to select with",
-                other.info.name
-            ));
+            return Err(format!("{} has no features to select with", other.info.name));
         }
         let mut target = srs.cloned().unwrap_or(wgs84()?);
         target.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
@@ -976,11 +722,7 @@ impl Engine {
         let relation = match loc.relation.as_str() {
             "intersects" | "within" | "contains" => loc.relation.clone(),
             "within_distance" | "distance" => "intersects".to_string(),
-            r => {
-                return Err(format!(
-                    "unknown relation '{r}' (intersects, within, contains, within_distance)"
-                ));
-            }
+            r => return Err(format!("unknown relation '{r}' (intersects, within, contains, within_distance)")),
         };
         let buffer = loc.relation.contains("distance") && loc.distance_m > 0.0;
         if buffer {
@@ -992,20 +734,10 @@ impl Engine {
                 let mut g = g.clone();
                 g.transform_inplace(&to84).map_err(gerr)?;
                 let e = g.envelope();
-                b = [
-                    b[0].min(e.MinX),
-                    b[1].min(e.MinY),
-                    b[2].max(e.MaxX),
-                    b[3].max(e.MaxY),
-                ];
+                b = [b[0].min(e.MinX), b[1].min(e.MinY), b[2].max(e.MaxX), b[3].max(e.MaxY)];
                 g84.push(g);
             }
-            let mut aeqd = SpatialRef::from_proj4(&format!(
-                "+proj=aeqd +lat_0={} +lon_0={} +datum=WGS84 +units=m +no_defs",
-                (b[1] + b[3]) / 2.0,
-                (b[0] + b[2]) / 2.0
-            ))
-            .map_err(gerr)?;
+            let mut aeqd = SpatialRef::from_proj4(&format!("+proj=aeqd +lat_0={} +lon_0={} +datum=WGS84 +units=m +no_defs", (b[1] + b[3]) / 2.0, (b[0] + b[2]) / 2.0)).map_err(gerr)?;
             aeqd.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
             let fwd = CoordTransform::new(&wgs84()?, &aeqd).map_err(gerr)?;
             let back = CoordTransform::new(&aeqd, &target).map_err(gerr)?;
@@ -1018,12 +750,7 @@ impl Engine {
                     Ok(buf)
                 })
                 .collect::<Result<_, String>>()?;
-        } else if !src
-            .to_wkt()
-            .ok()
-            .zip(target.to_wkt().ok())
-            .is_some_and(|(a, b)| a == b)
-        {
+        } else if !src.to_wkt().ok().zip(target.to_wkt().ok()).is_some_and(|(a, b)| a == b) {
             let ct = CoordTransform::new(&src, &target).map_err(gerr)?;
             for g in &mut geoms {
                 g.transform_inplace(&ct).map_err(gerr)?;
@@ -1032,12 +759,7 @@ impl Engine {
         let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
         for g in &geoms {
             let e = g.envelope();
-            b = [
-                b[0].min(e.MinX),
-                b[1].min(e.MinY),
-                b[2].max(e.MaxX),
-                b[3].max(e.MaxY),
-            ];
+            b = [b[0].min(e.MinX), b[1].min(e.MinY), b[2].max(e.MaxX), b[3].max(e.MaxY)];
         }
         Ok((geoms, b, relation))
     }
@@ -1054,27 +776,10 @@ impl Engine {
         }
         let ds = catalog::open_vector(l.path())?;
         let lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
-        let dialect = if native {
-            Dialect::DEFAULT
-        } else {
-            Dialect::SQLITE
-        };
-        let fid_col = if native {
-            fid_column(&lyr)
-        } else {
-            String::new()
-        };
-        let fid_expr = if fid_col.is_empty() {
-            "rowid".to_string()
-        } else {
-            ident(&fid_col)
-        };
-        let fields: Vec<(String, &'static str)> = l
-            .info
-            .fields
-            .iter()
-            .map(|f| (f.name.clone(), f.kind))
-            .collect();
+        let dialect = if native { Dialect::DEFAULT } else { Dialect::SQLITE };
+        let fid_col = if native { fid_column(&lyr) } else { String::new() };
+        let fid_expr = if fid_col.is_empty() { "rowid".to_string() } else { ident(&fid_col) };
+        let fields: Vec<(String, &'static str)> = l.info.fields.iter().map(|f| (f.name.clone(), f.kind)).collect();
         let srs = lyr.spatial_ref();
         drop(lyr);
         let mut parts = Vec::new();
@@ -1083,20 +788,9 @@ impl Engine {
         }
         if let Some(f) = &q.fids {
             let list: Vec<String> = f.iter().map(|x| x.to_string()).collect();
-            parts.push(format!(
-                "{fid_expr} IN ({})",
-                if list.is_empty() {
-                    "NULL".into()
-                } else {
-                    list.join(",")
-                }
-            ));
+            parts.push(format!("{fid_expr} IN ({})", if list.is_empty() { "NULL".into() } else { list.join(",") }));
         }
-        let scope = if parts.is_empty() {
-            String::new()
-        } else {
-            format!(" WHERE {}", parts.join(" AND "))
-        };
+        let scope = if parts.is_empty() { String::new() } else { format!(" WHERE {}", parts.join(" AND ")) };
         let table = ident(l.layer_name());
         let total = {
             let sql = format!("SELECT COUNT(*) FROM {table}{scope}");
@@ -1107,15 +801,8 @@ impl Engine {
             .map_err(|e| format!("query: {}", tidy(&e.to_string())))?
         };
         let order = match &q.sort {
-            Some(s) if fields.iter().any(|(n, _)| n == s) => format!(
-                " ORDER BY {} {} NULLS LAST, {fid_expr}",
-                ident(s),
-                if q.desc { "DESC" } else { "ASC" }
-            ),
-            Some(s) if s == "fid" || s == "$fid" => format!(
-                " ORDER BY {fid_expr} {}",
-                if q.desc { "DESC" } else { "ASC" }
-            ),
+            Some(s) if fields.iter().any(|(n, _)| n == s) => format!(" ORDER BY {} {} NULLS LAST, {fid_expr}", ident(s), if q.desc { "DESC" } else { "ASC" }),
+            Some(s) if s == "fid" || s == "$fid" => format!(" ORDER BY {fid_expr} {}", if q.desc { "DESC" } else { "ASC" }),
             _ => format!(" ORDER BY {fid_expr}"),
         };
         // SELECT *: geometry and every field come back under their own names on every format; on
@@ -1132,16 +819,11 @@ impl Engine {
         };
         let mut rows = Vec::new();
         {
-            let rs = ds
-                .execute_sql(&sql, None, dialect)
-                .map_err(|e| format!("query: {}", tidy(&e.to_string())))?;
+            let rs = ds.execute_sql(&sql, None, dialect).map_err(|e| format!("query: {}", tidy(&e.to_string())))?;
             if let Some(mut rs) = rs {
                 // result columns by name (never by position: GDAL may drop or reorder some)
                 let names: Vec<String> = rs.defn().fields().map(|f| f.name()).collect();
-                let slot: Vec<Option<usize>> = fields
-                    .iter()
-                    .map(|(n, _)| names.iter().position(|x| x == n))
-                    .collect();
+                let slot: Vec<Option<usize>> = fields.iter().map(|(n, _)| names.iter().position(|x| x == n)).collect();
                 let fid_slot = names.iter().position(|x| x == "gsx_fid");
                 for f in rs.features() {
                     let fid = fid_slot
@@ -1150,13 +832,7 @@ impl Engine {
                         .map(|x| x as u64)
                         .or(f.fid())
                         .unwrap_or(0);
-                    let values: Vec<Value> = slot
-                        .iter()
-                        .map(|i| {
-                            i.map(|i| value_json(f.field(i).ok().flatten()))
-                                .unwrap_or(Value::Null)
-                        })
-                        .collect();
+                    let values: Vec<Value> = slot.iter().map(|i| i.map(|i| value_json(f.field(i).ok().flatten())).unwrap_or(Value::Null)).collect();
                     let bbox = f.geometry().filter(|g| !g.is_empty()).map(|g| {
                         let e = g.envelope();
                         let mut xs = [e.MinX, e.MaxX];
@@ -1186,37 +862,16 @@ impl Engine {
     fn table_ogr(&self, l: &LayerHandle, q: &TableQuery) -> Result<Value, String> {
         let ds = catalog::open_vector(l.path())?;
         let mut lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
-        let fields: Vec<(String, &'static str)> = l
-            .info
-            .fields
-            .iter()
-            .map(|f| (f.name.clone(), f.kind))
-            .collect();
+        let fields: Vec<(String, &'static str)> = l.info.fields.iter().map(|f| (f.name.clone(), f.kind)).collect();
         let defn_names: Vec<String> = lyr.defn().fields().map(|f| f.name()).collect();
-        let slot: Vec<Option<usize>> = fields
-            .iter()
-            .map(|(n, _)| defn_names.iter().position(|x| x == n))
-            .collect();
+        let slot: Vec<Option<usize>> = fields.iter().map(|(n, _)| defn_names.iter().position(|x| x == n)).collect();
         // OGR SQL spells the search box's text cast differently from SQLite
-        let w = q
-            .where_
-            .as_deref()
-            .map(|w| w.replace(" AS TEXT)", " AS CHARACTER(254))"));
+        let w = q.where_.as_deref().map(|w| w.replace(" AS TEXT)", " AS CHARACTER(254))"));
         if let Some(w) = Self::with_filter(l, w.as_deref()) {
-            lyr.set_attribute_filter(&w).map_err(|e| {
-                format!(
-                    "query: '{}' is not valid here ({})",
-                    q.where_.as_deref().unwrap_or(""),
-                    tidy(&e.to_string())
-                )
-            })?;
+            lyr.set_attribute_filter(&w).map_err(|e| format!("query: '{}' is not valid here ({})", q.where_.as_deref().unwrap_or(""), tidy(&e.to_string())))?;
         }
         let want: Option<HashSet<u64>> = q.fids.as_ref().map(|f| f.iter().copied().collect());
-        let sort_slot = q
-            .sort
-            .as_ref()
-            .and_then(|s| fields.iter().position(|(n, _)| n == s))
-            .and_then(|i| slot[i]);
+        let sort_slot = q.sort.as_ref().and_then(|s| fields.iter().position(|(n, _)| n == s)).and_then(|i| slot[i]);
         let by_fid = q.sort.as_deref().is_some_and(|s| s == "fid" || s == "$fid");
         // (key, fid) for every matching feature
         let mut keys: Vec<(Value, u64)> = Vec::new();
@@ -1228,16 +883,10 @@ impl Engine {
                 if want.as_ref().is_some_and(|w| !w.contains(&fid)) {
                     continue;
                 }
-                let key = sort_slot
-                    .map(|i| value_json(f.field(i).ok().flatten()))
-                    .unwrap_or(Value::Null);
+                let key = sort_slot.map(|i| value_json(f.field(i).ok().flatten())).unwrap_or(Value::Null);
                 keys.push((key, fid));
             }
-            crate::reader::set_ignored_fields(
-                &lyr,
-                &(0..defn_names.len()).collect::<Vec<_>>(),
-                false,
-            )?;
+            crate::reader::set_ignored_fields(&lyr, &(0..defn_names.len()).collect::<Vec<_>>(), false)?;
         }
         let total = keys.len();
         if sort_slot.is_some() || by_fid {
@@ -1247,26 +896,13 @@ impl Engine {
                     (Value::Null, Value::Null) => Equal,
                     (Value::Null, _) => Greater, // nulls last, both directions
                     (_, Value::Null) => Less,
-                    (Value::Number(x), Value::Number(y)) => {
-                        x.as_f64().partial_cmp(&y.as_f64()).unwrap_or(Equal)
-                    }
-                    _ => a
-                        .as_str()
-                        .unwrap_or_default()
-                        .cmp(b.as_str().unwrap_or_default()),
+                    (Value::Number(x), Value::Number(y)) => x.as_f64().partial_cmp(&y.as_f64()).unwrap_or(Equal),
+                    _ => a.as_str().unwrap_or_default().cmp(b.as_str().unwrap_or_default()),
                 }
             };
             keys.sort_by(|a, b| {
-                let o = if by_fid {
-                    a.1.cmp(&b.1)
-                } else {
-                    cmp(&a.0, &b.0)
-                };
-                let o = if q.desc && !(a.0.is_null() || b.0.is_null()) || (q.desc && by_fid) {
-                    o.reverse()
-                } else {
-                    o
-                };
+                let o = if by_fid { a.1.cmp(&b.1) } else { cmp(&a.0, &b.0) };
+                let o = if q.desc && !(a.0.is_null() || b.0.is_null()) || (q.desc && by_fid) { o.reverse() } else { o };
                 o.then(a.1.cmp(&b.1))
             });
         } else {
@@ -1280,13 +916,7 @@ impl Engine {
         let mut rows = Vec::new();
         for (_, fid) in keys.iter().skip(q.offset).take(q.limit.clamp(1, 5000)) {
             let Some(f) = lyr.feature(*fid) else { continue };
-            let values: Vec<Value> = slot
-                .iter()
-                .map(|i| {
-                    i.map(|i| value_json(f.field(i).ok().flatten()))
-                        .unwrap_or(Value::Null)
-                })
-                .collect();
+            let values: Vec<Value> = slot.iter().map(|i| i.map(|i| value_json(f.field(i).ok().flatten())).unwrap_or(Value::Null)).collect();
             let bbox = f.geometry().filter(|g| !g.is_empty()).map(|g| {
                 let e = g.envelope();
                 let (mut xs, mut ys) = ([e.MinX, e.MaxX], [e.MinY, e.MaxY]);
@@ -1310,22 +940,14 @@ impl Engine {
 
     /// Write features (a selection, a query or the whole layer) to a new GeoPackage layer on the
     /// map, kept with the edits. Returns the new layer's id.
-    pub fn export_features(
-        &self,
-        l: &LayerHandle,
-        name: &str,
-        where_: Option<&str>,
-        fids: Option<&[u64]>,
-    ) -> Result<String, String> {
+    pub fn export_features(&self, l: &LayerHandle, name: &str, where_: Option<&str>, fids: Option<&[u64]>) -> Result<String, String> {
         let stem = catalog::sanitize(name.trim()).replace('.', "_");
         if stem.trim_matches('_').is_empty() {
             return Err("give the new layer a name".into());
         }
         let id = format!("{stem}.gpkg");
         if self.layer(&id).is_some() {
-            return Err(format!(
-                "a layer '{id}' already exists; choose another name"
-            ));
+            return Err(format!("a layer '{id}' already exists; choose another name"));
         }
         let dir = self.edits_dir();
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -1334,22 +956,11 @@ impl Engine {
             let ds = catalog::open_vector(l.path())?;
             let lyr = ds.layer_by_name(l.layer_name()).map_err(gerr)?;
             let fc = fid_column(&lyr);
-            let fid_expr = if fc.is_empty() {
-                "FID".to_string()
-            } else {
-                ident(&fc)
-            };
+            let fid_expr = if fc.is_empty() { "FID".to_string() } else { ident(&fc) };
             let mut parts: Vec<String> = Self::with_filter(l, where_).into_iter().collect();
             if let Some(f) = fids {
                 let list: Vec<String> = f.iter().map(|x| x.to_string()).collect();
-                parts.push(format!(
-                    "{fid_expr} IN ({})",
-                    if list.is_empty() {
-                        "-1".into()
-                    } else {
-                        list.join(",")
-                    }
-                ));
+                parts.push(format!("{fid_expr} IN ({})", if list.is_empty() { "-1".into() } else { list.join(",") }));
             }
             (!parts.is_empty()).then(|| parts.join(" AND "))
         };
@@ -1359,37 +970,21 @@ impl Engine {
             return Err("no features to export".into());
         }
         let mut idx = self.edit_index();
-        idx.insert(
-            id.clone(),
-            Entry {
-                copy: copy.clone(),
-                layer: stem.clone(),
-                source: None,
-                source_layer: None,
-                name: name.trim().to_string(),
-            },
-        );
+        idx.insert(id.clone(), Entry { copy: copy.clone(), layer: stem.clone(), source: None, source_layer: None, name: name.trim().to_string() });
         self.save_edit_index(&idx)?;
         self.reload_layer(&id, &copy, &stem, name.trim())?;
         Ok(id)
     }
 
     /// A new, empty layer to digitise into (WGS 84 GeoPackage, kept with the edits).
-    pub fn create_layer(
-        &self,
-        name: &str,
-        geometry: &str,
-        fields: &[(String, String)],
-    ) -> Result<String, String> {
+    pub fn create_layer(&self, name: &str, geometry: &str, fields: &[(String, String)]) -> Result<String, String> {
         let stem = catalog::sanitize(name.trim()).replace('.', "_");
         if stem.trim_matches('_').is_empty() {
             return Err("give the new layer a name".into());
         }
         let id = format!("{stem}.gpkg");
         if self.layer(&id).is_some() {
-            return Err(format!(
-                "a layer '{id}' already exists; choose another name"
-            ));
+            return Err(format!("a layer '{id}' already exists; choose another name"));
         }
         let ty = match geometry {
             "point" | "points" => G::wkbPoint,
@@ -1406,32 +1001,13 @@ impl Engine {
             let mut ds = drv.create_vector_only(&path).map_err(gerr)?;
             let srs = wgs84()?;
             let opts = ["FID=fid", "GEOMETRY_NAME=geom"];
-            let lyr = ds
-                .create_layer(LayerOptions {
-                    name: &stem,
-                    srs: Some(&srs),
-                    ty,
-                    options: Some(&opts),
-                })
-                .map_err(gerr)?;
+            let lyr = ds.create_layer(LayerOptions { name: &stem, srs: Some(&srs), ty, options: Some(&opts) }).map_err(gerr)?;
             for (n, k) in fields {
-                FieldDefn::new(n.trim(), ogr_type(k)?)
-                    .map_err(gerr)?
-                    .add_to_layer(&lyr)
-                    .map_err(gerr)?;
+                FieldDefn::new(n.trim(), ogr_type(k)?).map_err(gerr)?.add_to_layer(&lyr).map_err(gerr)?;
             }
         }
         let mut idx = self.edit_index();
-        idx.insert(
-            id.clone(),
-            Entry {
-                copy: path.clone(),
-                layer: stem.clone(),
-                source: None,
-                source_layer: None,
-                name: name.trim().to_string(),
-            },
-        );
+        idx.insert(id.clone(), Entry { copy: path.clone(), layer: stem.clone(), source: None, source_layer: None, name: name.trim().to_string() });
         self.save_edit_index(&idx)?;
         self.reload_layer(&id, &path, &stem, name.trim())?;
         Ok(id)
@@ -1445,12 +1021,7 @@ fn count(ds: &Dataset, sql: &str) -> Result<u64, String> {
 fn count_dialect(ds: &Dataset, sql: &str, d: Dialect) -> Result<u64, String> {
     let rs = ds.execute_sql(sql, None, d).map_err(gerr)?;
     let mut rs = rs.ok_or("no result")?;
-    let n = rs
-        .features()
-        .next()
-        .and_then(|f| f.field(0).ok().flatten())
-        .and_then(|v| v.into_int64())
-        .unwrap_or(0);
+    let n = rs.features().next().and_then(|f| f.field(0).ok().flatten()).and_then(|v| v.into_int64()).unwrap_or(0);
     Ok(n.max(0) as u64)
 }
 
@@ -1461,13 +1032,7 @@ mod tests {
     #[test]
     fn geodesic_measures() {
         // a 1° × 1° cell at the equator: 12,363.7 km² on the sphere (R = 6,371,008.8 m)
-        let sq = Geom::Polygons(vec![vec![vec![
-            [0.0, 0.0],
-            [1.0, 0.0],
-            [1.0, 1.0],
-            [0.0, 1.0],
-            [0.0, 0.0],
-        ]]]);
+        let sq = Geom::Polygons(vec![vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]]]);
         let (a, p, _) = measure(&sq);
         let exact = EARTH_R * EARTH_R * 1f64.to_radians() * (1f64.to_radians().sin());
         assert!((a - exact).abs() / exact < 1e-9, "{a} vs {exact}");
@@ -1480,21 +1045,10 @@ mod tests {
     #[test]
     fn sql_quoting() {
         assert_eq!(ident("a\"b"), "\"a\"\"b\"");
-        assert_eq!(
-            tidy(
-                "CPL error class: '3', error number: '1', error msg: 'In ExecuteSQL(): sqlite3_prepare_v2(SELECT x):\n  no such column: x'"
-            ),
-            "no such column: x"
-        );
+        assert_eq!(tidy("CPL error class: '3', error number: '1', error msg: 'In ExecuteSQL(): sqlite3_prepare_v2(SELECT x):\n  no such column: x'"), "no such column: x");
         assert_eq!(literal("O'Neil"), "'O''Neil'");
-        assert_eq!(
-            Engine::scope_sql("fid", Some("x > 1"), Some(&[3, 4])),
-            " WHERE (x > 1) AND \"fid\" IN (3,4)"
-        );
-        assert_eq!(
-            Engine::scope_sql("fid", None, Some(&[])),
-            " WHERE \"fid\" IN (NULL)"
-        );
+        assert_eq!(Engine::scope_sql("fid", Some("x > 1"), Some(&[3, 4])), " WHERE (x > 1) AND \"fid\" IN (3,4)");
+        assert_eq!(Engine::scope_sql("fid", None, Some(&[])), " WHERE \"fid\" IN (NULL)");
     }
 }
 
@@ -1535,15 +1089,12 @@ fn parts(g: &Geometry) -> Vec<Geometry> {
     if n == 0 || matches!(t, G::wkbPolygon | G::wkbLineString | G::wkbPoint) {
         return vec![g.clone()];
     }
-    (0..n)
-        .flat_map(|i| parts(&g.get_geometry(i).clone()))
-        .collect()
+    (0..n).flat_map(|i| parts(&g.get_geometry(i).clone())).collect()
 }
 
 /// A sketch (GeoJSON in WGS 84) in the layer's CRS, its type kept.
 fn sketch_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
-    let mut geom =
-        Geometry::from_geojson(&g.to_string()).map_err(|e| format!("bad sketch: {e}"))?;
+    let mut geom = Geometry::from_geojson(&g.to_string()).map_err(|e| format!("bad sketch: {e}"))?;
     if let Some(srs) = lyr.spatial_ref() {
         if !catalog::is_wgs84(&srs) {
             let mut dst = srs.clone();
@@ -1558,10 +1109,7 @@ fn sketch_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
 /// Fit a result to the layer's geometry type: parts are wrapped in a multi type when the layer
 /// holds those; a single-type layer gets one part per feature.
 fn fit_type(want: gdal_sys::OGRwkbGeometryType::Type, g: Geometry) -> Vec<Geometry> {
-    let multi = matches!(
-        want,
-        G::wkbMultiPolygon | G::wkbMultiLineString | G::wkbMultiPoint
-    );
+    let multi = matches!(want, G::wkbMultiPolygon | G::wkbMultiLineString | G::wkbMultiPoint);
     let ps = parts(&g);
     if multi {
         let mut m = Geometry::empty(want).unwrap();
@@ -1578,9 +1126,7 @@ fn fit_type(want: gdal_sys::OGRwkbGeometryType::Type, g: Geometry) -> Vec<Geomet
 fn extend_ends(line: &Geometry, frac: f64) -> Geometry {
     let mut pts = Vec::new();
     line.get_points(&mut pts);
-    if pts.len() < 2
-        || gdal::vector::geometry_type_flatten(line.geometry_type()) != G::wkbLineString
-    {
+    if pts.len() < 2 || gdal::vector::geometry_type_flatten(line.geometry_type()) != G::wkbLineString {
         return line.clone();
     }
     let e = line.envelope();
@@ -1588,11 +1134,7 @@ fn extend_ends(line: &Geometry, frac: f64) -> Geometry {
     let push = |a: (f64, f64, f64), b: (f64, f64, f64)| -> (f64, f64) {
         let (dx, dy) = (a.0 - b.0, a.1 - b.1);
         let n = (dx * dx + dy * dy).sqrt();
-        if n == 0.0 {
-            (a.0, a.1)
-        } else {
-            (a.0 + dx / n * d, a.1 + dy / n * d)
-        }
+        if n == 0.0 { (a.0, a.1) } else { (a.0 + dx / n * d, a.1 + dy / n * d) }
     };
     let n = pts.len();
     let start = push(pts[0], pts[1]);
@@ -1609,28 +1151,15 @@ fn extend_ends(line: &Geometry, frac: f64) -> Geometry {
 /// Split a polygon by a line: the faces of its boundary noded with the line, inside it.
 fn split_polygon(g: &Geometry, line: &Geometry) -> Vec<Geometry> {
     let Some(b) = boundary(g) else { return vec![] };
-    let Some(noded) = b.union(line) else {
-        return vec![];
-    };
-    let Some(faces) = polygonize(&noded) else {
-        return vec![];
-    };
-    parts(&faces)
-        .into_iter()
-        .filter(|f| point_on_surface(f).is_some_and(|p| g.contains(&p)))
-        .collect()
+    let Some(noded) = b.union(line) else { return vec![] };
+    let Some(faces) = polygonize(&noded) else { return vec![] };
+    parts(&faces).into_iter().filter(|f| point_on_surface(f).is_some_and(|p| g.contains(&p))).collect()
 }
 
 /// Split a line where a sketch crosses it.
 fn split_line(g: &Geometry, line: &Geometry) -> Vec<Geometry> {
-    let Some(noded) = g.union(line) else {
-        return vec![];
-    };
-    let tol = (g.envelope().MaxX - g.envelope().MinX)
-        .abs()
-        .max((g.envelope().MaxY - g.envelope().MinY).abs())
-        * 1e-9
-        + 1e-12;
+    let Some(noded) = g.union(line) else { return vec![] };
+    let tol = (g.envelope().MaxX - g.envelope().MinX).abs().max((g.envelope().MaxY - g.envelope().MinY).abs()) * 1e-9 + 1e-12;
     parts(&noded)
         .into_iter()
         .filter(|p| {
@@ -1650,16 +1179,9 @@ impl Engine {
     /// Split, merge, cut or reshape features (Edit › Modify). `body`: `op`, `fids` and, for split,
     /// cut and reshape, `sketch` (GeoJSON in WGS 84: a line, or a polygon for cut). Returns the
     /// changed and created feature ids.
-    pub fn geometry_edit(
-        &self,
-        id: &str,
-        body: &Value,
-    ) -> Result<(Vec<u64>, Arc<LayerHandle>), String> {
+    pub fn geometry_edit(&self, id: &str, body: &Value) -> Result<(Vec<u64>, Arc<LayerHandle>), String> {
         let op = body["op"].as_str().unwrap_or("");
-        let fids: Vec<u64> = body["fids"]
-            .as_array()
-            .map(|a| a.iter().filter_map(Value::as_u64).collect())
-            .unwrap_or_default();
+        let fids: Vec<u64> = body["fids"].as_array().map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
         if fids.is_empty() {
             return Err("select the features to change first".into());
         }
@@ -1680,9 +1202,7 @@ impl Engine {
                 };
                 // copy a feature with a new geometry (same attributes)
                 let nfields = lyr.defn().fields().count();
-                let values_of = |src: &Feature| -> Vec<Option<FieldValue>> {
-                    (0..nfields).map(|i| src.field(i).ok().flatten()).collect()
-                };
+                let values_of = |src: &Feature| -> Vec<Option<FieldValue>> { (0..nfields).map(|i| src.field(i).ok().flatten()).collect() };
                 let add_copy = |vals: &[Option<FieldValue>], g: Geometry| -> Result<u64, String> {
                     let mut f = Feature::new(lyr.defn()).map_err(gerr)?;
                     for (i, v) in vals.iter().enumerate() {
@@ -1692,8 +1212,7 @@ impl Engine {
                     }
                     f.set_geometry(g).map_err(gerr)?;
                     f.create(&lyr).map_err(gerr)?;
-                    f.fid()
-                        .ok_or_else(|| "the new feature got no id".to_string())
+                    f.fid().ok_or_else(|| "the new feature got no id".to_string())
                 };
                 match op {
                     "merge" => {
@@ -1702,9 +1221,7 @@ impl Engine {
                         }
                         let mut acc: Option<Geometry> = None;
                         for &fid in &fids {
-                            let f = lyr
-                                .feature(fid)
-                                .ok_or_else(|| format!("no feature {fid}"))?;
+                            let f = lyr.feature(fid).ok_or_else(|| format!("no feature {fid}"))?;
                             let g = f.geometry().ok_or("a feature without geometry")?.clone();
                             acc = Some(match acc {
                                 None => g,
@@ -1713,15 +1230,10 @@ impl Engine {
                         }
                         let merged = fit_type(want, acc.unwrap());
                         if merged.len() != 1 {
-                            return Err(format!(
-                                "the merged shape has {} separate parts, but this layer holds single-part features; merge features that touch, or export to a layer with multi-part geometries",
-                                merged.len()
-                            ));
+                            return Err(format!("the merged shape has {} separate parts, but this layer holds single-part features; merge features that touch, or export to a layer with multi-part geometries", merged.len()));
                         }
                         let mut first = lyr.feature(fids[0]).unwrap();
-                        first
-                            .set_geometry(merged.into_iter().next().unwrap())
-                            .map_err(gerr)?;
+                        first.set_geometry(merged.into_iter().next().unwrap()).map_err(gerr)?;
                         lyr.set_feature(first).map_err(gerr)?;
                         for &fid in &fids[1..] {
                             unsafe { gdal_sys::OGR_L_DeleteFeature(lyr.c_layer(), fid as i64) };
@@ -1729,12 +1241,9 @@ impl Engine {
                         touched.push(fids[0]);
                     }
                     "split" | "cut" | "reshape" => {
-                        let sk = sketch
-                            .ok_or("draw the line (or area) to split, cut or reshape with")?;
+                        let sk = sketch.ok_or("draw the line (or area) to split, cut or reshape with")?;
                         for &fid in &fids {
-                            let mut f = lyr
-                                .feature(fid)
-                                .ok_or_else(|| format!("no feature {fid}"))?;
+                            let mut f = lyr.feature(fid).ok_or_else(|| format!("no feature {fid}"))?;
                             let g = f.geometry().ok_or("a feature without geometry")?.clone();
                             let pieces: Vec<Geometry> = match op {
                                 "split" if polygonal => split_polygon(&g, &sk),
@@ -1742,16 +1251,10 @@ impl Engine {
                                 "split" => return Err("points cannot be split".into()),
                                 "cut" => {
                                     if !polygonal {
-                                        return Err(
-                                            "cut works on polygons: draw an area over them".into(),
-                                        );
+                                        return Err("cut works on polygons: draw an area over them".into());
                                     }
-                                    let inside = g
-                                        .intersection(&sk)
-                                        .filter(|x| !x.is_empty() && x.area() > 0.0);
-                                    let outside = g
-                                        .difference(&sk)
-                                        .filter(|x| !x.is_empty() && x.area() > 0.0);
+                                    let inside = g.intersection(&sk).filter(|x| !x.is_empty() && x.area() > 0.0);
+                                    let outside = g.difference(&sk).filter(|x| !x.is_empty() && x.area() > 0.0);
                                     match (outside, inside) {
                                         (Some(o), Some(i)) => vec![o, i],
                                         _ => vec![],
@@ -1768,19 +1271,13 @@ impl Engine {
                                     // a sketch drawn from the boundary rarely starts exactly on it: extend
                                     // both ends a little so they cross it (dangling bits are dropped)
                                     let sk = extend_ends(&sk, 0.002);
-                                    let noded =
-                                        b.union(&sk).ok_or("the line could not be noded")?;
+                                    let noded = b.union(&sk).ok_or("the line could not be noded")?;
                                     let faces = parts(&polygonize(&noded).ok_or("no faces")?);
-                                    let (inside, outside): (Vec<Geometry>, Vec<Geometry>) =
-                                        faces.into_iter().partition(|x| {
-                                            point_on_surface(x).is_some_and(|p| g.contains(&p))
-                                        });
+                                    let (inside, outside): (Vec<Geometry>, Vec<Geometry>) = faces.into_iter().partition(|x| point_on_surface(x).is_some_and(|p| g.contains(&p)));
                                     let shape = if !outside.is_empty() {
                                         outside.iter().try_fold(g.clone(), |a, x| a.union(x))
                                     } else {
-                                        inside
-                                            .into_iter()
-                                            .max_by(|a, b| a.area().total_cmp(&b.area()))
+                                        inside.into_iter().max_by(|a, b| a.area().total_cmp(&b.area()))
                                     };
                                     shape.into_iter().collect()
                                 }
@@ -1810,11 +1307,7 @@ impl Engine {
                             .into());
                         }
                     }
-                    other => {
-                        return Err(format!(
-                            "unknown edit '{other}' (merge, split, cut or reshape)"
-                        ));
-                    }
+                    other => return Err(format!("unknown edit '{other}' (merge, split, cut or reshape)")),
                 }
             }
             txn.commit().map_err(gerr)?;
@@ -1827,70 +1320,26 @@ impl Engine {
     /// A layer as a file to download (Share › Export data): GeoPackage, Shapefile (zipped), KML,
     /// CSV (WKT geometry), GeoJSON or GeoParquet, in WGS 84 except GeoPackage and Shapefile, which
     /// keep the layer's CRS. A definition query applies. Returns (bytes, file name, content type).
-    pub fn layer_download(
-        &self,
-        l: &LayerHandle,
-        format: &str,
-    ) -> Result<(Vec<u8>, String, &'static str), String> {
-        let (driver, ext, ctype, wgs, extra): (&str, &str, &'static str, bool, &[&str]) =
-            match format {
-                "gpkg" | "geopackage" => {
-                    ("GPKG", "gpkg", "application/geopackage+sqlite3", false, &[])
-                }
-                "shp" | "shapefile" => (
-                    "ESRI Shapefile",
-                    "shp",
-                    "application/zip",
-                    false,
-                    &["-lco", "ENCODING=UTF-8"],
-                ),
-                "kml" => (
-                    "KML",
-                    "kml",
-                    "application/vnd.google-earth.kml+xml",
-                    true,
-                    &[],
-                ),
-                "csv" => ("CSV", "csv", "text/csv", true, &["-lco", "GEOMETRY=AS_WKT"]),
-                "geojson" | "json" => (
-                    "GeoJSON",
-                    "geojson",
-                    "application/geo+json",
-                    true,
-                    &["-lco", "RFC7946=YES"],
-                ),
-                "parquet" | "geoparquet" => (
-                    "Parquet",
-                    "parquet",
-                    "application/vnd.apache.parquet",
-                    false,
-                    &[],
-                ),
-                f => {
-                    return Err(format!(
-                        "unknown format '{f}' (gpkg, shp, kml, csv, geojson, parquet)"
-                    ));
-                }
-            };
+    pub fn layer_download(&self, l: &LayerHandle, format: &str) -> Result<(Vec<u8>, String, &'static str), String> {
+        let (driver, ext, ctype, wgs, extra): (&str, &str, &'static str, bool, &[&str]) = match format {
+            "gpkg" | "geopackage" => ("GPKG", "gpkg", "application/geopackage+sqlite3", false, &[]),
+            "shp" | "shapefile" => ("ESRI Shapefile", "shp", "application/zip", false, &["-lco", "ENCODING=UTF-8"]),
+            "kml" => ("KML", "kml", "application/vnd.google-earth.kml+xml", true, &[]),
+            "csv" => ("CSV", "csv", "text/csv", true, &["-lco", "GEOMETRY=AS_WKT"]),
+            "geojson" | "json" => ("GeoJSON", "geojson", "application/geo+json", true, &["-lco", "RFC7946=YES"]),
+            "parquet" | "geoparquet" => ("Parquet", "parquet", "application/vnd.apache.parquet", false, &[]),
+            f => return Err(format!("unknown format '{f}' (gpkg, shp, kml, csv, geojson, parquet)")),
+        };
         // GeoParquet without GDAL's Parquet driver (the builds GeoSpaX ships with have none):
         // a WGS 84 GeoPackage first, then the parquet crate writes the file
-        let native_parquet =
-            driver == "Parquet" && DriverManager::get_driver_by_name(driver).is_err();
+        let native_parquet = driver == "Parquet" && DriverManager::get_driver_by_name(driver).is_err();
         if !native_parquet && DriverManager::get_driver_by_name(driver).is_err() {
             return Err(format!("this GDAL has no {driver} driver"));
         }
-        let (driver, ext_gdal, wgs) = if native_parquet {
-            ("GPKG", "gpkg", true)
-        } else {
-            (driver, ext, wgs)
-        };
+        let (driver, ext_gdal, wgs) = if native_parquet { ("GPKG", "gpkg", true) } else { (driver, ext, wgs) };
         let stem = {
             let s = catalog::sanitize(&l.info.name).replace('.', "_");
-            if s.trim_matches('_').is_empty() {
-                "layer".to_string()
-            } else {
-                s
-            }
+            if s.trim_matches('_').is_empty() { "layer".to_string() } else { s }
         };
         static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -1905,31 +1354,18 @@ impl Engine {
             args.extend(["-where".into(), w]);
         }
         args.extend(extra.iter().map(|s| s.to_string()));
-        let res = crate::services::vector_translate(
-            &l.path().to_string_lossy(),
-            Some(l.layer_name()),
-            &out,
-            &args,
-        );
+        let res = crate::services::vector_translate(&l.path().to_string_lossy(), Some(l.layer_name()), &out, &args);
         let result = res.and_then(|_| {
             if ext == "shp" {
                 // the Shapefile's parts in one zip
                 let mut buf = std::io::Cursor::new(Vec::new());
                 {
                     let mut z = zip::ZipWriter::new(&mut buf);
-                    let opt = zip::write::SimpleFileOptions::default()
-                        .compression_method(zip::CompressionMethod::Deflated);
-                    for e in std::fs::read_dir(&dir)
-                        .map_err(|e| e.to_string())?
-                        .flatten()
-                    {
+                    let opt = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+                    for e in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
                         let name = e.file_name().to_string_lossy().to_string();
                         z.start_file(name, opt).map_err(|e| e.to_string())?;
-                        std::io::Write::write_all(
-                            &mut z,
-                            &std::fs::read(e.path()).map_err(|e| e.to_string())?,
-                        )
-                        .map_err(|e| e.to_string())?;
+                        std::io::Write::write_all(&mut z, &std::fs::read(e.path()).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
                     }
                     z.finish().map_err(|e| e.to_string())?;
                 }
@@ -1937,17 +1373,9 @@ impl Engine {
             } else if native_parquet {
                 let pq = dir.join(format!("{stem}.parquet"));
                 crate::geoparquet::write_file(&out, Some(&stem), &pq)?;
-                Ok((
-                    std::fs::read(&pq).map_err(|e| e.to_string())?,
-                    format!("{stem}.parquet"),
-                    ctype,
-                ))
+                Ok((std::fs::read(&pq).map_err(|e| e.to_string())?, format!("{stem}.parquet"), ctype))
             } else {
-                Ok((
-                    std::fs::read(&out).map_err(|e| e.to_string())?,
-                    format!("{stem}.{ext}"),
-                    ctype,
-                ))
+                Ok((std::fs::read(&out).map_err(|e| e.to_string())?, format!("{stem}.{ext}"), ctype))
             }
         });
         let _ = std::fs::remove_dir_all(&dir);

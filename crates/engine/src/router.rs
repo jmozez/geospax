@@ -6,11 +6,11 @@ use crate::catalog::LayerHandle;
 use crate::classify::{self, Method};
 use crate::jobs::Status;
 use crate::reader::ColumnValues;
-use crate::{Engine, overview};
+use crate::{overview, Engine};
 use serde_json::json;
 use std::io::Write;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Instant;
 
 #[derive(Debug, Clone, Default)]
@@ -33,10 +33,7 @@ impl ApiRequest {
             || (p.starts_with("api/services/") && p.contains("/tile/"))
             || (p.starts_with("api/rasters/") && (p.contains("/terrain/") || p.contains("/tiles/")))
             || (p.starts_with("api/layers/")
-                && (p.ends_with("/arrow")
-                    || p.ends_with("/classify")
-                    || p.ends_with("/unique")
-                    || p.ends_with("/autostyle")))
+                && (p.ends_with("/arrow") || p.ends_with("/classify") || p.ends_with("/unique") || p.ends_with("/autostyle")))
     }
 }
 
@@ -50,12 +47,7 @@ pub struct ApiResponse {
 
 impl ApiResponse {
     pub fn json(status: u16, v: &serde_json::Value) -> Self {
-        ApiResponse {
-            status,
-            content_type: "application/json",
-            headers: vec![],
-            body: v.to_string().into_bytes(),
-        }
+        ApiResponse { status, content_type: "application/json", headers: vec![], body: v.to_string().into_bytes() }
     }
     pub fn error(status: u16, msg: impl Into<String>) -> Self {
         Self::json(status, &json!({ "error": msg.into() }))
@@ -64,10 +56,7 @@ impl ApiResponse {
     pub fn common_headers() -> [(&'static str, &'static str); 6] {
         [
             ("Access-Control-Allow-Origin", "*"),
-            (
-                "Access-Control-Allow-Methods",
-                "GET, POST, PUT, DELETE, OPTIONS",
-            ),
+            ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"),
             // the desktop page (tauri.localhost) calls the engine on another origin (gis.localhost on
             // Windows), so a request with a Content-Type (JSON, YAML) is preflighted and needs this
             ("Access-Control-Allow-Headers", "*"),
@@ -89,10 +78,7 @@ pub fn pct_decode(s: &str) -> String {
     while i < b.len() {
         match b[i] {
             b'+' => out.push(b' '),
-            b'%' if i + 2 < b.len()
-                && b[i + 1].is_ascii_hexdigit()
-                && b[i + 2].is_ascii_hexdigit() =>
-            {
+            b'%' if i + 2 < b.len() && b[i + 1].is_ascii_hexdigit() && b[i + 2].is_ascii_hexdigit() => {
                 let hex = |c: u8| (c as char).to_digit(16).unwrap() as u8;
                 out.push(hex(b[i + 1]) << 4 | hex(b[i + 2]));
                 i += 2;
@@ -106,11 +92,7 @@ pub fn pct_decode(s: &str) -> String {
 
 /// Raw (still percent-encoded) query parameter.
 pub fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
-    query
-        .split('&')
-        .filter_map(|kv| kv.split_once('='))
-        .find(|(k, _)| *k == key)
-        .map(|(_, v)| v)
+    query.split('&').filter_map(|kv| kv.split_once('=')).find(|(k, _)| *k == key).map(|(_, v)| v)
 }
 
 fn body_json(body: &[u8]) -> serde_json::Value {
@@ -119,8 +101,7 @@ fn body_json(body: &[u8]) -> serde_json::Value {
 
 /// `[1, 2, 3]` (or absent/null → None).
 fn fid_list(v: &serde_json::Value) -> Option<Vec<u64>> {
-    v.as_array()
-        .map(|a| a.iter().filter_map(|x| x.as_u64()).collect())
+    v.as_array().map(|a| a.iter().filter_map(|x| x.as_u64()).collect())
 }
 
 pub(crate) fn param(query: &str, key: &str) -> Option<String> {
@@ -136,13 +117,7 @@ impl Engine {
     }
 
     pub(crate) fn handle_inner(self: &Arc<Self>, req: ApiRequest) -> ApiResponse {
-        let segs: Vec<String> = req
-            .path
-            .trim_matches('/')
-            .split('/')
-            .filter(|s| !s.is_empty())
-            .map(pct_decode)
-            .collect();
+        let segs: Vec<String> = req.path.trim_matches('/').split('/').filter(|s| !s.is_empty()).map(pct_decode).collect();
         let segs: Vec<&str> = segs.iter().map(String::as_str).collect();
         let q = req.query.as_str();
         let guest = self.guest.load(std::sync::atomic::Ordering::Relaxed);
@@ -965,18 +940,12 @@ impl Engine {
 
     fn delete_reply(&self, layer: &str, fids: &[u64]) -> ApiResponse {
         match self.features_delete(layer, fids) {
-            Ok((n, l)) => {
-                ApiResponse::json(200, &json!({ "deleted": n, "layer": self.layer_json(&l) }))
-            }
+            Ok((n, l)) => ApiResponse::json(200, &json!({ "deleted": n, "layer": self.layer_json(&l) })),
             Err(e) => ApiResponse::error(400, e),
         }
     }
 
-    fn with_layer(
-        &self,
-        id: &str,
-        f: impl FnOnce(&Arc<LayerHandle>) -> ApiResponse,
-    ) -> ApiResponse {
+    fn with_layer(&self, id: &str, f: impl FnOnce(&Arc<LayerHandle>) -> ApiResponse) -> ApiResponse {
         match self.layer(id) {
             Some(l) => f(&l),
             None => ApiResponse::error(404, format!("unknown layer '{id}'")),
@@ -994,10 +963,7 @@ impl Engine {
                 let timing = if hit {
                     "cache;desc=hit, total;dur=0".to_string()
                 } else if t.source == "overview" {
-                    format!(
-                        "cache;desc=overview, read;dur={:.2}, total;dur={:.2}",
-                        t.read_ms, t.total_ms
-                    )
+                    format!("cache;desc=overview, read;dur={:.2}, total;dur={:.2}", t.read_ms, t.total_ms)
                 } else {
                     format!(
                         "cache;desc=miss, setup;dur={:.2}, read;dur={:.2}, proc;dur={:.2}, enc;dur={:.2}, teardown;dur={:.2}, total;dur={:.2}",
@@ -1019,11 +985,7 @@ impl Engine {
                 }
             }
             Err(e) if e.starts_with("unknown layer") => ApiResponse::error(404, e),
-            Err(e)
-                if e.starts_with("unknown field")
-                    || e.starts_with("invalid tile")
-                    || e.contains("cannot be encoded") =>
-            {
+            Err(e) if e.starts_with("unknown field") || e.starts_with("invalid tile") || e.contains("cannot be encoded") => {
                 ApiResponse::error(400, e)
             }
             Err(e) => ApiResponse::error(500, e),
@@ -1031,10 +993,8 @@ impl Engine {
     }
 
     fn field_for(l: &LayerHandle, query: &str) -> Result<usize, ApiResponse> {
-        let name =
-            param(query, "field").ok_or_else(|| ApiResponse::error(400, "missing ?field="))?;
-        l.field_index(&name)
-            .ok_or_else(|| ApiResponse::error(400, format!("unknown field '{name}'")))
+        let name = param(query, "field").ok_or_else(|| ApiResponse::error(400, "missing ?field="))?;
+        l.field_index(&name).ok_or_else(|| ApiResponse::error(400, format!("unknown field '{name}'")))
     }
 
     fn classify_response(&self, l: &LayerHandle, query: &str) -> ApiResponse {
@@ -1048,14 +1008,9 @@ impl Engine {
             Ok(m) => m,
             Err(e) => return ApiResponse::error(400, e),
         };
-        let k = param(query, "classes")
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(5usize);
+        let k = param(query, "classes").and_then(|s| s.parse().ok()).unwrap_or(5usize);
         if !matches!(l.info.fields[fi].kind, "integer" | "real") {
-            return ApiResponse::error(
-                400,
-                format!("field '{}' is not numeric", l.info.fields[fi].name),
-            );
+            return ApiResponse::error(400, format!("field '{}' is not numeric", l.info.fields[fi].name));
         }
         let t0 = Instant::now();
         let mut values = match self.scan_column(l, fi) {
@@ -1090,10 +1045,7 @@ impl Engine {
             Ok(i) => i,
             Err(r) => return r,
         };
-        let limit = param(query, "limit")
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(50usize)
-            .clamp(1, 1000);
+        let limit = param(query, "limit").and_then(|s| s.parse().ok()).unwrap_or(50usize).clamp(1, 1000);
         let t0 = Instant::now();
         let mut v = match self.scan_column(l, fi) {
             Ok(ColumnValues::Str(s)) => classify::unique_strings(s, limit),
@@ -1106,35 +1058,18 @@ impl Engine {
     }
 
     /// Start (or refuse) an overview build for a layer.
-    pub fn start_overview_job(
-        self: &Arc<Self>,
-        layer_id: &str,
-        max_zoom: Option<u8>,
-    ) -> Result<Arc<crate::jobs::Job>, String> {
-        let layer = self
-            .layer(layer_id)
-            .ok_or_else(|| format!("unknown layer '{layer_id}'"))?
-            .clone();
+    pub fn start_overview_job(self: &Arc<Self>, layer_id: &str, max_zoom: Option<u8>) -> Result<Arc<crate::jobs::Job>, String> {
+        let layer = self.layer(layer_id).ok_or_else(|| format!("unknown layer '{layer_id}'"))?.clone();
         let mz = match max_zoom.or_else(|| overview::suggested_max_zoom(&layer.info)) {
             Some(z) => z.min(layer.info.maxzoom.saturating_sub(1)),
-            None => {
-                return Err(
-                    "layer renders live at every zoom; pass ?maxzoom=N to build anyway".into(),
-                );
-            }
+            None => return Err("layer renders live at every zoom; pass ?maxzoom=N to build anyway".into()),
         };
         if let Some(j) = self.jobs.active("overviews", layer_id) {
-            return Err(format!(
-                "overview job {} is already running for this layer",
-                j.id
-            ));
+            return Err(format!("overview job {} is already running for this layer", j.id));
         }
         let total = overview::pyramid_tiles(layer.info.bounds, mz);
         if total > overview::MAX_TILES {
-            return Err(format!(
-                "z0-{mz} would be {total} tiles (limit {})",
-                overview::MAX_TILES
-            ));
+            return Err(format!("z0-{mz} would be {total} tiles (limit {})", overview::MAX_TILES));
         }
         let job = self.jobs.create("overviews", layer_id);
         job.update(|s| s.total = total);
@@ -1174,16 +1109,10 @@ impl Engine {
 
     fn recipe_validate(&self, body: &[u8]) -> ApiResponse {
         let text = String::from_utf8_lossy(body);
-        match self
-            .automation
-            .validate(&text, crate::automation::recipe::Origin::Api)
-        {
-            Ok((r, warnings)) => ApiResponse::json(
-                200,
-                &json!({
-                    "ok": true, "recipe": r.summary_json(), "plan": crate::automation::Automation::plan(&r), "warnings": warnings,
-                }),
-            ),
+        match self.automation.validate(&text, crate::automation::recipe::Origin::Api) {
+            Ok((r, warnings)) => ApiResponse::json(200, &json!({
+                "ok": true, "recipe": r.summary_json(), "plan": crate::automation::Automation::plan(&r), "warnings": warnings,
+            })),
             Err(errors) => ApiResponse::json(200, &json!({ "ok": false, "errors": errors })),
         }
     }
@@ -1195,25 +1124,14 @@ impl Engine {
             return ApiResponse::error(413, "recipe too large (1 MB max)");
         }
         let text = String::from_utf8_lossy(body).into_owned();
-        if let Ok(r) =
-            crate::automation::recipe::Recipe::parse(&text, crate::automation::recipe::Origin::Api)
-        {
+        if let Ok(r) = crate::automation::recipe::Recipe::parse(&text, crate::automation::recipe::Origin::Api) {
             if r.has_code_steps() && param(query, "approve").as_deref() != Some("code") {
-                return ApiResponse::error(
-                    403,
-                    "this recipe runs Python/R code on this machine; save it with ?approve=code once you trust it",
-                );
+                return ApiResponse::error(403, "this recipe runs Python/R code on this machine; save it with ?approve=code once you trust it");
             }
         }
         match self.automation.save_user(&text) {
-            Ok((r, warnings)) => ApiResponse::json(
-                201,
-                &json!({ "recipe": r.summary_json(), "warnings": warnings }),
-            ),
-            Err(errors) => ApiResponse::json(
-                400,
-                &json!({ "error": errors.join("; "), "errors": errors }),
-            ),
+            Ok((r, warnings)) => ApiResponse::json(201, &json!({ "recipe": r.summary_json(), "warnings": warnings })),
+            Err(errors) => ApiResponse::json(400, &json!({ "error": errors.join("; "), "errors": errors })),
         }
     }
 
@@ -1223,16 +1141,9 @@ impl Engine {
 
     /// `<state>/projects/<slug>.json`; a slug is 1 to 64 of a-z, 0-9, '-' and '_'.
     fn named_project(&self, slug: &str) -> Result<std::path::PathBuf, ApiResponse> {
-        let ok = !slug.is_empty()
-            && slug.len() <= 64
-            && slug
-                .bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_');
+        let ok = !slug.is_empty() && slug.len() <= 64 && slug.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_');
         if !ok {
-            return Err(ApiResponse::error(
-                400,
-                format!("'{slug}' is not a valid project id (a-z, 0-9, - and _, up to 64)"),
-            ));
+            return Err(ApiResponse::error(400, format!("'{slug}' is not a valid project id (a-z, 0-9, - and _, up to 64)")));
         }
         Ok(self.projects_dir().join(format!("{slug}.json")))
     }
@@ -1246,24 +1157,14 @@ impl Engine {
                 if p.extension().and_then(|x| x.to_str()) != Some("json") {
                     continue;
                 }
-                let slug = p
-                    .file_stem()
-                    .and_then(|x| x.to_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let modified = e
-                    .metadata()
-                    .and_then(|m| m.modified())
-                    .unwrap_or(std::time::UNIX_EPOCH);
+                let slug = p.file_stem().and_then(|x| x.to_str()).unwrap_or_default().to_string();
+                let modified = e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
                 let name = std::fs::read(&p)
                     .ok()
                     .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
                     .and_then(|v| v.get("name").and_then(|n| n.as_str()).map(str::to_string))
                     .unwrap_or_else(|| slug.clone());
-                let ms = modified
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_millis() as u64)
-                    .unwrap_or(0);
+                let ms = modified.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
                 out.push((modified, json!({ "id": slug, "name": name, "saved": ms, "path": p.display().to_string() })));
             }
         }
@@ -1309,10 +1210,7 @@ impl Engine {
             .and_then(|_| std::fs::write(&tmp, serde_json::to_vec_pretty(&v).unwrap_or_default()))
             .and_then(|_| std::fs::rename(&tmp, &path));
         match res {
-            Ok(()) => ApiResponse::json(
-                200,
-                &json!({ "saved": true, "path": path.display().to_string() }),
-            ),
+            Ok(()) => ApiResponse::json(200, &json!({ "saved": true, "path": path.display().to_string() })),
             Err(e) => ApiResponse::error(500, format!("{}: {e}", path.display())),
         }
     }
@@ -1323,11 +1221,7 @@ impl Engine {
         let text = String::from_utf8_lossy(&body[..body.len().min(4096)]).into_owned();
         eprintln!("[client] {text}");
         if let Some(path) = &self.bench_log {
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-            {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
                 let _ = writeln!(f, "{}", json!({ "kind": "client-log", "message": text }));
             }
         }
@@ -1339,11 +1233,7 @@ impl Engine {
             return ApiResponse::error(400, "invalid JSON");
         };
         if let Some(path) = &self.bench_log {
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-            {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
                 let _ = writeln!(f, "{v}");
             }
         }
@@ -1361,10 +1251,7 @@ mod tests {
         // the desktop page calls the engine cross-origin (Windows: gis.localhost); without this every
         // POST/PUT with a Content-Type failed in WebView2 with "Failed to fetch"
         let h = ApiResponse::common_headers();
-        assert!(
-            h.iter()
-                .any(|(k, v)| *k == "Access-Control-Allow-Headers" && *v == "*")
-        );
+        assert!(h.iter().any(|(k, v)| *k == "Access-Control-Allow-Headers" && *v == "*"));
     }
 
     #[test]
@@ -1382,39 +1269,18 @@ mod lane_tests {
     use super::ApiRequest;
 
     fn req(method: &str, path: &str) -> ApiRequest {
-        ApiRequest {
-            method: method.into(),
-            path: path.into(),
-            ..Default::default()
-        }
+        ApiRequest { method: method.into(), path: path.into(), ..Default::default() }
     }
 
     #[test]
     fn data_plane_vs_control_plane() {
-        for p in [
-            "/tiles/a.b/11/1850/1060",
-            "/api/layers/a.b/arrow",
-            "/api/layers/a.b/classify",
-            "/api/layers/a.b/unique",
-            "/api/layers/a.b/autostyle",
-        ] {
+        for p in ["/tiles/a.b/11/1850/1060", "/api/layers/a.b/arrow", "/api/layers/a.b/classify", "/api/layers/a.b/unique", "/api/layers/a.b/autostyle"] {
             assert!(req("GET", p).is_heavy(), "{p} should use the tile pool");
         }
-        for (m, p) in [
-            ("GET", "/api/project"),
-            ("PUT", "/api/project"),
-            ("GET", "/api/jobs"),
-            ("GET", "/api/jobs/3"),
-            ("POST", "/api/jobs/3/cancel"),
-            ("GET", "/api/layers"),
-            ("GET", "/api/stats"),
-            ("POST", "/api/log"),
-            ("POST", "/api/layers/a.b/overviews"),
-            ("GET", "/api/health"),
-            ("GET", "/api/recipes"),
-            ("POST", "/api/recipes/photos-to-map/run"),
-            ("GET", "/api/runs/x/files/map.png"),
-        ] {
+        for (m, p) in [("GET", "/api/project"), ("PUT", "/api/project"), ("GET", "/api/jobs"), ("GET", "/api/jobs/3"),
+                       ("POST", "/api/jobs/3/cancel"), ("GET", "/api/layers"), ("GET", "/api/stats"), ("POST", "/api/log"),
+                       ("POST", "/api/layers/a.b/overviews"), ("GET", "/api/health"), ("GET", "/api/recipes"),
+                       ("POST", "/api/recipes/photos-to-map/run"), ("GET", "/api/runs/x/files/map.png")] {
             assert!(!req(m, p).is_heavy(), "{m} {p} should use the control pool");
         }
     }

@@ -5,7 +5,7 @@
 //! emptiest corners that suit them (north arrow on top, scale bar at the bottom). Any piece can be
 //! pinned to a corner instead.
 use super::cartography::{Layout, MapLayer};
-use super::features::{FeatureSet, each_coord, fmt_distance, nice_floor};
+use super::features::{each_coord, fmt_distance, nice_floor, FeatureSet};
 use serde_json::Value;
 use std::fmt::Write as _;
 
@@ -34,12 +34,7 @@ impl Corner {
     fn left(self) -> bool {
         matches!(self, Corner::TopLeft | Corner::BottomLeft)
     }
-    const ALL: [Corner; 4] = [
-        Corner::TopLeft,
-        Corner::TopRight,
-        Corner::BottomLeft,
-        Corner::BottomRight,
-    ];
+    const ALL: [Corner; 4] = [Corner::TopLeft, Corner::TopRight, Corner::BottomLeft, Corner::BottomRight];
 }
 
 /// Where a piece goes: a pinned corner, wherever the data is not (auto), or nowhere.
@@ -113,53 +108,22 @@ impl Furniture {
         let s = |k: &str, dflt: &str, ok: &[&str]| -> Result<String, String> {
             match p.get(k) {
                 Some(Value::String(v)) if ok.contains(&v.as_str()) => Ok(v.clone()),
-                Some(Value::String(v)) => {
-                    Err(format!("{k}: '{v}' is not one of {}", ok.join(", ")))
-                }
+                Some(Value::String(v)) => Err(format!("{k}: '{v}' is not one of {}", ok.join(", "))),
                 Some(Value::Bool(false)) => Ok("none".into()),
                 _ => Ok(dflt.into()),
             }
         };
-        let scale_style = s(
-            "scale_bar",
-            &d.scale_style,
-            &["pill", "checker", "line", "ruler", "none"],
-        )?;
-        let north_style = s(
-            "north_arrow",
-            &d.north_style,
-            &["needle", "compass", "rose", "minimal", "none"],
-        )?;
+        let scale_style = s("scale_bar", &d.scale_style, &["pill", "checker", "line", "ruler", "none"])?;
+        let north_style = s("north_arrow", &d.north_style, &["needle", "compass", "rose", "minimal", "none"])?;
         let legend = s("legend", &d.legend, &["right", "inside", "none"])?;
         Ok(Furniture {
-            scale_at: if scale_style == "none" {
-                Place::Off
-            } else {
-                Place::parse(p.get("scale_bar_at"), Place::Auto)
-            },
-            north_at: if north_style == "none" {
-                Place::Off
-            } else {
-                Place::parse(p.get("north_arrow_at"), Place::Auto)
-            },
+            scale_at: if scale_style == "none" { Place::Off } else { Place::parse(p.get("scale_bar_at"), Place::Auto) },
+            north_at: if north_style == "none" { Place::Off } else { Place::parse(p.get("north_arrow_at"), Place::Auto) },
             legend_at: Place::parse(p.get("legend_at"), Place::Auto),
             units: s("units", &d.units, &["metric", "imperial", "both"])?,
-            legend_title: p
-                .get("legend_title")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .unwrap_or(d.legend_title),
+            legend_title: p.get("legend_title").and_then(Value::as_str).map(str::to_string).unwrap_or(d.legend_title),
             legend_edit: p.get("legend_edit").cloned().unwrap_or(Value::Null),
-            legend_order: p
-                .get("legend_order")
-                .and_then(Value::as_array)
-                .map(|a| {
-                    a.iter()
-                        .filter_map(Value::as_str)
-                        .map(str::to_string)
-                        .collect()
-                })
-                .unwrap_or_default(),
+            legend_order: p.get("legend_order").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default(),
             inset_at: Place::parse(p.get("inset"), Place::Off),
             theme: s("theme", &d.theme, &["light", "dark"])?,
             scale_style,
@@ -170,32 +134,10 @@ impl Furniture {
 
     /// The legend edits for one layer: (title, hidden, label renames).
     pub fn edit_for(&self, id: &str) -> (Option<String>, bool, Vec<(String, String)>) {
-        let e = self.legend_edit.get(id).or_else(|| {
-            self.legend_edit.as_object().and_then(|o| {
-                o.iter()
-                    .find(|(k, _)| {
-                        id.ends_with(&format!(".{k}")) || id.starts_with(&format!("{k}."))
-                    })
-                    .map(|(_, v)| v)
-            })
-        });
-        let Some(e) = e else {
-            return (None, false, Vec::new());
-        };
-        let labels = e
-            .get("labels")
-            .and_then(Value::as_object)
-            .map(|o| {
-                o.iter()
-                    .filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string())))
-                    .collect()
-            })
-            .unwrap_or_default();
-        (
-            e.get("title").and_then(Value::as_str).map(str::to_string),
-            e.get("hide").and_then(Value::as_bool).unwrap_or(false),
-            labels,
-        )
+        let e = self.legend_edit.get(id).or_else(|| self.legend_edit.as_object().and_then(|o| o.iter().find(|(k, _)| id.ends_with(&format!(".{k}")) || id.starts_with(&format!("{k}."))).map(|(_, v)| v)));
+        let Some(e) = e else { return (None, false, Vec::new()) };
+        let labels = e.get("labels").and_then(Value::as_object).map(|o| o.iter().filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string()))).collect()).unwrap_or_default();
+        (e.get("title").and_then(Value::as_str).map(str::to_string), e.get("hide").and_then(Value::as_bool).unwrap_or(false), labels)
     }
 }
 
@@ -234,16 +176,8 @@ fn corner_load(layers: &[&MapLayer], lay: &Layout) -> [f64; 4] {
                     return;
                 }
                 for (i, corner) in Corner::ALL.iter().enumerate() {
-                    let inx = if corner.left() {
-                        dx < cw
-                    } else {
-                        dx > lay.fw - cw
-                    };
-                    let iny = if corner.top() {
-                        dy < ch
-                    } else {
-                        dy > lay.fh - ch
-                    };
+                    let inx = if corner.left() { dx < cw } else { dx > lay.fw - cw };
+                    let iny = if corner.top() { dy < ch } else { dy > lay.fh - ch };
                     if inx && iny {
                         load[i] += w;
                     }
@@ -268,20 +202,12 @@ pub fn place(fur: &Furniture, layers: &[&MapLayer], lay: &Layout) -> Placement {
             None
         }
     };
-    let mut legend = if fur.legend == "inside" {
-        pinned(fur.legend_at, &mut taken)
-    } else {
-        None
-    };
+    let mut legend = if fur.legend == "inside" { pinned(fur.legend_at, &mut taken) } else { None };
     let mut inset = pinned(fur.inset_at, &mut taken);
     let mut north = pinned(fur.north_at, &mut taken);
     let mut scale = pinned(fur.scale_at, &mut taken);
     let pick = |want: &dyn Fn(Corner) -> bool, taken: &mut Vec<Corner>, fallback: Corner| {
-        let mut c: Vec<Corner> = Corner::ALL
-            .iter()
-            .copied()
-            .filter(|c| want(*c) && !taken.contains(c))
-            .collect();
+        let mut c: Vec<Corner> = Corner::ALL.iter().copied().filter(|c| want(*c) && !taken.contains(c)).collect();
         c.sort_by(|a, b| load[idx(*a)].total_cmp(&load[idx(*b)]));
         let got = c.first().copied().unwrap_or(fallback);
         taken.push(got);
@@ -299,26 +225,13 @@ pub fn place(fur: &Furniture, layers: &[&MapLayer], lay: &Layout) -> Placement {
     if fur.scale_at == Place::Auto {
         scale = Some(pick(&|c| !c.top(), &mut taken, Corner::BottomLeft));
     }
-    Placement {
-        scale,
-        north,
-        inset,
-        legend,
-    }
+    Placement { scale, north, inset, legend }
 }
 
 /// Top-left point of a box of size (w, h) in a corner of the frame, `pad` px inside.
 pub fn anchor(lay: &Layout, c: Corner, w: f64, h: f64, pad: f64) -> (f64, f64) {
-    let x = if c.left() {
-        lay.fx + pad
-    } else {
-        lay.fx + lay.fw - w - pad
-    };
-    let y = if c.top() {
-        lay.fy + pad
-    } else {
-        lay.fy + lay.fh - h - pad
-    };
+    let x = if c.left() { lay.fx + pad } else { lay.fx + lay.fw - w - pad };
+    let y = if c.top() { lay.fy + pad } else { lay.fy + lay.fh - h - pad };
     (x, y)
 }
 
@@ -376,32 +289,14 @@ pub fn scale_bar(svg: &mut String, lay: &Layout, fur: &Furniture, corner: Corner
     let both = fur.units == "both";
     let imperial = fur.units == "imperial";
     let target = mpp * if lay.fw < 600.0 { 120.0 } else { 170.0 };
-    let d = if imperial {
-        nice_imperial(target)
-    } else {
-        nice_floor(target)
-    };
+    let d = if imperial { nice_imperial(target) } else { nice_floor(target) };
     let len = d / mpp;
-    let label = |m: f64| {
-        if imperial {
-            fmt_miles(m)
-        } else {
-            fmt_distance(m)
-        }
-    };
+    let label = |m: f64| if imperial { fmt_miles(m) } else { fmt_distance(m) };
     let (bw, bh) = (len + 70.0, if both { 58.0 } else { 40.0 });
     let (bx, by) = anchor(lay, corner, bw.max(SCALE_BOX.0.min(bw)), bh, 10.0);
     let (x, y) = (bx + 24.0, by + if both { 26.0 } else { 24.0 });
     let half = len / 2.0;
-    let _ = write!(
-        svg,
-        "<g class=\"scale-bar\" font-size=\"11\" fill=\"{INK}\"><rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{bw:.1}\" height=\"{bh:.1}\" rx=\"{}\" fill=\"#ffffff\" fill-opacity=\"0.88\"/>",
-        if fur.scale_style == "pill" {
-            bh / 2.0
-        } else {
-            3.0
-        }
-    );
+    let _ = write!(svg, "<g class=\"scale-bar\" font-size=\"11\" fill=\"{INK}\"><rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{bw:.1}\" height=\"{bh:.1}\" rx=\"{}\" fill=\"#ffffff\" fill-opacity=\"0.88\"/>", if fur.scale_style == "pill" { bh / 2.0 } else { 3.0 });
     match fur.scale_style.as_str() {
         "line" => {
             let _ = write!(
@@ -414,19 +309,11 @@ pub fn scale_bar(svg: &mut String, lay: &Layout, fur: &Furniture, corner: Corner
             );
         }
         "ruler" => {
-            let _ = write!(
-                svg,
-                "<path d=\"M{x:.1} {:.1}h{len:.1}\" stroke=\"{INK}\" stroke-width=\"1.2\"/>",
-                y + 4.0
-            );
+            let _ = write!(svg, "<path d=\"M{x:.1} {:.1}h{len:.1}\" stroke=\"{INK}\" stroke-width=\"1.2\"/>", y + 4.0);
             for k in 0..=4 {
                 let tx = x + len * k as f64 / 4.0;
                 let th = if k % 2 == 0 { 9.0 } else { 5.0 };
-                let _ = write!(
-                    svg,
-                    "<path d=\"M{tx:.1} {:.1}v{th}\" stroke=\"{INK}\" stroke-width=\"1.1\"/>",
-                    y + 4.0 - th
-                );
+                let _ = write!(svg, "<path d=\"M{tx:.1} {:.1}v{th}\" stroke=\"{INK}\" stroke-width=\"1.1\"/>", y + 4.0 - th);
             }
             let _ = write!(
                 svg,
@@ -444,11 +331,7 @@ pub fn scale_bar(svg: &mut String, lay: &Layout, fur: &Furniture, corner: Corner
             let q = len / 4.0;
             for k in 0..4 {
                 let fill = if k % 2 == 0 { INK } else { "#ffffff" };
-                let _ = write!(
-                    svg,
-                    "<rect x=\"{:.1}\" y=\"{y:.1}\" width=\"{q:.1}\" height=\"6\" fill=\"{fill}\"/>",
-                    x + k as f64 * q
-                );
+                let _ = write!(svg, "<rect x=\"{:.1}\" y=\"{y:.1}\" width=\"{q:.1}\" height=\"6\" fill=\"{fill}\"/>", x + k as f64 * q);
             }
             let _ = write!(
                 svg,
@@ -529,24 +412,14 @@ pub fn north_arrow(svg: &mut String, lay: &Layout, fur: &Furniture, corner: Corn
 <text y=\"-31\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"bold\" fill=\"#2f3b46\">N</text>"
             .to_string(),
     };
-    let _ = write!(
-        svg,
-        "<g class=\"north-arrow\" transform=\"translate({x:.1} {y:.1})\">{body}</g>"
-    );
+    let _ = write!(svg, "<g class=\"north-arrow\" transform=\"translate({x:.1} {y:.1})\">{body}</g>");
 }
 
 // ------------------------------------------------------------------ inset (overview) map
 
 /// The overview: land around the study area (about 8× its size), the study area boxed in red, on a
 /// card with a soft shadow.
-pub fn inset(
-    svg: &mut String,
-    lay: &Layout,
-    corner: Corner,
-    land: &FeatureSet,
-    study: [f64; 4],
-    around: [f64; 4],
-) {
+pub fn inset(svg: &mut String, lay: &Layout, corner: Corner, land: &FeatureSet, study: [f64; 4], around: [f64; 4]) {
     let (w, h) = inset_size(lay);
     let (x, y) = anchor(lay, corner, w, h, 10.0);
     let il = Layout::in_rect(around, x, y, w, h);
@@ -556,13 +429,7 @@ pub fn inset(
             for ring in ps.iter().flatten() {
                 for (i, c) in ring.iter().enumerate() {
                     let p = il.px(*c);
-                    let _ = write!(
-                        d,
-                        "{}{:.1} {:.1}",
-                        if i == 0 { "M" } else { "L" },
-                        p[0],
-                        p[1]
-                    );
+                    let _ = write!(d, "{}{:.1} {:.1}", if i == 0 { "M" } else { "L" }, p[0], p[1]);
                 }
                 d.push('Z');
             }
@@ -570,12 +437,7 @@ pub fn inset(
     }
     let a = il.px([study[0], study[3]]);
     let b = il.px([study[2], study[1]]);
-    let (bx0, by0, bx1, by1) = (
-        a[0].min(b[0]),
-        a[1].min(b[1]),
-        a[0].max(b[0]).max(a[0].min(b[0]) + 4.0),
-        a[1].max(b[1]).max(a[1].min(b[1]) + 4.0),
-    );
+    let (bx0, by0, bx1, by1) = (a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]).max(a[0].min(b[0]) + 4.0), a[1].max(b[1]).max(a[1].min(b[1]) + 4.0));
     let _ = write!(
         svg,
         "<g class=\"inset\"><clipPath id=\"inset-clip\"><rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\"/></clipPath>\
@@ -596,16 +458,9 @@ pub fn inset(
 /// The area the inset shows: the study area grown about 8× (at least 12° across), clamped to the world.
 pub fn inset_extent(study: [f64; 4]) -> [f64; 4] {
     let (cx, cy) = ((study[0] + study[2]) / 2.0, (study[1] + study[3]) / 2.0);
-    let span = ((study[2] - study[0]).max(study[3] - study[1]) * 8.0)
-        .max(12.0)
-        .min(340.0);
+    let span = ((study[2] - study[0]).max(study[3] - study[1]) * 8.0).max(12.0).min(340.0);
     let h = span * 0.72 / 2.0;
-    [
-        (cx - span / 2.0).max(-180.0),
-        (cy - h).max(-80.0),
-        (cx + span / 2.0).min(180.0),
-        (cy + h).min(84.0),
-    ]
+    [(cx - span / 2.0).max(-180.0), (cy - h).max(-80.0), (cx + span / 2.0).min(180.0), (cy + h).min(84.0)]
 }
 
 // ------------------------------------------------------------------ PNG resolution
@@ -639,11 +494,7 @@ fn crc32(data: &[u8]) -> u32 {
     for &b in data {
         c ^= b as u32;
         for _ in 0..8 {
-            c = if c & 1 != 0 {
-                0xedb8_8320 ^ (c >> 1)
-            } else {
-                c >> 1
-            };
+            c = if c & 1 != 0 { 0xedb8_8320 ^ (c >> 1) } else { c >> 1 };
         }
     }
     !c
@@ -676,18 +527,8 @@ mod tests {
 
     #[test]
     fn page_theme_defaults_to_light_and_rejects_unknown_values() {
-        assert_eq!(
-            Furniture::from_params(&serde_json::json!({}))
-                .unwrap()
-                .theme,
-            "light"
-        );
-        assert_eq!(
-            Furniture::from_params(&serde_json::json!({"theme": "dark"}))
-                .unwrap()
-                .theme,
-            "dark"
-        );
+        assert_eq!(Furniture::from_params(&serde_json::json!({})).unwrap().theme, "light");
+        assert_eq!(Furniture::from_params(&serde_json::json!({"theme": "dark"})).unwrap().theme, "dark");
         assert!(Furniture::from_params(&serde_json::json!({"theme": "neon"})).is_err());
     }
 }

@@ -35,12 +35,7 @@ impl std::fmt::Display for WkbError {
 /// the source (and works for polygons, not just points).
 pub fn bbox(buf: &[u8]) -> Option<[f64; 4]> {
     let g = parse(buf).ok()?;
-    let mut b = [
-        f64::INFINITY,
-        f64::INFINITY,
-        f64::NEG_INFINITY,
-        f64::NEG_INFINITY,
-    ];
+    let mut b = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
     {
         let add = |p: &[f64; 2]| {
             b[0] = b[0].min(p[0]);
@@ -55,11 +50,7 @@ pub fn bbox(buf: &[u8]) -> Option<[f64; 4]> {
             Geom::Polygons(ps) => ps.iter().flatten().flatten().for_each(add),
         }
     }
-    if b[0].is_finite() && b[2].is_finite() {
-        Some(b)
-    } else {
-        None
-    }
+    if b[0].is_finite() && b[2].is_finite() { Some(b) } else { None }
 }
 
 struct Reader<'a> {
@@ -81,20 +72,12 @@ impl<'a> Reader<'a> {
     #[inline]
     fn u32(&mut self, le: bool) -> Result<u32, WkbError> {
         let a = self.take::<4>()?;
-        Ok(if le {
-            u32::from_le_bytes(a)
-        } else {
-            u32::from_be_bytes(a)
-        })
+        Ok(if le { u32::from_le_bytes(a) } else { u32::from_be_bytes(a) })
     }
     #[inline]
     fn f64(&mut self, le: bool) -> Result<f64, WkbError> {
         let a = self.take::<8>()?;
-        Ok(if le {
-            f64::from_le_bytes(a)
-        } else {
-            f64::from_be_bytes(a)
-        })
+        Ok(if le { f64::from_le_bytes(a) } else { f64::from_be_bytes(a) })
     }
     #[inline]
     fn skip(&mut self, n: usize) -> Result<(), WkbError> {
@@ -129,12 +112,7 @@ pub fn parse(buf: &[u8]) -> Result<Geom, WkbError> {
     })
 }
 
-fn read_coords(
-    r: &mut Reader,
-    le: bool,
-    extra: usize,
-    n: usize,
-) -> Result<Vec<[f64; 2]>, WkbError> {
+fn read_coords(r: &mut Reader, le: bool, extra: usize, n: usize) -> Result<Vec<[f64; 2]>, WkbError> {
     // Guard against absurd counts in corrupt blobs before allocating.
     if n.saturating_mul(16 + extra) > r.b.len().saturating_sub(r.p) {
         return Err(WkbError::Truncated);
@@ -222,10 +200,7 @@ mod tests {
 
     #[test]
     fn point_both_endians() {
-        assert_eq!(
-            parse(&le_point(1.5, -2.0)).unwrap(),
-            Geom::Points(vec![[1.5, -2.0]])
-        );
+        assert_eq!(parse(&le_point(1.5, -2.0)).unwrap(), Geom::Points(vec![[1.5, -2.0]]));
         let mut be = vec![0u8];
         be.extend_from_slice(&1u32.to_be_bytes());
         be.extend_from_slice(&3.0f64.to_be_bytes());
@@ -254,10 +229,7 @@ mod tests {
         mp.extend_from_slice(&2u32.to_le_bytes());
         mp.extend(le_point(1.0, 2.0));
         mp.extend(le_point(3.0, 4.0));
-        assert_eq!(
-            parse(&mp).unwrap(),
-            Geom::Points(vec![[1.0, 2.0], [3.0, 4.0]])
-        );
+        assert_eq!(parse(&mp).unwrap(), Geom::Points(vec![[1.0, 2.0], [3.0, 4.0]]));
     }
 
     #[test]

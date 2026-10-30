@@ -5,7 +5,7 @@
 //! of the machine.
 
 use crate::Engine;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -14,49 +14,28 @@ pub fn roots(engine: &Engine) -> Vec<(String, PathBuf, &'static str)> {
     let mut out = Vec::new();
     for d in &engine.data_dirs {
         if d.is_dir() {
-            let name = d
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| d.display().to_string());
-            out.push((
-                name,
-                d.clone(),
-                "Data folder: GeoSpaX reads every layer and raster in it at start",
-            ));
+            let name = d.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| d.display().to_string());
+            out.push((name, d.clone(), "Data folder: GeoSpaX reads every layer and raster in it at start"));
         }
     }
     let edits = engine.state_dir.join("edits");
     if edits.is_dir() {
-        out.push((
-            "Edits".into(),
-            edits,
-            "Copies of layers you edited and layers you created",
-        ));
+        out.push(("Edits".into(), edits, "Copies of layers you edited and layers you created"));
     }
     for c in engine.connections.read().unwrap().iter() {
         if c.is_dir() && !out.iter().any(|(_, p, _)| p == c) {
-            out.push((
-                folder_title(c),
-                c.clone(),
-                "Folder connection: browse it and open what you need",
-            ));
+            out.push((folder_title(c), c.clone(), "Folder connection: browse it and open what you need"));
         }
     }
     let uploads = engine.state_dir.join("uploads");
     if uploads.is_dir() {
-        out.push((
-            "Uploads".into(),
-            uploads,
-            "Files dropped on the app (when no data folder can be written)",
-        ));
+        out.push(("Uploads".into(), uploads, "Files dropped on the app (when no data folder can be written)"));
     }
     out
 }
 
 fn folder_title(p: &Path) -> String {
-    p.file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| p.display().to_string())
+    p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| p.display().to_string())
 }
 
 fn connections_file(state: &Path) -> PathBuf {
@@ -73,19 +52,9 @@ pub fn load_connections(state: &Path) -> Vec<PathBuf> {
 }
 
 fn save_connections(engine: &Engine) -> Result<(), String> {
-    let list: Vec<String> = engine
-        .connections
-        .read()
-        .unwrap()
-        .iter()
-        .map(|p| p.display().to_string())
-        .collect();
+    let list: Vec<String> = engine.connections.read().unwrap().iter().map(|p| p.display().to_string()).collect();
     std::fs::create_dir_all(&engine.state_dir).map_err(|e| e.to_string())?;
-    std::fs::write(
-        connections_file(&engine.state_dir),
-        serde_json::to_vec_pretty(&list).unwrap(),
-    )
-    .map_err(|e| e.to_string())
+    std::fs::write(connections_file(&engine.state_dir), serde_json::to_vec_pretty(&list).unwrap()).map_err(|e| e.to_string())
 }
 
 const SHARED: &str = "this GeoSpaX was started with --restricted, so folders cannot be connected from here; start it without --restricted, or with --data <folder>";
@@ -116,11 +85,7 @@ pub fn connect(engine: &Engine, path: &str) -> Result<Value, String> {
 pub fn disconnect(engine: &Engine, path: &str) -> Result<Value, String> {
     let p = canonical(Path::new(path.trim())).unwrap_or_else(|| PathBuf::from(path.trim()));
     let before = engine.connections.read().unwrap().len();
-    engine
-        .connections
-        .write()
-        .unwrap()
-        .retain(|c| c != &p && c.display().to_string() != path.trim());
+    engine.connections.write().unwrap().retain(|c| c != &p && c.display().to_string() != path.trim());
     if engine.connections.read().unwrap().len() == before {
         return Err(format!("{path} is not a folder connection"));
     }
@@ -134,10 +99,7 @@ pub fn pick(engine: &Engine, path: Option<&str>) -> Result<Value, String> {
     if engine.shared.load(std::sync::atomic::Ordering::Relaxed) {
         return Err(SHARED.into());
     }
-    let home = std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/"));
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"));
     let dir = match path.filter(|p| !p.trim().is_empty()) {
         Some(p) => canonical(Path::new(p.trim())).ok_or_else(|| format!("{p}: no such folder"))?,
         None => home.clone(),
@@ -158,27 +120,14 @@ pub fn pick(engine: &Engine, path: Option<&str>) -> Result<Value, String> {
             }
         }
     } else {
-        for (n, p) in [
-            ("Computer", "/"),
-            ("Media", "/media"),
-            ("Mounted", "/mnt"),
-            ("Volumes", "/Volumes"),
-        ] {
+        for (n, p) in [("Computer", "/"), ("Media", "/media"), ("Mounted", "/mnt"), ("Volumes", "/Volumes")] {
             if Path::new(p).is_dir() {
                 places.push(json!({ "name": n, "path": p }));
             }
         }
     }
-    let files = std::fs::read_dir(&dir)
-        .map(|rd| {
-            rd.flatten()
-                .filter(|e| kind_of(&e.path()).is_some())
-                .count()
-        })
-        .unwrap_or(0);
-    Ok(
-        json!({ "path": dir.display().to_string(), "parent": dir.parent().map(|p| p.display().to_string()), "folders": folders, "places": places, "map_files": files }),
-    )
+    let files = std::fs::read_dir(&dir).map(|rd| rd.flatten().filter(|e| kind_of(&e.path()).is_some()).count()).unwrap_or(0);
+    Ok(json!({ "path": dir.display().to_string(), "parent": dir.parent().map(|p| p.display().to_string()), "folders": folders, "places": places, "map_files": files }))
 }
 
 fn canonical(p: &Path) -> Option<PathBuf> {
@@ -188,11 +137,7 @@ fn canonical(p: &Path) -> Option<PathBuf> {
 /// `path` resolved, if it lies inside one of the roots.
 fn inside_roots(engine: &Engine, path: &Path) -> Option<PathBuf> {
     let p = canonical(path)?;
-    roots(engine)
-        .iter()
-        .filter_map(|(_, r, _)| canonical(r))
-        .any(|r| p.starts_with(&r))
-        .then_some(p)
+    roots(engine).iter().filter_map(|(_, r, _)| canonical(r)).any(|r| p.starts_with(&r)).then_some(p)
 }
 
 /// What a file is to GeoSpaX, by extension; None for files it does not open.
@@ -205,8 +150,7 @@ pub fn kind_of(p: &Path) -> Option<&'static str> {
     Some(match ext.as_str() {
         "tif" | "tiff" => "raster",
         "las" | "laz" => "point cloud",
-        "geojson" | "json" | "gpkg" | "fgb" | "shp" | "kml" | "kmz" | "gpx" | "csv" | "gml"
-        | "parquet" | "nmea" | "pmtiles" => "vector",
+        "geojson" | "json" | "gpkg" | "fgb" | "shp" | "kml" | "kmz" | "gpx" | "csv" | "gml" | "parquet" | "nmea" | "pmtiles" => "vector",
         "zip" => "archive",
         "yaml" | "yml" => "recipe",
         _ => return None,
@@ -215,16 +159,11 @@ pub fn kind_of(p: &Path) -> Option<&'static str> {
 
 /// The ids of layers and rasters on the map that were read from `file`.
 fn on_map(engine: &Engine, file: &Path) -> Vec<String> {
-    let Some(f) = canonical(file) else {
-        return vec![];
-    };
+    let Some(f) = canonical(file) else { return vec![] };
     let mut ids: Vec<String> = engine
         .layers()
         .iter()
-        .filter(|l| {
-            canonical(Path::new(&l.info.source)).as_deref() == Some(f.as_path())
-                || canonical(l.path()).as_deref() == Some(f.as_path())
-        })
+        .filter(|l| canonical(Path::new(&l.info.source)).as_deref() == Some(f.as_path()) || canonical(l.path()).as_deref() == Some(f.as_path()))
         .map(|l| l.info.id.clone())
         .collect();
     for id in engine.edited_from(&f) {
@@ -232,13 +171,7 @@ fn on_map(engine: &Engine, file: &Path) -> Vec<String> {
             ids.push(id);
         }
     }
-    ids.extend(
-        engine
-            .rasters()
-            .iter()
-            .filter(|r| canonical(&r.info.path).as_deref() == Some(f.as_path()))
-            .map(|r| r.info.id.clone()),
-    );
+    ids.extend(engine.rasters().iter().filter(|r| canonical(&r.info.path).as_deref() == Some(f.as_path())).map(|r| r.info.id.clone()));
     ids
 }
 
@@ -249,12 +182,9 @@ pub fn list(engine: &Engine, path: Option<&str>) -> Result<Value, String> {
             .into_iter()
             .map(|(title, p, about)| json!({ "title": title, "path": p.display().to_string(), "about": about, "connection": about.starts_with("Folder connection") }))
             .collect();
-        return Ok(
-            json!({ "roots": rs, "can_connect": !engine.shared.load(std::sync::atomic::Ordering::Relaxed) }),
-        );
+        return Ok(json!({ "roots": rs, "can_connect": !engine.shared.load(std::sync::atomic::Ordering::Relaxed) }));
     };
-    let dir = inside_roots(engine, Path::new(path))
-        .ok_or("that folder is outside GeoSpaX's data folders")?;
+    let dir = inside_roots(engine, Path::new(path)).ok_or("that folder is outside GeoSpaX's data folders")?;
     let mut folders = Vec::new();
     let mut files = Vec::new();
     let rd = std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -271,22 +201,11 @@ pub fn list(engine: &Engine, path: Option<&str>) -> Result<Value, String> {
             files.push(json!({ "name": name, "path": p.display().to_string(), "kind": kind, "size": size, "on_map": on_map(engine, &p), "container": is_container(&p) }));
         }
     }
-    let by_name = |a: &Value, b: &Value| {
-        a["name"]
-            .as_str()
-            .unwrap_or("")
-            .to_lowercase()
-            .cmp(&b["name"].as_str().unwrap_or("").to_lowercase())
-    };
+    let by_name = |a: &Value, b: &Value| a["name"].as_str().unwrap_or("").to_lowercase().cmp(&b["name"].as_str().unwrap_or("").to_lowercase());
     folders.sort_by(by_name);
     files.sort_by(by_name);
-    let parent = dir
-        .parent()
-        .and_then(|p| inside_roots(engine, p))
-        .map(|p| p.display().to_string());
-    Ok(
-        json!({ "path": dir.display().to_string(), "parent": parent, "folders": folders, "files": files }),
-    )
+    let parent = dir.parent().and_then(|p| inside_roots(engine, p)).map(|p| p.display().to_string());
+    Ok(json!({ "path": dir.display().to_string(), "parent": parent, "folders": folders, "files": files }))
 }
 
 /// Put one file from a data folder on the map.
@@ -295,10 +214,7 @@ pub fn add(engine: &Arc<Engine>, path: &str, layer: Option<&str>) -> Result<Valu
     if path.starts_with("/vsizip/") || layer.is_some() {
         let p = resolve(engine, path)?;
         if matches!(kind_of(&p), Some("raster")) {
-            let id = p
-                .file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let id = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
             let h = engine.register_raster(&p, &id)?;
             return Ok(json!({ "layers": [], "rasters": [h.info.id.clone()] }));
         }
@@ -312,8 +228,7 @@ pub fn add(engine: &Arc<Engine>, path: &str, layer: Option<&str>) -> Result<Valu
         let ids = engine.register_layers(hs);
         return Ok(json!({ "layers": ids, "rasters": [] }));
     }
-    let p = inside_roots(engine, Path::new(path))
-        .ok_or("that file is outside GeoSpaX's data folders")?;
+    let p = inside_roots(engine, Path::new(path)).ok_or("that file is outside GeoSpaX's data folders")?;
     if !p.is_file() {
         return Err(format!("{} is not a file", p.display()));
     }
@@ -323,10 +238,7 @@ pub fn add(engine: &Arc<Engine>, path: &str, layer: Option<&str>) -> Result<Valu
     }
     let (layers, rasters, kept, skipped) = crate::upload::register_files(engine, &[p.clone()]);
     if layers.is_empty() && rasters.is_empty() {
-        let why = skipped.first().cloned().or_else(|| {
-            kept.first()
-                .map(|k| format!("{k}: point clouds are opened by the lidar-to-terrain recipe"))
-        });
+        let why = skipped.first().cloned().or_else(|| kept.first().map(|k| format!("{k}: point clouds are opened by the lidar-to-terrain recipe")));
         return Err(why.unwrap_or_else(|| format!("{}: nothing GeoSpaX can draw", p.display())));
     }
     Ok(json!({ "layers": layers, "rasters": rasters, "skipped": skipped }))
@@ -334,12 +246,7 @@ pub fn add(engine: &Arc<Engine>, path: &str, layer: Option<&str>) -> Result<Valu
 
 /// Files whose layers the Explorer can list one by one.
 pub fn is_container(p: &Path) -> bool {
-    matches!(
-        p.extension()
-            .map(|e| e.to_string_lossy().to_lowercase())
-            .as_deref(),
-        Some("gpkg" | "zip" | "kmz")
-    )
+    matches!(p.extension().map(|e| e.to_string_lossy().to_lowercase()).as_deref(), Some("gpkg" | "zip" | "kmz"))
 }
 
 /// A path the Explorer may read: a file inside the roots, or a member of a zip inside them
@@ -348,16 +255,10 @@ fn resolve(engine: &Engine, path: &str) -> Result<PathBuf, String> {
     if let Some(rest) = path.strip_prefix("/vsizip/") {
         let lower = rest.to_lowercase();
         let end = lower.find(".zip").map(|i| i + 4).ok_or("not a zip path")?;
-        let zip = inside_roots(engine, Path::new(&rest[..end]))
-            .ok_or("that file is outside GeoSpaX's folders")?;
-        return Ok(PathBuf::from(format!(
-            "/vsizip/{}{}",
-            zip.display(),
-            &rest[end..]
-        )));
+        let zip = inside_roots(engine, Path::new(&rest[..end])).ok_or("that file is outside GeoSpaX's folders")?;
+        return Ok(PathBuf::from(format!("/vsizip/{}{}", zip.display(), &rest[end..])));
     }
-    inside_roots(engine, Path::new(path))
-        .ok_or_else(|| "that file is outside GeoSpaX's folders".to_string())
+    inside_roots(engine, Path::new(path)).ok_or_else(|| "that file is outside GeoSpaX's folders".to_string())
 }
 
 /// What is inside a container: the layers of a GeoPackage (name, geometry, count) or the map files
@@ -365,10 +266,7 @@ fn resolve(engine: &Engine, path: &str) -> Result<PathBuf, String> {
 pub fn inside(engine: &Engine, path: &str) -> Result<Value, String> {
     use gdal::vector::LayerAccess;
     let p = resolve(engine, path)?;
-    let ext = p
-        .extension()
-        .map(|e| e.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
+    let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
     let mut items = Vec::new();
     if ext == "zip" {
         let root = format!("/vsizip/{}", p.display());
@@ -384,9 +282,7 @@ pub fn inside(engine: &Engine, path: &str) -> Result<Value, String> {
                     }
                     let name = std::ffi::CStr::from_ptr(item).to_string_lossy().to_string();
                     let member = format!("{root}/{name}");
-                    if let Some(kind) =
-                        kind_of(Path::new(&name)).filter(|k| *k != "archive" && *k != "recipe")
-                    {
+                    if let Some(kind) = kind_of(Path::new(&name)).filter(|k| *k != "archive" && *k != "recipe") {
                         items.push(json!({ "name": name, "path": member, "kind": kind }));
                     }
                     i += 1;
@@ -397,20 +293,10 @@ pub fn inside(engine: &Engine, path: &str) -> Result<Value, String> {
     } else {
         let ds = crate::catalog::open_vector(&p)?;
         for lyr in ds.layers() {
-            let geom = lyr
-                .defn()
-                .geom_fields()
-                .next()
-                .map(|g| format!("{:?}", g.field_type()))
-                .unwrap_or_else(|| "table".into());
+            let geom = lyr.defn().geom_fields().next().map(|g| format!("{:?}", g.field_type())).unwrap_or_else(|| "table".into());
             let name = lyr.name();
             let cp = canonical(&p);
-            let on: Vec<String> = engine
-                .layers()
-                .iter()
-                .filter(|l| l.info.name == name && canonical(Path::new(&l.info.source)) == cp)
-                .map(|l| l.info.id.clone())
-                .collect();
+            let on: Vec<String> = engine.layers().iter().filter(|l| l.info.name == name && canonical(Path::new(&l.info.source)) == cp).map(|l| l.info.id.clone()).collect();
             items.push(json!({ "name": name, "path": p.display().to_string(), "layer": name, "kind": "vector", "geometry": geometry_word(&geom), "count": lyr.feature_count(), "on_map": on }));
         }
     }
@@ -429,17 +315,7 @@ pub(crate) fn geometry_word(t: &str) -> &'static str {
         };
     }
     let t = t.to_lowercase();
-    if t.contains("point") {
-        "points"
-    } else if t.contains("line") || t.contains("string") {
-        "lines"
-    } else if t.contains("polygon") || t.contains("surface") {
-        "polygons"
-    } else if t == "table" {
-        "table"
-    } else {
-        "features"
-    }
+    if t.contains("point") { "points" } else if t.contains("line") || t.contains("string") { "lines" } else if t.contains("polygon") || t.contains("surface") { "polygons" } else if t == "table" { "table" } else { "features" }
 }
 
 fn field_word(t: u32) -> &'static str {
@@ -463,12 +339,8 @@ pub fn preview(engine: &Engine, path: &str, layer: Option<&str>) -> Result<Value
         let ds = crate::raster::open(&p)?;
         let (w, h) = ds.raster_size();
         let b = crate::raster::lonlat_bounds(&ds).ok();
-        let crs = crate::raster::srs_of(&ds)
-            .and_then(|s| s.auth_code().ok().map(|c| format!("EPSG:{c}")))
-            .unwrap_or_else(|| "unknown".into());
-        return Ok(
-            json!({ "kind": "raster", "bounds": b, "crs": crs, "width": w, "height": h, "bands": ds.raster_count() }),
-        );
+        let crs = crate::raster::srs_of(&ds).and_then(|s| s.auth_code().ok().map(|c| format!("EPSG:{c}"))).unwrap_or_else(|| "unknown".into());
+        return Ok(json!({ "kind": "raster", "bounds": b, "crs": crs, "width": w, "height": h, "bands": ds.raster_count() }));
     }
     let ds = crate::catalog::open_vector(&p)?;
     let mut lyr = match layer {
@@ -476,77 +348,36 @@ pub fn preview(engine: &Engine, path: &str, layer: Option<&str>) -> Result<Value
         None => ds.layer(0).map_err(|e| e.to_string())?,
     };
     let count = lyr.feature_count();
-    let fields: Vec<Value> = lyr
-        .defn()
-        .fields()
-        .map(|f| json!({ "name": f.name(), "type": field_word(f.field_type()) }))
-        .collect();
-    let geom = lyr
-        .defn()
-        .geom_fields()
-        .next()
-        .map(|g| format!("{:?}", g.field_type()))
-        .unwrap_or_else(|| "table".into());
+    let fields: Vec<Value> = lyr.defn().fields().map(|f| json!({ "name": f.name(), "type": field_word(f.field_type()) })).collect();
+    let geom = lyr.defn().geom_fields().next().map(|g| format!("{:?}", g.field_type())).unwrap_or_else(|| "table".into());
     let mut crs = "unknown (assumed EPSG:4326)".to_string();
     let mut bounds = None;
     if let Ok(env) = lyr.get_extent() {
         let srs = lyr.spatial_ref();
         if let Some(s) = &srs {
-            crs = s
-                .auth_code()
-                .ok()
-                .map(|c| format!("EPSG:{c}"))
-                .unwrap_or_else(|| s.name().unwrap_or_default());
+            crs = s.auth_code().ok().map(|c| format!("EPSG:{c}")).unwrap_or_else(|| s.name().unwrap_or_default());
         }
-        let (mut xs, mut ys) = (
-            vec![env.MinX, env.MaxX, env.MinX, env.MaxX],
-            vec![env.MinY, env.MinY, env.MaxY, env.MaxY],
-        );
+        let (mut xs, mut ys) = (vec![env.MinX, env.MaxX, env.MinX, env.MaxX], vec![env.MinY, env.MinY, env.MaxY, env.MaxY]);
         let ok = match srs {
             Some(mut s) => {
-                s.set_axis_mapping_strategy(
-                    gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder,
-                );
+                s.set_axis_mapping_strategy(gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder);
                 let mut zs = vec![0.0; 4];
-                crate::catalog::wgs84()
-                    .ok()
-                    .and_then(|w| gdal::spatial_ref::CoordTransform::new(&s, &w).ok())
-                    .map(|ct| ct.transform_coords(&mut xs, &mut ys, &mut zs).is_ok())
-                    .unwrap_or(false)
+                crate::catalog::wgs84().ok().and_then(|w| gdal::spatial_ref::CoordTransform::new(&s, &w).ok()).map(|ct| ct.transform_coords(&mut xs, &mut ys, &mut zs).is_ok()).unwrap_or(false)
             }
             None => true,
         };
         if ok {
             let f = |v: &[f64], m: fn(f64, f64) -> f64| v.iter().copied().fold(v[0], m);
-            bounds = Some([
-                f(&xs, f64::min),
-                f(&ys, f64::min),
-                f(&xs, f64::max),
-                f(&ys, f64::max),
-            ]);
+            bounds = Some([f(&xs, f64::min), f(&ys, f64::min), f(&xs, f64::max), f(&ys, f64::max)]);
         }
     }
-    let names: Vec<String> = fields
-        .iter()
-        .filter_map(|f| f["name"].as_str().map(String::from))
-        .collect();
+    let names: Vec<String> = fields.iter().filter_map(|f| f["name"].as_str().map(String::from)).collect();
     let mut rows = Vec::new();
     for feat in lyr.features().take(5) {
-        let row: Vec<Value> = names
-            .iter()
-            .map(|n| {
-                feat.field_index(n)
-                    .ok()
-                    .and_then(|i| feat.field_as_string(i).ok().flatten())
-                    .map(Value::String)
-                    .unwrap_or(Value::Null)
-            })
-            .collect();
+        let row: Vec<Value> = names.iter().map(|n| feat.field_index(n).ok().and_then(|i| feat.field_as_string(i).ok().flatten()).map(Value::String).unwrap_or(Value::Null)).collect();
         rows.push(Value::Array(row));
     }
-    Ok(
-        json!({ "kind": "vector", "layer": lyr.name(), "geometry": geometry_word(&geom), "count": count, "crs": crs, "bounds": bounds, "fields": fields, "rows": rows }),
-    )
+    Ok(json!({ "kind": "vector", "layer": lyr.name(), "geometry": geometry_word(&geom), "count": count, "crs": crs, "bounds": bounds, "fields": fields, "rows": rows }))
 }
 
 #[cfg(test)]

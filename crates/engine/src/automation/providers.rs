@@ -8,11 +8,11 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 
 use super::features;
 use super::raster_steps::pick_raster;
-use super::steps::{StepCtx, StepOut, p_f64, p_str, sanitize};
+use super::steps::{p_f64, p_str, sanitize, StepCtx, StepOut};
 use crate::raster;
 
 /// An executable from an env override, PATH, or the usual install folders.
@@ -23,32 +23,13 @@ pub fn find_tool(name: &str, env: &str) -> Option<PathBuf> {
             return Some(p);
         }
     }
-    let exts: &[&str] = if cfg!(windows) {
-        &[".exe", ".bat", ".cmd", ""]
-    } else {
-        &[""]
-    };
-    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
-        .map(|p| std::env::split_paths(&p).collect())
-        .unwrap_or_default();
-    dirs.extend(
-        [
-            "/usr/bin",
-            "/usr/local/bin",
-            "/opt/homebrew/bin",
-            "/Applications/GRASS-8.4.app/Contents/MacOS",
-            "C:\\OSGeo4W\\bin",
-            "C:\\Program Files\\SAGA",
-        ]
-        .iter()
-        .map(PathBuf::from),
-    );
+    let exts: &[&str] = if cfg!(windows) { &[".exe", ".bat", ".cmd", ""] } else { &[""] };
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    dirs.extend(["/usr/bin", "/usr/local/bin", "/opt/homebrew/bin", "/Applications/GRASS-8.4.app/Contents/MacOS", "C:\\OSGeo4W\\bin", "C:\\Program Files\\SAGA"].iter().map(PathBuf::from));
     if cfg!(windows) {
         // standalone installers: C:\\Program Files\\GRASS GIS 8.4, SAGA 9.x, QGIS 3.x (bin\\ inside)
         for var in ["ProgramFiles", "ProgramW6432"] {
-            let Some(base) = std::env::var_os(var) else {
-                continue;
-            };
+            let Some(base) = std::env::var_os(var) else { continue };
             for e in std::fs::read_dir(base).into_iter().flatten().flatten() {
                 let n = e.file_name().to_string_lossy().to_uppercase();
                 if n.starts_with("GRASS") || n.starts_with("SAGA") || n.starts_with("QGIS") {
@@ -66,16 +47,8 @@ pub fn find_tool(name: &str, env: &str) -> Option<PathBuf> {
         }
         // Windows GRASS launchers are versioned: grass84.bat, grass85.bat
         if cfg!(windows) && name == "grass" {
-            let mut versioned: Vec<PathBuf> = std::fs::read_dir(&d)
-                .into_iter()
-                .flatten()
-                .flatten()
-                .map(|e| e.path())
-                .filter(|p| {
-                    p.file_name().and_then(|f| f.to_str()).is_some_and(|f| {
-                        f.to_lowercase().starts_with("grass8") && f.to_lowercase().ends_with(".bat")
-                    })
-                })
+            let mut versioned: Vec<PathBuf> = std::fs::read_dir(&d).into_iter().flatten().flatten().map(|e| e.path())
+                .filter(|p| p.file_name().and_then(|f| f.to_str()).is_some_and(|f| f.to_lowercase().starts_with("grass8") && f.to_lowercase().ends_with(".bat")))
                 .collect();
             versioned.sort();
             if let Some(newest) = versioned.pop() {
@@ -92,36 +65,19 @@ pub fn version(exe: &Path, arg: &str) -> String {
         .stdin(Stdio::null())
         .output()
         .ok()
-        .map(|o| {
-            String::from_utf8_lossy(&o.stdout).to_string() + &String::from_utf8_lossy(&o.stderr)
-        })
-        .and_then(|s| {
-            s.lines()
-                .find(|l| !l.trim().is_empty())
-                .map(|l| l.trim().to_string())
-        })
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string() + &String::from_utf8_lossy(&o.stderr))
+        .and_then(|s| s.lines().find(|l| !l.trim().is_empty()).map(|l| l.trim().to_string()))
         .unwrap_or_default()
 }
 
 /// Run a command with a timeout and the run's cancel flag; output goes to `<dir>/<log>`.
-fn run_logged(
-    cmd: &mut Command,
-    dir: &Path,
-    log: &str,
-    timeout: Duration,
-    cancel: &AtomicBool,
-) -> Result<(String, f64), String> {
+fn run_logged(cmd: &mut Command, dir: &Path, log: &str, timeout: Duration, cancel: &AtomicBool) -> Result<(String, f64), String> {
     let path = dir.join(log);
     let f = std::fs::File::create(&path).map_err(|e| e.to_string())?;
     let f2 = f.try_clone().map_err(|e| e.to_string())?;
-    cmd.current_dir(dir)
-        .stdin(Stdio::null())
-        .stdout(f)
-        .stderr(f2);
+    cmd.current_dir(dir).stdin(Stdio::null()).stdout(f).stderr(f2);
     let t0 = Instant::now();
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("could not start {:?}: {e}", cmd.get_program()))?;
+    let mut child = cmd.spawn().map_err(|e| format!("could not start {:?}: {e}", cmd.get_program()))?;
     let status = loop {
         if let Some(s) = child.try_wait().map_err(|e| e.to_string())? {
             break s;
@@ -129,25 +85,14 @@ fn run_logged(
         if cancel.load(Ordering::Relaxed) || t0.elapsed() > timeout {
             let _ = child.kill();
             let _ = child.wait();
-            return Err(if cancel.load(Ordering::Relaxed) {
-                "cancelled".into()
-            } else {
-                format!("timed out after {} s", timeout.as_secs())
-            });
+            return Err(if cancel.load(Ordering::Relaxed) { "cancelled".into() } else { format!("timed out after {} s", timeout.as_secs()) });
         }
         std::thread::sleep(Duration::from_millis(50));
     };
     let text = std::fs::read_to_string(&path).unwrap_or_default();
     if !status.success() {
         let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
-        return Err(format!(
-            "exited with {}: {}",
-            status
-                .code()
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "a signal".into()),
-            lines[lines.len().saturating_sub(6)..].join(" | ")
-        ));
+        return Err(format!("exited with {}: {}", status.code().map(|c| c.to_string()).unwrap_or_else(|| "a signal".into()), lines[lines.len().saturating_sub(6)..].join(" | ")));
     }
     Ok((text, t0.elapsed().as_secs_f64()))
 }
@@ -157,17 +102,8 @@ fn sh_quote(s: &str) -> String {
 }
 
 /// An input for an external tool: a raster file, or a vector layer exported to GeoPackage.
-fn input_file(
-    sc: &mut StepCtx,
-    spec: &str,
-    work: &Path,
-    name: &str,
-) -> Result<(bool, PathBuf), String> {
-    if let Some(r) = sc
-        .engine
-        .raster(spec)
-        .or_else(|| sc.engine.raster(&format!("{}.{spec}", sc.recipe_id)))
-    {
+fn input_file(sc: &mut StepCtx, spec: &str, work: &Path, name: &str) -> Result<(bool, PathBuf), String> {
+    if let Some(r) = sc.engine.raster(spec).or_else(|| sc.engine.raster(&format!("{}.{spec}", sc.recipe_id))) {
         return Ok((true, r.info.path.clone()));
     }
     if let Ok(l) = sc.layer(spec) {
@@ -176,14 +112,8 @@ fn input_file(
         features::write_features(&path, "GPKG", name, &fs)?;
         return Ok((false, path));
     }
-    let p = sc
-        .resolve_path(spec)
-        .ok_or(format!("input '{spec}' is not a raster, layer or file"))?;
-    let ext = p
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
+    let p = sc.resolve_path(spec).ok_or(format!("input '{spec}' is not a raster, layer or file"))?;
+    let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     Ok((raster::EXTENSIONS.contains(&ext.as_str()), p))
 }
 
@@ -192,19 +122,8 @@ fn grass_classes(cats: &str, colors: &str) -> Vec<Value> {
     let mut col: Vec<(f64, String)> = Vec::new();
     for l in colors.lines() {
         let mut it = l.split_whitespace();
-        let (Some(v), Some(c)) = (it.next(), it.next()) else {
-            continue;
-        };
-        let (Ok(v), Some(rgb)) = (
-            v.parse::<f64>(),
-            Some(
-                c.split(':')
-                    .filter_map(|x| x.parse::<u8>().ok())
-                    .collect::<Vec<_>>(),
-            ),
-        ) else {
-            continue;
-        };
+        let (Some(v), Some(c)) = (it.next(), it.next()) else { continue };
+        let (Ok(v), Some(rgb)) = (v.parse::<f64>(), Some(c.split(':').filter_map(|x| x.parse::<u8>().ok()).collect::<Vec<_>>())) else { continue };
         if rgb.len() == 3 {
             col.push((v, format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2])));
         }
@@ -234,24 +153,15 @@ struct OutSpec {
 
 fn out_specs(p: &Value) -> Result<Vec<OutSpec>, String> {
     let mut out = Vec::new();
-    for (k, v) in p
-        .get("outputs")
-        .and_then(Value::as_object)
-        .ok_or("list outputs: {name: raster | vector | {type, title, kind, classes}}")?
-    {
-        let ty = v
-            .as_str()
-            .or_else(|| v["type"].as_str())
-            .unwrap_or("raster");
+    for (k, v) in p.get("outputs").and_then(Value::as_object).ok_or("list outputs: {name: raster | vector | {type, title, kind, classes}}")? {
+        let ty = v.as_str().or_else(|| v["type"].as_str()).unwrap_or("raster");
         out.push(OutSpec {
             key: k.clone(),
             name: sanitize(v["name"].as_str().unwrap_or(k)),
             raster: ty != "vector",
             title: v["title"].as_str().map(str::to_string),
             kind: v["kind"].as_str().map(str::to_string),
-            classes: ty == "classes"
-                || v["classes"].as_bool().unwrap_or(false)
-                || v["kind"] == "classes",
+            classes: ty == "classes" || v["classes"].as_bool().unwrap_or(false) || v["kind"] == "classes",
         });
     }
     if out.is_empty() {
@@ -267,10 +177,7 @@ fn adopt(sc: &mut StepCtx, o: &OutSpec, produced: &Path, side: Value) -> Result<
     if o.raster {
         let dest = dir.join(format!("{}.tif", o.name));
         let ds = raster::open(produced)?;
-        let float = ds
-            .rasterband(1)
-            .map(|b| b.band_type().name().starts_with("Float"))
-            .unwrap_or(false);
+        let float = ds.rasterband(1).map(|b| b.band_type().name().starts_with("Float")).unwrap_or(false);
         raster::save_gtiff(&ds, &dest, float)?;
         raster::write_sidecar(&dest, &side)?;
         let id = format!("{}.{}", sc.recipe_id, o.name);
@@ -290,21 +197,14 @@ fn adopt(sc: &mut StepCtx, o: &OutSpec, produced: &Path, side: Value) -> Result<
         }
         sc.engine.register_layers(handles);
         sc.touch(&id);
-        sc.names.insert(
-            id.clone(),
-            o.title
-                .clone()
-                .unwrap_or_else(|| super::steps::humanize(&o.name)),
-        );
+        sc.names.insert(id.clone(), o.title.clone().unwrap_or_else(|| super::steps::humanize(&o.name)));
         Ok(id)
     }
 }
 
 pub(super) fn grass(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let exe = find_tool("grass", "GEOSPAX_GRASS").ok_or("GRASS is not installed (Debian/Ubuntu: apt install grass-core · Windows: OSGeo4W · macOS: grass.osgeo.org), or set GEOSPAX_GRASS")?;
-    let script = p_str(p, "script")
-        .ok_or("grass needs script: GRASS commands, one per line")?
-        .to_string();
+    let script = p_str(p, "script").ok_or("grass needs script: GRASS commands, one per line")?.to_string();
     let outs = out_specs(p)?;
     let work = sc.dir.join(format!("grass_{}", sanitize(&sc.step_id)));
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
@@ -312,9 +212,7 @@ pub(super) fn grass(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     match p.get("inputs").and_then(Value::as_object) {
         Some(m) => {
             for (k, v) in m {
-                let spec = v
-                    .as_str()
-                    .ok_or(format!("inputs.{k} must be a raster/layer id or a path"))?;
+                let spec = v.as_str().ok_or(format!("inputs.{k} must be a raster/layer id or a path"))?;
                 let (is_r, path) = input_file(sc, spec, &work, k)?;
                 inputs.push((sanitize(k), is_r, path));
             }
@@ -327,15 +225,9 @@ pub(super) fn grass(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let mut sh = String::from("set -e\nexport GRASS_OVERWRITE=1\n");
     for (name, is_r, path) in &inputs {
         if *is_r {
-            sh += &format!(
-                "r.import --quiet input={} output={name}\n",
-                sh_quote(&path.to_string_lossy())
-            );
+            sh += &format!("r.import --quiet input={} output={name}\n", sh_quote(&path.to_string_lossy()));
         } else {
-            sh += &format!(
-                "v.import --quiet input={} output={name}\n",
-                sh_quote(&path.to_string_lossy())
-            );
+            sh += &format!("v.import --quiet input={} output={name}\n", sh_quote(&path.to_string_lossy()));
         }
     }
     if let Some((first, _, _)) = inputs.iter().find(|i| i.1) {
@@ -347,25 +239,12 @@ pub(super) fn grass(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     for o in &outs {
         let f = work.join(&o.name);
         if o.raster {
-            sh += &format!(
-                "r.out.gdal --quiet -c -m input={n} output={} format=GTiff createopt=COMPRESS=DEFLATE\n",
-                sh_quote(&format!("{}.tif", f.display())),
-                n = o.key
-            );
+            sh += &format!("r.out.gdal --quiet -c -m input={n} output={} format=GTiff createopt=COMPRESS=DEFLATE\n", sh_quote(&format!("{}.tif", f.display())), n = o.key);
             if o.classes {
-                sh += &format!(
-                    "r.category map={n} > {}\nr.colors.out map={n} rules={}\n",
-                    sh_quote(&format!("{}.cats", f.display())),
-                    sh_quote(&format!("{}.colors", f.display())),
-                    n = o.key
-                );
+                sh += &format!("r.category map={n} > {}\nr.colors.out map={n} rules={}\n", sh_quote(&format!("{}.cats", f.display())), sh_quote(&format!("{}.colors", f.display())), n = o.key);
             }
         } else {
-            sh += &format!(
-                "v.out.ogr --quiet input={n} output={} format=GPKG\n",
-                sh_quote(&format!("{}.gpkg", f.display())),
-                n = o.key
-            );
+            sh += &format!("v.out.ogr --quiet input={n} output={} format=GPKG\n", sh_quote(&format!("{}.gpkg", f.display())), n = o.key);
         }
     }
     let job = work.join("job.sh");
@@ -374,62 +253,29 @@ pub(super) fn grass(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         Some((_, _, path)) => path.to_string_lossy().to_string(),
         None => {
             let b = sc.aoi.or(sc.extent).unwrap_or([0.0, 0.0, 0.0, 0.0]);
-            format!(
-                "EPSG:{}",
-                features::utm_epsg((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0)
-            )
+            format!("EPSG:{}", features::utm_epsg((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0))
         }
     };
     let timeout = Duration::from_secs(p_f64(p, "timeout").unwrap_or(900.0) as u64);
     let ver = version(&exe, "--version");
     let mut cmd = crate::command(&exe);
-    cmd.args([
-        "--tmp-project",
-        &project,
-        "--exec",
-        "bash",
-        &job.to_string_lossy(),
-    ])
-    .env("GRASS_VERBOSE", "0");
+    cmd.args(["--tmp-project", &project, "--exec", "bash", &job.to_string_lossy()]).env("GRASS_VERBOSE", "0");
     let (log, secs) = match run_logged(&mut cmd, &work, "grass.log", timeout, sc.cancel) {
         Ok(r) => r,
         Err(e) if e.contains("tmp-project") || e.contains("unrecognized") => {
             let mut c2 = crate::command(&exe);
-            c2.args([
-                "--tmp-location",
-                &project,
-                "--exec",
-                "bash",
-                &job.to_string_lossy(),
-            ]);
-            run_logged(&mut c2, &work, "grass.log", timeout, sc.cancel)
-                .map_err(|e| format!("GRASS {e}"))?
+            c2.args(["--tmp-location", &project, "--exec", "bash", &job.to_string_lossy()]);
+            run_logged(&mut c2, &work, "grass.log", timeout, sc.cancel).map_err(|e| format!("GRASS {e}"))?
         }
         Err(e) => return Err(format!("GRASS {e} (script and log in {})", work.display())),
     };
     let mut made = Map::new();
-    let mut why = vec![format!(
-        "{ver}: {} input(s) imported, {} script line(s), {} output(s), {secs:.1} s",
-        inputs.len(),
-        script
-            .lines()
-            .filter(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
-            .count(),
-        outs.len()
-    )];
+    let mut why = vec![format!("{ver}: {} input(s) imported, {} script line(s), {} output(s), {secs:.1} s", inputs.len(), script.lines().filter(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#')).count(), outs.len())];
     for o in &outs {
         let f = work.join(&o.name);
-        let produced = if o.raster {
-            f.with_extension("tif")
-        } else {
-            f.with_extension("gpkg")
-        };
+        let produced = if o.raster { f.with_extension("tif") } else { f.with_extension("gpkg") };
         if !produced.exists() {
-            return Err(format!(
-                "GRASS did not produce '{}' (see {})",
-                o.name,
-                work.join("grass.log").display()
-            ));
+            return Err(format!("GRASS did not produce '{}' (see {})", o.name, work.join("grass.log").display()));
         }
         let mut side = json!({ "title": o.title.clone().unwrap_or_else(|| super::steps::humanize(&o.name)), "description": format!("made with {ver}") });
         if let Some(k) = &o.kind {
@@ -442,44 +288,21 @@ pub(super) fn grass(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             if let Ok(ds) = raster::open(&f.with_extension("tif")) {
                 if let Ok((v, _, _)) = raster::read_full(&ds, 1) {
                     let nd = ds.rasterband(1).ok().and_then(|b| b.no_data_value());
-                    let valid: Vec<f32> = v
-                        .into_iter()
-                        .filter(|x| {
-                            x.is_finite() && nd.is_none_or(|n| (*x as f64 - n).abs() > 1e-6)
-                        })
-                        .collect();
+                    let valid: Vec<f32> = v.into_iter().filter(|x| x.is_finite() && nd.is_none_or(|n| (*x as f64 - n).abs() > 1e-6)).collect();
                     let tot = valid.len().max(1) as f64;
                     for c in classes.iter_mut() {
                         let cv = c["value"].as_f64().unwrap_or(-1.0);
-                        let share = valid
-                            .iter()
-                            .filter(|x| (**x as f64 - cv).abs() < 1e-6)
-                            .count() as f64
-                            / tot
-                            * 100.0;
+                        let share = valid.iter().filter(|x| (**x as f64 - cv).abs() < 1e-6).count() as f64 / tot * 100.0;
                         c["share"] = json!((share * 10.0).round() / 10.0);
                         if share >= 0.5 {
-                            c["label"] = json!(format!(
-                                "{} · {share:.0} %",
-                                c["label"].as_str().unwrap_or("")
-                            ));
+                            c["label"] = json!(format!("{} · {share:.0} %", c["label"].as_str().unwrap_or("")));
                         }
                     }
                     classes.retain(|c| c["share"].as_f64().unwrap_or(0.0) > 0.0);
                 }
             }
             if !classes.is_empty() {
-                why.push(format!(
-                    "{}: {} classes with GRASS's own labels and colours ({})",
-                    o.name,
-                    classes.len(),
-                    classes
-                        .iter()
-                        .take(4)
-                        .filter_map(|c| c["label"].as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ));
+                why.push(format!("{}: {} classes with GRASS's own labels and colours ({})", o.name, classes.len(), classes.iter().take(4).filter_map(|c| c["label"].as_str()).collect::<Vec<_>>().join(", ")));
                 side["kind"] = json!("classes");
                 side["classes"] = json!(classes);
             }
@@ -488,27 +311,13 @@ pub(super) fn grass(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         made.insert(o.name.clone(), json!(id));
     }
     let _ = log;
-    sc.methods.push(format!(
-        "{ver} ran in a temporary project: {}.",
-        script
-            .lines()
-            .map(str::trim)
-            .filter(|l| !l.is_empty() && !l.starts_with('#'))
-            .map(|l| l.split_whitespace().next().unwrap_or(""))
-            .collect::<Vec<_>>()
-            .join(", ")
-    ));
-    Ok(StepOut {
-        outputs: json!({ "outputs": made, "log": work.join("grass.log"), "seconds": secs, "version": ver }),
-        why,
-    })
+    sc.methods.push(format!("{ver} ran in a temporary project: {}.", script.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(|l| l.split_whitespace().next().unwrap_or("")).collect::<Vec<_>>().join(", ")));
+    Ok(StepOut { outputs: json!({ "outputs": made, "log": work.join("grass.log"), "seconds": secs, "version": ver }), why })
 }
 
 pub(super) fn saga(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let exe = find_tool("saga_cmd", "GEOSPAX_SAGA").ok_or("SAGA is not installed (Debian/Ubuntu: apt install saga · Windows/macOS: saga-gis.sourceforge.io), or set GEOSPAX_SAGA")?;
-    let tool = p_str(p, "tool")
-        .ok_or("saga needs tool: '<library> <tool id>', e.g. 'ta_hydrology 15'")?
-        .to_string();
+    let tool = p_str(p, "tool").ok_or("saga needs tool: '<library> <tool id>', e.g. 'ta_hydrology 15'")?.to_string();
     let outs = out_specs(p)?;
     let work = sc.dir.join(format!("saga_{}", sanitize(&sc.step_id)));
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
@@ -516,9 +325,7 @@ pub(super) fn saga(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     match p.get("inputs").and_then(Value::as_object) {
         Some(m) => {
             for (k, v) in m {
-                let spec = v
-                    .as_str()
-                    .ok_or(format!("inputs.{k} must be a raster/layer id or a path"))?;
+                let spec = v.as_str().ok_or(format!("inputs.{k} must be a raster/layer id or a path"))?;
                 let (_, path) = input_file(sc, spec, &work, &k.to_ascii_lowercase())?;
                 args.push(format!("-{k}"));
                 args.push(path.to_string_lossy().to_string());
@@ -530,12 +337,7 @@ pub(super) fn saga(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             args.push(dem.info.path.to_string_lossy().to_string());
         }
     }
-    for (k, v) in p
-        .get("options")
-        .and_then(Value::as_object)
-        .into_iter()
-        .flatten()
-    {
+    for (k, v) in p.get("options").and_then(Value::as_object).into_iter().flatten() {
         args.push(format!("-{k}"));
         args.push(match v {
             Value::Bool(b) => (if *b { "1" } else { "0" }).to_string(),
@@ -545,34 +347,18 @@ pub(super) fn saga(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     }
     for o in &outs {
         args.push(format!("-{}", o.key));
-        args.push(
-            work.join(format!("{}.sdat", o.name))
-                .to_string_lossy()
-                .to_string(),
-        );
+        args.push(work.join(format!("{}.sdat", o.name)).to_string_lossy().to_string());
     }
     let ver = version(&exe, "--version");
     let timeout = Duration::from_secs(p_f64(p, "timeout").unwrap_or(900.0) as u64);
     let mut cmd = crate::command(&exe);
     cmd.args(&args);
-    let (_log, secs) = run_logged(&mut cmd, &work, "saga.log", timeout, sc.cancel)
-        .map_err(|e| format!("SAGA {tool} {e}"))?;
+    let (_log, secs) = run_logged(&mut cmd, &work, "saga.log", timeout, sc.cancel).map_err(|e| format!("SAGA {tool} {e}"))?;
     let mut made = Map::new();
     let mut why = vec![format!("{ver}: saga_cmd {tool} ({secs:.1} s)")];
     for o in &outs {
         let base = work.join(&o.name);
-        let produced = [
-            base.with_extension("sdat"),
-            base.with_extension("tif"),
-            base.with_extension("sgrd"),
-        ]
-        .into_iter()
-        .find(|f| f.exists())
-        .ok_or(format!(
-            "SAGA did not produce '{}' (see {})",
-            o.name,
-            work.join("saga.log").display()
-        ))?;
+        let produced = [base.with_extension("sdat"), base.with_extension("tif"), base.with_extension("sgrd")].into_iter().find(|f| f.exists()).ok_or(format!("SAGA did not produce '{}' (see {})", o.name, work.join("saga.log").display()))?;
         let mut side = json!({ "title": o.title.clone().unwrap_or_else(|| super::steps::humanize(&o.name)), "description": format!("made with {ver}, tool {tool}") });
         if let Some(k) = &o.kind {
             side["kind"] = json!(k);
@@ -580,19 +366,12 @@ pub(super) fn saga(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         let id = adopt(sc, o, &produced, side)?;
         if let Some(r) = sc.engine.raster(&id) {
             let s = &r.info.stats[0];
-            why.push(format!(
-                "{}: {:.2}–{:.2} (mean {:.2})",
-                o.name, s.min, s.max, s.mean
-            ));
+            why.push(format!("{}: {:.2}–{:.2} (mean {:.2})", o.name, s.min, s.max, s.mean));
         }
         made.insert(o.name.clone(), json!(id));
     }
-    sc.methods
-        .push(format!("{ver} tool '{tool}' was run with saga_cmd."));
-    Ok(StepOut {
-        outputs: json!({ "outputs": made, "log": work.join("saga.log"), "seconds": secs, "version": ver }),
-        why,
-    })
+    sc.methods.push(format!("{ver} tool '{tool}' was run with saga_cmd."));
+    Ok(StepOut { outputs: json!({ "outputs": made, "log": work.join("saga.log"), "seconds": secs, "version": ver }), why })
 }
 
 /// GRASS / SAGA / Whitebox availability for `geospax steps` and the API.

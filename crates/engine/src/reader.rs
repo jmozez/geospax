@@ -18,7 +18,7 @@ use arrow_array::{Array, ArrayRef, RecordBatchReader};
 use arrow_schema::DataType;
 use gdal::cpl::CslStringList;
 use gdal::vector::{FieldValue, Layer, LayerAccess};
-use std::ffi::{CStr, c_char};
+use std::ffi::{c_char, CStr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ReadMode {
@@ -53,11 +53,7 @@ fn gdal_err(e: impl std::fmt::Display) -> String {
 
 /// Tell GDAL to skip every attribute except `keep` (OGR field indices), and
 /// optionally the geometry. Replaces any previous ignore list on the layer.
-pub(crate) fn set_ignored_fields(
-    lyr: &Layer,
-    keep: &[usize],
-    ignore_geometry: bool,
-) -> Result<(), String> {
+pub(crate) fn set_ignored_fields(lyr: &Layer, keep: &[usize], ignore_geometry: bool) -> Result<(), String> {
     let mut list = CslStringList::new();
     for (i, f) in lyr.defn().fields().enumerate() {
         if !keep.contains(&i) {
@@ -68,9 +64,7 @@ pub(crate) fn set_ignored_fields(
     if ignore_geometry {
         list.add_string("OGR_GEOMETRY").map_err(gdal_err)?;
     }
-    let err = unsafe {
-        gdal_sys::OGR_L_SetIgnoredFields(lyr.c_layer(), list.as_ptr() as *mut *const c_char)
-    };
+    let err = unsafe { gdal_sys::OGR_L_SetIgnoredFields(lyr.c_layer(), list.as_ptr() as *mut *const c_char) };
     if err != gdal_sys::OGRErr::OGRERR_NONE {
         return Err(format!("OGR_L_SetIgnoredFields failed ({err})"));
     }
@@ -109,11 +103,7 @@ impl<'a> Col<'a> {
     fn get(&self, i: usize) -> Option<Val> {
         macro_rules! val {
             ($a:expr, $f:expr) => {
-                if $a.is_null(i) {
-                    None
-                } else {
-                    Some($f($a.value(i)))
-                }
+                if $a.is_null(i) { None } else { Some($f($a.value(i))) }
             };
         }
         match self {
@@ -157,35 +147,20 @@ impl<'a> Wkb<'a> {
 
 fn open_stream(lyr: &mut Layer, include_fid: bool) -> Result<ArrowArrayStreamReader, String> {
     let mut opts = CslStringList::new();
-    opts.set_name_value("INCLUDE_FID", if include_fid { "YES" } else { "NO" })
-        .map_err(gdal_err)?;
-    opts.set_name_value("MAX_FEATURES_IN_BATCH", "16384")
-        .map_err(gdal_err)?;
+    opts.set_name_value("INCLUDE_FID", if include_fid { "YES" } else { "NO" }).map_err(gdal_err)?;
+    opts.set_name_value("MAX_FEATURES_IN_BATCH", "16384").map_err(gdal_err)?;
     let mut stream = FFI_ArrowArrayStream::empty();
     // FFI_ArrowArrayStream and GDAL's ArrowArrayStream are both the Arrow C
     // stream interface struct, so the pointer cast is layout-compatible.
-    unsafe {
-        lyr.read_arrow_stream(
-            &mut stream as *mut FFI_ArrowArrayStream as *mut gdal::ArrowArrayStream,
-            &opts,
-        )
-    }
-    .map_err(|e| format!("OGR_L_GetArrowStream: {e}"))?;
+    unsafe { lyr.read_arrow_stream(&mut stream as *mut FFI_ArrowArrayStream as *mut gdal::ArrowArrayStream, &opts) }
+        .map_err(|e| format!("OGR_L_GetArrowStream: {e}"))?;
     ArrowArrayStreamReader::try_new(stream).map_err(gdal_err)
 }
 
 fn fid_column(lyr: &Layer) -> String {
     let p = unsafe { gdal_sys::OGR_L_GetFIDColumn(lyr.c_layer()) };
-    let name = if p.is_null() {
-        String::new()
-    } else {
-        unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned()
-    };
-    if name.is_empty() {
-        "OGC_FID".to_string()
-    } else {
-        name
-    }
+    let name = if p.is_null() { String::new() } else { unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned() };
+    if name.is_empty() { "OGC_FID".to_string() } else { name }
 }
 
 /// Columnar read: call `f(fid, wkb, attrs)` per row until it returns false.
@@ -201,23 +176,11 @@ pub(crate) fn for_each_arrow(
     let geom_idx = schema
         .fields()
         .iter()
-        .position(|fd| {
-            fd.metadata()
-                .get("ARROW:extension:name")
-                .is_some_and(|n| n.ends_with("wkb"))
-        })
-        .or_else(|| {
-            schema
-                .fields()
-                .iter()
-                .position(|fd| matches!(fd.data_type(), DataType::Binary | DataType::LargeBinary))
-        })
+        .position(|fd| fd.metadata().get("ARROW:extension:name").is_some_and(|n| n.ends_with("wkb")))
+        .or_else(|| schema.fields().iter().position(|fd| matches!(fd.data_type(), DataType::Binary | DataType::LargeBinary)))
         .ok_or("no WKB geometry column in the Arrow stream")?;
     let fid_idx = schema.index_of(&fid_name).ok();
-    let cols: Vec<(u32, Option<usize>)> = fields
-        .iter()
-        .map(|(k, n)| (*k, schema.index_of(n).ok()))
-        .collect();
+    let cols: Vec<(u32, Option<usize>)> = fields.iter().map(|(k, n)| (*k, schema.index_of(n).ok())).collect();
     let mut scanned = 0u32;
     let validate = std::env::var_os("GEOSPAX_VALIDATE_ARROW").is_some();
     let mut nbatch = 0;
@@ -243,18 +206,13 @@ pub(crate) fn for_each_arrow(
             t => return Err(format!("unexpected geometry column type {t}")),
         };
         let fids = fid_idx.and_then(|i| batch.column(i).as_primitive_opt::<Int64Type>());
-        let attr_cols: Vec<(u32, Col)> = cols
-            .iter()
-            .filter_map(|(k, ci)| ci.map(|ci| (*k, Col::new(batch.column(ci)))))
-            .collect();
+        let attr_cols: Vec<(u32, Col)> =
+            cols.iter().filter_map(|(k, ci)| ci.map(|ci| (*k, Col::new(batch.column(ci))))).collect();
         for row in 0..batch.num_rows() {
             scanned += 1;
             let Some(w) = wkb.get(row) else { continue };
             let fid = fids.and_then(|a| (!a.is_null(row)).then(|| a.value(row) as u64));
-            let attrs = attr_cols
-                .iter()
-                .filter_map(|(k, c)| c.get(row).map(|v| (*k, v)))
-                .collect();
+            let attrs = attr_cols.iter().filter_map(|(k, c)| c.get(row).map(|v| (*k, v))).collect();
             if !f(fid, w, attrs) {
                 return Ok(scanned);
             }
@@ -303,12 +261,7 @@ pub enum ColumnValues {
 
 /// Scan a single attribute over the whole layer with the Arrow stream.
 pub(crate) fn scan_column(lyr: &mut Layer, field_idx: usize) -> Result<ColumnValues, String> {
-    let name = lyr
-        .defn()
-        .fields()
-        .nth(field_idx)
-        .map(|f| f.name())
-        .ok_or("bad field index")?;
+    let name = lyr.defn().fields().nth(field_idx).map(|f| f.name()).ok_or("bad field index")?;
     lyr.clear_spatial_filter();
     set_ignored_fields(lyr, &[field_idx], true)?;
     let reader = open_stream(lyr, false)?;
@@ -326,18 +279,9 @@ pub(crate) fn scan_column(lyr: &mut Layer, field_idx: usize) -> Result<ColumnVal
                     }
                 }
             }
-            Col::Other => {
-                return Err(format!(
-                    "field '{name}' has an unsupported type ({})",
-                    col.data_type()
-                ));
-            }
+            Col::Other => return Err(format!("field '{name}' has an unsupported type ({})", col.data_type())),
             _ => nums.extend((0..batch.num_rows()).filter_map(|i| c.num(i))),
         }
     }
-    Ok(if strs.is_empty() {
-        ColumnValues::Num(nums)
-    } else {
-        ColumnValues::Str(strs)
-    })
+    Ok(if strs.is_empty() { ColumnValues::Num(nums) } else { ColumnValues::Str(strs) })
 }

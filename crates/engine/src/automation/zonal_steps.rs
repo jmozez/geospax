@@ -13,12 +13,12 @@
 //! with the feature ids it involves and its area, ready to fix with the Edit tools.
 
 use super::features::{self, Feat, FeatureSet, Val};
-use super::steps::{StepCtx, StepOut, p_str, sanitize};
+use super::steps::{p_str, sanitize, StepCtx, StepOut};
 use crate::raster;
 use crate::wkb::Geom;
 use gdal::spatial_ref::CoordTransform;
 use gdal::vector::Geometry;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 /// Signed area of a ring (shoelace), positive counter-clockwise.
 fn signed_area(r: &[[f64; 2]]) -> f64 {
@@ -108,20 +108,13 @@ pub fn coverage(rings: &[Vec<[f64; 2]>], cols: usize, rows: usize) -> Vec<(usize
     for row in r0..r1 {
         let (y0, y1) = (row as f64, row as f64 + 1.0);
         // clip once to the row strip, then each cell of it
-        let strips: Vec<Vec<[f64; 2]>> = rings
-            .iter()
-            .map(|r| clip_ring(r, f64::MIN, f64::MAX, y0, y1))
-            .filter(|r| r.len() >= 3)
-            .collect();
+        let strips: Vec<Vec<[f64; 2]>> = rings.iter().map(|r| clip_ring(r, f64::MIN, f64::MAX, y0, y1)).filter(|r| r.len() >= 3).collect();
         if strips.is_empty() {
             continue;
         }
         for col in c0..c1 {
             let (x0, x1) = (col as f64, col as f64 + 1.0);
-            let a: f64 = strips
-                .iter()
-                .map(|r| signed_area(&clip_ring(r, x0, x1, y0, y1)))
-                .sum::<f64>();
+            let a: f64 = strips.iter().map(|r| signed_area(&clip_ring(r, x0, x1, y0, y1))).sum::<f64>();
             let f = a.abs().min(1.0);
             if f > 1e-9 {
                 out.push((col, row, f));
@@ -171,9 +164,7 @@ impl Zone {
                 None => by.push((v, w)),
             }
         }
-        by.into_iter()
-            .max_by(|a, b| a.1.total_cmp(&b.1))
-            .map(|x| x.0)
+        by.into_iter().max_by(|a, b| a.1.total_cmp(&b.1)).map(|x| x.0)
     }
     fn median(&self) -> Option<f64> {
         if self.values.is_empty() {
@@ -207,9 +198,7 @@ fn round4(x: f64) -> f64 {
 }
 
 pub(super) fn raster_zonal(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
-    let layer_id = p_str(p, "layer")
-        .ok_or("layer is required (the polygon zones)")?
-        .to_string();
+    let layer_id = p_str(p, "layer").ok_or("layer is required (the polygon zones)")?.to_string();
     let l = sc.layer(&layer_id)?;
     let mut fs = features::read_layer(sc.engine, &l, None, None, 500_000)?;
     if !fs.feats.iter().any(|f| matches!(f.geom, Geom::Polygons(_))) {
@@ -230,56 +219,24 @@ pub(super) fn raster_zonal(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Strin
     let cell_area = (gt[1] * gt[5]).abs();
     let geographic = srs.is_geographic();
     let wanted: Vec<String> = match p.get("stats") {
-        Some(Value::String(s)) => s
-            .split(',')
-            .map(|x| x.trim().to_lowercase())
-            .filter(|x| !x.is_empty())
-            .collect(),
-        Some(Value::Array(a)) => a
-            .iter()
-            .filter_map(Value::as_str)
-            .map(str::to_lowercase)
-            .collect(),
-        _ => ["mean", "min", "max", "sum", "count"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect(),
+        Some(Value::String(s)) => s.split(',').map(|x| x.trim().to_lowercase()).filter(|x| !x.is_empty()).collect(),
+        Some(Value::Array(a)) => a.iter().filter_map(Value::as_str).map(str::to_lowercase).collect(),
+        _ => ["mean", "min", "max", "sum", "count"].iter().map(|s| s.to_string()).collect(),
     };
     for s in &wanted {
-        if ![
-            "mean", "min", "max", "sum", "count", "stdev", "median", "majority", "area",
-        ]
-        .contains(&s.as_str())
-        {
-            return Err(format!(
-                "unknown statistic '{s}' (mean, min, max, sum, count, stdev, median, majority, area)"
-            ));
+        if !["mean", "min", "max", "sum", "count", "stdev", "median", "majority", "area"].contains(&s.as_str()) {
+            return Err(format!("unknown statistic '{s}' (mean, min, max, sum, count, stdev, median, majority, area)"));
         }
     }
     let prefix = sanitize(p_str(p, "prefix").unwrap_or(""));
-    let fname = |s: &str| {
-        if prefix.is_empty() {
-            format!("z_{s}")
-        } else {
-            format!("{prefix}_{s}")
-        }
-    };
+    let fname = |s: &str| if prefix.is_empty() { format!("z_{s}") } else { format!("{prefix}_{s}") };
     let first_field = fs.fields.len();
     for s in &wanted {
         let mut n = fname(s);
         while fs.field(&n).is_some() {
             n.push('_');
         }
-        fs.fields.push((
-            n,
-            if *s == "count" || *s == "area" {
-                "real"
-            } else if *s == "majority" {
-                "real"
-            } else {
-                "real"
-            },
-        ));
+        fs.fields.push((n, if *s == "count" || *s == "area" { "real" } else if *s == "majority" { "real" } else { "real" }));
     }
     let mut empty = 0usize;
     let mut means = Vec::new();
@@ -296,11 +253,7 @@ pub(super) fn raster_zonal(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Strin
                     if ct.transform_coords(&mut xs, &mut ys, &mut zs).is_err() {
                         continue;
                     }
-                    let mut px: Vec<[f64; 2]> = xs
-                        .iter()
-                        .zip(&ys)
-                        .map(|(x, y)| [(x - gt[0]) / gt[1], (y - gt[3]) / gt[5]])
-                        .collect();
+                    let mut px: Vec<[f64; 2]> = xs.iter().zip(&ys).map(|(x, y)| [(x - gt[0]) / gt[1], (y - gt[3]) / gt[5]]).collect();
                     // keep the orientation of each ring as given: holes are oriented opposite to shells
                     // in valid data; normalise so shells count positive and holes negative
                     let is_shell = std::ptr::eq(ring, &poly[0]);
@@ -312,15 +265,11 @@ pub(super) fn raster_zonal(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Strin
                 }
             }
             let cov = coverage(&rings, cols, rows);
-            if let (Some(c0), Some(r0)) =
-                (cov.iter().map(|c| c.0).min(), cov.iter().map(|c| c.1).min())
-            {
+            if let (Some(c0), Some(r0)) = (cov.iter().map(|c| c.0).min(), cov.iter().map(|c| c.1).min()) {
                 let c1 = cov.iter().map(|c| c.0).max().unwrap();
                 let r1 = cov.iter().map(|c| c.1).max().unwrap();
                 let (w, h) = (c1 - c0 + 1, r1 - r0 + 1);
-                let buf = rb
-                    .read_as::<f64>((c0 as isize, r0 as isize), (w, h), (w, h), None)
-                    .map_err(|e| e.to_string())?;
+                let buf = rb.read_as::<f64>((c0 as isize, r0 as isize), (w, h), (w, h), None).map_err(|e| e.to_string())?;
                 let data = buf.data();
                 for (c, rr, frac) in cov {
                     let v = data[(rr - r0) * w + (c - c0)];
@@ -347,11 +296,7 @@ pub(super) fn raster_zonal(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Strin
                 "stdev" => zone.stdev(),
                 "median" => zone.median(),
                 "majority" => zone.majority(),
-                "area" => Some(if geographic {
-                    f64::NAN
-                } else {
-                    zone.cover * cell_area
-                }),
+                "area" => Some(if geographic { f64::NAN } else { zone.cover * cell_area }),
                 _ => None,
             };
             f.props.push(match v {
@@ -361,9 +306,7 @@ pub(super) fn raster_zonal(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Strin
         }
     }
     let _ = first_field;
-    let name = p_str(p, "name")
-        .map(str::to_string)
-        .unwrap_or_else(|| format!("{}_zonal", l.info.name));
+    let name = p_str(p, "name").map(str::to_string).unwrap_or_else(|| format!("{}_zonal", l.info.name));
     let title = format!("{} · zonal statistics of {}", sc.title_of(&l), r.info.title);
     let id = sc.write_output(&name, &fs, title)?;
     let mut why = vec![format!(
@@ -384,10 +327,7 @@ pub(super) fn raster_zonal(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Strin
         fs.feats.len(),
         sc.title_of(&l)
     ));
-    Ok(StepOut {
-        outputs: json!({ "layer": id, "zones": fs.feats.len(), "empty": empty, "stats": wanted }),
-        why,
-    })
+    Ok(StepOut { outputs: json!({ "layer": id, "zones": fs.feats.len(), "empty": empty, "stats": wanted }), why })
 }
 
 // ------------------------------------------------------------------ topology
@@ -399,45 +339,23 @@ fn to_ogr(g: &Geom) -> Option<Geometry> {
 }
 
 fn ogr_rings(g: &Geometry) -> Vec<Vec<Vec<[f64; 2]>>> {
-    let v: Value = g
-        .json()
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or(Value::Null);
+    let v: Value = g.json().ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or(Value::Null);
     json_rings(&v)
 }
 
 fn json_rings(v: &Value) -> Vec<Vec<Vec<[f64; 2]>>> {
-    let ring = |r: &Value| -> Vec<[f64; 2]> {
-        r.as_array()
-            .map(|a| {
-                a.iter()
-                    .filter_map(|c| Some([c[0].as_f64()?, c[1].as_f64()?]))
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    let poly = |p: &Value| -> Vec<Vec<[f64; 2]>> {
-        p.as_array()
-            .map(|a| a.iter().map(ring).collect())
-            .unwrap_or_default()
-    };
+    let ring = |r: &Value| -> Vec<[f64; 2]> { r.as_array().map(|a| a.iter().filter_map(|c| Some([c[0].as_f64()?, c[1].as_f64()?])).collect()).unwrap_or_default() };
+    let poly = |p: &Value| -> Vec<Vec<[f64; 2]>> { p.as_array().map(|a| a.iter().map(ring).collect()).unwrap_or_default() };
     match v["type"].as_str() {
         Some("Polygon") => vec![poly(&v["coordinates"])],
-        Some("MultiPolygon") => v["coordinates"]
-            .as_array()
-            .map(|a| a.iter().map(poly).collect())
-            .unwrap_or_default(),
+        Some("MultiPolygon") => v["coordinates"].as_array().map(|a| a.iter().map(poly).collect()).unwrap_or_default(),
         Some("GeometryCollection") => v["geometries"]
             .as_array()
             .map(|gs| {
                 gs.iter()
                     .flat_map(|g| match g["type"].as_str() {
                         Some("Polygon") => vec![poly(&g["coordinates"])],
-                        Some("MultiPolygon") => g["coordinates"]
-                            .as_array()
-                            .map(|a| a.iter().map(poly).collect())
-                            .unwrap_or_default(),
+                        Some("MultiPolygon") => g["coordinates"].as_array().map(|a| a.iter().map(poly).collect()).unwrap_or_default(),
                         _ => vec![],
                     })
                     .collect()
@@ -449,21 +367,7 @@ fn json_rings(v: &Value) -> Vec<Vec<Vec<[f64; 2]>>> {
 
 /// Geodesic area in m² of polygons given in lon/lat (spherical, as Calculate geometry).
 fn area_m2(polys: &[Vec<Vec<[f64; 2]>>]) -> f64 {
-    polys
-        .iter()
-        .map(|p| {
-            p.iter()
-                .enumerate()
-                .map(|(i, r)| {
-                    if i == 0 {
-                        crate::edit::ring_area_m2(r)
-                    } else {
-                        -crate::edit::ring_area_m2(r)
-                    }
-                })
-                .sum::<f64>()
-        })
-        .sum()
+    polys.iter().map(|p| p.iter().enumerate().map(|(i, r)| if i == 0 { crate::edit::ring_area_m2(r) } else { -crate::edit::ring_area_m2(r) }).sum::<f64>()).sum()
 }
 
 fn bbox(g: &Geom) -> Option<[f64; 4]> {
@@ -472,12 +376,7 @@ fn bbox(g: &Geom) -> Option<[f64; 4]> {
         for p in ps.iter().flatten().flatten() {
             b = Some(match b {
                 None => [p[0], p[1], p[0], p[1]],
-                Some(x) => [
-                    x[0].min(p[0]),
-                    x[1].min(p[1]),
-                    x[2].max(p[0]),
-                    x[3].max(p[1]),
-                ],
+                Some(x) => [x[0].min(p[0]), x[1].min(p[1]), x[2].max(p[0]), x[3].max(p[1])],
             });
         }
     }
@@ -485,9 +384,7 @@ fn bbox(g: &Geom) -> Option<[f64; 4]> {
 }
 
 pub(super) fn vector_topology(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
-    let layer_id = p_str(p, "layer")
-        .ok_or("layer is required (a polygon layer)")?
-        .to_string();
+    let layer_id = p_str(p, "layer").ok_or("layer is required (a polygon layer)")?.to_string();
     let l = sc.layer(&layer_id)?;
     let fs = features::read_layer(sc.engine, &l, None, None, 200_000)?;
     let fid_i = fs.field("fid");
@@ -504,45 +401,22 @@ pub(super) fn vector_topology(sc: &mut StepCtx, p: &Value) -> Result<StepOut, St
         return Err("no polygons to check in this layer".into());
     }
     let id_of = |i: usize| -> String {
-        fid_i
-            .and_then(|k| match &fs.feats[i].props[k] {
-                Val::Int(x) => Some(x.to_string()),
-                _ => None,
-            })
-            .unwrap_or_else(|| (i + 1).to_string())
+        fid_i.and_then(|k| match &fs.feats[i].props[k] {
+            Val::Int(x) => Some(x.to_string()),
+            _ => None,
+        }).unwrap_or_else(|| (i + 1).to_string())
     };
-    let mut out = FeatureSet::new(
-        fs.kind,
-        vec![
-            ("error".into(), "string"),
-            ("features".into(), "string"),
-            ("area_m2".into(), "real"),
-            ("detail".into(), "string"),
-        ],
-    );
+    let mut out = FeatureSet::new(fs.kind, vec![("error".into(), "string"), ("features".into(), "string"), ("area_m2".into(), "real"), ("detail".into(), "string")]);
     let mut push = |kind: &str, ids: String, polys: Vec<Vec<Vec<[f64; 2]>>>, detail: String| {
         let a = area_m2(&polys);
-        out.feats.push(Feat {
-            geom: Geom::Polygons(polys),
-            props: vec![
-                Val::Str(kind.into()),
-                Val::Str(ids),
-                Val::Num((a * 100.0).round() / 100.0),
-                Val::Str(detail),
-            ],
-        });
+        out.feats.push(Feat { geom: Geom::Polygons(polys), props: vec![Val::Str(kind.into()), Val::Str(ids), Val::Num((a * 100.0).round() / 100.0), Val::Str(detail)] });
     };
     // 1. invalid geometries (self-intersections, bad rings)
     let mut invalid = 0;
     for (i, g, _) in &feats {
         if !g.is_valid() {
             invalid += 1;
-            push(
-                "invalid geometry",
-                id_of(*i),
-                ogr_rings(g),
-                "self-intersection or a ring that is not closed".into(),
-            );
+            push("invalid geometry", id_of(*i), ogr_rings(g), "self-intersection or a ring that is not closed".into());
         }
     }
     // 2. overlaps: pairs whose bounding boxes meet, sorted by min x (sweep)
@@ -567,29 +441,21 @@ pub(super) fn vector_topology(sc: &mut StepCtx, p: &Value) -> Result<StepOut, St
                 let area = area_m2(&polys);
                 if area > min_area {
                     overlaps += 1;
-                    push(
-                        "overlap",
-                        format!("{} & {}", id_of(feats[a].0), id_of(feats[b].0)),
-                        polys,
-                        format!("{:.1} m² claimed by both", area),
-                    );
+                    push("overlap", format!("{} & {}", id_of(feats[a].0), id_of(feats[b].0)), polys, format!("{:.1} m² claimed by both", area));
                 }
             }
         }
     }
     // 3. gaps: holes of the union of all features that are not holes of a single feature
     let mut gaps = 0;
-    let mut coll = Geometry::empty(gdal::vector::OGRwkbGeometryType::wkbMultiPolygon)
-        .map_err(|e| e.to_string())?;
+    let mut coll = Geometry::empty(gdal::vector::OGRwkbGeometryType::wkbMultiPolygon).map_err(|e| e.to_string())?;
     for (_, g, _) in &feats {
         if !g.is_valid() {
             continue;
         }
         // a multipolygon takes polygons, one per part
         for poly in ogr_rings(g) {
-            if let Ok(pg) = Geometry::from_geojson(
-                &json!({ "type": "Polygon", "coordinates": poly }).to_string(),
-            ) {
+            if let Ok(pg) = Geometry::from_geojson(&json!({ "type": "Polygon", "coordinates": poly }).to_string()) {
                 let _ = coll.add_geometry(pg);
             }
         }
@@ -602,8 +468,7 @@ pub(super) fn vector_topology(sc: &mut StepCtx, p: &Value) -> Result<StepOut, St
             None
         } else {
             let s = gdal_sys::OGR_G_ExportToJson(h);
-            let v =
-                (!s.is_null()).then(|| std::ffi::CStr::from_ptr(s).to_string_lossy().to_string());
+            let v = (!s.is_null()).then(|| std::ffi::CStr::from_ptr(s).to_string_lossy().to_string());
             if !s.is_null() {
                 gdal_sys::VSIFree(s as *mut std::ffi::c_void);
             }
@@ -612,56 +477,31 @@ pub(super) fn vector_topology(sc: &mut StepCtx, p: &Value) -> Result<StepOut, St
         }
     };
     if let Some(u) = union {
-        let own_holes: Vec<Vec<[f64; 2]>> = fs
-            .feats
-            .iter()
-            .flat_map(|f| match &f.geom {
-                Geom::Polygons(ps) => ps
-                    .iter()
-                    .flat_map(|p| p.iter().skip(1).cloned())
-                    .collect::<Vec<_>>(),
-                _ => vec![],
-            })
-            .collect();
+        let own_holes: Vec<Vec<[f64; 2]>> = fs.feats.iter().flat_map(|f| match &f.geom {
+            Geom::Polygons(ps) => ps.iter().flat_map(|p| p.iter().skip(1).cloned()).collect::<Vec<_>>(),
+            _ => vec![],
+        }).collect();
         for poly in json_rings(&u) {
             for hole in poly.iter().skip(1) {
                 let a = crate::edit::ring_area_m2(hole);
-                let same_as_own = own_holes.iter().any(|h| {
-                    h.len() == hole.len() && (crate::edit::ring_area_m2(h) - a).abs() < 1e-6
-                });
+                let same_as_own = own_holes.iter().any(|h| h.len() == hole.len() && (crate::edit::ring_area_m2(h) - a).abs() < 1e-6);
                 if a > min_area && a <= max_gap && !same_as_own {
                     gaps += 1;
-                    push(
-                        "gap",
-                        String::new(),
-                        vec![vec![hole.clone()]],
-                        format!("{a:.1} m² between features"),
-                    );
+                    push("gap", String::new(), vec![vec![hole.clone()]], format!("{a:.1} m² between features"));
                 }
             }
         }
     }
-    let name = p_str(p, "name")
-        .map(str::to_string)
-        .unwrap_or_else(|| format!("{}_topology_errors", l.info.name));
+    let name = p_str(p, "name").map(str::to_string).unwrap_or_else(|| format!("{}_topology_errors", l.info.name));
     let total = out.feats.len();
-    let why = vec![format!(
-        "{} features checked: {invalid} invalid, {overlaps} overlaps, {gaps} gaps",
-        feats.len()
-    )];
+    let why = vec![format!("{} features checked: {invalid} invalid, {overlaps} overlaps, {gaps} gaps", feats.len())];
     if total == 0 {
-        return Ok(StepOut {
-            outputs: json!({ "layer": Value::Null, "invalid": 0, "overlaps": 0, "gaps": 0, "clean": true }),
-            why,
-        });
+        return Ok(StepOut { outputs: json!({ "layer": Value::Null, "invalid": 0, "overlaps": 0, "gaps": 0, "clean": true }), why });
     }
     let title = format!("{} · topology errors", sc.title_of(&l));
     let id = sc.write_output(&name, &out, title)?;
     sc.methods.push(format!("Topology of {} was checked for invalid polygons, overlaps between features and gaps between them (holes of their union).", sc.title_of(&l)));
-    Ok(StepOut {
-        outputs: json!({ "layer": id, "invalid": invalid, "overlaps": overlaps, "gaps": gaps, "clean": false }),
-        why,
-    })
+    Ok(StepOut { outputs: json!({ "layer": id, "invalid": invalid, "overlaps": overlaps, "gaps": gaps, "clean": false }), why })
 }
 
 #[cfg(test)]
@@ -676,13 +516,7 @@ mod tests {
         assert_eq!(c.len(), 1);
         assert!((c[0].2 - 0.5).abs() < 1e-12);
         // 2.5 × 2.5 square from (0.25, 0.25): corner cells covered 0.75² etc., total 6.25
-        let sq = vec![vec![
-            [0.25, 0.25],
-            [2.75, 0.25],
-            [2.75, 2.75],
-            [0.25, 2.75],
-            [0.25, 0.25],
-        ]];
+        let sq = vec![vec![[0.25, 0.25], [2.75, 0.25], [2.75, 2.75], [0.25, 2.75], [0.25, 0.25]]];
         let c = coverage(&sq, 10, 10);
         let total: f64 = c.iter().map(|x| x.2).sum();
         assert!((total - 6.25).abs() < 1e-9, "{total}");
@@ -693,22 +527,13 @@ mod tests {
         let c = coverage(&[sq[0].clone(), hole], 10, 10);
         let total: f64 = c.iter().map(|x| x.2).sum();
         assert!((total - 5.25).abs() < 1e-9, "{total}");
-        assert!(
-            c.iter().all(|x| !(x.0 == 1 && x.1 == 1)),
-            "the hole's cell has no coverage"
-        );
+        assert!(c.iter().all(|x| !(x.0 == 1 && x.1 == 1)), "the hole's cell has no coverage");
     }
 
     #[test]
     fn thin_strip_gets_its_share_where_cell_centres_miss_it() {
         // a strip 0.2 cells wide along row 3, between cell centres: centre-based methods give 0 cells
-        let strip = vec![vec![
-            [0.0, 3.0],
-            [5.0, 3.0],
-            [5.0, 3.2],
-            [0.0, 3.2],
-            [0.0, 3.0],
-        ]];
+        let strip = vec![vec![[0.0, 3.0], [5.0, 3.0], [5.0, 3.2], [0.0, 3.2], [0.0, 3.0]]];
         let c = coverage(&strip, 10, 10);
         assert_eq!(c.len(), 5);
         assert!(c.iter().all(|x| (x.2 - 0.2).abs() < 1e-12));

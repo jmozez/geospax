@@ -8,7 +8,7 @@
 //! "natural breaks" approximates. It runs on an order-statistics sample
 //! (<= 10k values), which preserves the distribution's shape.
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 pub const JENKS_SAMPLE: usize = 10_000;
@@ -28,9 +28,7 @@ impl std::str::FromStr for Method {
             "equal" | "equal_interval" => Ok(Method::EqualInterval),
             "quantile" => Ok(Method::Quantile),
             "jenks" | "natural" | "natural_breaks" => Ok(Method::NaturalBreaks),
-            o => Err(format!(
-                "unknown classification method '{o}' (equal|quantile|jenks)"
-            )),
+            o => Err(format!("unknown classification method '{o}' (equal|quantile|jenks)")),
         }
     }
 }
@@ -54,26 +52,10 @@ pub fn breaks(sorted: &[f64], k: usize, method: Method) -> Vec<f64> {
         return vec![max];
     }
     let mut b = match method {
-        Method::EqualInterval => (1..=k)
-            .map(|i| {
-                if i == k {
-                    max
-                } else {
-                    min + (max - min) * i as f64 / k as f64
-                }
-            })
-            .collect(),
+        Method::EqualInterval => (1..=k).map(|i| if i == k { max } else { min + (max - min) * i as f64 / k as f64 }).collect(),
         Method::Quantile => {
             let n = sorted.len();
-            (1..=k)
-                .map(|i| {
-                    if i == k {
-                        max
-                    } else {
-                        sorted[((n as f64 * i as f64 / k as f64).ceil() as usize).clamp(1, n) - 1]
-                    }
-                })
-                .collect()
+            (1..=k).map(|i| if i == k { max } else { sorted[((n as f64 * i as f64 / k as f64).ceil() as usize).clamp(1, n) - 1] }).collect()
         }
         Method::NaturalBreaks => {
             let sample = order_sample(sorted, JENKS_SAMPLE);
@@ -94,9 +76,7 @@ fn order_sample(sorted: &[f64], m: usize) -> Vec<f64> {
     if n <= m {
         return sorted.to_vec();
     }
-    (0..m)
-        .map(|i| sorted[(i as f64 * (n - 1) as f64 / (m - 1) as f64).round() as usize])
-        .collect()
+    (0..m).map(|i| sorted[(i as f64 * (n - 1) as f64 / (m - 1) as f64).round() as usize]).collect()
 }
 
 /// Optimal univariate k-means class upper bounds on sorted data.
@@ -180,11 +160,7 @@ pub fn class_counts(sorted: &[f64], b: &[f64]) -> Vec<u64> {
     let mut counts = vec![0u64; b.len()];
     let mut start = 0;
     for (c, &ub) in b.iter().enumerate() {
-        let end = if c + 1 == b.len() {
-            sorted.len()
-        } else {
-            start + sorted[start..].partition_point(|&v| v <= ub)
-        };
+        let end = if c + 1 == b.len() { sorted.len() } else { start + sorted[start..].partition_point(|&v| v <= ub) };
         counts[c] = (end - start) as u64;
         start = end;
     }
@@ -222,11 +198,7 @@ pub fn unique_strings(values: Vec<String>, limit: usize) -> Value {
     for v in values {
         *m.entry(v).or_default() += 1;
     }
-    top_n(
-        m.into_iter().map(|(k, c)| (Value::from(k), c)).collect(),
-        total,
-        limit,
-    )
+    top_n(m.into_iter().map(|(k, c)| (Value::from(k), c)).collect(), total, limit)
 }
 
 pub fn unique_numbers(values: Vec<f64>, limit: usize) -> Value {
@@ -239,11 +211,7 @@ pub fn unique_numbers(values: Vec<f64>, limit: usize) -> Value {
         .into_iter()
         .map(|(bits, c)| {
             let v = f64::from_bits(bits);
-            let jv = if v.fract() == 0.0 && v.abs() < 9e15 {
-                Value::from(v as i64)
-            } else {
-                Value::from(v)
-            };
+            let jv = if v.fract() == 0.0 && v.abs() < 9e15 { Value::from(v as i64) } else { Value::from(v) };
             (jv, c)
         })
         .collect();
@@ -252,10 +220,7 @@ pub fn unique_numbers(values: Vec<f64>, limit: usize) -> Value {
 
 fn top_n(mut entries: Vec<(Value, u64)>, total: u64, limit: usize) -> Value {
     let distinct = entries.len();
-    entries.sort_by(|a, b| {
-        b.1.cmp(&a.1)
-            .then_with(|| a.0.to_string().cmp(&b.0.to_string()))
-    });
+    entries.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.to_string().cmp(&b.0.to_string())));
     entries.truncate(limit);
     let shown: u64 = entries.iter().map(|e| e.1).sum();
     json!({
@@ -280,9 +245,7 @@ mod tests {
             if k == 1 {
                 return ssq(x);
             }
-            (1..=x.len() - (k - 1))
-                .map(|i| ssq(&x[..i]) + rec(&x[i..], k - 1))
-                .fold(f64::INFINITY, f64::min)
+            (1..=x.len() - (k - 1)).map(|i| ssq(&x[..i]) + rec(&x[i..], k - 1)).fold(f64::INFINITY, f64::min)
         }
         rec(x, k)
     }
@@ -291,11 +254,7 @@ mod tests {
         let mut total = 0.0;
         let mut start = 0;
         for (c, &b) in ub.iter().enumerate() {
-            let end = if c + 1 == ub.len() {
-                x.len()
-            } else {
-                start + x[start..].partition_point(|&v| v <= b)
-            };
+            let end = if c + 1 == ub.len() { x.len() } else { start + x[start..].partition_point(|&v| v <= b) };
             let s = &x[start..end];
             let m = s.iter().sum::<f64>() / s.len() as f64;
             total += s.iter().map(|v| (v - m) * (v - m)).sum::<f64>();
@@ -323,11 +282,7 @@ mod tests {
                 let ub = ckmeans_breaks(&x, k);
                 assert_eq!(ub.len(), k);
                 let (got, want) = (cost(&x, &ub), brute(&x, k));
-                assert!(
-                    (got - want).abs() < 1e-6,
-                    "n={} k={k} got {got} want {want} x={x:?}",
-                    x.len()
-                );
+                assert!((got - want).abs() < 1e-6, "n={} k={k} got {got} want {want} x={x:?}", x.len());
             }
         }
     }
@@ -342,17 +297,8 @@ mod tests {
     #[test]
     fn quantile_and_equal() {
         let x: Vec<f64> = (1..=100).map(|v| v as f64).collect();
-        assert_eq!(
-            breaks(&x, 4, Method::Quantile),
-            vec![25.0, 50.0, 75.0, 100.0]
-        );
-        assert_eq!(
-            breaks(&x, 3, Method::EqualInterval),
-            vec![34.0, 67.0, 100.0]
-        );
-        assert_eq!(
-            class_counts(&x, &[25.0, 50.0, 75.0, 100.0]),
-            vec![25, 25, 25, 25]
-        );
+        assert_eq!(breaks(&x, 4, Method::Quantile), vec![25.0, 50.0, 75.0, 100.0]);
+        assert_eq!(breaks(&x, 3, Method::EqualInterval), vec![34.0, 67.0, 100.0]);
+        assert_eq!(class_counts(&x, &[25.0, 50.0, 75.0, 100.0]), vec![25, 25, 25, 25]);
     }
 }

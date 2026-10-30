@@ -5,7 +5,7 @@
 use super::recipe::Trigger;
 use crate::Engine;
 use chrono::{Datelike, Timelike};
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
@@ -31,16 +31,8 @@ pub fn glob(pattern: &str, name: &str) -> bool {
 
 /// Files (name, size, mtime) in a folder and its sub-folders (2 levels), filtered by pattern.
 pub fn listing(dir: &Path, pattern: Option<&str>) -> HashSet<(String, u64, u64)> {
-    fn walk(
-        base: &Path,
-        dir: &Path,
-        depth: usize,
-        pattern: Option<&str>,
-        out: &mut HashSet<(String, u64, u64)>,
-    ) {
-        let Ok(rd) = std::fs::read_dir(dir) else {
-            return;
-        };
+    fn walk(base: &Path, dir: &Path, depth: usize, pattern: Option<&str>, out: &mut HashSet<(String, u64, u64)>) {
+        let Ok(rd) = std::fs::read_dir(dir) else { return };
         for e in rd.flatten() {
             let p = e.path();
             let name = e.file_name().to_string_lossy().to_string();
@@ -53,17 +45,8 @@ pub fn listing(dir: &Path, pattern: Option<&str>) -> HashSet<(String, u64, u64)>
                     walk(base, &p, depth - 1, pattern, out);
                 }
             } else if pattern.is_none_or(|pat| glob(pat, &name)) {
-                let rel = p
-                    .strip_prefix(base)
-                    .unwrap_or(&p)
-                    .to_string_lossy()
-                    .to_string();
-                let mtime = md
-                    .modified()
-                    .ok()
-                    .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0);
+                let rel = p.strip_prefix(base).unwrap_or(&p).to_string_lossy().to_string();
+                let mtime = md.modified().ok().and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
                 out.insert((rel, md.len(), mtime));
                 if out.len() > 20_000 {
                     return;
@@ -84,44 +67,19 @@ struct FolderState {
 }
 
 /// One STAC poll: is there a scene newer than the one the last run used? Runs on its own thread.
-fn stac_poll(
-    engine: Arc<Engine>,
-    recipe: Arc<super::recipe::Recipe>,
-    idx: usize,
-    inflight: Arc<std::sync::atomic::AtomicBool>,
-    fired: Arc<std::sync::Mutex<HashMap<(String, usize), String>>>,
-) {
-    let Trigger::Stac {
-        area,
-        collection,
-        max_cloud,
-        endpoint,
-        every,
-    } = &recipe.triggers[idx]
-    else {
-        return;
-    };
+fn stac_poll(engine: Arc<Engine>, recipe: Arc<super::recipe::Recipe>, idx: usize, inflight: Arc<std::sync::atomic::AtomicBool>, fired: Arc<std::sync::Mutex<HashMap<(String, usize), String>>>) {
+    let Trigger::Stac { area, collection, max_cloud, endpoint, every } = &recipe.triggers[idx] else { return };
     let memo = engine.automation.memo(&recipe.id);
     let aoi = area.or_else(|| {
         let a = memo["aoi"].as_array()?;
-        Some([
-            a.first()?.as_f64()?,
-            a.get(1)?.as_f64()?,
-            a.get(2)?.as_f64()?,
-            a.get(3)?.as_f64()?,
-        ])
+        Some([a.first()?.as_f64()?, a.get(1)?.as_f64()?, a.get(2)?.as_f64()?, a.get(3)?.as_f64()?])
     });
     let key = (recipe.id.clone(), idx);
     let done = || inflight.store(false, std::sync::atomic::Ordering::SeqCst);
     let Some(b) = aoi else {
         // never ran: run once so the recipe settles its area (and makes a first map)
         if fired.lock().unwrap().insert(key, "first".into()).is_none() {
-            fire(
-                &engine,
-                &recipe,
-                json!({ "kind": "stac", "text": "first run: settles the area to watch for new satellite passes" }),
-                None,
-            );
+            fire(&engine, &recipe, json!({ "kind": "stac", "text": "first run: settles the area to watch for new satellite passes" }), None);
         }
         return done();
     };
@@ -135,26 +93,10 @@ fn stac_poll(
         "query": { "eo:cloud_cover": { "lt": max_cloud } },
         "sortby": [{ "field": "properties.datetime", "direction": "desc" }],
     });
-    let res = crate::raster::http(
-        &format!("{}/search", endpoint.trim_end_matches('/')),
-        Some(&body.to_string()),
-        45,
-    )
-    .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).map_err(|e| e.to_string()));
+    let res = crate::raster::http(&format!("{}/search", endpoint.trim_end_matches('/')), Some(&body.to_string()), 45).and_then(|bytes| serde_json::from_slice::<Value>(&bytes).map_err(|e| e.to_string()));
     match res {
         Ok(v) => {
-            let newest = v["features"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|f| {
-                    Some((
-                        f["properties"]["datetime"].as_str()?.get(..10)?.to_string(),
-                        f["id"].as_str()?.to_string(),
-                        f["properties"]["eo:cloud_cover"].as_f64().unwrap_or(0.0),
-                    ))
-                })
-                .max_by(|a, b| a.0.cmp(&b.0));
+            let newest = v["features"].as_array().into_iter().flatten().filter_map(|f| Some((f["properties"]["datetime"].as_str()?.get(..10)?.to_string(), f["id"].as_str()?.to_string(), f["properties"]["eo:cloud_cover"].as_f64().unwrap_or(0.0)))).max_by(|a, b| a.0.cmp(&b.0));
             if let Some((date, id, cloud)) = newest {
                 let already = fired.lock().unwrap().get(&key) == Some(&date);
                 if date > last && !already {
@@ -176,18 +118,11 @@ pub fn start(engine: Arc<Engine>) {
             let mut folders: HashMap<(String, usize), FolderState> = HashMap::new();
             let mut schedules: HashMap<(String, usize), Instant> = HashMap::new();
             let mut cron_minute: HashMap<(String, usize), i64> = HashMap::new();
-            let mut stac: HashMap<(String, usize), (Instant, Arc<std::sync::atomic::AtomicBool>)> =
-                HashMap::new();
+            let mut stac: HashMap<(String, usize), (Instant, Arc<std::sync::atomic::AtomicBool>)> = HashMap::new();
             let fired: Arc<std::sync::Mutex<HashMap<(String, usize), String>>> = Arc::default();
             let started = Instant::now();
             loop {
-                tick(
-                    &engine,
-                    &mut folders,
-                    &mut schedules,
-                    &mut cron_minute,
-                    started,
-                );
+                tick(&engine, &mut folders, &mut schedules, &mut cron_minute, started);
                 stac_tick(&engine, &mut stac, &fired);
                 std::thread::sleep(TICK);
             }
@@ -195,28 +130,14 @@ pub fn start(engine: Arc<Engine>) {
         .expect("spawn trigger thread");
 }
 
-fn stac_tick(
-    engine: &Arc<Engine>,
-    polls: &mut HashMap<(String, usize), (Instant, Arc<std::sync::atomic::AtomicBool>)>,
-    fired: &Arc<std::sync::Mutex<HashMap<(String, usize), String>>>,
-) {
+fn stac_tick(engine: &Arc<Engine>, polls: &mut HashMap<(String, usize), (Instant, Arc<std::sync::atomic::AtomicBool>)>, fired: &Arc<std::sync::Mutex<HashMap<(String, usize), String>>>) {
     let recipes = engine.automation.enabled_recipes();
     polls.retain(|k, _| recipes.iter().any(|r| r.id == k.0));
     for r in &recipes {
         for (i, t) in r.triggers.iter().enumerate() {
-            let Trigger::Stac { every, .. } = t else {
-                continue;
-            };
-            let entry = polls.entry((r.id.clone(), i)).or_insert_with(|| {
-                (
-                    Instant::now() - *every + Duration::from_secs(3),
-                    Arc::default(),
-                )
-            });
-            if entry.0.elapsed() < *every
-                || entry.1.load(std::sync::atomic::Ordering::SeqCst)
-                || engine.automation.is_active(&r.id)
-            {
+            let Trigger::Stac { every, .. } = t else { continue };
+            let entry = polls.entry((r.id.clone(), i)).or_insert_with(|| (Instant::now() - *every + Duration::from_secs(3), Arc::default()));
+            if entry.0.elapsed() < *every || entry.1.load(std::sync::atomic::Ordering::SeqCst) || engine.automation.is_active(&r.id) {
                 continue;
             }
             entry.0 = Instant::now();
@@ -227,34 +148,20 @@ fn stac_tick(
     }
 }
 
-fn fire(
-    engine: &Arc<Engine>,
-    recipe: &super::recipe::Recipe,
-    trigger: Value,
-    source: Option<String>,
-) {
+fn fire(engine: &Arc<Engine>, recipe: &super::recipe::Recipe, trigger: Value, source: Option<String>) {
     let mut given = Map::new();
     if let Some(s) = source {
         if recipe.inputs.iter().any(|i| i.name == "source") {
             given.insert("source".into(), Value::from(s));
         }
     }
-    match engine
-        .automation
-        .start_run(engine, &recipe.id, given, trigger)
-    {
+    match engine.automation.start_run(engine, &recipe.id, given, trigger) {
         Ok(run) => eprintln!("automation: {} started ({})", recipe.id, run.id),
         Err(e) => eprintln!("automation: {}: {e}", recipe.id),
     }
 }
 
-fn tick(
-    engine: &Arc<Engine>,
-    folders: &mut HashMap<(String, usize), FolderState>,
-    schedules: &mut HashMap<(String, usize), Instant>,
-    cron_minute: &mut HashMap<(String, usize), i64>,
-    started: Instant,
-) {
+fn tick(engine: &Arc<Engine>, folders: &mut HashMap<(String, usize), FolderState>, schedules: &mut HashMap<(String, usize), Instant>, cron_minute: &mut HashMap<(String, usize), i64>, started: Instant) {
     let recipes = engine.automation.enabled_recipes();
     let live: HashSet<String> = recipes.iter().map(|r| r.id.clone()).collect();
     folders.retain(|k, _| live.contains(&k.0));
@@ -264,16 +171,8 @@ fn tick(
         for (i, t) in r.triggers.iter().enumerate() {
             let key = (r.id.clone(), i);
             match t {
-                Trigger::Folder {
-                    path,
-                    pattern,
-                    on_start,
-                } => {
-                    let st = folders.entry(key).or_insert(FolderState {
-                        seen: None,
-                        last: Instant::now() - FOLDER_POLL,
-                        settling: None,
-                    });
+                Trigger::Folder { path, pattern, on_start } => {
+                    let st = folders.entry(key).or_insert(FolderState { seen: None, last: Instant::now() - FOLDER_POLL, settling: None });
                     if st.last.elapsed() < FOLDER_POLL {
                         continue;
                     }
@@ -310,18 +209,8 @@ fn tick(
                     st.settling = None;
                     fire(engine, r, trig, Some(path.clone()));
                 }
-                Trigger::Schedule {
-                    every: Some(d),
-                    on_start,
-                    ..
-                } => {
-                    let next = schedules.entry(key).or_insert_with(|| {
-                        if *on_start {
-                            Instant::now()
-                        } else {
-                            Instant::now() + *d
-                        }
-                    });
+                Trigger::Schedule { every: Some(d), on_start, .. } => {
+                    let next = schedules.entry(key).or_insert_with(|| if *on_start { Instant::now() } else { Instant::now() + *d });
                     if Instant::now() >= *next {
                         *next = Instant::now() + *d;
                         let trig = json!({ "kind": "schedule", "text": format!("every {}", super::recipe::human_duration(*d)) });
@@ -330,21 +219,12 @@ fn tick(
                 }
                 Trigger::Schedule { cron: Some(c), .. } => {
                     let minute_id = now.timestamp() / 60;
-                    if cron_minute.get(&key) == Some(&minute_id)
-                        || started.elapsed() < Duration::from_secs(1)
-                    {
+                    if cron_minute.get(&key) == Some(&minute_id) || started.elapsed() < Duration::from_secs(1) {
                         continue;
                     }
-                    if c.matches(
-                        now.minute(),
-                        now.hour(),
-                        now.day(),
-                        now.month(),
-                        now.weekday().num_days_from_sunday(),
-                    ) {
+                    if c.matches(now.minute(), now.hour(), now.day(), now.month(), now.weekday().num_days_from_sunday()) {
                         cron_minute.insert(key, minute_id);
-                        let trig =
-                            json!({ "kind": "schedule", "text": format!("schedule '{}'", c.text) });
+                        let trig = json!({ "kind": "schedule", "text": format!("schedule '{}'", c.text) });
                         fire(engine, r, trig, None);
                     }
                 }

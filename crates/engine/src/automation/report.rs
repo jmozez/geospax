@@ -87,21 +87,12 @@ pub fn render(r: &ReportInput) -> String {
         esc(&r.subtitle)
     );
     if let Some(w) = &r.word {
-        let _ = write!(
-            h,
-            "<p class=\"files\">Edit this report: <a href=\"{w}\" download>Word document ({w})</a></p>",
-            w = esc(w)
-        );
+        let _ = write!(h, "<p class=\"files\">Edit this report: <a href=\"{w}\" download>Word document ({w})</a></p>", w = esc(w));
     }
     if !r.cards.is_empty() {
         h.push_str("<section class=\"cards\">");
         for (big, label) in &r.cards {
-            let _ = write!(
-                h,
-                "<div><b>{}</b><span>{}</span></div>",
-                esc(big),
-                esc(label)
-            );
+            let _ = write!(h, "<div><b>{}</b><span>{}</span></div>", esc(big), esc(label));
         }
         h.push_str("</section>");
     }
@@ -138,19 +129,10 @@ pub fn render(r: &ReportInput) -> String {
     }
     for (i, (title, svg, caption)) in r.charts.iter().enumerate() {
         let files = r.chart_files.get(i).map(|f| format!(" Download: <a href=\"{f}.svg\" download>SVG</a> · <a href=\"{f}.png\" download>PNG (300 dpi)</a>", f = esc(f))).unwrap_or_default();
-        let _ = write!(
-            h,
-            "<section class=\"card chart\"><h2>{}</h2>{svg}<p class=\"files\">{}{files}</p></section>",
-            esc(title),
-            esc(caption)
-        );
+        let _ = write!(h, "<section class=\"card chart\"><h2>{}</h2>{svg}<p class=\"files\">{}{files}</p></section>", esc(title), esc(caption));
     }
     if let Some(n) = &r.notes {
-        let _ = write!(
-            h,
-            "<section class=\"card\"><h2>Notes</h2><p>{}</p></section>",
-            esc(n)
-        );
+        let _ = write!(h, "<section class=\"card\"><h2>Notes</h2><p>{}</p></section>", esc(n));
     }
     if !r.methods.is_empty() {
         h.push_str("<section class=\"card\"><h2>How this map was made</h2><ul class=\"methods\">");
@@ -162,23 +144,14 @@ pub fn render(r: &ReportInput) -> String {
     if !r.decisions.is_empty() {
         h.push_str("<section class=\"card\"><h2>Automatic decisions</h2><table><tr><th>Layer</th><th>Decision and why</th></tr>");
         for (l, why) in &r.decisions {
-            let _ = write!(
-                h,
-                "<tr><td><code>{}</code></td><td>{}</td></tr>",
-                esc(l),
-                esc(why)
-            );
+            let _ = write!(h, "<tr><td><code>{}</code></td><td>{}</td></tr>", esc(l), esc(why));
         }
         h.push_str("</table></section>");
     }
     if !r.layers.is_empty() {
         h.push_str("<section class=\"card\"><h2>Data</h2><table><tr><th>Layer</th><th>Type</th><th class=\"num\">Features</th><th>Details</th></tr>");
         for l in &r.layers {
-            let rows: Vec<String> = l
-                .rows
-                .iter()
-                .map(|(k, v)| format!("{}: <b>{}</b>", esc(k), esc(v)))
-                .collect();
+            let rows: Vec<String> = l.rows.iter().map(|(k, v)| format!("{}: <b>{}</b>", esc(k), esc(v))).collect();
             let _ = write!(
                 h,
                 "<tr><td>{}<br><code>{}</code></td><td>{}</td><td class=\"num\">{}</td><td>{}</td></tr>",
@@ -200,32 +173,15 @@ pub fn render(r: &ReportInput) -> String {
                 "failed" => "failed",
                 _ => "skipped",
             };
-            let why: Vec<String> = s["why"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .map(esc)
-                .collect();
-            let detail = if let Some(e) = s["error"].as_str() {
-                esc(e)
-            } else {
-                why.join("<br>")
-            };
+            let why: Vec<String> = s["why"].as_array().into_iter().flatten().filter_map(Value::as_str).map(esc).collect();
+            let detail = if let Some(e) = s["error"].as_str() { esc(e) } else { why.join("<br>") };
             let _ = write!(
                 h,
                 "<tr><td><code>{}</code></td><td><code>{}</code></td><td class=\"{class}\">{}</td><td class=\"num\">{}</td><td>{}</td></tr>",
                 esc(s["id"].as_str().unwrap_or("")),
                 esc(s["use"].as_str().unwrap_or("")),
                 esc(status),
-                s["ms"]
-                    .as_f64()
-                    .map(|m| if m >= 1000.0 {
-                        format!("{:.1} s", m / 1000.0)
-                    } else {
-                        format!("{m:.0} ms")
-                    })
-                    .unwrap_or_default(),
+                s["ms"].as_f64().map(|m| if m >= 1000.0 { format!("{:.1} s", m / 1000.0) } else { format!("{m:.0} ms") }).unwrap_or_default(),
                 detail
             );
         }
@@ -234,12 +190,7 @@ pub fn render(r: &ReportInput) -> String {
     if !r.provenance.is_empty() {
         h.push_str("<section class=\"card\"><h2>Provenance</h2><table>");
         for (k, v) in &r.provenance {
-            let _ = write!(
-                h,
-                "<tr><th>{}</th><td><code>{}</code></td></tr>",
-                esc(k),
-                esc(v)
-            );
+            let _ = write!(h, "<tr><th>{}</th><td><code>{}</code></td></tr>", esc(k), esc(v));
         }
         h.push_str("</table></section>");
     }

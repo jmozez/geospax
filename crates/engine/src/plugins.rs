@@ -240,10 +240,7 @@ impl JsonTool {
             id: self.id.clone(),
             name: self.name.clone().unwrap_or_else(|| self.id.clone()),
             summary: self.summary.clone().unwrap_or_default(),
-            group: self
-                .toolbox
-                .clone()
-                .unwrap_or_else(|| "Plugins".to_string()),
+            group: self.toolbox.clone().unwrap_or_else(|| "Plugins".to_string()),
             params: self
                 .params
                 .iter()
@@ -292,10 +289,7 @@ pub struct Plugins {
 
 impl Plugins {
     pub fn new(dirs: Vec<PathBuf>) -> Self {
-        let p = Plugins {
-            dirs,
-            plugins: RwLock::new(Vec::new()),
-        };
+        let p = Plugins { dirs, plugins: RwLock::new(Vec::new()) };
         p.reload();
         p
     }
@@ -307,12 +301,9 @@ impl Plugins {
     pub fn reload(&self) {
         // Later folders win: `--plugins DIR` folders first, the state directory last, so an
         // installed plugin shadows a copy you are developing elsewhere under the same id.
-        let mut by_id: std::collections::HashMap<String, PluginInfo> =
-            std::collections::HashMap::new();
+        let mut by_id: std::collections::HashMap<String, PluginInfo> = std::collections::HashMap::new();
         for dir in &self.dirs {
-            let Ok(entries) = fs::read_dir(dir) else {
-                continue;
-            };
+            let Ok(entries) = fs::read_dir(dir) else { continue };
             let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
             paths.sort();
             for path in paths {
@@ -333,27 +324,13 @@ impl Plugins {
     }
 
     pub fn get(&self, id: &str) -> Option<PluginInfo> {
-        self.plugins
-            .read()
-            .ok()?
-            .iter()
-            .find(|p| p.id == id)
-            .cloned()
+        self.plugins.read().ok()?.iter().find(|p| p.id == id).cloned()
     }
 
     /// Which external runtimes are on this machine (`qgis_process`, `python3`, `Rscript`, `wasmtime` …).
     pub fn runtimes(&self) -> serde_json::Value {
         let mut m = BTreeMap::new();
-        for bin in [
-            "python3",
-            "python",
-            "Rscript",
-            "qgis_process",
-            "wasmtime",
-            "wasm3",
-            "deno",
-            "node",
-        ] {
+        for bin in ["python3", "python", "Rscript", "qgis_process", "wasmtime", "wasm3", "deno", "node"] {
             m.insert(bin.to_string(), serde_json::json!(which(bin)));
         }
         serde_json::json!(m)
@@ -408,9 +385,7 @@ pub fn bundled_dirs() -> Vec<PathBuf> {
     if let Ok(v) = std::env::var("GEOSPAX_PLUGINS") {
         return std::env::split_paths(&v).filter(|p| p.is_dir()).collect();
     }
-    let exe = std::env::current_exe()
-        .ok()
-        .and_then(|e| e.parent().map(Path::to_path_buf));
+    let exe = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf));
     let mut c = vec![PathBuf::from("plugins")];
     if let Some(d) = exe {
         c.push(d.join("plugins"));
@@ -425,9 +400,7 @@ pub fn bundled_dirs() -> Vec<PathBuf> {
 
 /// The program a native `process` plugin starts: the first word of its `run:` command.
 fn run_program(path: &Path) -> Option<String> {
-    let text = fs::read_to_string(path.join("plugin.yaml"))
-        .or_else(|_| fs::read_to_string(path.join("plugin.yml")))
-        .ok()?;
+    let text = fs::read_to_string(path.join("plugin.yaml")).or_else(|_| fs::read_to_string(path.join("plugin.yml"))).ok()?;
     let m: NativeManifest = serde_saphyr::from_str(&text).ok()?;
     m.run?.split_whitespace().next().map(str::to_string)
 }
@@ -462,10 +435,7 @@ fn finish(mut i: PluginInfo, path: &Path) -> PluginInfo {
                 }
             }
             "wasm" => {
-                if which("wasmtime").is_none()
-                    && which("wasm3").is_none()
-                    && which("deno").is_none()
-                {
+                if which("wasmtime").is_none() && which("wasm3").is_none() && which("deno").is_none() {
                     i.runnable = false;
                     i.needs = Some("wasmtime (or wasm3/deno)".to_string());
                 }
@@ -505,7 +475,7 @@ fn read_native(path: &Path) -> Option<PluginInfo> {
                     warning: Some(format!("plugin.yaml does not parse: {e}")),
                 },
                 path,
-            ));
+            ))
         }
     };
     let kind = m.kind.clone().unwrap_or_else(|| "process".to_string());
@@ -556,12 +526,11 @@ fn read_json_manifest(path: &Path) -> Option<PluginInfo> {
     let entry = m.entry.clone().unwrap_or_else(|| "plugin.wasm".to_string());
     let has_module = path.join(&entry).is_file();
     // GeoLibre plugins are TypeScript/React; their WASM tool bundles are not.
-    let source =
-        if m.tools.iter().any(|t| t.id.contains("geolibre")) || path.join("tools.mjs").exists() {
-            "geolibre"
-        } else {
-            "rustgis"
-        };
+    let source = if m.tools.iter().any(|t| t.id.contains("geolibre")) || path.join("tools.mjs").exists() {
+        "geolibre"
+    } else {
+        "rustgis"
+    };
     let mut warning = None;
     if !has_module {
         warning = Some(format!(
@@ -583,11 +552,7 @@ fn read_json_manifest(path: &Path) -> Option<PluginInfo> {
             source: source.to_string(),
             kind: "wasm".to_string(),
             runnable: has_module,
-            needs: if has_module {
-                None
-            } else {
-                Some(format!("{entry} next to plugin.json"))
-            },
+            needs: if has_module { None } else { Some(format!("{entry} next to plugin.json")) },
             path: String::new(),
             tools: m.tools.iter().map(|t| t.to_spec()).collect(),
             commands: m
@@ -595,11 +560,7 @@ fn read_json_manifest(path: &Path) -> Option<PluginInfo> {
                 .iter()
                 .map(|c| CommandSpec {
                     id: c.id.clone(),
-                    title: c
-                        .label
-                        .clone()
-                        .unwrap_or_else(|| c.id.clone())
-                        .replace("\\n", " "),
+                    title: c.label.clone().unwrap_or_else(|| c.id.clone()).replace("\\n", " "),
                     help: c.help.clone().unwrap_or_default(),
                     icon: c.icon.clone(),
                     group: m.name.clone().unwrap_or_else(|| m.id.clone()),
@@ -625,10 +586,7 @@ fn read_qgis(path: &Path) -> Option<PluginInfo> {
         }
     }
     let id = map.get("name").cloned()?;
-    let provider = map
-        .get("hasProcessingProvider")
-        .map(|v| v == "yes")
-        .unwrap_or(false);
+    let provider = map.get("hasProcessingProvider").map(|v| v == "yes").unwrap_or(false);
     let mut tools = Vec::new();
     let mut warning = None;
     let mut needs = None;
@@ -636,9 +594,7 @@ fn read_qgis(path: &Path) -> Option<PluginInfo> {
         match qgis_tools(&id) {
             Ok(ts) => tools = ts,
             Err(e) => {
-                warning = Some(format!(
-                    "processing provider declared, but its algorithms could not be listed: {e}"
-                ));
+                warning = Some(format!("processing provider declared, but its algorithms could not be listed: {e}"));
                 needs = Some("qgis_process".to_string());
             }
         }
@@ -647,8 +603,7 @@ fn read_qgis(path: &Path) -> Option<PluginInfo> {
             "QGIS plugin without hasProcessingProvider=yes: its Python UI (PyQt + the QGIS API) cannot run inside GeoSpaX"
                 .to_string(),
         );
-        needs =
-            Some("a processing provider (or port the algorithm to a GeoSpaX plugin)".to_string());
+        needs = Some("a processing provider (or port the algorithm to a GeoSpaX plugin)".to_string());
     }
     Some(finish(
         PluginInfo {
@@ -693,20 +648,12 @@ fn qgis_tools(provider: &str) -> Result<Vec<ToolSpec>, String> {
             }
             if let Some(arr) = algs.as_array() {
                 for a in arr {
-                    let id = a
-                        .get("id")
-                        .and_then(|x| x.as_str())
-                        .unwrap_or_default()
-                        .to_string();
+                    let id = a.get("id").and_then(|x| x.as_str()).unwrap_or_default().to_string();
                     if id.is_empty() {
                         continue;
                     }
                     tools.push(ToolSpec {
-                        name: a
-                            .get("name")
-                            .and_then(|x| x.as_str())
-                            .unwrap_or(&id)
-                            .to_string(),
+                        name: a.get("name").and_then(|x| x.as_str()).unwrap_or(&id).to_string(),
                         id,
                         summary: String::new(),
                         group: prov.clone(),
@@ -727,11 +674,7 @@ fn read_arcgis(path: &Path) -> Option<PluginInfo> {
     let text = fs::read_to_string(path.join("Config.daml")).ok()?;
     let id = attr(&text, "AddInInfo", "id")
         .map(|s| s.trim_matches(|c| c == '{' || c == '}').to_string())
-        .unwrap_or_else(|| {
-            path.file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default()
-        });
+        .unwrap_or_else(|| path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default());
     let name = element_text(&text, "Name")
         .or_else(|| attr(&text, "AddInInfo", "id").map(|_| id.clone()))
         .unwrap_or_else(|| id.clone());
@@ -803,9 +746,7 @@ fn read_arcgis(path: &Path) -> Option<PluginInfo> {
 
 /// `python3 -c "…"` over a `.pyt`: ask arcpy for the tool list. No arcpy, no tools.
 fn arcgis_pyt_tools(pyt: &Path) -> Result<Vec<ToolSpec>, String> {
-    let py = which("python3")
-        .or_else(|| which("python"))
-        .ok_or("python3 is not on PATH")?;
+    let py = which("python3").or_else(|| which("python")).ok_or("python3 is not on PATH")?;
     let script = format!(
         "import importlib.util, json, sys\n\
          spec = importlib.util.spec_from_file_location('pyt_under_test', {path:?})\n\
@@ -819,16 +760,9 @@ fn arcgis_pyt_tools(pyt: &Path) -> Result<Vec<ToolSpec>, String> {
          print(json.dumps(out))\n",
         path = pyt
     );
-    let out = Command::new(py)
-        .args(["-c", &script])
-        .output()
-        .map_err(|e| e.to_string())?;
+    let out = Command::new(py).args(["-c", &script]).output().map_err(|e| e.to_string())?;
     if !out.status.success() {
-        return Err(String::from_utf8_lossy(&out.stderr)
-            .lines()
-            .last()
-            .unwrap_or("arcpy import failed")
-            .to_string());
+        return Err(String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or("arcpy import failed").to_string());
     }
     let v: serde_json::Value = serde_json::from_str(String::from_utf8_lossy(&out.stdout).trim())
         .map_err(|e| format!("bad JSON from the toolbox: {e}"))?;
@@ -842,9 +776,7 @@ fn arcgis_pyt_tools(pyt: &Path) -> Result<Vec<ToolSpec>, String> {
 
 fn find_files(dir: &Path, ext: &str) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    let Ok(entries) = fs::read_dir(dir) else {
-        return out;
-    };
+    let Ok(entries) = fs::read_dir(dir) else { return out };
     for e in entries.flatten() {
         let p = e.path();
         if p.is_dir() {
@@ -860,13 +792,7 @@ fn find_files(dir: &Path, ext: &str) -> Vec<PathBuf> {
 fn read_package(path: &Path) -> Option<PluginInfo> {
     let file = fs::File::open(path).ok()?;
     let mut zip = zip::ZipArchive::new(file).ok()?;
-    let names: Vec<String> = (0..zip.len())
-        .filter_map(|i| {
-            zip.by_index(i)
-                .ok()
-                .and_then(|f| f.name().ok().map(|n| n.to_string()))
-        })
-        .collect();
+    let names: Vec<String> = (0..zip.len()).filter_map(|i| zip.by_index(i).ok().and_then(|f| f.name().ok().map(|n| n.to_string()))).collect();
     let pick = |want: &str| -> Option<String> {
         names
             .iter()
@@ -896,11 +822,7 @@ fn read_package(path: &Path) -> Option<PluginInfo> {
                 author: json.author,
                 license: json.license,
                 homepage: json.homepage,
-                source: if n == "plugin.json" {
-                    "rustgis".to_string()
-                } else {
-                    "native".to_string()
-                },
+                source: if n == "plugin.json" { "rustgis".to_string() } else { "native".to_string() },
                 kind: "wasm".to_string(),
                 runnable: false,
                 needs: Some("install the package first (Plugins › Install)".to_string()),
@@ -911,20 +833,13 @@ fn read_package(path: &Path) -> Option<PluginInfo> {
                     .iter()
                     .map(|c| CommandSpec {
                         id: c.id.clone(),
-                        title: c
-                            .label
-                            .clone()
-                            .unwrap_or_else(|| c.id.clone())
-                            .replace("\\n", " "),
+                        title: c.label.clone().unwrap_or_else(|| c.id.clone()).replace("\\n", " "),
                         help: c.help.clone().unwrap_or_default(),
                         icon: c.icon.clone(),
                         group: json.name.clone().unwrap_or_else(|| json.id.clone()),
                     })
                     .collect(),
-                warning: Some(format!(
-                    "{} is a package file, not an installed plugin",
-                    path.display()
-                )),
+                warning: Some(format!("{} is a package file, not an installed plugin", path.display())),
             },
             path,
         ));
@@ -943,13 +858,7 @@ fn read_package(path: &Path) -> Option<PluginInfo> {
         let name = element_text(&text, "Name").unwrap_or_else(|| id.clone());
         let mut commands = Vec::new();
         for (cid, caption) in buttons(&text) {
-            commands.push(CommandSpec {
-                id: cid.clone(),
-                title: caption.unwrap_or(cid),
-                help: String::new(),
-                icon: None,
-                group: name.clone(),
-            });
+            commands.push(CommandSpec { id: cid.clone(), title: caption.unwrap_or(cid), help: String::new(), icon: None, group: name.clone() });
         }
         return Some(finish(
             PluginInfo {
@@ -970,10 +879,7 @@ fn read_package(path: &Path) -> Option<PluginInfo> {
                 path: String::new(),
                 tools: vec![],
                 commands,
-                warning: Some(format!(
-                    "{} is an ArcGIS add-in package: install it to read its toolboxes",
-                    path.display()
-                )),
+                warning: Some(format!("{} is an ArcGIS add-in package: install it to read its toolboxes", path.display())),
             },
             path,
         ));
@@ -994,11 +900,7 @@ fn element_text(xml: &str, tag: &str) -> Option<String> {
     if t.is_empty() {
         None
     } else {
-        Some(
-            t.replace("&amp;", "&")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">"),
-        )
+        Some(t.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">"))
     }
 }
 
@@ -1052,9 +954,7 @@ impl Plugins {
         tool_id: &str,
         params: serde_json::Map<String, serde_json::Value>,
     ) -> Result<serde_json::Value, String> {
-        let p = self
-            .get(plugin_id)
-            .ok_or_else(|| format!("unknown plugin '{plugin_id}'"))?;
+        let p = self.get(plugin_id).ok_or_else(|| format!("unknown plugin '{plugin_id}'"))?;
         let tool = p
             .tools
             .iter()
@@ -1069,8 +969,7 @@ impl Plugins {
         }
         // 1. a tool that is a recipe: the automation engine does the rest
         if let Some(recipe) = tool.recipe.as_ref() {
-            let trigger =
-                serde_json::json!({ "kind": "plugin", "text": format!("{plugin_id}/{tool_id}") });
+            let trigger = serde_json::json!({ "kind": "plugin", "text": format!("{plugin_id}/{tool_id}") });
             let run = engine
                 .automation
                 .start_run(engine, recipe, params, trigger)
@@ -1089,13 +988,9 @@ impl Plugins {
         let text = fs::read_to_string(Path::new(&p.path).join("plugin.yaml"))
             .or_else(|_| fs::read_to_string(Path::new(&p.path).join("plugin.yml")))
             .map_err(|_| "plugin.yaml is missing".to_string())?;
-        let m: NativeManifest =
-            serde_saphyr::from_str(&text).map_err(|e| format!("plugin.yaml: {e}"))?;
+        let m: NativeManifest = serde_saphyr::from_str(&text).map_err(|e| format!("plugin.yaml: {e}"))?;
         let template = m.run.clone().ok_or("plugin.yaml has no `run:` command")?;
-        let mut parts = template
-            .split_whitespace()
-            .map(|s| s.to_string())
-            .collect::<Vec<_>>();
+        let mut parts = template.split_whitespace().map(|s| s.to_string()).collect::<Vec<_>>();
         for part in parts.iter_mut() {
             *part = part
                 .replace("${plugin}", &p.path)
@@ -1107,39 +1002,20 @@ impl Plugins {
         // and those files join the map (vector layers and rasters) without a restart.
         let out_dir = engine.state_dir.join("plugin-results").join(&p.id);
         let _ = fs::create_dir_all(&out_dir);
-        let sources: serde_json::Map<String, serde_json::Value> = engine
-            .layers()
-            .iter()
-            .map(|l| (l.info.id.clone(), serde_json::json!(l.info.source)))
-            .collect();
+        let sources: serde_json::Map<String, serde_json::Value> =
+            engine.layers().iter().map(|l| (l.info.id.clone(), serde_json::json!(l.info.source))).collect();
         let mut as_geojson = serde_json::Map::new();
         if m.geojson {
             fs::create_dir_all(workdir()).map_err(|e| format!("{}: {e}", workdir().display()))?;
             for ps in tool.params.iter().filter(|ps| ps.kind == "layer") {
-                let Some(id) = params.get(&ps.name).and_then(|v| v.as_str()) else {
-                    continue;
-                };
+                let Some(id) = params.get(&ps.name).and_then(|v| v.as_str()) else { continue };
                 let Some(l) = engine.layer(id) else { continue };
                 if as_geojson.contains_key(id) {
                     continue;
                 }
-                let fs =
-                    crate::automation::features::read_layer(engine, &l, None, None, 2_000_000)?;
-                let safe: String = id
-                    .chars()
-                    .map(|c| {
-                        if c.is_ascii_alphanumeric() || c == '.' || c == '-' {
-                            c
-                        } else {
-                            '_'
-                        }
-                    })
-                    .collect();
-                let path = workdir().join(format!(
-                    "{}-{}.geojson",
-                    p.id,
-                    safe.trim_end_matches(".geojson").trim_end_matches(".json")
-                ));
+                let fs = crate::automation::features::read_layer(engine, &l, None, None, 2_000_000)?;
+                let safe: String = id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' }).collect();
+                let path = workdir().join(format!("{}-{}.geojson", p.id, safe.trim_end_matches(".geojson").trim_end_matches(".json")));
                 crate::automation::features::write_features(&path, "GeoJSON", id, &fs)?;
                 as_geojson.insert(id.to_string(), serde_json::json!(path));
             }
@@ -1153,15 +1029,8 @@ impl Plugins {
             .iter()
             .filter(|ps| ps.kind == "raster" || ps.kind == "rasters")
             .flat_map(|ps| match params.get(&ps.name) {
-                Some(serde_json::Value::String(s)) if !s.is_empty() => s
-                    .split(',')
-                    .map(|x| x.trim().to_string())
-                    .filter(|x| !x.is_empty())
-                    .collect(),
-                Some(serde_json::Value::Array(a)) => a
-                    .iter()
-                    .filter_map(|x| x.as_str().map(str::to_string))
-                    .collect(),
+                Some(serde_json::Value::String(s)) if !s.is_empty() => s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect(),
+                Some(serde_json::Value::Array(a)) => a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
                 _ => Vec::new(),
             })
             .collect();
@@ -1172,14 +1041,8 @@ impl Plugins {
                 if grids.contains_key(id) {
                     continue;
                 }
-                let r = engine
-                    .raster(id)
-                    .ok_or_else(|| format!("unknown raster '{id}'"))?;
-                let path = write_grid(
-                    &r,
-                    &mut template,
-                    &workdir().join(format!("{}-{}", p.id, crate::raster::sanitize(id))),
-                )?;
+                let r = engine.raster(id).ok_or_else(|| format!("unknown raster '{id}'"))?;
+                let path = write_grid(&r, &mut template, &workdir().join(format!("{}-{}", p.id, crate::raster::sanitize(id))))?;
                 grids.insert(id.clone(), serde_json::json!(path));
             }
         }
@@ -1222,9 +1085,7 @@ impl Plugins {
             return Err(format!(
                 "{prog} exited with {}: {}",
                 wait.status,
-                first_line(&stderr)
-                    .or_else(|| first_line(&stdout))
-                    .unwrap_or_else(|| "(no output)".to_string())
+                first_line(&stderr).or_else(|| first_line(&stdout)).unwrap_or_else(|| "(no output)".to_string())
             ));
         }
         let parsed: serde_json::Value = serde_json::from_str(stdout.trim())
@@ -1240,18 +1101,10 @@ impl Plugins {
     pub fn install(&self, src: &Path) -> Result<PluginInfo, String> {
         // Installed plugins go in the state directory (the last one): the other folders are
         // development locations you point at with --plugins, and we do not write into them.
-        let dest_dir = self
-            .dirs
-            .last()
-            .cloned()
-            .ok_or("no plugin directory is configured")?;
+        let dest_dir = self.dirs.last().cloned().ok_or("no plugin directory is configured")?;
         fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
         let dest = if src.is_dir() {
-            let name = src
-                .file_name()
-                .ok_or("bad source path")?
-                .to_string_lossy()
-                .to_string();
+            let name = src.file_name().ok_or("bad source path")?.to_string_lossy().to_string();
             let d = dest_dir.join(name);
             copy_dir(src, &d)?;
             d
@@ -1259,10 +1112,7 @@ impl Plugins {
             unpack_package(src, &dest_dir)?
         };
         self.reload();
-        let id = dest
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
+        let id = dest.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         self.get(&id)
             .or_else(|| read_plugin(&dest))
             .ok_or_else(|| "the installed folder has no manifest GeoSpaX recognises".to_string())
@@ -1272,14 +1122,8 @@ impl Plugins {
     /// removed: the other folders are development locations you point at with --plugins,
     /// and deleting someone's working copy because an id matched would be rude.
     pub fn uninstall(&self, id: &str) -> Result<String, String> {
-        let dest_dir = self
-            .dirs
-            .last()
-            .cloned()
-            .ok_or("no plugin directory is configured")?;
-        let info = self
-            .get(id)
-            .ok_or_else(|| format!("unknown plugin '{id}'"))?;
+        let dest_dir = self.dirs.last().cloned().ok_or("no plugin directory is configured")?;
+        let info = self.get(id).ok_or_else(|| format!("unknown plugin '{id}'"))?;
         let path = std::path::PathBuf::from(&info.path);
         // canonicalise both so a symlinked state dir still compares equal
         let inside = path
@@ -1296,8 +1140,7 @@ impl Plugins {
                 dest_dir.display()
             ));
         }
-        fs::remove_dir_all(&path)
-            .map_err(|e| format!("could not remove {}: {e}", path.display()))?;
+        fs::remove_dir_all(&path).map_err(|e| format!("could not remove {}: {e}", path.display()))?;
         self.reload();
         Ok(format!("uninstalled {} from {}", info.name, path.display()))
     }
@@ -1307,28 +1150,16 @@ impl Plugins {
 /// GDAL opens as vector layers. Returns the new layer / raster ids.
 fn add_outputs(engine: &std::sync::Arc<crate::Engine>, result: &serde_json::Value) -> Vec<String> {
     let mut ids = Vec::new();
-    for path in result
-        .get("outputs")
-        .and_then(|v| v.as_array())
-        .into_iter()
-        .flatten()
-        .filter_map(|v| v.as_str())
-    {
+    for path in result.get("outputs").and_then(|v| v.as_array()).into_iter().flatten().filter_map(|v| v.as_str()) {
         let path = Path::new(path);
         if !path.is_file() {
             continue;
         }
-        let ext = path
-            .extension()
-            .map(|e| e.to_string_lossy().to_lowercase())
-            .unwrap_or_default();
+        let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
         if path.to_string_lossy().ends_with(".grid.json") {
             match read_grid_to_tif(path) {
                 Ok(tif) => {
-                    let id = tif
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_default();
+                    let id = tif.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
                     if let Ok(h) = engine.register_raster(&tif, &id) {
                         ids.push(h.info.id.clone());
                     }
@@ -1336,10 +1167,7 @@ fn add_outputs(engine: &std::sync::Arc<crate::Engine>, result: &serde_json::Valu
                 Err(e) => eprintln!("plugin output {}: {e}", path.display()),
             }
         } else if matches!(ext.as_str(), "tif" | "tiff") {
-            let id = path
-                .file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let id = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
             if let Ok(h) = engine.register_raster(path, &id) {
                 ids.push(h.info.id.clone());
             }
@@ -1353,42 +1181,19 @@ fn add_outputs(engine: &std::sync::Arc<crate::Engine>, result: &serde_json::Valu
 /// Re-register the results plugin tools wrote in earlier sessions (`<state>/plugin-results/<plugin>/`):
 /// without this a restart drops them from Contents although the files are still there.
 pub fn restore_results(engine: &std::sync::Arc<crate::Engine>) {
-    let Ok(dirs) = fs::read_dir(engine.state_dir.join("plugin-results")) else {
-        return;
-    };
+    let Ok(dirs) = fs::read_dir(engine.state_dir.join("plugin-results")) else { return };
     let mut n = 0;
     for dir in dirs.flatten().map(|e| e.path()).filter(|p| p.is_dir()) {
-        let Ok(files) = fs::read_dir(&dir) else {
-            continue;
-        };
+        let Ok(files) = fs::read_dir(&dir) else { continue };
         let mut files: Vec<PathBuf> = files.flatten().map(|e| e.path()).collect();
         files.sort();
         for f in files {
-            let name = f
-                .file_name()
-                .map(|s| s.to_string_lossy().to_lowercase())
-                .unwrap_or_default();
+            let name = f.file_name().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
             // a .grid.json was already written out as the .tif beside it; the rest are sidecars
-            let keep = [
-                ".tif", ".tiff", ".geojson", ".gpkg", ".json", ".csv", ".fgb", ".shp",
-            ]
-            .iter()
-            .any(|x| name.ends_with(x))
-                && ![
-                    ".grid.json",
-                    ".gsx.json",
-                    ".aux.xml",
-                    ".part.tif",
-                    ".part.gpkg",
-                ]
-                .iter()
-                .any(|x| name.ends_with(x));
+            let keep = [".tif", ".tiff", ".geojson", ".gpkg", ".json", ".csv", ".fgb", ".shp"].iter().any(|x| name.ends_with(x))
+                && ![".grid.json", ".gsx.json", ".aux.xml", ".part.tif", ".part.gpkg"].iter().any(|x| name.ends_with(x));
             if keep {
-                n += add_outputs(
-                    engine,
-                    &serde_json::json!({ "outputs": [f.to_string_lossy()] }),
-                )
-                .len();
+                n += add_outputs(engine, &serde_json::json!({ "outputs": [f.to_string_lossy()] })).len();
             }
         }
     }
@@ -1399,11 +1204,7 @@ pub fn restore_results(engine: &std::sync::Arc<crate::Engine>) {
 
 /// Write raster `r` as a float32 grid at `stem` (+ .grid.json, .f32). The first raster of a run sets
 /// the grid (its own, at most 1,500 cells a side); later ones are warped onto it.
-fn write_grid(
-    r: &crate::raster::RasterHandle,
-    template: &mut Option<(usize, usize, [f64; 6], String)>,
-    stem: &Path,
-) -> Result<PathBuf, String> {
+fn write_grid(r: &crate::raster::RasterHandle, template: &mut Option<(usize, usize, [f64; 6], String)>, stem: &Path) -> Result<PathBuf, String> {
     use crate::raster;
     let src = raster::open(&r.info.path)?;
     let ds = match template.as_ref() {
@@ -1411,60 +1212,19 @@ fn write_grid(
             let (w, h) = src.raster_size();
             let k = (w.max(h) as f64 / 1500.0).max(1.0);
             let ds = if k > 1.0 {
-                raster::translate(
-                    &src,
-                    "",
-                    &raster::strings(&[
-                        "-of",
-                        "MEM",
-                        "-r",
-                        "average",
-                        "-ot",
-                        "Float32",
-                        "-outsize",
-                        &((w as f64 / k).round() as usize).to_string(),
-                        &((h as f64 / k).round() as usize).to_string(),
-                    ]),
-                )?
+                raster::translate(&src, "", &raster::strings(&["-of", "MEM", "-r", "average", "-ot", "Float32", "-outsize", &((w as f64 / k).round() as usize).to_string(), &((h as f64 / k).round() as usize).to_string()]))?
             } else {
-                raster::translate(
-                    &src,
-                    "",
-                    &raster::strings(&["-of", "MEM", "-ot", "Float32"]),
-                )?
+                raster::translate(&src, "", &raster::strings(&["-of", "MEM", "-ot", "Float32"]))?
             };
             let (w, h) = ds.raster_size();
-            *template = Some((
-                w,
-                h,
-                ds.geo_transform().map_err(|e| e.to_string())?,
-                ds.projection(),
-            ));
+            *template = Some((w, h, ds.geo_transform().map_err(|e| e.to_string())?, ds.projection()));
             ds
         }
         Some((w, h, gt, wkt)) => {
             let (minx, maxy) = (gt[0], gt[3]);
             let (maxx, miny) = (gt[0] + gt[1] * *w as f64, gt[3] + gt[5] * *h as f64);
-            let mut a = raster::strings(&[
-                "-of",
-                "MEM",
-                "-ot",
-                "Float32",
-                "-r",
-                "bilinear",
-                "-dstnodata",
-                "nan",
-            ]);
-            a.extend([
-                "-te".into(),
-                minx.to_string(),
-                miny.to_string(),
-                maxx.to_string(),
-                maxy.to_string(),
-                "-ts".into(),
-                w.to_string(),
-                h.to_string(),
-            ]);
+            let mut a = raster::strings(&["-of", "MEM", "-ot", "Float32", "-r", "bilinear", "-dstnodata", "nan"]);
+            a.extend(["-te".into(), minx.to_string(), miny.to_string(), maxx.to_string(), maxy.to_string(), "-ts".into(), w.to_string(), h.to_string()]);
             if !wkt.is_empty() {
                 a.extend(["-t_srs".into(), wkt.clone()]);
             }
@@ -1480,19 +1240,10 @@ fn write_grid(
         let nd = band.no_data_value();
         let (vals, _, _) = raster::read_full(&ds, b)?;
         for v in vals {
-            let v = if nd.is_some_and(|n| (v as f64 - n).abs() < 1e-9) || !v.is_finite() {
-                f32::NAN
-            } else {
-                v
-            };
+            let v = if nd.is_some_and(|n| (v as f64 - n).abs() < 1e-9) || !v.is_finite() { f32::NAN } else { v };
             bytes.extend_from_slice(&v.to_le_bytes());
         }
-        names.push(
-            gdal::Metadata::description(&band)
-                .ok()
-                .filter(|d| !d.is_empty())
-                .unwrap_or_else(|| format!("band {b}")),
-        );
+        names.push(gdal::Metadata::description(&band).ok().filter(|d| !d.is_empty()).unwrap_or_else(|| format!("band {b}")));
     }
     let data = stem.with_extension("f32");
     fs::write(&data, bytes).map_err(|e| format!("{}: {e}", data.display()))?;
@@ -1511,61 +1262,23 @@ fn write_grid(
 /// A grid a tool wrote (`<name>.grid.json` + float32 data, band 1) as a GeoTIFF beside it, with the
 /// header's title, kind, units and classes as the raster's sidecar.
 fn read_grid_to_tif(header: &Path) -> Result<PathBuf, String> {
-    let meta: serde_json::Value =
-        serde_json::from_slice(&fs::read(header).map_err(|e| e.to_string())?)
-            .map_err(|e| format!("{}: {e}", header.display()))?;
+    let meta: serde_json::Value = serde_json::from_slice(&fs::read(header).map_err(|e| e.to_string())?).map_err(|e| format!("{}: {e}", header.display()))?;
     let w = meta["width"].as_u64().ok_or("width is missing")? as usize;
     let h = meta["height"].as_u64().ok_or("height is missing")? as usize;
-    let gt: Vec<f64> = meta["transform"]
-        .as_array()
-        .ok_or("transform is missing")?
-        .iter()
-        .filter_map(|v| v.as_f64())
-        .collect();
+    let gt: Vec<f64> = meta["transform"].as_array().ok_or("transform is missing")?.iter().filter_map(|v| v.as_f64()).collect();
     if gt.len() != 6 {
         return Err("transform must have 6 numbers".into());
     }
-    let data_path = meta["data"].as_str().map(PathBuf::from).unwrap_or_else(|| {
-        header.with_file_name(
-            header
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .replace(".grid.json", ".f32"),
-        )
-    });
-    let data_path = if data_path.is_relative() {
-        header.parent().unwrap_or(Path::new(".")).join(data_path)
-    } else {
-        data_path
-    };
+    let data_path = meta["data"].as_str().map(PathBuf::from).unwrap_or_else(|| header.with_file_name(header.file_name().unwrap().to_string_lossy().replace(".grid.json", ".f32")));
+    let data_path = if data_path.is_relative() { header.parent().unwrap_or(Path::new(".")).join(data_path) } else { data_path };
     let bytes = fs::read(&data_path).map_err(|e| format!("{}: {e}", data_path.display()))?;
     if bytes.len() < w * h * 4 {
-        return Err(format!(
-            "{} has {} bytes, the header says {w}×{h} float32",
-            data_path.display(),
-            bytes.len()
-        ));
+        return Err(format!("{} has {} bytes, the header says {w}×{h} float32", data_path.display(), bytes.len()));
     }
-    let vals: Vec<f32> = bytes[..w * h * 4]
-        .chunks_exact(4)
-        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
-        .collect();
-    let name = header
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .replace(".grid.json", "");
+    let vals: Vec<f32> = bytes[..w * h * 4].chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+    let name = header.file_name().unwrap().to_string_lossy().replace(".grid.json", "");
     let tif = header.with_file_name(format!("{name}.tif"));
-    crate::raster::write_tif_f32(
-        &tif,
-        w,
-        h,
-        [gt[0], gt[1], gt[2], gt[3], gt[4], gt[5]],
-        meta["crs"].as_str().unwrap_or(""),
-        vals,
-        Some(f32::NAN as f64),
-    )?;
+    crate::raster::write_tif_f32(&tif, w, h, [gt[0], gt[1], gt[2], gt[3], gt[4], gt[5]], meta["crs"].as_str().unwrap_or(""), vals, Some(f32::NAN as f64))?;
     let mut side = serde_json::Map::new();
     for k in ["title", "kind", "units", "description", "classes", "credit"] {
         if let Some(v) = meta.get(k).filter(|v| !v.is_null()) {
@@ -1583,40 +1296,24 @@ fn workdir() -> PathBuf {
 }
 
 fn first_line(s: &str) -> Option<String> {
-    s.lines()
-        .find(|l| !l.trim().is_empty())
-        .map(|l| l.trim().to_string())
+    s.lines().find(|l| !l.trim().is_empty()).map(|l| l.trim().to_string())
 }
 
-fn run_qgis(
-    p: &PluginInfo,
-    tool: &ToolSpec,
-    params: &serde_json::Map<String, serde_json::Value>,
-) -> Result<serde_json::Value, String> {
+fn run_qgis(p: &PluginInfo, tool: &ToolSpec, params: &serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, String> {
     let bin = which("qgis_process").ok_or("qgis_process is not on PATH")?;
     let mut cmd = Command::new(bin);
-    cmd.arg("run")
-        .arg(&tool.id)
-        .arg("--json")
-        .env("QT_QPA_PLATFORM", "offscreen");
+    cmd.arg("run").arg(&tool.id).arg("--json").env("QT_QPA_PLATFORM", "offscreen");
     for (k, v) in params {
         cmd.arg(format!("--{}={}", k.to_uppercase(), value_as_text(v)));
     }
     let out = cmd.output().map_err(|e| e.to_string())?;
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-    let parsed: serde_json::Value =
-        serde_json::from_str(stdout.trim()).unwrap_or_else(|_| serde_json::json!(stdout.trim()));
+    let parsed: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|_| serde_json::json!(stdout.trim()));
     Ok(serde_json::json!({ "kind": "qgis", "plugin": p.id, "tool": tool.id, "result": parsed }))
 }
 
-fn run_arcgis(
-    p: &PluginInfo,
-    tool: &ToolSpec,
-    params: &serde_json::Map<String, serde_json::Value>,
-) -> Result<serde_json::Value, String> {
-    let py = which("python3")
-        .or_else(|| which("python"))
-        .ok_or("python3 is not on PATH")?;
+fn run_arcgis(p: &PluginInfo, tool: &ToolSpec, params: &serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Value, String> {
+    let py = which("python3").or_else(|| which("python")).ok_or("python3 is not on PATH")?;
     // arcpy is the only thing that can execute a .pyt; we call the tool class directly.
     let script = format!(
         "import arcpy, json, sys\n\
@@ -1628,20 +1325,13 @@ fn run_arcgis(
         tool_id = tool.id
     );
     let out = Command::new(py)
-        .args([
-            "-c",
-            &script,
-            &serde_json::to_string(params).unwrap_or_default(),
-        ])
+        .args(["-c", &script, &serde_json::to_string(params).unwrap_or_default()])
         .output()
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
-        return Err(
-            first_line(&String::from_utf8_lossy(&out.stderr)).unwrap_or("arcpy failed".to_string())
-        );
+        return Err(first_line(&String::from_utf8_lossy(&out.stderr)).unwrap_or("arcpy failed".to_string()));
     }
-    let parsed: serde_json::Value =
-        serde_json::from_str(String::from_utf8_lossy(&out.stdout).trim()).unwrap_or_default();
+    let parsed: serde_json::Value = serde_json::from_str(String::from_utf8_lossy(&out.stdout).trim()).unwrap_or_default();
     Ok(serde_json::json!({ "kind": "arcgis", "plugin": p.id, "tool": tool.id, "result": parsed }))
 }
 
@@ -1652,21 +1342,14 @@ fn value_as_text(v: &serde_json::Value) -> String {
     }
 }
 
-fn wait_with_timeout(
-    child: &mut std::process::Child,
-    limit: Duration,
-) -> Result<std::process::Output, String> {
+fn wait_with_timeout(child: &mut std::process::Child, limit: Duration) -> Result<std::process::Output, String> {
     // `Child::wait_timeout` would need a crate; poll instead — plugin tools are short.
     let start = std::time::Instant::now();
     loop {
         if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
             let out = child.stdout.take().map(read_all).unwrap_or_default();
             let err = child.stderr.take().map(read_all_stderr).unwrap_or_default();
-            return Ok(std::process::Output {
-                status,
-                stdout: out,
-                stderr: err,
-            });
+            return Ok(std::process::Output { status, stdout: out, stderr: err });
         }
         if start.elapsed() > limit {
             let _ = child.kill();
@@ -1735,12 +1418,8 @@ fn safe_join(root: &Path, name: &str) -> Result<PathBuf, String> {
         match part {
             Component::Normal(p) => out.push(p),
             Component::CurDir => {}
-            Component::ParentDir => {
-                return Err(format!("package member '{name}' escapes the plugin folder"));
-            }
-            Component::RootDir | Component::Prefix(_) => {
-                return Err(format!("package member '{name}' is absolute"));
-            }
+            Component::ParentDir => return Err(format!("package member '{name}' escapes the plugin folder")),
+            Component::RootDir | Component::Prefix(_) => return Err(format!("package member '{name}' is absolute")),
         }
     }
     Ok(out)
@@ -1785,9 +1464,7 @@ pub fn to_json(list: &[PluginInfo]) -> serde_json::Value {
 
 /// Sanity check used by `geospax plugins check`: a manifest is valid and its tools have ids.
 pub fn check(path: &Path) -> Result<String, String> {
-    let info = read_plugin(path).ok_or(
-        "no manifest GeoSpaX recognises (plugin.yaml, plugin.json, metadata.txt, Config.daml)",
-    )?;
+    let info = read_plugin(path).ok_or("no manifest GeoSpaX recognises (plugin.yaml, plugin.json, metadata.txt, Config.daml)")?;
     if let Some(w) = &info.warning {
         return Err(format!("{} — {}", info.name, w));
     }

@@ -10,82 +10,41 @@ use std::path::{Path, PathBuf};
 
 /// True when `path` looks like an earlier GeoSpaX project (by name, then by its first bytes).
 pub fn is_project(path: &Path) -> bool {
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
+    let name = path.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     if name.ends_with(".gspx") || name.ends_with(".geolibre.json") {
         return true;
     }
     if !name.ends_with(".json") {
         return false;
     }
-    let head = std::fs::read(path)
-        .map(|b| String::from_utf8_lossy(&b[..b.len().min(4096)]).to_string())
-        .unwrap_or_default();
-    head.contains("\"geospax-project\"")
-        || (head.contains("\"mapView\"") && head.contains("\"layers\""))
+    let head = std::fs::read(path).map(|b| String::from_utf8_lossy(&b[..b.len().min(4096)]).to_string()).unwrap_or_default();
+    head.contains("\"geospax-project\"") || (head.contains("\"mapView\"") && head.contains("\"layers\""))
 }
 
 /// The embedded layers as GeoJSON files (cached by path and modification time) and what was left out.
 pub fn extract(path: &Path) -> Result<(Vec<PathBuf>, Vec<String>), String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let v: Value = serde_json::from_slice(&bytes)
-        .map_err(|e| format!("{} is not a readable project: {e}", path.display()))?;
-    let stamp = std::fs::metadata(path)
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let stem = path
-        .file_name()
-        .map(|n| {
-            n.to_string_lossy()
-                .replace(".geolibre.json", "")
-                .replace(".gspx", "")
-                .replace(".json", "")
-        })
-        .unwrap_or_else(|| "project".into());
+    let v: Value = serde_json::from_slice(&bytes).map_err(|e| format!("{} is not a readable project: {e}", path.display()))?;
+    let stamp = std::fs::metadata(path).and_then(|m| m.modified()).ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
+    let stem = path.file_name().map(|n| n.to_string_lossy().replace(".geolibre.json", "").replace(".gspx", "").replace(".json", "")).unwrap_or_else(|| "project".into());
     let stem = crate::catalog::sanitize(&stem);
     let mut h = std::collections::hash_map::DefaultHasher::new();
     std::hash::Hash::hash(&(path.to_string_lossy(), stamp), &mut h);
-    let dir = std::env::temp_dir()
-        .join("geospax-projects")
-        .join(format!("{stem}-{:x}", std::hash::Hasher::finish(&h)));
+    let dir = std::env::temp_dir().join("geospax-projects").join(format!("{stem}-{:x}", std::hash::Hasher::finish(&h)));
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
     let (mut files, mut left_out) = (Vec::new(), Vec::new());
-    let layers = v
-        .get("layers")
-        .and_then(|l| l.as_array())
-        .cloned()
-        .unwrap_or_default();
+    let layers = v.get("layers").and_then(|l| l.as_array()).cloned().unwrap_or_default();
     if layers.is_empty() {
         return Err(format!("{} holds no layers", path.display()));
     }
     let mut used = std::collections::HashSet::new();
     for (i, l) in layers.iter().enumerate() {
-        let name = l
-            .get("name")
-            .and_then(|n| n.as_str())
-            .unwrap_or("layer")
-            .to_string();
+        let name = l.get("name").and_then(|n| n.as_str()).unwrap_or("layer").to_string();
         // .gspx: layer.geojson; .geolibre.json: layer.source.data (inline FeatureCollection)
-        let fc = l
-            .get("geojson")
-            .filter(|g| g.get("features").is_some())
-            .or_else(|| {
-                l.get("source")
-                    .and_then(|s| s.get("data"))
-                    .filter(|d| d.get("features").is_some())
-            });
+        let fc = l.get("geojson").filter(|g| g.get("features").is_some()).or_else(|| l.get("source").and_then(|s| s.get("data")).filter(|d| d.get("features").is_some()));
         let Some(fc) = fc else {
-            let why = if l.get("isRaster").and_then(|b| b.as_bool()).unwrap_or(false) {
-                "raster, not embedded"
-            } else {
-                "not embedded in the project"
-            };
+            let why = if l.get("isRaster").and_then(|b| b.as_bool()).unwrap_or(false) { "raster, not embedded" } else { "not embedded in the project" };
             left_out.push(format!("{name} ({why})"));
             continue;
         };
@@ -106,12 +65,7 @@ pub fn extract(path: &Path) -> Result<(Vec<PathBuf>, Vec<String>), String> {
         files.push(file);
     }
     if files.is_empty() {
-        return Err(format!(
-            "{}: none of its {} layers holds embedded features ({})",
-            path.display(),
-            layers.len(),
-            left_out.join(", ")
-        ));
+        return Err(format!("{}: none of its {} layers holds embedded features ({})", path.display(), layers.len(), left_out.join(", ")));
     }
     Ok((files, left_out))
 }
@@ -122,24 +76,11 @@ pub fn load(path: &Path) -> Result<Vec<crate::catalog::LayerHandle>, String> {
     if !left_out.is_empty() {
         eprintln!("{}: not imported: {}", path.display(), left_out.join(", "));
     }
-    let stem = crate::catalog::sanitize(
-        &path
-            .file_name()
-            .map(|n| {
-                n.to_string_lossy()
-                    .replace(".geolibre.json", "")
-                    .replace(".gspx", "")
-                    .replace(".json", "")
-            })
-            .unwrap_or_default(),
-    );
+    let stem = crate::catalog::sanitize(&path.file_name().map(|n| n.to_string_lossy().replace(".geolibre.json", "").replace(".gspx", "").replace(".json", "")).unwrap_or_default());
     let mut out = Vec::new();
     for f in files {
         for mut h in crate::catalog::load_layers_plain(&f)? {
-            let layer = f
-                .file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let layer = f.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
             h.info.id = format!("{stem}.{layer}");
             h.info.source = path.display().to_string();
             out.push(h);

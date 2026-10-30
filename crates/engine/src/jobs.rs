@@ -5,7 +5,7 @@
 //! their cancel flag is set. The UI polls `GET /api/jobs/{id}`.
 
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -79,9 +79,7 @@ impl Job {
 
     pub fn json(&self) -> Value {
         let s = self.state.lock().unwrap().clone();
-        let elapsed = s
-            .finished_ms
-            .unwrap_or_else(|| self.started.elapsed().as_secs_f64() * 1000.0);
+        let elapsed = s.finished_ms.unwrap_or_else(|| self.started.elapsed().as_secs_f64() * 1000.0);
         json!({
             "id": self.id,
             "kind": self.kind,
@@ -139,21 +137,11 @@ impl Jobs {
     }
 
     pub fn get(&self, id: u64) -> Option<Arc<Job>> {
-        self.list
-            .lock()
-            .unwrap()
-            .iter()
-            .find(|j| j.id == id)
-            .cloned()
+        self.list.lock().unwrap().iter().find(|j| j.id == id).cloned()
     }
 
     pub fn active(&self, kind: &str, layer: &str) -> Option<Arc<Job>> {
-        self.list
-            .lock()
-            .unwrap()
-            .iter()
-            .find(|j| j.kind == kind && j.layer == layer && j.is_active())
-            .cloned()
+        self.list.lock().unwrap().iter().find(|j| j.kind == kind && j.layer == layer && j.is_active()).cloned()
     }
 
     pub fn json(&self) -> Value {

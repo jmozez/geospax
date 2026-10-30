@@ -3,14 +3,14 @@
 //! (a MapLibre `image` source) and the map composer (an embedded PNG under the vector layers).
 
 use std::collections::HashMap;
-use std::ffi::{CStr, CString, c_char, c_int, c_void};
+use std::ffi::{c_char, c_int, c_void, CStr, CString};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
 use gdal::raster::{Buffer, ResampleAlg};
 use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
 use gdal::{Dataset, DatasetOptions, DriverManager, GdalOpenFlags};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::Engine;
 
@@ -26,9 +26,7 @@ pub fn configure_gdal() {
     // (AppImage, Flatpak: usr/bin next to usr/share). System installs (Linux packages, OSGeo4W, conda) find
     // their own data, and env vars always win.
     let bundled = crate::exe_dir().and_then(|d| {
-        [d.clone(), d.join("..")]
-            .into_iter()
-            .find(|c| c.join("share").join("proj").join("proj.db").is_file())
+        [d.clone(), d.join("..")].into_iter().find(|c| c.join("share").join("proj").join("proj.db").is_file())
     });
     if let Some(dir) = bundled {
         let gdal_data = dir.join("share").join("gdal");
@@ -36,10 +34,7 @@ pub fn configure_gdal() {
             let _ = gdal::config::set_config_option("GDAL_DATA", &gdal_data.to_string_lossy());
         }
         let proj = dir.join("share").join("proj");
-        if std::env::var_os("PROJ_DATA").is_none()
-            && std::env::var_os("PROJ_LIB").is_none()
-            && proj.join("proj.db").is_file()
-        {
+        if std::env::var_os("PROJ_DATA").is_none() && std::env::var_os("PROJ_LIB").is_none() && proj.join("proj.db").is_file() {
             if let Ok(p) = CString::new(proj.to_string_lossy().as_bytes()) {
                 let paths = [p.as_ptr(), std::ptr::null()];
                 unsafe { gdal_sys::OSRSetPROJSearchPaths(paths.as_ptr()) };
@@ -50,10 +45,7 @@ pub fn configure_gdal() {
         ("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR"),
         // every file type the online sources are read from: WorldClim, GADM and the ecoregions come
         // as .zip (read through /vsizip//vsicurl/); leaving one out makes GDAL treat it as missing
-        (
-            "CPL_VSIL_CURL_ALLOWED_EXTENSIONS",
-            ".tif,.tiff,.TIF,.vrt,.jp2,.zip,.json,.geojson,.gpkg,.shp,.shx,.dbf,.prj,.fgb,.parquet",
-        ),
+        ("CPL_VSIL_CURL_ALLOWED_EXTENSIONS", ".tif,.tiff,.TIF,.vrt,.jp2,.zip,.json,.geojson,.gpkg,.shp,.shx,.dbf,.prj,.fgb,.parquet"),
         // byte counts for the download gauge (VSINetworkStatsGetAsSerializedJSON)
         ("CPL_VSIL_NETWORK_STATS_ENABLED", "YES"),
         ("GDAL_HTTP_MERGE_CONSECUTIVE_RANGES", "YES"),
@@ -72,11 +64,7 @@ pub fn configure_gdal() {
 pub fn last_error() -> String {
     unsafe {
         let p = gdal_sys::CPLGetLastErrorMsg();
-        if p.is_null() {
-            String::new()
-        } else {
-            CStr::from_ptr(p).to_string_lossy().into_owned()
-        }
+        if p.is_null() { String::new() } else { CStr::from_ptr(p).to_string_lossy().into_owned() }
     }
 }
 
@@ -86,10 +74,7 @@ struct Argv {
 }
 
 fn argv(args: &[String]) -> Result<Argv, String> {
-    let keep: Vec<CString> = args
-        .iter()
-        .map(|a| CString::new(a.as_str()).map_err(|e| e.to_string()))
-        .collect::<Result<_, _>>()?;
+    let keep: Vec<CString> = args.iter().map(|a| CString::new(a.as_str()).map_err(|e| e.to_string())).collect::<Result<_, _>>()?;
     let mut ptrs: Vec<*mut c_char> = keep.iter().map(|s| s.as_ptr() as *mut c_char).collect();
     ptrs.push(std::ptr::null_mut());
     Ok(Argv { _keep: keep, ptrs })
@@ -113,10 +98,7 @@ pub fn strings(a: &[&str]) -> Vec<String> {
 }
 
 pub fn open(path: &Path) -> Result<Dataset, String> {
-    let opts = DatasetOptions {
-        open_flags: GdalOpenFlags::GDAL_OF_RASTER | GdalOpenFlags::GDAL_OF_READONLY,
-        ..Default::default()
-    };
+    let opts = DatasetOptions { open_flags: GdalOpenFlags::GDAL_OF_RASTER | GdalOpenFlags::GDAL_OF_READONLY, ..Default::default() };
     Dataset::open_ex(path, opts).map_err(|e| format!("{}: {e}", path.display()))
 }
 
@@ -126,23 +108,13 @@ pub fn warp(srcs: &[&Dataset], dest: &str, args: &[String]) -> Result<Dataset, S
     let dest_c = CString::new(dest).map_err(|e| e.to_string())?;
     unsafe {
         gdal_sys::CPLErrorReset();
-        let opts = gdal_sys::GDALWarpAppOptionsNew(
-            a.ptrs.as_ptr() as *mut *mut c_char,
-            std::ptr::null_mut(),
-        );
+        let opts = gdal_sys::GDALWarpAppOptionsNew(a.ptrs.as_ptr() as *mut *mut c_char, std::ptr::null_mut());
         if opts.is_null() {
             return Err(format!("gdalwarp options: {}", last_error()));
         }
         let mut handles: Vec<gdal_sys::GDALDatasetH> = srcs.iter().map(|d| d.c_dataset()).collect();
         let mut usage: c_int = 0;
-        let out = gdal_sys::GDALWarp(
-            dest_c.as_ptr(),
-            std::ptr::null_mut(),
-            handles.len() as c_int,
-            handles.as_mut_ptr(),
-            opts,
-            &mut usage,
-        );
+        let out = gdal_sys::GDALWarp(dest_c.as_ptr(), std::ptr::null_mut(), handles.len() as c_int, handles.as_mut_ptr(), opts, &mut usage);
         gdal_sys::GDALWarpAppOptionsFree(opts);
         if out.is_null() {
             return Err(format!("gdalwarp: {}", last_error()));
@@ -165,14 +137,7 @@ pub fn net_bytes() -> u64 {
     };
     let v: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
     // {"methods": {"GET": {"count": n, "downloaded_bytes": b}, …}, "handlers": …}
-    v["methods"]
-        .as_object()
-        .map(|m| {
-            m.values()
-                .filter_map(|x| x["downloaded_bytes"].as_u64())
-                .sum()
-        })
-        .unwrap_or(0)
+    v["methods"].as_object().map(|m| m.values().filter_map(|x| x["downloaded_bytes"].as_u64()).sum()).unwrap_or(0)
 }
 
 pub fn net_reset() {
@@ -198,12 +163,7 @@ pub fn remote_size(path: &str) -> Option<u64> {
 /// Download a URL to a file in 1 MB chunks through GDAL (/vsicurl_streaming/, so proxies and
 /// certificates behave as for every other source), calling `cb(bytes so far, total if known)` after
 /// each chunk; `cb` returning false stops the download.
-pub fn download_to(
-    url: &str,
-    dest: &Path,
-    total: Option<u64>,
-    mut cb: impl FnMut(u64, Option<u64>) -> bool,
-) -> Result<u64, String> {
+pub fn download_to(url: &str, dest: &Path, total: Option<u64>, mut cb: impl FnMut(u64, Option<u64>) -> bool) -> Result<u64, String> {
     use std::io::Write;
     let src = CString::new(format!("/vsicurl_streaming/{url}")).map_err(|e| e.to_string())?;
     let mode = CString::new("rb").unwrap();
@@ -245,39 +205,20 @@ unsafe extern "C" fn progress_tramp(done: f64, _msg: *const c_char, arg: *mut c_
 }
 
 /// `warp` with a progress callback (0–1); returning false cancels the warp.
-pub fn warp_progress(
-    srcs: &[&Dataset],
-    dest: &str,
-    args: &[String],
-    mut cb: impl FnMut(f64) -> bool,
-) -> Result<Dataset, String> {
+pub fn warp_progress(srcs: &[&Dataset], dest: &str, args: &[String], mut cb: impl FnMut(f64) -> bool) -> Result<Dataset, String> {
     let a = argv(args)?;
     let dest_c = CString::new(dest).map_err(|e| e.to_string())?;
     let mut f: &mut dyn FnMut(f64) -> bool = &mut cb;
     unsafe {
         gdal_sys::CPLErrorReset();
-        let opts = gdal_sys::GDALWarpAppOptionsNew(
-            a.ptrs.as_ptr() as *mut *mut c_char,
-            std::ptr::null_mut(),
-        );
+        let opts = gdal_sys::GDALWarpAppOptionsNew(a.ptrs.as_ptr() as *mut *mut c_char, std::ptr::null_mut());
         if opts.is_null() {
             return Err(format!("gdalwarp options: {}", last_error()));
         }
-        gdal_sys::GDALWarpAppOptionsSetProgress(
-            opts,
-            Some(progress_tramp),
-            &mut f as *mut _ as *mut c_void,
-        );
+        gdal_sys::GDALWarpAppOptionsSetProgress(opts, Some(progress_tramp), &mut f as *mut _ as *mut c_void);
         let mut handles: Vec<gdal_sys::GDALDatasetH> = srcs.iter().map(|d| d.c_dataset()).collect();
         let mut usage: c_int = 0;
-        let out = gdal_sys::GDALWarp(
-            dest_c.as_ptr(),
-            std::ptr::null_mut(),
-            handles.len() as c_int,
-            handles.as_mut_ptr(),
-            opts,
-            &mut usage,
-        );
+        let out = gdal_sys::GDALWarp(dest_c.as_ptr(), std::ptr::null_mut(), handles.len() as c_int, handles.as_mut_ptr(), opts, &mut usage);
         gdal_sys::GDALWarpAppOptionsFree(opts);
         if out.is_null() {
             return Err(format!("gdalwarp: {}", last_error()));
@@ -292,10 +233,7 @@ pub fn translate(src: &Dataset, dest: &str, args: &[String]) -> Result<Dataset, 
     let dest_c = CString::new(dest).map_err(|e| e.to_string())?;
     unsafe {
         gdal_sys::CPLErrorReset();
-        let opts = gdal_sys::GDALTranslateOptionsNew(
-            a.ptrs.as_ptr() as *mut *mut c_char,
-            std::ptr::null_mut(),
-        );
+        let opts = gdal_sys::GDALTranslateOptionsNew(a.ptrs.as_ptr() as *mut *mut c_char, std::ptr::null_mut());
         if opts.is_null() {
             return Err(format!("gdal_translate options: {}", last_error()));
         }
@@ -310,33 +248,18 @@ pub fn translate(src: &Dataset, dest: &str, args: &[String]) -> Result<Dataset, 
 }
 
 /// `gdaldem <processing>` in-process (hillshade, slope, aspect, TRI, TPI, roughness, color-relief).
-pub fn dem(
-    src: &Dataset,
-    dest: &str,
-    processing: &str,
-    args: &[String],
-) -> Result<Dataset, String> {
+pub fn dem(src: &Dataset, dest: &str, processing: &str, args: &[String]) -> Result<Dataset, String> {
     let a = argv(args)?;
     let dest_c = CString::new(dest).map_err(|e| e.to_string())?;
     let proc_c = CString::new(processing).map_err(|e| e.to_string())?;
     unsafe {
         gdal_sys::CPLErrorReset();
-        let opts = gdal_sys::GDALDEMProcessingOptionsNew(
-            a.ptrs.as_ptr() as *mut *mut c_char,
-            std::ptr::null_mut(),
-        );
+        let opts = gdal_sys::GDALDEMProcessingOptionsNew(a.ptrs.as_ptr() as *mut *mut c_char, std::ptr::null_mut());
         if opts.is_null() {
             return Err(format!("gdaldem options: {}", last_error()));
         }
         let mut usage: c_int = 0;
-        let out = gdal_sys::GDALDEMProcessing(
-            dest_c.as_ptr(),
-            src.c_dataset(),
-            proc_c.as_ptr(),
-            std::ptr::null(),
-            opts,
-            &mut usage,
-        );
+        let out = gdal_sys::GDALDEMProcessing(dest_c.as_ptr(), src.c_dataset(), proc_c.as_ptr(), std::ptr::null(), opts, &mut usage);
         gdal_sys::GDALDEMProcessingOptionsFree(opts);
         if out.is_null() {
             return Err(format!("gdaldem {processing}: {}", last_error()));
@@ -370,18 +293,8 @@ pub fn http(url: &str, post_json: Option<&str>, timeout_s: u32) -> Result<Vec<u8
 }
 
 /// `http` with extra request headers (API keys for the assistant's model servers).
-pub fn http_with(
-    url: &str,
-    post_json: Option<&str>,
-    extra: &[(&str, &str)],
-    timeout_s: u32,
-) -> Result<Vec<u8>, String> {
-    let mut opts = vec![
-        format!("TIMEOUT={timeout_s}"),
-        format!("USERAGENT=GeoSpaX/{}", env!("CARGO_PKG_VERSION")),
-        "MAX_RETRY=2".into(),
-        "RETRY_DELAY=1".into(),
-    ];
+pub fn http_with(url: &str, post_json: Option<&str>, extra: &[(&str, &str)], timeout_s: u32) -> Result<Vec<u8>, String> {
+    let mut opts = vec![format!("TIMEOUT={timeout_s}"), format!("USERAGENT=GeoSpaX/{}", env!("CARGO_PKG_VERSION")), "MAX_RETRY=2".into(), "RETRY_DELAY=1".into()];
     let mut hdr: Vec<String> = extra.iter().map(|(k, v)| format!("{k}: {v}")).collect();
     if let Some(body) = post_json {
         opts.push(format!("POSTFIELDS={body}"));
@@ -398,16 +311,8 @@ pub fn http_with(
             return Err(format!("{url}: {}", last_error()));
         }
         let res = &*r;
-        let body = if res.data.is_null() || res.data_len <= 0 {
-            Vec::new()
-        } else {
-            std::slice::from_raw_parts(res.data, res.data_len as usize).to_vec()
-        };
-        let err = if res.err_buf.is_null() {
-            None
-        } else {
-            Some(CStr::from_ptr(res.err_buf).to_string_lossy().into_owned())
-        };
+        let body = if res.data.is_null() || res.data_len <= 0 { Vec::new() } else { std::slice::from_raw_parts(res.data, res.data_len as usize).to_vec() };
+        let err = if res.err_buf.is_null() { None } else { Some(CStr::from_ptr(res.err_buf).to_string_lossy().into_owned()) };
         let status = res.status;
         CPLHTTPDestroyResult(r);
         if let Some(e) = err {
@@ -415,10 +320,7 @@ pub fn http_with(
             return Err(format!("{e} {snippet}").trim().to_string());
         }
         if status != 0 && body.is_empty() {
-            return Err(format!(
-                "{url}: HTTP client error {status}: {}",
-                last_error()
-            ));
+            return Err(format!("{url}: HTTP client error {status}: {}", last_error()));
         }
         Ok(body)
     }
@@ -476,15 +378,7 @@ pub struct RasterHandle {
 }
 
 pub fn sanitize(s: &str) -> String {
-    s.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-' {
-                c.to_ascii_lowercase()
-            } else {
-                '_'
-            }
-        })
-        .collect()
+    s.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-' { c.to_ascii_lowercase() } else { '_' }).collect()
 }
 
 fn sidecar_path(path: &Path) -> PathBuf {
@@ -496,18 +390,11 @@ fn sidecar_path(path: &Path) -> PathBuf {
 /// Facts a step knows about the raster it wrote (kind, title, classes, units), kept next to the file
 /// so they survive restarts.
 pub fn write_sidecar(path: &Path, v: &Value) -> Result<(), String> {
-    std::fs::write(
-        sidecar_path(path),
-        serde_json::to_vec_pretty(v).unwrap_or_default(),
-    )
-    .map_err(|e| e.to_string())
+    std::fs::write(sidecar_path(path), serde_json::to_vec_pretty(v).unwrap_or_default()).map_err(|e| e.to_string())
 }
 
 fn read_sidecar(path: &Path) -> Value {
-    std::fs::read(sidecar_path(path))
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or(Value::Null)
+    std::fs::read(sidecar_path(path)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null)
 }
 
 pub fn discover(paths: &[PathBuf]) -> Vec<PathBuf> {
@@ -526,11 +413,7 @@ pub fn discover(paths: &[PathBuf]) -> Vec<PathBuf> {
                 }
             }
         } else {
-            let ext = p
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
+            let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
             if EXTENSIONS.contains(&ext.as_str()) {
                 out.push(p.to_path_buf());
             }
@@ -557,20 +440,13 @@ pub fn srs_of(ds: &Dataset) -> Option<SpatialRef> {
 
 /// lon/lat bounds of a dataset (edges densified, so UTM rasters get the true envelope).
 pub fn lonlat_bounds(ds: &Dataset) -> Result<[f64; 4], String> {
-    let gt = ds
-        .geo_transform()
-        .map_err(|e| format!("no georeferencing: {e}"))?;
+    let gt = ds.geo_transform().map_err(|e| format!("no georeferencing: {e}"))?;
     let (w, h) = ds.raster_size();
     let (mut xs, mut ys) = (Vec::new(), Vec::new());
     let n = 20;
     for i in 0..=n {
         let t = i as f64 / n as f64;
-        for (px, py) in [
-            (t * w as f64, 0.0),
-            (t * w as f64, h as f64),
-            (0.0, t * h as f64),
-            (w as f64, t * h as f64),
-        ] {
+        for (px, py) in [(t * w as f64, 0.0), (t * w as f64, h as f64), (0.0, t * h as f64), (w as f64, t * h as f64)] {
             xs.push(gt[0] + px * gt[1] + py * gt[2]);
             ys.push(gt[3] + px * gt[4] + py * gt[5]);
         }
@@ -579,26 +455,14 @@ pub fn lonlat_bounds(ds: &Dataset) -> Result<[f64; 4], String> {
         if !(src.auth_code().ok() == Some(4326)) {
             let ct = CoordTransform::new(&src, &wgs84()).map_err(|e| e.to_string())?;
             let mut zs = vec![0.0; xs.len()];
-            ct.transform_coords(&mut xs, &mut ys, &mut zs)
-                .map_err(|e| format!("bounds: {e}"))?;
+            ct.transform_coords(&mut xs, &mut ys, &mut zs).map_err(|e| format!("bounds: {e}"))?;
         }
     }
-    let b = xs
-        .iter()
-        .zip(&ys)
-        .filter(|(x, y)| x.is_finite() && y.is_finite())
-        .fold([f64::MAX, f64::MAX, f64::MIN, f64::MIN], |b, (x, y)| {
-            [b[0].min(*x), b[1].min(*y), b[2].max(*x), b[3].max(*y)]
-        });
+    let b = xs.iter().zip(&ys).filter(|(x, y)| x.is_finite() && y.is_finite()).fold([f64::MAX, f64::MAX, f64::MIN, f64::MIN], |b, (x, y)| [b[0].min(*x), b[1].min(*y), b[2].max(*x), b[3].max(*y)]);
     if b[0] > b[2] {
         return Err("bounds could not be computed".into());
     }
-    Ok([
-        b[0].max(-180.0),
-        b[1].max(-85.05),
-        b[2].min(180.0),
-        b[3].min(85.05),
-    ])
+    Ok([b[0].max(-180.0), b[1].max(-85.05), b[2].min(180.0), b[3].min(85.05)])
 }
 
 fn is_nodata(v: f32, nd: Option<f64>) -> bool {
@@ -609,28 +473,14 @@ fn is_nodata(v: f32, nd: Option<f64>) -> bool {
 pub fn band_sample(ds: &Dataset, b: usize, max: usize) -> Result<(Vec<f32>, usize, usize), String> {
     let (w, h) = ds.raster_size();
     let f = (w.max(h) as f64 / max as f64).max(1.0);
-    let (sw, sh) = (
-        ((w as f64 / f).round() as usize).max(1),
-        ((h as f64 / f).round() as usize).max(1),
-    );
+    let (sw, sh) = (((w as f64 / f).round() as usize).max(1), ((h as f64 / f).round() as usize).max(1));
     let band = ds.rasterband(b).map_err(|e| e.to_string())?;
-    let buf: Buffer<f32> = band
-        .read_as::<f32>(
-            (0, 0),
-            (w, h),
-            (sw, sh),
-            Some(ResampleAlg::NearestNeighbour),
-        )
-        .map_err(|e| e.to_string())?;
+    let buf: Buffer<f32> = band.read_as::<f32>((0, 0), (w, h), (sw, sh), Some(ResampleAlg::NearestNeighbour)).map_err(|e| e.to_string())?;
     Ok((buf.into_shape_and_vec().1, sw, sh))
 }
 
 pub fn stats_of(vals: &[f32], nd: Option<f64>, integer: bool) -> BandStats {
-    let mut v: Vec<f32> = vals
-        .iter()
-        .copied()
-        .filter(|x| !is_nodata(*x, nd))
-        .collect();
+    let mut v: Vec<f32> = vals.iter().copied().filter(|x| !is_nodata(*x, nd)).collect();
     if v.is_empty() {
         return BandStats::default();
     }
@@ -657,81 +507,30 @@ pub fn stats_of(vals: &[f32], nd: Option<f64>, integer: bool) -> BandStats {
     } else {
         None
     };
-    BandStats {
-        min: v[0] as f64,
-        max: v[v.len() - 1] as f64,
-        mean,
-        std,
-        p2: q(0.02),
-        p98: q(0.98),
-        valid: n / vals.len().max(1) as f64,
-        distinct,
-    }
+    BandStats { min: v[0] as f64, max: v[v.len() - 1] as f64, mean, std, p2: q(0.02), p98: q(0.98), valid: n / vals.len().max(1) as f64, distinct }
 }
 
 fn guess_kind(name: &str, bands: usize, dtype: &str, s: &BandStats) -> String {
     let n = name.to_ascii_lowercase();
-    let has = |w: &str| {
-        n.split(|c: char| !c.is_ascii_alphanumeric())
-            .any(|p| p == w)
-            || n.contains(w)
-    };
-    if has("wetness")
-        || n.split(|c: char| !c.is_ascii_alphanumeric())
-            .any(|p| p == "twi")
-    {
+    let has = |w: &str| n.split(|c: char| !c.is_ascii_alphanumeric()).any(|p| p == w) || n.contains(w);
+    if has("wetness") || n.split(|c: char| !c.is_ascii_alphanumeric()).any(|p| p == "twi") {
         return "twi".into();
     }
-    for k in [
-        "hillshade",
-        "slope",
-        "aspect",
-        "ndvi",
-        "ndwi",
-        "nbr",
-        "ndmi",
-        "savi",
-        "evi",
-        "roughness",
-    ] {
+    for k in ["hillshade", "slope", "aspect", "ndvi", "ndwi", "nbr", "ndmi", "savi", "evi", "roughness"] {
         if has(k) {
             return k.into();
         }
     }
-    if n.split(|c: char| !c.is_ascii_alphanumeric())
-        .any(|p| p == "tri" || p == "tpi")
-    {
-        return n
-            .split(|c: char| !c.is_ascii_alphanumeric())
-            .find(|p| *p == "tri" || *p == "tpi")
-            .unwrap()
-            .into();
+    if n.split(|c: char| !c.is_ascii_alphanumeric()).any(|p| p == "tri" || p == "tpi") {
+        return n.split(|c: char| !c.is_ascii_alphanumeric()).find(|p| *p == "tri" || *p == "tpi").unwrap().into();
     }
-    if [
-        "dem",
-        "dsm",
-        "dtm",
-        "elev",
-        "srtm",
-        "copernicus",
-        "height",
-        "glo30",
-        "glo-30",
-        "terrain",
-        "altitude",
-    ]
-    .iter()
-    .any(|w| has(w))
-    {
+    if ["dem", "dsm", "dtm", "elev", "srtm", "copernicus", "height", "glo30", "glo-30", "terrain", "altitude"].iter().any(|w| has(w)) {
         return "dem".into();
     }
     if bands >= 3 && dtype == "Byte" {
         return "rgb".into();
     }
-    if bands == 1
-        && s.distinct.as_ref().is_some_and(|d| d.len() <= 16)
-        && !dtype.starts_with("Float")
-    {
+    if bands == 1 && s.distinct.as_ref().is_some_and(|d| d.len() <= 16) && !dtype.starts_with("Float") {
         return "classes".into();
     }
     "raster".into()
@@ -744,27 +543,18 @@ pub fn open_info(path: &Path, id: &str) -> Result<RasterInfo, String> {
     if bands == 0 {
         return Err(format!("{}: no raster bands", path.display()));
     }
-    let gt = ds
-        .geo_transform()
-        .map_err(|_| format!("{}: not georeferenced", path.display()))?;
+    let gt = ds.geo_transform().map_err(|_| format!("{}: not georeferenced", path.display()))?;
     let bounds = lonlat_bounds(&ds)?;
     let srs = srs_of(&ds);
     let geographic = srs.as_ref().is_none_or(|s| s.is_geographic());
-    let epsg = srs
-        .as_ref()
-        .and_then(|s| s.auth_code().ok())
-        .map(|c| c as u32);
+    let epsg = srs.as_ref().and_then(|s| s.auth_code().ok()).map(|c| c as u32);
     let crs = match (&srs, epsg) {
         (_, Some(c)) => format!("EPSG:{c}"),
         (Some(s), None) => s.name().unwrap_or_else(|| "custom".into()),
         _ => "unknown".into(),
     };
     let lat = (bounds[1] + bounds[3]) / 2.0;
-    let pixel_m = if geographic {
-        gt[1].abs() * 111_320.0 * lat.to_radians().cos()
-    } else {
-        gt[1].abs()
-    };
+    let pixel_m = if geographic { gt[1].abs() * 111_320.0 * lat.to_radians().cos() } else { gt[1].abs() };
     let b1 = ds.rasterband(1).map_err(|e| e.to_string())?;
     let dtype = b1.band_type().name();
     let nodata = b1.no_data_value();
@@ -775,48 +565,24 @@ pub fn open_info(path: &Path, id: &str) -> Result<RasterInfo, String> {
         stats.push(stats_of(&vals, nodata, integer));
     }
     let side = read_sidecar(path);
-    let name = path
-        .file_stem()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| id.to_string());
-    let kind = side["kind"]
-        .as_str()
-        .map(str::to_string)
-        .unwrap_or_else(|| guess_kind(&name, bands, &dtype, &stats[0]));
+    let name = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| id.to_string());
+    let kind = side["kind"].as_str().map(str::to_string).unwrap_or_else(|| guess_kind(&name, bands, &dtype, &stats[0]));
     let mut classes: Vec<(f64, String, String)> = side["classes"]
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|c| {
-            Some((
-                c["value"].as_f64()?,
-                c["label"].as_str().unwrap_or("").to_string(),
-                c["color"].as_str().unwrap_or("").to_string(),
-            ))
-        })
+        .filter_map(|c| Some((c["value"].as_f64()?, c["label"].as_str().unwrap_or("").to_string(), c["color"].as_str().unwrap_or("").to_string())))
         .collect();
     if kind == "classes" && classes.is_empty() {
         let pal = crate::automation::automap::ramp_colors("tableau", 16);
-        classes = stats[0]
-            .distinct
-            .iter()
-            .flatten()
-            .enumerate()
-            .map(|(i, (v, _))| (*v, format!("class {v}"), pal[i % pal.len()].clone()))
-            .collect();
+        classes = stats[0].distinct.iter().flatten().enumerate().map(|(i, (v, _))| (*v, format!("class {v}"), pal[i % pal.len()].clone())).collect();
     }
-    let units = side["units"]
-        .as_str()
-        .map(str::to_string)
-        .unwrap_or_else(|| match kind.as_str() {
-            "dem" => "m".into(),
-            "slope" | "aspect" => "°".into(),
-            _ => String::new(),
-        });
-    let title = side["title"]
-        .as_str()
-        .map(str::to_string)
-        .unwrap_or_else(|| humanize(&name));
+    let units = side["units"].as_str().map(str::to_string).unwrap_or_else(|| match kind.as_str() {
+        "dem" => "m".into(),
+        "slope" | "aspect" => "°".into(),
+        _ => String::new(),
+    });
+    let title = side["title"].as_str().map(str::to_string).unwrap_or_else(|| humanize(&name));
     Ok(RasterInfo {
         id: id.to_string(),
         name,
@@ -855,40 +621,20 @@ fn humanize(s: &str) -> String {
 /// Colour stops (0..1) for the raster ramps; the vector ramps from automap are also accepted.
 fn ramp_stops(id: &str) -> Vec<String> {
     let s: &[&str] = match id {
-        "terrain" => &[
-            "#2f6f3e", "#5d9a4a", "#a8c66c", "#e6dc9a", "#d2a66a", "#a8744a", "#8a6d5a", "#c9c2bb",
-            "#ffffff",
-        ],
-        "slope" => &[
-            "#fbfbe0", "#fde08a", "#fdae61", "#f46d43", "#d73027", "#7f0000",
-        ],
-        "ndvi" => &[
-            "#a50026", "#d73027", "#f46d43", "#fdae61", "#fee08b", "#ffffbf", "#d9ef8b", "#a6d96a",
-            "#66bd63", "#1a9850", "#006837",
-        ],
-        "ndwi" => &[
-            "#8c6d31", "#d9c99a", "#f7fbff", "#9ecae1", "#3182bd", "#08306b",
-        ],
+        "terrain" => &["#2f6f3e", "#5d9a4a", "#a8c66c", "#e6dc9a", "#d2a66a", "#a8744a", "#8a6d5a", "#c9c2bb", "#ffffff"],
+        "slope" => &["#fbfbe0", "#fde08a", "#fdae61", "#f46d43", "#d73027", "#7f0000"],
+        "ndvi" => &["#a50026", "#d73027", "#f46d43", "#fdae61", "#fee08b", "#ffffbf", "#d9ef8b", "#a6d96a", "#66bd63", "#1a9850", "#006837"],
+        "ndwi" => &["#8c6d31", "#d9c99a", "#f7fbff", "#9ecae1", "#3182bd", "#08306b"],
         "gray" => &["#000000", "#ffffff"],
         "rough" => &["#ffffe5", "#fee391", "#fe9929", "#cc4c02", "#662506"],
-        "uncert" => &[
-            "#fbf7fb", "#e7d4e8", "#c9a5cf", "#a66fb0", "#7b3f8c", "#4d1a5c",
-        ],
-        "change" => &[
-            "#b2182b", "#ef8a62", "#fddbc7", "#f7f7f7", "#d1e5f0", "#67a9cf", "#2166ac",
-        ],
+        "uncert" => &["#fbf7fb", "#e7d4e8", "#c9a5cf", "#a66fb0", "#7b3f8c", "#4d1a5c"],
+        "change" => &["#b2182b", "#ef8a62", "#fddbc7", "#f7f7f7", "#d1e5f0", "#67a9cf", "#2166ac"],
         // forest loss by year: early (pink) to recent (dark purple), as Global Forest Watch draws loss,
         // so it stands out from the greens of tree cover and the pale non-forest
-        "loss" => &[
-            "#fbb4c4", "#f768a1", "#dd3497", "#ae017e", "#7a0177", "#49006a",
-        ],
+        "loss" => &["#fbb4c4", "#f768a1", "#dd3497", "#ae017e", "#7a0177", "#49006a"],
         // deep (dark navy) to shallow (pale blue): the sea side of the bathymetry style
-        "ocean" => &[
-            "#08306b", "#08519c", "#2171b5", "#4292c6", "#6baed6", "#9ecae1", "#c6dbef", "#deebf7",
-        ],
-        "canopy" => &[
-            "#f7fcb9", "#d9f0a3", "#addd8e", "#78c679", "#41ab5d", "#238443", "#006837", "#004529",
-        ],
+        "ocean" => &["#08306b", "#08519c", "#2171b5", "#4292c6", "#6baed6", "#9ecae1", "#c6dbef", "#deebf7"],
+        "canopy" => &["#f7fcb9", "#d9f0a3", "#addd8e", "#78c679", "#41ab5d", "#238443", "#006837", "#004529"],
         other => return crate::automation::automap::ramp_colors(other, 5),
     };
     s.iter().map(|c| c.to_string()).collect()
@@ -919,23 +665,10 @@ pub fn ramp_css(id: &str) -> Vec<String> {
 
 /// The ramps a raster can be drawn with (Rasters › Symbology), with their colours.
 pub const RAMP_IDS: &[(&str, &str)] = &[
-    ("viridis", "Viridis"),
-    ("magma", "Magma"),
-    ("ylorrd", "Yellow-Orange-Red"),
-    ("blues", "Blues"),
-    ("greens", "Greens"),
-    ("rdylbu", "Red-Yellow-Blue"),
-    ("terrain", "Terrain (hypsometric)"),
-    ("ocean", "Ocean depth"),
-    ("ndvi", "Vegetation (NDVI)"),
-    ("ndwi", "Water (NDWI)"),
-    ("slope", "Slope"),
-    ("canopy", "Canopy"),
-    ("loss", "Forest loss"),
-    ("change", "Change (diverging)"),
-    ("uncert", "Uncertainty"),
-    ("rough", "Roughness"),
-    ("gray", "Grey"),
+    ("viridis", "Viridis"), ("magma", "Magma"), ("ylorrd", "Yellow-Orange-Red"), ("blues", "Blues"), ("greens", "Greens"),
+    ("rdylbu", "Red-Yellow-Blue"), ("terrain", "Terrain (hypsometric)"), ("ocean", "Ocean depth"), ("ndvi", "Vegetation (NDVI)"),
+    ("ndwi", "Water (NDWI)"), ("slope", "Slope"), ("canopy", "Canopy"), ("loss", "Forest loss"), ("change", "Change (diverging)"),
+    ("uncert", "Uncertainty"), ("rough", "Roughness"), ("gray", "Grey"),
 ];
 
 pub fn ramps_json() -> Value {
@@ -945,14 +678,7 @@ pub fn ramps_json() -> Value {
 /// AutoMap for rasters: a style and the reason for it, from what the raster is.
 pub fn auto_style(info: &RasterInfo) -> (Value, String) {
     let s = info.stats.first().cloned().unwrap_or_default();
-    let (lo, hi) = (
-        s.p2,
-        if s.p98 > s.p2 {
-            s.p98
-        } else {
-            s.max.max(s.p2 + 1e-6)
-        },
-    );
+    let (lo, hi) = (s.p2, if s.p98 > s.p2 { s.p98 } else { s.max.max(s.p2 + 1e-6) });
     match info.kind.as_str() {
         // GEBCO and other grids with sea and land: depths on the ocean ramp, heights on the terrain
         // ramp, split at sea level so 0 m is the coastline whatever the area's range
@@ -1075,46 +801,23 @@ pub fn legend(info: &RasterInfo, style: &Value) -> Value {
         }
         // two ramps meeting at `at` (sea level): the legend gives each its own part of the bar
         "split" => {
-            let (lo, hi, at) = (
-                style["min"].as_f64().unwrap_or(-1.0),
-                style["max"].as_f64().unwrap_or(1.0),
-                style["at"].as_f64().unwrap_or(0.0),
-            );
-            let (b, a) = (
-                ramp_css(style["below"].as_str().unwrap_or("ocean")),
-                ramp_css(style["above"].as_str().unwrap_or("terrain")),
-            );
+            let (lo, hi, at) = (style["min"].as_f64().unwrap_or(-1.0), style["max"].as_f64().unwrap_or(1.0), style["at"].as_f64().unwrap_or(0.0));
+            let (b, a) = (ramp_css(style["below"].as_str().unwrap_or("ocean")), ramp_css(style["above"].as_str().unwrap_or("terrain")));
             // each ramp gets its own half of the bar, so the mark sits exactly at the middle
-            let offsets: Vec<f64> = (0..b.len())
-                .map(|k| k as f64 / (b.len() - 1).max(1) as f64 * 0.5)
-                .chain((0..a.len()).map(|k| 0.5 + k as f64 / (a.len() - 1).max(1) as f64 * 0.5))
-                .collect();
+            let offsets: Vec<f64> = (0..b.len()).map(|k| k as f64 / (b.len() - 1).max(1) as f64 * 0.5).chain((0..a.len()).map(|k| 0.5 + k as f64 / (a.len() - 1).max(1) as f64 * 0.5)).collect();
             let colors: Vec<String> = b.into_iter().chain(a).collect();
             json!({ "type": "ramp", "colors": colors, "offsets": offsets, "min": lo, "max": hi, "mid": { "value": at, "label": if at == 0.0 { "0 (sea level)".to_string() } else { format!("{at}") } }, "units": info.units })
         }
         "aspect" => {
-            let items: Vec<Value> = [
-                ("#d7191c", "N"),
-                ("#fdae61", "E"),
-                ("#2c7bb6", "S"),
-                ("#1a9641", "W"),
-                ("#bdbdbd", "flat"),
-            ]
-            .iter()
-            .map(|(c, l)| json!({ "color": c, "label": l }))
-            .collect();
+            let items: Vec<Value> = [("#d7191c", "N"), ("#fdae61", "E"), ("#2c7bb6", "S"), ("#1a9641", "W"), ("#bdbdbd", "flat")].iter().map(|(c, l)| json!({ "color": c, "label": l })).collect();
             json!({ "type": "classes", "items": items })
         }
         "classes" => {
             let items: Vec<Value> = style["classes"].as_array().into_iter().flatten().map(|c| json!({ "color": c["color"], "label": c["label"], "share": c.get("share").cloned().unwrap_or(Value::Null) })).collect();
             json!({ "type": "classes", "items": items })
         }
-        "rgb" if info.kind == "embedding" => {
-            json!({ "type": "note", "label": format!("embedding axes A01, A16, A09 as red, green, blue (alike colours = alike places) · {:.0} m pixels", info.pixel_m) })
-        }
-        "rgb" => {
-            json!({ "type": "note", "label": format!("natural colour (red, green, blue) · {:.0} m pixels", info.pixel_m) })
-        }
+        "rgb" if info.kind == "embedding" => json!({ "type": "note", "label": format!("embedding axes A01, A16, A09 as red, green, blue (alike colours = alike places) · {:.0} m pixels", info.pixel_m) }),
+        "rgb" => json!({ "type": "note", "label": format!("natural colour (red, green, blue) · {:.0} m pixels", info.pixel_m) }),
         _ => json!({ "type": "none" }),
     }
 }
@@ -1132,20 +835,11 @@ fn hsv(h: f64, s: f64, v: f64) -> [u8; 3] {
         _ => (c, 0.0, x),
     };
     let m = v - c;
-    [
-        ((r + m) * 255.0) as u8,
-        ((g + m) * 255.0) as u8,
-        ((b + m) * 255.0) as u8,
-    ]
+    [((r + m) * 255.0) as u8, ((g + m) * 255.0) as u8, ((b + m) * 255.0) as u8]
 }
 
 /// RGBA (premultiplied; alpha is 0 or 255) from band values; `alpha` marks covered pixels.
-pub fn colorize(
-    style: &Value,
-    bands: &[Vec<f32>],
-    alpha: Option<&[f32]>,
-    nodata: Option<f64>,
-) -> Vec<u8> {
+pub fn colorize(style: &Value, bands: &[Vec<f32>], alpha: Option<&[f32]>, nodata: Option<f64>) -> Vec<u8> {
     let n = bands.first().map(|b| b.len()).unwrap_or(0);
     let mut out = vec![0u8; n * 4];
     let kind = style["kind"].as_str().unwrap_or("stretch");
@@ -1158,37 +852,16 @@ pub fn colorize(
         t
     };
     let table = rev(lut(style["ramp"].as_str().unwrap_or("viridis")));
-    let (below, above) = (
-        rev(lut(style["below"].as_str().unwrap_or("ocean"))),
-        rev(lut(style["above"].as_str().unwrap_or("terrain"))),
-    );
+    let (below, above) = (rev(lut(style["below"].as_str().unwrap_or("ocean"))), rev(lut(style["above"].as_str().unwrap_or("terrain"))));
     let at = style["at"].as_f64().unwrap_or(0.0);
-    let classes: Vec<(f64, [u8; 3])> = style["classes"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|c| {
-            Some((
-                c["value"].as_f64()?,
-                hex_rgb(c["color"].as_str().unwrap_or("#888888")),
-            ))
-        })
-        .collect();
+    let classes: Vec<(f64, [u8; 3])> = style["classes"].as_array().into_iter().flatten().filter_map(|c| Some((c["value"].as_f64()?, hex_rgb(c["color"].as_str().unwrap_or("#888888"))))).collect();
     let (lo, hi) = (f("min", 0.0), f("max", 1.0));
     let span = if hi > lo { hi - lo } else { 1.0 };
-    let mins: Vec<f64> = (0..3)
-        .map(|i| style["min"].get(i).and_then(Value::as_f64).unwrap_or(0.0))
-        .collect();
-    let maxs: Vec<f64> = (0..3)
-        .map(|i| style["max"].get(i).and_then(Value::as_f64).unwrap_or(255.0))
-        .collect();
+    let mins: Vec<f64> = (0..3).map(|i| style["min"].get(i).and_then(Value::as_f64).unwrap_or(0.0)).collect();
+    let maxs: Vec<f64> = (0..3).map(|i| style["max"].get(i).and_then(Value::as_f64).unwrap_or(255.0)).collect();
     let gamma = style["gamma"].as_f64().unwrap_or(1.0).clamp(0.2, 3.0);
     // stretch styles may leave low values transparent (canopy heights over the relief)
-    let clear_below = if kind == "stretch" {
-        style["clear_below"].as_f64()
-    } else {
-        None
-    };
+    let clear_below = if kind == "stretch" { style["clear_below"].as_f64() } else { None };
     for i in 0..n {
         if alpha.is_some_and(|a| !(a[i] > 0.0)) {
             continue;
@@ -1199,12 +872,7 @@ pub fn colorize(
         }
         let rgb = match kind {
             "rgb" if bands.len() >= 3 => {
-                let c = |b: usize| {
-                    (((bands[b][i] as f64 - mins[b]) / (maxs[b] - mins[b]).max(1e-9))
-                        .clamp(0.0, 1.0)
-                        .powf(gamma)
-                        * 255.0) as u8
-                };
+                let c = |b: usize| (((bands[b][i] as f64 - mins[b]) / (maxs[b] - mins[b]).max(1e-9)).clamp(0.0, 1.0).powf(gamma) * 255.0) as u8;
                 if bands.iter().take(3).all(|b| b[i] == 0.0) {
                     continue;
                 }
@@ -1219,15 +887,7 @@ pub fn colorize(
                 } else {
                     // compass hue: N red (0), E orange-yellow, S blue, W green
                     let a = v as f64;
-                    let hue = if a < 90.0 {
-                        a / 90.0 * 40.0
-                    } else if a < 180.0 {
-                        40.0 + (a - 90.0) / 90.0 * 170.0
-                    } else if a < 270.0 {
-                        210.0 - (a - 180.0) / 90.0 * 90.0
-                    } else {
-                        120.0 - (a - 270.0) / 90.0 * 120.0
-                    };
+                    let hue = if a < 90.0 { a / 90.0 * 40.0 } else if a < 180.0 { 40.0 + (a - 90.0) / 90.0 * 170.0 } else if a < 270.0 { 210.0 - (a - 180.0) / 90.0 * 90.0 } else { 120.0 - (a - 270.0) / 90.0 * 120.0 };
                     hsv(hue, 0.65, 0.92)
                 }
             }
@@ -1238,11 +898,9 @@ pub fn colorize(
             "split" => {
                 let v = v as f64;
                 if v < at {
-                    below[(((v - lo) / (at - lo).max(1e-9)).clamp(0.0, 1.0) * 255.0).round()
-                        as usize]
+                    below[(((v - lo) / (at - lo).max(1e-9)).clamp(0.0, 1.0) * 255.0).round() as usize]
                 } else {
-                    above[(((v - at) / (hi - at).max(1e-9)).clamp(0.0, 1.0) * 255.0).round()
-                        as usize]
+                    above[(((v - at) / (hi - at).max(1e-9)).clamp(0.0, 1.0) * 255.0).round() as usize]
                 }
             }
             _ => {
@@ -1260,13 +918,7 @@ pub fn colorize(
 pub fn merc(lon: f64, lat: f64) -> [f64; 2] {
     const R: f64 = 6_378_137.0;
     let lat = lat.clamp(-85.05112878, 85.05112878);
-    [
-        lon.to_radians() * R,
-        (std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0)
-            .tan()
-            .ln()
-            * R,
-    ]
+    [lon.to_radians() * R, (std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0).tan().ln() * R]
 }
 
 pub fn encode_png(rgba: Vec<u8>, w: usize, h: usize) -> Result<Vec<u8>, String> {
@@ -1278,12 +930,7 @@ pub fn encode_png(rgba: Vec<u8>, w: usize, h: usize) -> Result<Vec<u8>, String> 
 impl RasterHandle {
     pub fn new(info: RasterInfo) -> Self {
         let (style, why) = auto_style(&info);
-        RasterHandle {
-            info,
-            style: RwLock::new(style),
-            why: RwLock::new(why),
-            overlays: Mutex::new(Vec::new()),
-        }
+        RasterHandle { info, style: RwLock::new(style), why: RwLock::new(why), overlays: Mutex::new(Vec::new()) }
     }
 
     pub fn style(&self) -> Value {
@@ -1296,38 +943,16 @@ impl RasterHandle {
     }
 
     /// Render the raster into a Web Mercator box (`merc` = [xmin, ymin, xmax, ymax]) as RGBA.
-    pub fn render_rgba(
-        &self,
-        style: &Value,
-        merc_box: [f64; 4],
-        w: usize,
-        h: usize,
-    ) -> Result<Vec<u8>, String> {
+    pub fn render_rgba(&self, style: &Value, merc_box: [f64; 4], w: usize, h: usize) -> Result<Vec<u8>, String> {
         self.render_rgba_in(style, "EPSG:3857", merc_box, w, h)
     }
 
     /// Render into a box of any projection (`srs` as GDAL takes it, the box in its units): exported
     /// maps in Equal Earth.
-    pub fn render_rgba_in(
-        &self,
-        style: &Value,
-        srs: &str,
-        merc_box: [f64; 4],
-        w: usize,
-        h: usize,
-    ) -> Result<Vec<u8>, String> {
+    pub fn render_rgba_in(&self, style: &Value, srs: &str, merc_box: [f64; 4], w: usize, h: usize) -> Result<Vec<u8>, String> {
         let ds = open(&self.info.path)?;
         let kind = style["kind"].as_str().unwrap_or("stretch");
-        let mut args = strings(&[
-            "-of",
-            "MEM",
-            "-t_srs",
-            srs,
-            "-ot",
-            "Float32",
-            "-dstalpha",
-            "-r",
-        ]);
+        let mut args = strings(&["-of", "MEM", "-t_srs", srs, "-ot", "Float32", "-dstalpha", "-r"]);
         // resampling set by hand wins; classes and aspect never blend neighbouring values
         args.push(match style["resampling"].as_str() {
             Some("nearest") => "near".into(),
@@ -1335,42 +960,14 @@ impl RasterHandle {
             _ if kind == "classes" || kind == "aspect" => "near".into(),
             _ => "bilinear".into(),
         });
-        args.extend([
-            "-te".to_string(),
-            merc_box[0].to_string(),
-            merc_box[1].to_string(),
-            merc_box[2].to_string(),
-            merc_box[3].to_string(),
-        ]);
+        args.extend(["-te".to_string(), merc_box[0].to_string(), merc_box[1].to_string(), merc_box[2].to_string(), merc_box[3].to_string()]);
         args.extend(["-ts".to_string(), w.to_string(), h.to_string()]);
-        let nb = if kind == "rgb" {
-            3.min(self.info.bands)
-        } else {
-            1
-        };
-        let pick: Vec<usize> = style["bands"]
-            .as_array()
-            .map(|a| {
-                a.iter()
-                    .filter_map(|b| b.as_u64().map(|b| b as usize))
-                    .filter(|&b| b >= 1 && b <= self.info.bands)
-                    .collect()
-            })
-            .unwrap_or_default();
+        let nb = if kind == "rgb" { 3.min(self.info.bands) } else { 1 };
+        let pick: Vec<usize> = style["bands"].as_array().map(|a| a.iter().filter_map(|b| b.as_u64().map(|b| b as usize)).filter(|&b| b >= 1 && b <= self.info.bands).collect()).unwrap_or_default();
         // one-band styles show the band chosen in the editor (default the first)
-        let single = style["band"]
-            .as_u64()
-            .map(|b| b as usize)
-            .filter(|&b| b >= 1 && b <= self.info.bands)
-            .unwrap_or(1);
+        let single = style["band"].as_u64().map(|b| b as usize).filter(|&b| b >= 1 && b <= self.info.bands).unwrap_or(1);
         for b in 1..=nb {
-            let src = if kind == "rgb" && pick.len() == 3 {
-                pick[b - 1]
-            } else if kind == "rgb" {
-                b
-            } else {
-                single
-            };
+            let src = if kind == "rgb" && pick.len() == 3 { pick[b - 1] } else if kind == "rgb" { b } else { single };
             args.extend(["-srcband".to_string(), src.to_string()]);
         }
         if self.info.nodata.is_none() && kind != "rgb" {
@@ -1380,20 +977,9 @@ impl RasterHandle {
         let mut bands = Vec::new();
         for b in 1..=nb {
             let band = out.rasterband(b).map_err(|e| e.to_string())?;
-            bands.push(
-                band.read_band_as::<f32>()
-                    .map_err(|e| e.to_string())?
-                    .into_shape_and_vec()
-                    .1,
-            );
+            bands.push(band.read_band_as::<f32>().map_err(|e| e.to_string())?.into_shape_and_vec().1);
         }
-        let alpha = out
-            .rasterband(nb + 1)
-            .map_err(|e| e.to_string())?
-            .read_band_as::<f32>()
-            .map_err(|e| e.to_string())?
-            .into_shape_and_vec()
-            .1;
+        let alpha = out.rasterband(nb + 1).map_err(|e| e.to_string())?.read_band_as::<f32>().map_err(|e| e.to_string())?.into_shape_and_vec().1;
         Ok(colorize(style, &bands, Some(&alpha), self.info.nodata))
     }
 
@@ -1405,8 +991,7 @@ impl RasterHandle {
         if let Some(src) = srs_of(&ds) {
             let ct = CoordTransform::new(&wgs84(), &src).map_err(|e| e.to_string())?;
             let mut z = vec![0.0];
-            ct.transform_coords(&mut x, &mut y, &mut z)
-                .map_err(|e| e.to_string())?;
+            ct.transform_coords(&mut x, &mut y, &mut z).map_err(|e| e.to_string())?;
         }
         let gt = ds.geo_transform().map_err(|e| e.to_string())?;
         // invert the affine transform (rotation terms included)
@@ -1426,26 +1011,12 @@ impl RasterHandle {
                 continue;
             }
             let band = ds.rasterband(b).map_err(|e| e.to_string())?;
-            let buf: Buffer<f64> = band
-                .read_as::<f64>((col as isize, row as isize), (1, 1), (1, 1), None)
-                .map_err(|e| e.to_string())?;
+            let buf: Buffer<f64> = band.read_as::<f64>((col as isize, row as isize), (1, 1), (1, 1), None).map_err(|e| e.to_string())?;
             let v = buf.into_shape_and_vec().1[0];
-            values.push(if is_nodata(v as f32, self.info.nodata) {
-                Value::Null
-            } else {
-                json!(v)
-            });
+            values.push(if is_nodata(v as f32, self.info.nodata) { Value::Null } else { json!(v) });
         }
-        let class = values.first().and_then(|v| v.as_f64()).and_then(|v| {
-            self.info
-                .classes
-                .iter()
-                .find(|c| (c.0 - v).abs() < 1e-9)
-                .map(|c| c.1.clone())
-        });
-        Ok(
-            json!({ "lon": lon, "lat": lat, "inside": inside, "col": col, "row": row, "values": values, "units": self.info.units, "class": class }),
-        )
+        let class = values.first().and_then(|v| v.as_f64()).and_then(|v| self.info.classes.iter().find(|c| (c.0 - v).abs() < 1e-9).map(|c| c.1.clone()));
+        Ok(json!({ "lon": lon, "lat": lat, "inside": inside, "col": col, "row": row, "values": values, "units": self.info.units, "class": class }))
     }
 
     /// A histogram of each band (`bins` equal bins between the band's min and max, from a sample of
@@ -1458,11 +1029,7 @@ impl RasterHandle {
             let (vals, _, _) = band_sample(&ds, b, 1024)?;
             let st = self.info.stats.get(b - 1);
             let (lo, hi) = st.map(|s| (s.min, s.max)).unwrap_or((0.0, 1.0));
-            let width = if hi > lo {
-                (hi - lo) / bins as f64
-            } else {
-                1.0
-            };
+            let width = if hi > lo { (hi - lo) / bins as f64 } else { 1.0 };
             let mut counts = vec![0u64; bins];
             let mut nodata = 0u64;
             for v in vals {
@@ -1473,9 +1040,7 @@ impl RasterHandle {
                 let i = (((v as f64 - lo) / width).floor().max(0.0) as usize).min(bins - 1);
                 counts[i] += 1;
             }
-            out.push(
-                json!({ "band": b, "min": lo, "max": hi, "counts": counts, "nodata": nodata }),
-            );
+            out.push(json!({ "band": b, "min": lo, "max": hi, "counts": counts, "nodata": nodata }));
         }
         Ok(json!({ "bins": bins, "bands": out }))
     }
@@ -1484,13 +1049,7 @@ impl RasterHandle {
     pub fn overlay_png(&self, max: usize) -> Result<Arc<Vec<u8>>, String> {
         let style = self.style();
         let key = format!("{}:{max}", style);
-        if let Some((_, png)) = self
-            .overlays
-            .lock()
-            .unwrap()
-            .iter()
-            .find(|(k, _)| *k == key)
-        {
+        if let Some((_, png)) = self.overlays.lock().unwrap().iter().find(|(k, _)| *k == key) {
             return Ok(png.clone());
         }
         let b = self.info.bounds;
@@ -1498,11 +1057,7 @@ impl RasterHandle {
         let (mw, mh) = (c[0] - a[0], c[1] - a[1]);
         let native = (self.info.width.max(self.info.height) as f64 * 1.15).max(64.0) as usize;
         let long = native.min(max.clamp(64, MAX_OVERLAY));
-        let (w, h) = if mw >= mh {
-            (long, ((long as f64 * mh / mw).round() as usize).max(1))
-        } else {
-            (((long as f64 * mw / mh).round() as usize).max(1), long)
-        };
+        let (w, h) = if mw >= mh { (long, ((long as f64 * mh / mw).round() as usize).max(1)) } else { (((long as f64 * mw / mh).round() as usize).max(1), long) };
         let rgba = self.render_rgba(&style, [a[0], a[1], c[0], c[1]], w, h)?;
         let png = Arc::new(encode_png(rgba, w, h)?);
         let mut cache = self.overlays.lock().unwrap();
@@ -1519,12 +1074,7 @@ impl RasterHandle {
         const HALF: f64 = 20037508.342789244;
         let size = 2.0 * HALF / 2f64.powi(z as i32);
         let (minx, maxy) = (-HALF + x as f64 * size, HALF - y as f64 * size);
-        let rgba = self.render_rgba(
-            &self.style(),
-            [minx, maxy - size, minx + size, maxy],
-            256,
-            256,
-        )?;
+        let rgba = self.render_rgba(&self.style(), [minx, maxy - size, minx + size, maxy], 256, 256)?;
         encode_png(rgba, 256, 256)
     }
 
@@ -1549,52 +1099,30 @@ impl RasterHandle {
 // ------------------------------------------------------------------ writing
 
 /// Write a single-band raster (via MEM + gdal_translate so it ends up a compressed, tiled GeoTIFF).
-pub fn write_tif_f32(
-    path: &Path,
-    w: usize,
-    h: usize,
-    gt: [f64; 6],
-    wkt: &str,
-    data: Vec<f32>,
-    nodata: Option<f64>,
-) -> Result<(), String> {
+pub fn write_tif_f32(path: &Path, w: usize, h: usize, gt: [f64; 6], wkt: &str, data: Vec<f32>, nodata: Option<f64>) -> Result<(), String> {
     let drv = DriverManager::get_driver_by_name("MEM").map_err(|e| e.to_string())?;
-    let mut ds = drv
-        .create_with_band_type::<f32, _>("", w, h, 1)
-        .map_err(|e| e.to_string())?;
+    let mut ds = drv.create_with_band_type::<f32, _>("", w, h, 1).map_err(|e| e.to_string())?;
     ds.set_geo_transform(&gt).map_err(|e| e.to_string())?;
     ds.set_projection(wkt).map_err(|e| e.to_string())?;
     {
         let mut b = ds.rasterband(1).map_err(|e| e.to_string())?;
         b.set_no_data_value(nodata).map_err(|e| e.to_string())?;
         let mut buf = Buffer::new((w, h), data);
-        b.write((0, 0), (w, h), &mut buf)
-            .map_err(|e| e.to_string())?;
+        b.write((0, 0), (w, h), &mut buf).map_err(|e| e.to_string())?;
     }
     save_gtiff(&ds, path, true)
 }
 
-pub fn write_tif_u8(
-    path: &Path,
-    w: usize,
-    h: usize,
-    gt: [f64; 6],
-    wkt: &str,
-    data: Vec<u8>,
-    nodata: Option<f64>,
-) -> Result<(), String> {
+pub fn write_tif_u8(path: &Path, w: usize, h: usize, gt: [f64; 6], wkt: &str, data: Vec<u8>, nodata: Option<f64>) -> Result<(), String> {
     let drv = DriverManager::get_driver_by_name("MEM").map_err(|e| e.to_string())?;
-    let mut ds = drv
-        .create_with_band_type::<u8, _>("", w, h, 1)
-        .map_err(|e| e.to_string())?;
+    let mut ds = drv.create_with_band_type::<u8, _>("", w, h, 1).map_err(|e| e.to_string())?;
     ds.set_geo_transform(&gt).map_err(|e| e.to_string())?;
     ds.set_projection(wkt).map_err(|e| e.to_string())?;
     {
         let mut b = ds.rasterband(1).map_err(|e| e.to_string())?;
         b.set_no_data_value(nodata).map_err(|e| e.to_string())?;
         let mut buf = Buffer::new((w, h), data);
-        b.write((0, 0), (w, h), &mut buf)
-            .map_err(|e| e.to_string())?;
+        b.write((0, 0), (w, h), &mut buf).map_err(|e| e.to_string())?;
     }
     save_gtiff(&ds, path, false)
 }
@@ -1602,14 +1130,7 @@ pub fn write_tif_u8(
 /// Copy any dataset to a compressed GeoTIFF atomically (`.part` then rename).
 pub fn save_gtiff(ds: &Dataset, path: &Path, float: bool) -> Result<(), String> {
     let tmp = path.with_extension("part.tif");
-    let mut args = strings(&[
-        "-of",
-        "GTiff",
-        "-co",
-        "COMPRESS=DEFLATE",
-        "-co",
-        "TILED=YES",
-    ]);
+    let mut args = strings(&["-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "TILED=YES"]);
     if float {
         args.extend(strings(&["-co", "PREDICTOR=3"]));
     }
@@ -1621,28 +1142,15 @@ pub fn save_gtiff(ds: &Dataset, path: &Path, float: bool) -> Result<(), String> 
 pub fn read_full(ds: &Dataset, band: usize) -> Result<(Vec<f32>, usize, usize), String> {
     let (w, h) = ds.raster_size();
     let b = ds.rasterband(band).map_err(|e| e.to_string())?;
-    Ok((
-        b.read_band_as::<f32>()
-            .map_err(|e| e.to_string())?
-            .into_shape_and_vec()
-            .1,
-        w,
-        h,
-    ))
+    Ok((b.read_band_as::<f32>().map_err(|e| e.to_string())?.into_shape_and_vec().1, w, h))
 }
 
 /// Ground area of one pixel in m² (projected rasters; geographic ones use the latitude).
 pub fn pixel_area_m2(ds: &Dataset, lat: f64) -> f64 {
-    let gt = ds
-        .geo_transform()
-        .unwrap_or([0.0, 1.0, 0.0, 0.0, 0.0, -1.0]);
+    let gt = ds.geo_transform().unwrap_or([0.0, 1.0, 0.0, 0.0, 0.0, -1.0]);
     let geographic = srs_of(ds).is_none_or(|s| s.is_geographic());
     let a = (gt[1] * gt[5]).abs();
-    if geographic {
-        a * 111_320.0 * 111_320.0 * lat.to_radians().cos()
-    } else {
-        a
-    }
+    if geographic { a * 111_320.0 * 111_320.0 * lat.to_radians().cos() } else { a }
 }
 
 // ------------------------------------------------------------------ engine registry
@@ -1653,12 +1161,7 @@ impl Engine {
     }
 
     pub fn raster(&self, id: &str) -> Option<Arc<RasterHandle>> {
-        self.rasters
-            .read()
-            .unwrap()
-            .iter()
-            .find(|r| r.info.id == id)
-            .cloned()
+        self.rasters.read().unwrap().iter().find(|r| r.info.id == id).cloned()
     }
 
     /// Styles set by hand (Rasters › Symbology), kept in the state folder by raster id: the data
@@ -1668,29 +1171,16 @@ impl Engine {
     }
 
     pub fn saved_raster_styles(&self) -> serde_json::Map<String, Value> {
-        std::fs::read(self.style_file())
-            .ok()
-            .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
-            .and_then(|v| v.as_object().cloned())
-            .unwrap_or_default()
+        std::fs::read(self.style_file()).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).and_then(|v| v.as_object().cloned()).unwrap_or_default()
     }
 
     /// Set a raster's style and keep it; `None` goes back to the automatic style.
-    pub fn set_raster_style(
-        &self,
-        id: &str,
-        style: Option<Value>,
-    ) -> Result<Arc<RasterHandle>, String> {
-        let r = self
-            .raster(id)
-            .ok_or_else(|| format!("unknown raster '{id}'"))?;
+    pub fn set_raster_style(&self, id: &str, style: Option<Value>) -> Result<Arc<RasterHandle>, String> {
+        let r = self.raster(id).ok_or_else(|| format!("unknown raster '{id}'"))?;
         let mut all = self.saved_raster_styles();
         match style {
             Some(s) => {
-                if !matches!(
-                    s["kind"].as_str(),
-                    Some("stretch" | "classes" | "rgb" | "split" | "aspect")
-                ) {
+                if !matches!(s["kind"].as_str(), Some("stretch" | "classes" | "rgb" | "split" | "aspect")) {
                     return Err("style kind must be stretch, classes, rgb, split or aspect".into());
                 }
                 r.set_style(s.clone());
@@ -1704,11 +1194,7 @@ impl Engine {
             }
         }
         let _ = std::fs::create_dir_all(&self.state_dir);
-        std::fs::write(
-            self.style_file(),
-            serde_json::to_vec_pretty(&Value::Object(all)).unwrap_or_default(),
-        )
-        .map_err(|e| e.to_string())?;
+        std::fs::write(self.style_file(), serde_json::to_vec_pretty(&Value::Object(all)).unwrap_or_default()).map_err(|e| e.to_string())?;
         Ok(r)
     }
 
@@ -1742,15 +1228,9 @@ impl Engine {
 pub fn load_all(paths: &[PathBuf], warnings: &mut Vec<String>) -> Vec<Arc<RasterHandle>> {
     let mut out: Vec<Arc<RasterHandle>> = Vec::new();
     for p in discover(paths) {
-        let id = sanitize(
-            &p.file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default(),
-        );
+        let id = sanitize(&p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default());
         match open_info(&p, &id) {
-            Ok(i) if out.iter().any(|r| r.info.id == i.id) => {
-                warnings.push(format!("duplicate raster id {}", i.id))
-            }
+            Ok(i) if out.iter().any(|r| r.info.id == i.id) => warnings.push(format!("duplicate raster id {}", i.id)),
             Ok(i) => out.push(Arc::new(RasterHandle::new(i))),
             Err(e) => warnings.push(e),
         }
@@ -1764,10 +1244,7 @@ mod tests {
 
     #[test]
     fn stats_and_kinds() {
-        let v: Vec<f32> = (0..1000)
-            .map(|i| i as f32)
-            .chain([NODATA as f32; 10])
-            .collect();
+        let v: Vec<f32> = (0..1000).map(|i| i as f32).chain([NODATA as f32; 10]).collect();
         let s = stats_of(&v, Some(NODATA), false);
         assert_eq!(s.min, 0.0);
         assert_eq!(s.max, 999.0);
@@ -1775,10 +1252,7 @@ mod tests {
         assert!((s.valid - 1000.0 / 1010.0).abs() < 1e-9);
         let c = stats_of(&[1.0, 2.0, 2.0, 3.0, 0.0], Some(0.0), true);
         assert_eq!(c.distinct.as_ref().unwrap().len(), 3);
-        assert_eq!(
-            guess_kind("Copernicus_DSM_COG_10_S06", 1, "Float32", &s),
-            "dem"
-        );
+        assert_eq!(guess_kind("Copernicus_DSM_COG_10_S06", 1, "Float32", &s), "dem");
         assert_eq!(guess_kind("ndvi_2026-10-10", 1, "Float32", &s), "ndvi");
         assert_eq!(guess_kind("site", 3, "Byte", &s), "rgb");
         assert_eq!(guess_kind("landuse", 1, "Byte", &c), "classes");
@@ -1787,12 +1261,7 @@ mod tests {
     #[test]
     fn colorize_ramps_classes_and_nodata() {
         let style = json!({ "kind": "stretch", "ramp": "gray", "min": 0, "max": 10 });
-        let px = colorize(
-            &style,
-            &[vec![0.0, 10.0, NODATA as f32]],
-            None,
-            Some(NODATA),
-        );
+        let px = colorize(&style, &[vec![0.0, 10.0, NODATA as f32]], None, Some(NODATA));
         assert_eq!(&px[0..4], &[0, 0, 0, 255]);
         assert_eq!(&px[4..8], &[255, 255, 255, 255]);
         assert_eq!(px[11], 0, "nodata is transparent");
@@ -1814,103 +1283,35 @@ pub fn terrain_tile(path: &Path, z: u32, x: u32, y: u32) -> Result<Vec<u8>, Stri
     let size = 2.0 * HALF / n;
     let (minx, maxy) = (-HALF + x as f64 * size, HALF - y as f64 * size);
     let src = open(path)?;
-    let args = strings(&[
-        "-of",
-        "MEM",
-        "-t_srs",
-        "EPSG:3857",
-        "-ts",
-        "256",
-        "256",
-        "-r",
-        "bilinear",
-        "-dstnodata",
-        "-32768",
-        "-ot",
-        "Float32",
-    ]);
+    let args = strings(&["-of", "MEM", "-t_srs", "EPSG:3857", "-ts", "256", "256", "-r", "bilinear", "-dstnodata", "-32768", "-ot", "Float32"]);
     let mut a = args;
-    a.extend([
-        "-te".into(),
-        minx.to_string(),
-        (maxy - size).to_string(),
-        (minx + size).to_string(),
-        maxy.to_string(),
-    ]);
+    a.extend(["-te".into(), minx.to_string(), (maxy - size).to_string(), (minx + size).to_string(), maxy.to_string()]);
     let ds = warp_progress(&[&src], "", &a, |_| true)?;
     let band = ds.rasterband(1).map_err(|e| e.to_string())?;
-    let buf = band
-        .read_as::<f32>((0, 0), (256, 256), (256, 256), None)
-        .map_err(|e| e.to_string())?;
+    let buf = band.read_as::<f32>((0, 0), (256, 256), (256, 256), None).map_err(|e| e.to_string())?;
     let mut rgba = Vec::with_capacity(256 * 256 * 4);
     for &h in buf.data() {
-        let h = if h.is_finite() && h > -11000.0 && h < 9000.0 {
-            h as f64
-        } else {
-            0.0
-        };
+        let h = if h.is_finite() && h > -11000.0 && h < 9000.0 { h as f64 } else { 0.0 };
         let v = ((h + 32768.0) * 256.0).round().max(0.0) as u32;
-        rgba.extend([
-            ((v >> 16) & 255) as u8,
-            ((v >> 8) & 255) as u8,
-            (v & 255) as u8,
-            255,
-        ]);
+        rgba.extend([((v >> 16) & 255) as u8, ((v >> 8) & 255) as u8, (v & 255) as u8, 255]);
     }
     encode_png(rgba, 256, 256)
 }
 
 /// Online basemaps for finished maps (export.map `basemap`): id, XYZ URL, deepest zoom, credit.
 pub const BASEMAPS: &[(&str, &str, u32, &str)] = &[
-    (
-        "osm",
-        "https://tile.openstreetmap.org/${z}/${x}/${y}.png",
-        19,
-        "© OpenStreetMap contributors (ODbL)",
-    ),
-    (
-        "topo",
-        "https://tile.opentopomap.org/${z}/${x}/${y}.png",
-        17,
-        "© OpenStreetMap contributors, SRTM · style © OpenTopoMap (CC BY-SA)",
-    ),
-    (
-        "esri-topo",
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/${z}/${y}/${x}",
-        19,
-        "Esri World Topographic Map: Esri, HERE, Garmin, USGS, NGA, OpenStreetMap contributors",
-    ),
-    (
-        "esri-imagery",
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}",
-        19,
-        "Esri World Imagery: Esri, Maxar, Earthstar Geographics, GIS User Community",
-    ),
-    (
-        "esri-dark",
-        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${z}/${y}/${x}",
-        16,
-        "Esri, HERE, Garmin, © OpenStreetMap contributors",
-    ),
-    (
-        "carto-light",
-        "https://a.basemaps.cartocdn.com/light_all/${z}/${x}/${y}.png",
-        20,
-        "© OpenStreetMap contributors © CARTO",
-    ),
-    (
-        "carto-dark",
-        "https://a.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png",
-        20,
-        "© OpenStreetMap contributors © CARTO",
-    ),
+    ("osm", "https://tile.openstreetmap.org/${z}/${x}/${y}.png", 19, "© OpenStreetMap contributors (ODbL)"),
+    ("topo", "https://tile.opentopomap.org/${z}/${x}/${y}.png", 17, "© OpenStreetMap contributors, SRTM · style © OpenTopoMap (CC BY-SA)"),
+    ("esri-topo", "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/${z}/${y}/${x}", 19, "Esri World Topographic Map: Esri, HERE, Garmin, USGS, NGA, OpenStreetMap contributors"),
+    ("esri-imagery", "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}", 19, "Esri World Imagery: Esri, Maxar, Earthstar Geographics, GIS User Community"),
+    ("esri-dark", "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${z}/${y}/${x}", 16, "Esri, HERE, Garmin, © OpenStreetMap contributors"),
+    ("carto-light", "https://a.basemaps.cartocdn.com/light_all/${z}/${x}/${y}.png", 20, "© OpenStreetMap contributors © CARTO"),
+    ("carto-dark", "https://a.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png", 20, "© OpenStreetMap contributors © CARTO"),
 ];
 
 /// The zoom level whose tiles match `m_per_px` at latitude `lat` (Web Mercator, 256 px tiles).
 pub fn basemap_zoom(m_per_px: f64, lat: f64, max: u32) -> u32 {
-    let z = (156_543.033_928 * lat.to_radians().cos() / m_per_px.max(0.01))
-        .log2()
-        .ceil();
+    let z = (156_543.033_928 * lat.to_radians().cos() / m_per_px.max(0.01)).log2().ceil();
     (z.max(0.0) as u32).min(max)
 }
 
@@ -1924,71 +1325,27 @@ pub fn basemap_xml(url: &str, zoom: u32, cache: &Path) -> String {
 }
 
 /// An online basemap (id from [`BASEMAPS`] or an XYZ URL with {z}/{x}/{y}) rendered as RGBA for a map frame.
-pub fn render_basemap(
-    id: &str,
-    srs: &str,
-    frame: [f64; 4],
-    w: usize,
-    h: usize,
-    m_per_px: f64,
-    lat: f64,
-    cache: &Path,
-) -> Result<(Vec<u8>, String), String> {
+pub fn render_basemap(id: &str, srs: &str, frame: [f64; 4], w: usize, h: usize, m_per_px: f64, lat: f64, cache: &Path) -> Result<(Vec<u8>, String), String> {
     let (url, max, credit) = match BASEMAPS.iter().find(|b| b.0 == id) {
         Some(b) => (b.1.to_string(), b.2, b.3.to_string()),
-        None if id.contains("{z}") && id.contains("{x}") && id.contains("{y}") => (
-            id.replace("{z}", "${z}")
-                .replace("{x}", "${x}")
-                .replace("{y}", "${y}"),
-            19,
-            "basemap tiles".to_string(),
-        ),
-        None => {
-            return Err(format!(
-                "basemap: {id} is not one of {} or an XYZ URL",
-                BASEMAPS.iter().map(|b| b.0).collect::<Vec<_>>().join(", ")
-            ));
-        }
+        None if id.contains("{z}") && id.contains("{x}") && id.contains("{y}") => (id.replace("{z}", "${z}").replace("{x}", "${x}").replace("{y}", "${y}"), 19, "basemap tiles".to_string()),
+        None => return Err(format!("basemap: {id} is not one of {} or an XYZ URL", BASEMAPS.iter().map(|b| b.0).collect::<Vec<_>>().join(", "))),
     };
     let xml = basemap_xml(&url, basemap_zoom(m_per_px, lat, max), cache);
     let ds = Dataset::open(&xml).map_err(|e| format!("basemap {id}: {e}"))?;
-    let mut args = strings(&[
-        "-of",
-        "MEM",
-        "-t_srs",
-        srs,
-        "-ot",
-        "Byte",
-        "-r",
-        "cubic",
-        "-dstalpha",
-    ]);
-    args.extend([
-        "-te".to_string(),
-        frame[0].to_string(),
-        frame[1].to_string(),
-        frame[2].to_string(),
-        frame[3].to_string(),
-    ]);
+    let mut args = strings(&["-of", "MEM", "-t_srs", srs, "-ot", "Byte", "-r", "cubic", "-dstalpha"]);
+    args.extend(["-te".to_string(), frame[0].to_string(), frame[1].to_string(), frame[2].to_string(), frame[3].to_string()]);
     args.extend(["-ts".to_string(), w.to_string(), h.to_string()]);
     let out = warp(&[&ds], "", &args)?;
     let mut rgba = vec![0u8; w * h * 4];
     for b in 0..4 {
-        let v = out
-            .rasterband(b + 1)
-            .map_err(|e| e.to_string())?
-            .read_band_as::<u8>()
-            .map_err(|e| e.to_string())?
-            .into_shape_and_vec()
-            .1;
+        let v = out.rasterband(b + 1).map_err(|e| e.to_string())?.read_band_as::<u8>().map_err(|e| e.to_string())?.into_shape_and_vec().1;
         for (i, x) in v.into_iter().enumerate() {
             rgba[i * 4 + b] = x;
         }
     }
     if rgba.chunks(4).filter(|p| p[3] > 0).count() < w * h / 2 {
-        return Err(format!(
-            "basemap {id}: fewer than half the tiles loaded (is the internet reachable?)"
-        ));
+        return Err(format!("basemap {id}: fewer than half the tiles loaded (is the internet reachable?)"));
     }
     Ok((rgba, credit))
 }
@@ -2009,11 +1366,7 @@ mod basemap_tests {
 
     #[test]
     fn wms_description_escapes_the_url_and_sets_the_level() {
-        let x = basemap_xml(
-            "https://t.example/${z}/${x}/${y}.png?a=1&b=2",
-            12,
-            Path::new("/tmp/c"),
-        );
+        let x = basemap_xml("https://t.example/${z}/${x}/${y}.png?a=1&b=2", 12, Path::new("/tmp/c"));
         assert!(x.contains("a=1&amp;b=2"));
         assert!(x.contains("<TileLevel>12</TileLevel>"));
         assert!(x.contains("<Path>/tmp/c</Path>"));
@@ -2022,10 +1375,7 @@ mod basemap_tests {
     #[test]
     fn every_named_basemap_has_a_tile_template_and_credit() {
         for (id, url, max, credit) in BASEMAPS {
-            assert!(
-                url.contains("${z}") && url.contains("${x}") && url.contains("${y}"),
-                "{id}"
-            );
+            assert!(url.contains("${z}") && url.contains("${x}") && url.contains("${y}"), "{id}");
             assert!(*max >= 10 && !credit.is_empty(), "{id}");
         }
         assert!(BASEMAPS.iter().any(|b| b.0 == "esri-dark"));

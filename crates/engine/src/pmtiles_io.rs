@@ -83,14 +83,10 @@ fn decompress(data: Vec<u8>, compression: u8) -> Result<Vec<u8>, String> {
         0 | 1 => Ok(data), // unknown / none
         2 => {
             let mut out = Vec::with_capacity(data.len() * 4);
-            flate2::read::GzDecoder::new(&data[..])
-                .read_to_end(&mut out)
-                .map_err(|e| format!("gunzip: {e}"))?;
+            flate2::read::GzDecoder::new(&data[..]).read_to_end(&mut out).map_err(|e| format!("gunzip: {e}"))?;
             Ok(out)
         }
-        c => Err(format!(
-            "unsupported PMTiles compression {c} (only none/gzip)"
-        )),
+        c => Err(format!("unsupported PMTiles compression {c} (only none/gzip)")),
     }
 }
 
@@ -117,15 +113,7 @@ fn parse_directory(b: &[u8]) -> Result<Vec<Entry>, String> {
     if n > 10_000_000 {
         return Err("implausible PMTiles directory size".into());
     }
-    let mut e = vec![
-        Entry {
-            tile_id: 0,
-            offset: 0,
-            length: 0,
-            run_length: 0
-        };
-        n
-    ];
+    let mut e = vec![Entry { tile_id: 0, offset: 0, length: 0, run_length: 0 }; n];
     let mut last = 0u64;
     for x in e.iter_mut() {
         last += varint(b, &mut pos)?;
@@ -139,11 +127,7 @@ fn parse_directory(b: &[u8]) -> Result<Vec<Entry>, String> {
     }
     for i in 0..n {
         let v = varint(b, &mut pos)?;
-        e[i].offset = if v == 0 && i > 0 {
-            e[i - 1].offset + e[i - 1].length as u64
-        } else {
-            v.saturating_sub(1)
-        };
+        e[i].offset = if v == 0 && i > 0 { e[i - 1].offset + e[i - 1].length as u64 } else { v.saturating_sub(1) };
     }
     Ok(e)
 }
@@ -188,26 +172,14 @@ impl PmReader {
             read_at(&file, &mut buf, off).map_err(|e| e.to_string())?;
             Ok(buf)
         };
-        let root = parse_directory(&decompress(
-            read(header.root_offset, header.root_length)?,
-            header.internal_compression,
-        )?)?;
+        let root = parse_directory(&decompress(read(header.root_offset, header.root_length)?, header.internal_compression)?)?;
         let metadata = if header.metadata_length > 0 {
-            let raw = decompress(
-                read(header.metadata_offset, header.metadata_length)?,
-                header.internal_compression,
-            )?;
+            let raw = decompress(read(header.metadata_offset, header.metadata_length)?, header.internal_compression)?;
             serde_json::from_slice(&raw).unwrap_or(serde_json::Value::Null)
         } else {
             serde_json::Value::Null
         };
-        Ok(PmReader {
-            file,
-            header,
-            metadata,
-            root: Arc::new(root),
-            leaves: Mutex::new(HashMap::new()),
-        })
+        Ok(PmReader { file, header, metadata, root: Arc::new(root), leaves: Mutex::new(HashMap::new()) })
     }
 
     fn leaf(&self, offset: u64, length: u32) -> Result<Arc<Vec<Entry>>, String> {
@@ -215,12 +187,8 @@ impl PmReader {
             return Ok(d.clone());
         }
         let mut buf = vec![0u8; length as usize];
-        read_at(&self.file, &mut buf, self.header.leaf_offset + offset)
-            .map_err(|e| e.to_string())?;
-        let dir = Arc::new(parse_directory(&decompress(
-            buf,
-            self.header.internal_compression,
-        )?)?);
+        read_at(&self.file, &mut buf, self.header.leaf_offset + offset).map_err(|e| e.to_string())?;
+        let dir = Arc::new(parse_directory(&decompress(buf, self.header.internal_compression)?)?);
         let mut cache = self.leaves.lock().unwrap();
         if cache.len() > 256 {
             cache.clear();
@@ -251,8 +219,7 @@ impl PmReader {
                 return Ok(None);
             }
             let mut buf = vec![0u8; e.length as usize];
-            read_at(&self.file, &mut buf, self.header.data_offset + e.offset)
-                .map_err(|err| err.to_string())?;
+            read_at(&self.file, &mut buf, self.header.data_offset + e.offset).map_err(|err| err.to_string())?;
             return decompress(buf, self.header.tile_compression).map(Some);
         }
         Err("PMTiles directory nesting too deep".into())
@@ -283,14 +250,12 @@ mod tests {
         for z in 0..=6u8 {
             let (x0, y0) = crate::tile::lonlat_to_tile(140.0, -2.0, z);
             let (x1, y1) = crate::tile::lonlat_to_tile(150.0, -10.0, z);
-            let mut ids: Vec<(u64, u32, u32)> = (x0..=x1)
-                .flat_map(|x| (y0..=y1).map(move |y| (tile_id(z, x, y).unwrap(), x, y)))
-                .collect();
+            let mut ids: Vec<(u64, u32, u32)> =
+                (x0..=x1).flat_map(|x| (y0..=y1).map(move |y| (tile_id(z, x, y).unwrap(), x, y))).collect();
             ids.sort();
             for (_, x, y) in ids {
                 let payload = format!("tile {z}/{x}/{y}").into_bytes();
-                w.add_tile(TileCoord::new(z, x, y).unwrap(), &payload)
-                    .unwrap();
+                w.add_tile(TileCoord::new(z, x, y).unwrap(), &payload).unwrap();
                 expected.push((z, x, y, payload));
             }
         }
@@ -299,11 +264,7 @@ mod tests {
         assert_eq!(r.header.max_zoom, 6);
         assert_eq!(r.metadata["hello"], "world");
         for (z, x, y, payload) in &expected {
-            assert_eq!(
-                r.get(*z, *x, *y).unwrap().as_ref(),
-                Some(payload),
-                "{z}/{x}/{y}"
-            );
+            assert_eq!(r.get(*z, *x, *y).unwrap().as_ref(), Some(payload), "{z}/{x}/{y}");
         }
         assert_eq!(r.get(6, 0, 0).unwrap(), None);
         assert_eq!(r.get(7, 0, 0).unwrap(), None);

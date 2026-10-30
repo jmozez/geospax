@@ -20,10 +20,10 @@
 //! in the file's projected CRS when it is metric; geographic or foot-based files are gridded in
 //! their UTM zone (heights converted to metres).
 
-use gdal::DriverManager;
 use gdal::raster::Buffer;
 use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
 use gdal::vector::{LayerAccess, LayerOptions};
+use gdal::DriverManager;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
@@ -31,9 +31,7 @@ use std::time::Instant;
 /// Largest grid (cells) built in memory; an automatic resolution coarsens until the area fits.
 pub const MAX_CELLS: usize = 6_000_000;
 /// Candidate cell sizes in metres, finest first.
-pub const NICE_RES: [f64; 12] = [
-    0.05, 0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 20.0, 50.0,
-];
+pub const NICE_RES: [f64; 12] = [0.05, 0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 20.0, 50.0];
 const BATCH: u64 = 250_000;
 const NODATA: f32 = -9999.0;
 
@@ -65,26 +63,18 @@ pub fn class_name(c: u8) -> String {
 }
 
 pub fn is_cloud_file(p: &Path) -> bool {
-    p.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case("las") || e.eq_ignore_ascii_case("laz"))
+    p.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("las") || e.eq_ignore_ascii_case("laz"))
 }
 
 /// LAS/LAZ files in a folder (recursively, sorted), or the file itself.
 pub fn find_clouds(root: &Path, max: usize) -> Vec<PathBuf> {
     if root.is_file() {
-        return if is_cloud_file(root) {
-            vec![root.to_path_buf()]
-        } else {
-            vec![]
-        };
+        return if is_cloud_file(root) { vec![root.to_path_buf()] } else { vec![] };
     }
     let mut out = Vec::new();
     let mut stack = vec![(root.to_path_buf(), 0usize)];
     while let Some((dir, depth)) = stack.pop() {
-        let Ok(rd) = std::fs::read_dir(&dir) else {
-            continue;
-        };
+        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
         for e in rd.flatten() {
             let p = e.path();
             let name = e.file_name().to_string_lossy().to_string();
@@ -136,17 +126,11 @@ pub fn read_header(path: &Path) -> Result<CloudHeader, String> {
     let v = h.version();
     let wkt = h
         .get_wkt_crs_bytes()
-        .map(|w| {
-            String::from_utf8_lossy(w)
-                .trim_matches(char::from(0))
-                .trim()
-                .to_string()
-        })
+        .map(|w| String::from_utf8_lossy(w).trim_matches(char::from(0)).trim().to_string())
         .filter(|w| w.len() > 10);
     let usable = |c: Option<u16>| c.filter(|c| (1024..32767).contains(c)).map(u32::from);
     let epsg = match h.get_geotiff_crs() {
-        Ok(Some(g)) => usable(g.get_projected_crs_geo_key_value())
-            .or_else(|| usable(g.get_geodetic_crs_geo_key_value())),
+        Ok(Some(g)) => usable(g.get_projected_crs_geo_key_value()).or_else(|| usable(g.get_geodetic_crs_geo_key_value())),
         _ => None,
     };
     let fmt = h.point_format();
@@ -179,11 +163,7 @@ impl CloudHeader {
     pub fn crs_label(&self) -> String {
         match (&self.epsg, &self.wkt) {
             (Some(e), _) => format!("EPSG:{e}"),
-            (None, Some(w)) => SpatialRef::from_wkt(w)
-                .ok()
-                .and_then(|s| s.auth_code().ok())
-                .map(|c| format!("EPSG:{c}"))
-                .unwrap_or_else(|| "WKT".into()),
+            (None, Some(w)) => SpatialRef::from_wkt(w).ok().and_then(|s| s.auth_code().ok()).map(|c| format!("EPSG:{c}")).unwrap_or_else(|| "WKT".into()),
             _ => "none".into(),
         }
     }
@@ -193,21 +173,13 @@ impl CloudHeader {
         let s = if let Some(e) = force {
             SpatialRef::from_epsg(e).map_err(|x| format!("EPSG:{e}: {x}"))?
         } else if let Some(w) = &self.wkt {
-            SpatialRef::from_wkt(w).map_err(|x| {
-                format!(
-                    "{}: unreadable WKT coordinate system ({x})",
-                    self.path.display()
-                )
-            })?
+            SpatialRef::from_wkt(w).map_err(|x| format!("{}: unreadable WKT coordinate system ({x})", self.path.display()))?
         } else if let Some(e) = self.epsg {
             SpatialRef::from_epsg(e).map_err(|x| format!("EPSG:{e}: {x}"))?
         } else {
             return Err(format!(
                 "{} has no coordinate system (no WKT or GeoTIFF keys in its header); pass epsg: with the EPSG code of the survey, e.g. epsg: 32755",
-                self.path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_default()
+                self.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
             ));
         };
         Ok(gis_order(s))
@@ -215,15 +187,7 @@ impl CloudHeader {
 
     /// Footprint in lon/lat ([west, south, east, north]) when the coordinate system is known.
     pub fn lonlat_bounds(&self) -> Option<[f64; 4]> {
-        lonlat_of(
-            &self.srs(None).ok()?,
-            [
-                self.bounds[0],
-                self.bounds[1],
-                self.bounds[3],
-                self.bounds[4],
-            ],
-        )
+        lonlat_of(&self.srs(None).ok()?, [self.bounds[0], self.bounds[1], self.bounds[3], self.bounds[4]])
     }
 }
 
@@ -265,21 +229,14 @@ impl GridSpec {
     }
 
     pub fn center(&self, i: usize) -> (f64, f64) {
-        (
-            self.x0 + ((i % self.w) as f64 + 0.5) * self.res,
-            self.y1 - ((i / self.w) as f64 + 0.5) * self.res,
-        )
+        (self.x0 + ((i % self.w) as f64 + 0.5) * self.res, self.y1 - ((i / self.w) as f64 + 0.5) * self.res)
     }
 }
 
 /// Cell size from point density: about 1.6 / √density (≈ 2–3 points per cell), snapped to a
 /// round value, then coarsened until the area fits in `MAX_CELLS`.
 pub fn auto_resolution(density: f64, area_m2: f64) -> f64 {
-    let raw = if density > 0.0 {
-        1.6 / density.sqrt()
-    } else {
-        1.0
-    };
+    let raw = if density > 0.0 { 1.6 / density.sqrt() } else { 1.0 };
     let mut i = 0;
     for (j, r) in NICE_RES.iter().enumerate() {
         if (r / raw).ln().abs() < (NICE_RES[i] / raw).ln().abs() {
@@ -320,16 +277,7 @@ pub struct Options {
 
 impl Default for Options {
     fn default() -> Self {
-        Options {
-            resolution: None,
-            epsg: None,
-            ground: GroundMode::Auto,
-            aoi: None,
-            min_tree: 3.0,
-            window: 18.0,
-            max_points: 2_000_000_000,
-            sample: 0,
-        }
+        Options { resolution: None, epsg: None, ground: GroundMode::Auto, aoi: None, min_tree: 3.0, window: 18.0, max_points: 2_000_000_000, sample: 0 }
     }
 }
 
@@ -384,10 +332,7 @@ struct Src {
 }
 
 /// Plan the grid for a set of files: target CRS, extent, resolution.
-fn plan(
-    headers: Vec<CloudHeader>,
-    o: &Options,
-) -> Result<(Vec<Src>, GridSpec, f64, Vec<String>), String> {
+fn plan(headers: Vec<CloudHeader>, o: &Options) -> Result<(Vec<Src>, GridSpec, f64, Vec<String>), String> {
     let mut notes = Vec::new();
     let first = headers.first().ok_or("no LAS/LAZ files")?;
     let srs0 = first.srs(o.epsg)?;
@@ -411,75 +356,37 @@ fn plan(
     for h in headers {
         let srs = h.srs(o.epsg)?;
         let same = srs == target;
-        let zscale = if srs.is_projected() {
-            srs.linear_units()
-        } else {
-            1.0
-        };
-        let ct = if same {
-            None
-        } else {
-            Some(
-                CoordTransform::new(&srs, &target)
-                    .map_err(|x| format!("{}: {x}", h.path.display()))?,
-            )
-        };
+        let zscale = if srs.is_projected() { srs.linear_units() } else { 1.0 };
+        let ct = if same { None } else { Some(CoordTransform::new(&srs, &target).map_err(|x| format!("{}: {x}", h.path.display()))?) };
         let b = [h.bounds[0], h.bounds[1], h.bounds[3], h.bounds[4]];
         let tb = match &ct {
-            Some(c) => c
-                .transform_bounds(&b, 21)
-                .map_err(|x| format!("{}: {x}", h.path.display()))?,
+            Some(c) => c.transform_bounds(&b, 21).map_err(|x| format!("{}: {x}", h.path.display()))?,
             None => b,
         };
         area += ((tb[2] - tb[0]) * (tb[3] - tb[1])).max(1.0);
         points += h.points;
         ext = Some(match ext {
             None => tb,
-            Some(e) => [
-                e[0].min(tb[0]),
-                e[1].min(tb[1]),
-                e[2].max(tb[2]),
-                e[3].max(tb[3]),
-            ],
+            Some(e) => [e[0].min(tb[0]), e[1].min(tb[1]), e[2].max(tb[2]), e[3].max(tb[3])],
         });
-        srcs.push(Src {
-            header: h,
-            ct,
-            zscale,
-        });
+        srcs.push(Src { header: h, ct, zscale });
     }
     let mut ext = ext.ok_or("no LAS/LAZ files")?;
     if points > o.max_points {
-        return Err(format!(
-            "{points} points is more than max_points ({}); pass aoi: to grid part of the area, or raise max_points:",
-            o.max_points
-        ));
+        return Err(format!("{points} points is more than max_points ({}); pass aoi: to grid part of the area, or raise max_points:", o.max_points));
     }
     let density = points as f64 / area.max(1.0);
     if let Some(a) = o.aoi {
         let ct = CoordTransform::new(&wgs84(), &target).map_err(|x| x.to_string())?;
         let t = ct.transform_bounds(&a, 21).map_err(|x| x.to_string())?;
-        ext = [
-            ext[0].max(t[0]),
-            ext[1].max(t[1]),
-            ext[2].min(t[2]),
-            ext[3].min(t[3]),
-        ];
+        ext = [ext[0].max(t[0]), ext[1].max(t[1]), ext[2].min(t[2]), ext[3].min(t[3])];
         if ext[0] >= ext[2] || ext[1] >= ext[3] {
             return Err("the area of interest does not overlap the point cloud".into());
         }
         // only the tiles that touch the area
         srcs.retain(|s| {
-            let b = [
-                s.header.bounds[0],
-                s.header.bounds[1],
-                s.header.bounds[3],
-                s.header.bounds[4],
-            ];
-            let tb =
-                s.ct.as_ref()
-                    .and_then(|c| c.transform_bounds(&b, 5).ok())
-                    .unwrap_or(b);
+            let b = [s.header.bounds[0], s.header.bounds[1], s.header.bounds[3], s.header.bounds[4]];
+            let tb = s.ct.as_ref().and_then(|c| c.transform_bounds(&b, 5).ok()).unwrap_or(b);
             tb[0] < ext[2] && tb[2] > ext[0] && tb[1] < ext[3] && tb[3] > ext[1]
         });
     }
@@ -491,15 +398,8 @@ fn plan(
         Some(r) if ext_area / (r * r) <= MAX_CELLS as f64 => r,
         Some(r) => {
             let a = auto_resolution(0.0, ext_area).max(r);
-            let a = NICE_RES
-                .iter()
-                .copied()
-                .find(|n| *n >= r && ext_area / (n * n) <= MAX_CELLS as f64)
-                .unwrap_or(a);
-            notes.push(format!(
-                "{r} m cells would need {:.0} million cells for this area, so {a} m was used",
-                ext_area / (r * r) / 1e6
-            ));
+            let a = NICE_RES.iter().copied().find(|n| *n >= r && ext_area / (n * n) <= MAX_CELLS as f64).unwrap_or(a);
+            notes.push(format!("{r} m cells would need {:.0} million cells for this area, so {a} m was used", ext_area / (r * r) / 1e6));
             a
         }
         None => auto_resolution(density, ext_area),
@@ -511,40 +411,15 @@ fn plan(
     let h = ((y1 - ext[1]) / res).floor() as usize + 1;
     let epsg = target.auth_code().ok().map(|c| c as u32);
     let wkt = target.to_wkt().map_err(|x| x.to_string())?;
-    Ok((
-        srcs,
-        GridSpec {
-            x0,
-            y1,
-            res,
-            w,
-            h,
-            wkt,
-            epsg,
-        },
-        density,
-        notes,
-    ))
+    Ok((srcs, GridSpec { x0, y1, res, w, h, wkt, epsg }, density, notes))
 }
 
 /// Stream every point of every file into the grids.
-fn grid_points(
-    srcs: &[Src],
-    spec: GridSpec,
-    sample: usize,
-    cancel: &AtomicBool,
-) -> Result<Grids, String> {
+fn grid_points(srcs: &[Src], spec: GridSpec, sample: usize, cancel: &AtomicBool) -> Result<Grids, String> {
     let n = spec.w * spec.h;
     let total: u64 = srcs.iter().map(|s| s.header.points).sum();
-    let every = if sample == 0 {
-        u64::MAX
-    } else {
-        total.div_ceil(sample as u64).max(1)
-    };
-    let zref = srcs
-        .iter()
-        .map(|s| s.header.bounds[2] * s.zscale)
-        .fold(f64::MAX, f64::min);
+    let every = if sample == 0 { u64::MAX } else { total.div_ceil(sample as u64).max(1) };
+    let zref = srcs.iter().map(|s| s.header.bounds[2] * s.zscale).fold(f64::MAX, f64::min);
     let zref = if zref.is_finite() { zref } else { 0.0 };
     let mut g = Grids {
         spec,
@@ -565,16 +440,13 @@ fn grid_points(
     };
     let (mut xs, mut ys, mut zs, mut dz) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for s in srcs {
-        let mut r = las::Reader::from_path(&s.header.path)
-            .map_err(|e| format!("{}: {e}", s.header.path.display()))?;
+        let mut r = las::Reader::from_path(&s.header.path).map_err(|e| format!("{}: {e}", s.header.path.display()))?;
         let mut data = las::PointDataBuilder::new().for_header(r.header()).build();
         loop {
             if cancel.load(Ordering::Relaxed) {
                 return Err("cancelled".into());
             }
-            let got = r
-                .fill_points(BATCH, &mut data)
-                .map_err(|e| format!("{}: {e}", s.header.path.display()))?;
+            let got = r.fill_points(BATCH, &mut data).map_err(|e| format!("{}: {e}", s.header.path.display()))?;
             if got == 0 {
                 break;
             }
@@ -587,8 +459,7 @@ fn grid_points(
             if let Some(ct) = &s.ct {
                 dz.clear();
                 dz.resize(xs.len(), 0.0);
-                ct.transform_coords(&mut xs, &mut ys, &mut dz)
-                    .map_err(|e| format!("reprojecting points: {e}"))?;
+                ct.transform_coords(&mut xs, &mut ys, &mut dz).map_err(|e| format!("reprojecting points: {e}"))?;
             }
             let ext = data.format().is_extended;
             let rgb_at = rgb_offset(data.format().to_u8().unwrap_or(0));
@@ -598,11 +469,7 @@ fn grid_points(
             for i in 0..xs.len() {
                 let r = &raw[i * rec..(i + 1) * rec];
                 let class = if ext { r[16] } else { r[15] & 0x1f };
-                let withheld = if ext {
-                    r[15] & 0b100 != 0
-                } else {
-                    r[15] & 0x80 != 0
-                };
+                let withheld = if ext { r[15] & 0b100 != 0 } else { r[15] & 0x80 != 0 };
                 if withheld {
                     g.withheld += 1;
                     continue;
@@ -621,20 +488,10 @@ fn grid_points(
                 g.classes[class as usize] += 1;
                 if g.used % every == 0 {
                     let rgb = match rgb_at {
-                        Some(o) if o + 6 <= rec => [
-                            u16::from_le_bytes([r[o], r[o + 1]]),
-                            u16::from_le_bytes([r[o + 2], r[o + 3]]),
-                            u16::from_le_bytes([r[o + 4], r[o + 5]]),
-                        ],
+                        Some(o) if o + 6 <= rec => [u16::from_le_bytes([r[o], r[o + 1]]), u16::from_le_bytes([r[o + 2], r[o + 3]]), u16::from_le_bytes([r[o + 4], r[o + 5]])],
                         _ => [0; 3],
                     };
-                    g.sample.push(SamplePoint {
-                        x: xs[i],
-                        y: ys[i],
-                        z: zf,
-                        class,
-                        rgb,
-                    });
+                    g.sample.push(SamplePoint { x: xs[i], y: ys[i], z: zf, class, rgb });
                 }
                 g.used += 1;
                 if !(g.zmin[c] <= zf) {
@@ -665,13 +522,7 @@ fn grid_points(
 
 /// Every n-th point of `paths` (about `max` in all) in the coordinate system `target_wkt`
 /// (heights in metres), for 3D views of point clouds that were not gridded in this run.
-pub fn sample_files(
-    paths: &[PathBuf],
-    target_wkt: &str,
-    epsg: Option<u32>,
-    max: usize,
-    cancel: &AtomicBool,
-) -> Result<(Vec<SamplePoint>, u64), String> {
+pub fn sample_files(paths: &[PathBuf], target_wkt: &str, epsg: Option<u32>, max: usize, cancel: &AtomicBool) -> Result<(Vec<SamplePoint>, u64), String> {
     let mut target = SpatialRef::from_wkt(target_wkt).map_err(|e| e.to_string())?;
     target.set_axis_mapping_strategy(gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder);
     let mut srcs = Vec::new();
@@ -681,24 +532,9 @@ pub fn sample_files(
             continue;
         }
         let srs = h.srs(epsg)?;
-        let zscale = if srs.is_projected() {
-            srs.linear_units()
-        } else {
-            1.0
-        };
-        let ct = if srs == target {
-            None
-        } else {
-            Some(
-                CoordTransform::new(&srs, &target)
-                    .map_err(|x| format!("{}: {x}", h.path.display()))?,
-            )
-        };
-        srcs.push(Src {
-            header: h,
-            ct,
-            zscale,
-        });
+        let zscale = if srs.is_projected() { srs.linear_units() } else { 1.0 };
+        let ct = if srs == target { None } else { Some(CoordTransform::new(&srs, &target).map_err(|x| format!("{}: {x}", h.path.display()))?) };
+        srcs.push(Src { header: h, ct, zscale });
     }
     let total: u64 = srcs.iter().map(|s| s.header.points).sum();
     let every = total.div_ceil(max.max(1) as u64).max(1);
@@ -706,16 +542,13 @@ pub fn sample_files(
     let mut k = 0u64;
     let (mut xs, mut ys, mut zs, mut dz) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for s in &srcs {
-        let mut r = las::Reader::from_path(&s.header.path)
-            .map_err(|e| format!("{}: {e}", s.header.path.display()))?;
+        let mut r = las::Reader::from_path(&s.header.path).map_err(|e| format!("{}: {e}", s.header.path.display()))?;
         let mut data = las::PointDataBuilder::new().for_header(r.header()).build();
         loop {
             if cancel.load(Ordering::Relaxed) {
                 return Err("cancelled".into());
             }
-            let got = r
-                .fill_points(BATCH, &mut data)
-                .map_err(|e| format!("{}: {e}", s.header.path.display()))?;
+            let got = r.fill_points(BATCH, &mut data).map_err(|e| format!("{}: {e}", s.header.path.display()))?;
             if got == 0 {
                 break;
             }
@@ -728,8 +561,7 @@ pub fn sample_files(
             if let Some(ct) = &s.ct {
                 dz.clear();
                 dz.resize(xs.len(), 0.0);
-                ct.transform_coords(&mut xs, &mut ys, &mut dz)
-                    .map_err(|e| format!("reprojecting points: {e}"))?;
+                ct.transform_coords(&mut xs, &mut ys, &mut dz).map_err(|e| format!("reprojecting points: {e}"))?;
             }
             let ext = data.format().is_extended;
             let rgb_at = rgb_offset(data.format().to_u8().unwrap_or(0));
@@ -738,30 +570,16 @@ pub fn sample_files(
             for i in 0..xs.len() {
                 let r = &raw[i * rec..(i + 1) * rec];
                 let class = if ext { r[16] } else { r[15] & 0x1f };
-                let withheld = if ext {
-                    r[15] & 0b100 != 0
-                } else {
-                    r[15] & 0x80 != 0
-                };
+                let withheld = if ext { r[15] & 0b100 != 0 } else { r[15] & 0x80 != 0 };
                 if withheld || class == 7 || class == 18 {
                     continue;
                 }
                 if k % every == 0 {
                     let rgb = match rgb_at {
-                        Some(o) if o + 6 <= rec => [
-                            u16::from_le_bytes([r[o], r[o + 1]]),
-                            u16::from_le_bytes([r[o + 2], r[o + 3]]),
-                            u16::from_le_bytes([r[o + 4], r[o + 5]]),
-                        ],
+                        Some(o) if o + 6 <= rec => [u16::from_le_bytes([r[o], r[o + 1]]), u16::from_le_bytes([r[o + 2], r[o + 3]]), u16::from_le_bytes([r[o + 4], r[o + 5]])],
                         _ => [0; 3],
                     };
-                    out.push(SamplePoint {
-                        x: xs[i],
-                        y: ys[i],
-                        z: (zs[i] * s.zscale) as f32,
-                        class,
-                        rgb,
-                    });
+                    out.push(SamplePoint { x: xs[i], y: ys[i], z: (zs[i] * s.zscale) as f32, class, rgb });
                 }
                 k += 1;
             }
@@ -774,22 +592,10 @@ pub fn sample_files(
 
 /// Running min or max over `line` with window radius `r` (van Herk / Gil-Werman, O(n)).
 /// NaN cells are ignored; a window with no values gives NaN.
-fn extreme_1d(
-    line: &[f32],
-    out: &mut [f32],
-    r: usize,
-    max: bool,
-    buf: &mut Vec<f32>,
-    g: &mut Vec<f32>,
-    h: &mut Vec<f32>,
-) {
+fn extreme_1d(line: &[f32], out: &mut [f32], r: usize, max: bool, buf: &mut Vec<f32>, g: &mut Vec<f32>, h: &mut Vec<f32>) {
     let n = line.len();
     let k = 2 * r + 1;
-    let ident = if max {
-        f32::NEG_INFINITY
-    } else {
-        f32::INFINITY
-    };
+    let ident = if max { f32::NEG_INFINITY } else { f32::INFINITY };
     let m = n + 2 * r;
     buf.clear();
     buf.resize(m, ident);
@@ -800,36 +606,20 @@ fn extreme_1d(
     h.resize(m, 0.0);
     if max {
         for i in 0..m {
-            g[i] = if i % k == 0 {
-                buf[i]
-            } else {
-                g[i - 1].max(buf[i])
-            };
+            g[i] = if i % k == 0 { buf[i] } else { g[i - 1].max(buf[i]) };
         }
         for i in (0..m).rev() {
-            h[i] = if i == m - 1 || (i + 1) % k == 0 {
-                buf[i]
-            } else {
-                h[i + 1].max(buf[i])
-            };
+            h[i] = if i == m - 1 || (i + 1) % k == 0 { buf[i] } else { h[i + 1].max(buf[i]) };
         }
         for i in 0..n {
             out[i] = h[i].max(g[i + k - 1]);
         }
     } else {
         for i in 0..m {
-            g[i] = if i % k == 0 {
-                buf[i]
-            } else {
-                g[i - 1].min(buf[i])
-            };
+            g[i] = if i % k == 0 { buf[i] } else { g[i - 1].min(buf[i]) };
         }
         for i in (0..m).rev() {
-            h[i] = if i == m - 1 || (i + 1) % k == 0 {
-                buf[i]
-            } else {
-                h[i + 1].min(buf[i])
-            };
+            h[i] = if i == m - 1 || (i + 1) % k == 0 { buf[i] } else { h[i + 1].min(buf[i]) };
         }
         for i in 0..n {
             out[i] = h[i].min(g[i + k - 1]);
@@ -845,15 +635,7 @@ pub fn filter_square(src: &[f32], w: usize, h: usize, r: usize, max: bool) -> Ve
     let (mut buf, mut g, mut hh) = (Vec::new(), Vec::new(), Vec::new());
     let mut tmp = vec![0f32; w * h];
     for y in 0..h {
-        extreme_1d(
-            &src[y * w..(y + 1) * w],
-            &mut tmp[y * w..(y + 1) * w],
-            r,
-            max,
-            &mut buf,
-            &mut g,
-            &mut hh,
-        );
+        extreme_1d(&src[y * w..(y + 1) * w], &mut tmp[y * w..(y + 1) * w], r, max, &mut buf, &mut g, &mut hh);
     }
     let mut out = vec![0f32; w * h];
     let (mut col, mut res) = (vec![0f32; h], vec![0f32; h]);
@@ -873,50 +655,24 @@ pub fn filter_square(src: &[f32], w: usize, h: usize, r: usize, max: bool) -> Ve
 
 /// Fill NaN cells by GDAL's inverse-distance interpolation (GDALFillNodata), up to `max_dist`
 /// cells from data.
-pub fn fill_gaps(
-    data: &mut [f32],
-    w: usize,
-    h: usize,
-    max_dist: f64,
-    smoothing: i32,
-) -> Result<(), String> {
+pub fn fill_gaps(data: &mut [f32], w: usize, h: usize, max_dist: f64, smoothing: i32) -> Result<(), String> {
     let gaps = data.iter().filter(|v| v.is_nan()).count();
     if gaps == 0 || gaps == data.len() {
         return Ok(());
     }
     let e = |x: gdal::errors::GdalError| x.to_string();
     let drv = DriverManager::get_driver_by_name("MEM").map_err(e)?;
-    let ds = drv
-        .create_with_band_type::<f32, _>("", w, h, 1)
-        .map_err(e)?;
+    let ds = drv.create_with_band_type::<f32, _>("", w, h, 1).map_err(e)?;
     let mut band = ds.rasterband(1).map_err(e)?;
     band.set_no_data_value(Some(NODATA as f64)).map_err(e)?;
-    let vals: Vec<f32> = data
-        .iter()
-        .map(|v| if v.is_nan() { NODATA } else { *v })
-        .collect();
+    let vals: Vec<f32> = data.iter().map(|v| if v.is_nan() { NODATA } else { *v }).collect();
     let mut buf = Buffer::new((w, h), vals);
     band.write((0, 0), (w, h), &mut buf).map_err(e)?;
-    let err = unsafe {
-        gdal_sys::GDALFillNodata(
-            band.c_rasterband(),
-            std::ptr::null_mut(),
-            max_dist,
-            0,
-            smoothing,
-            std::ptr::null_mut(),
-            None,
-            std::ptr::null_mut(),
-        )
-    };
+    let err = unsafe { gdal_sys::GDALFillNodata(band.c_rasterband(), std::ptr::null_mut(), max_dist, 0, smoothing, std::ptr::null_mut(), None, std::ptr::null_mut()) };
     if err != gdal_sys::CPLErr::CE_None {
         return Err(format!("filling gaps: {}", crate::raster::last_error()));
     }
-    let out = band
-        .read_band_as::<f32>()
-        .map_err(e)?
-        .into_shape_and_vec()
-        .1;
+    let out = band.read_band_as::<f32>().map_err(e)?.into_shape_and_vec().1;
     for (d, v) in data.iter_mut().zip(out) {
         *d = if v == NODATA { f32::NAN } else { v };
     }
@@ -958,16 +714,7 @@ fn fill_pinholes(c: &mut [f32], w: usize, h: usize) {
                 continue;
             }
             let (mut s, mut k) = (0f32, 0);
-            for (dx, dy) in [
-                (-1i32, -1i32),
-                (0, -1),
-                (1, -1),
-                (-1, 0),
-                (1, 0),
-                (-1, 1),
-                (0, 1),
-                (1, 1),
-            ] {
+            for (dx, dy) in [(-1i32, -1i32), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)] {
                 let v = src[(y as i32 + dy) as usize * w + (x as i32 + dx) as usize];
                 if v > 0.5 {
                     s += v;
@@ -989,16 +736,8 @@ fn gradient(z: &[f32], w: usize, h: usize, cell: f64) -> Vec<f32> {
         for x in 0..w {
             let (x0, x1) = (x.saturating_sub(1), (x + 1).min(w - 1));
             let (y0, y1) = (y.saturating_sub(1), (y + 1).min(h - 1));
-            let dx = if x1 > x0 {
-                (at(x1, y) - at(x0, y)) as f64 / ((x1 - x0) as f64 * cell)
-            } else {
-                0.0
-            };
-            let dy = if y1 > y0 {
-                (at(x, y1) - at(x, y0)) as f64 / ((y1 - y0) as f64 * cell)
-            } else {
-                0.0
-            };
+            let dx = if x1 > x0 { (at(x1, y) - at(x0, y)) as f64 / ((x1 - x0) as f64 * cell) } else { 0.0 };
+            let dy = if y1 > y0 { (at(x, y1) - at(x, y0)) as f64 / ((y1 - y0) as f64 * cell) } else { 0.0 };
             let g = (dx * dx + dy * dy).sqrt();
             out[y * w + x] = if g.is_finite() { g as f32 } else { 0.0 };
         }
@@ -1065,25 +804,13 @@ pub struct Smrf {
 
 impl Default for Smrf {
     fn default() -> Self {
-        Smrf {
-            cell: 1.0,
-            slope: 0.15,
-            window: 18.0,
-            threshold: 0.5,
-            scalar: 1.25,
-        }
+        Smrf { cell: 1.0, slope: 0.15, window: 18.0, threshold: 0.5, scalar: 1.25 }
     }
 }
 
 /// SMRF on a minimum-elevation grid (NaN = no points): returns the cells judged ground (their
 /// minimum elevation) and NaN elsewhere.
-pub fn smrf_ground(
-    zmin: &[f32],
-    w: usize,
-    h: usize,
-    res: f64,
-    p: &Smrf,
-) -> Result<Vec<f32>, String> {
+pub fn smrf_ground(zmin: &[f32], w: usize, h: usize, res: f64, p: &Smrf) -> Result<Vec<f32>, String> {
     let k = ((p.cell / res).round() as usize).max(1);
     let c = res * k as f64;
     let (cw, ch) = (w.div_ceil(k), h.div_ceil(k));
@@ -1109,11 +836,7 @@ pub fn smrf_ground(
     // 3. inpaint empty cells (water, building interiors without returns)
     let mut last = zc.clone();
     fill_gaps(&mut last, cw, ch, (cw.max(ch)) as f64, 0)?;
-    let lo = last
-        .iter()
-        .copied()
-        .filter(|v| !v.is_nan())
-        .fold(f32::INFINITY, f32::min);
+    let lo = last.iter().copied().filter(|v| !v.is_nan()).fold(f32::INFINITY, f32::min);
     for v in last.iter_mut().filter(|v| v.is_nan()) {
         *v = lo;
     }
@@ -1133,9 +856,7 @@ pub fn smrf_ground(
         last = opened;
     }
     // 5. provisional ground surface from the unflagged cells
-    let mut prov: Vec<f32> = (0..cw * ch)
-        .map(|j| if known[j] && !obj[j] { zc[j] } else { f32::NAN })
-        .collect();
+    let mut prov: Vec<f32> = (0..cw * ch).map(|j| if known[j] && !obj[j] { zc[j] } else { f32::NAN }).collect();
     fill_gaps(&mut prov, cw, ch, (cw.max(ch)) as f64, 0)?;
     if prov.iter().all(|v| v.is_nan()) {
         return Ok(vec![f32::NAN; w * h]);
@@ -1152,10 +873,7 @@ pub fn smrf_ground(
             if v.is_nan() {
                 continue;
             }
-            let (u, vv) = (
-                (x as f64 + 0.5) / k as f64 - 0.5,
-                (y as f64 + 0.5) / k as f64 - 0.5,
-            );
+            let (u, vv) = ((x as f64 + 0.5) / k as f64 - 0.5, (y as f64 + 0.5) / k as f64 - 0.5);
             let pz = bilinear(&prov, cw, ch, u, vv);
             let ps = bilinear(&slope, cw, ch, u, vv) as f64;
             if ((v - pz).abs() as f64) <= p.threshold + p.scalar * ps {
@@ -1271,19 +989,8 @@ pub fn planar_buildings(dsm: &[f32], chm: &[f32], w: usize, h: usize, c: f64) ->
         }
     }
     let r = (1.0 / c).ceil() as usize;
-    let grown = filter_square(
-        &mask
-            .iter()
-            .map(|b| if *b { 1.0 } else { 0.0 })
-            .collect::<Vec<f32>>(),
-        w,
-        h,
-        r,
-        true,
-    );
-    (0..w * h)
-        .map(|i| mask[i] || (grown[i] > 0.5 && chm[i] >= 1.5))
-        .collect()
+    let grown = filter_square(&mask.iter().map(|b| if *b { 1.0 } else { 0.0 }).collect::<Vec<f32>>(), w, h, r, true);
+    (0..w * h).map(|i| mask[i] || (grown[i] > 0.5 && chm[i] >= 1.5)).collect()
 }
 
 /// Expected crown radius (m) for a tree of height `h` (Popescu & Wynne 2004, all species).
@@ -1293,31 +1000,14 @@ pub fn crown_radius(h: f64) -> f64 {
 
 /// Tree tops: cells of the smoothed CHM at least `min_h` high that are the highest within the
 /// expected crown radius, outside `mask`. Returns (cell, height).
-pub fn tree_tops(
-    chm: &[f32],
-    w: usize,
-    h: usize,
-    res: f64,
-    min_h: f64,
-    mask: &[bool],
-) -> Vec<(usize, f32)> {
-    let raw: Vec<f32> = chm
-        .iter()
-        .map(|v| if v.is_nan() { 0.0 } else { *v })
-        .collect();
+pub fn tree_tops(chm: &[f32], w: usize, h: usize, res: f64, min_h: f64, mask: &[bool]) -> Vec<(usize, f32)> {
+    let raw: Vec<f32> = chm.iter().map(|v| if v.is_nan() { 0.0 } else { *v }).collect();
     // binomial 3×3 smoothing removes single-cell pits and spikes inside crowns
     let mut s = raw.clone();
     for y in 1..h.saturating_sub(1) {
         for x in 1..w.saturating_sub(1) {
-            let at =
-                |dx: i32, dy: i32| raw[(y as i32 + dy) as usize * w + (x as i32 + dx) as usize];
-            s[y * w + x] = (4.0 * at(0, 0)
-                + 2.0 * (at(-1, 0) + at(1, 0) + at(0, -1) + at(0, 1))
-                + at(-1, -1)
-                + at(1, -1)
-                + at(-1, 1)
-                + at(1, 1))
-                / 16.0;
+            let at = |dx: i32, dy: i32| raw[(y as i32 + dy) as usize * w + (x as i32 + dx) as usize];
+            s[y * w + x] = (4.0 * at(0, 0) + 2.0 * (at(-1, 0) + at(1, 0) + at(0, -1) + at(0, 1)) + at(-1, -1) + at(1, -1) + at(-1, 1) + at(1, 1)) / 16.0;
         }
     }
     let higher = |a: usize, b: usize| s[b] > s[a] || (s[b] == s[a] && b < a);
@@ -1461,10 +1151,7 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
         }
     }
     if headers.is_empty() {
-        return Err(skipped
-            .first()
-            .cloned()
-            .unwrap_or_else(|| "no LAS/LAZ files".into()));
+        return Err(skipped.first().cloned().unwrap_or_else(|| "no LAS/LAZ files".into()));
     }
     let crs = headers[0].crs_label();
     let header_points: u64 = headers.iter().map(|h| h.points).sum();
@@ -1478,23 +1165,13 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
     let (w, h, res) = (spec.w, spec.h, spec.res);
     let n = w * h;
     if g.used == 0 {
-        return Err(format!(
-            "none of the {} points could be used ({} noise, {} withheld, {} outside the area)",
-            g.read, g.noise, g.withheld, g.outside
-        ));
+        return Err(format!("none of the {} points could be used ({} noise, {} withheld, {} outside the area)", g.read, g.noise, g.withheld, g.outside));
     }
 
     // coverage: cells with points, closed over holes up to ~30 m (buildings, water, shadows)
-    let has: Vec<f32> = g
-        .zmin
-        .iter()
-        .map(|v| if v.is_nan() { 0.0 } else { 1.0 })
-        .collect();
+    let has: Vec<f32> = g.zmin.iter().map(|v| if v.is_nan() { 0.0 } else { 1.0 }).collect();
     let rc = ((15.0 / res).round() as usize).clamp(1, 200);
-    let covered: Vec<bool> = filter_square(&filter_square(&has, w, h, rc, true), w, h, rc, false)
-        .iter()
-        .map(|v| *v > 0.5)
-        .collect();
+    let covered: Vec<bool> = filter_square(&filter_square(&has, w, h, rc, true), w, h, rc, false).iter().map(|v| *v > 0.5).collect();
     let cov_cells = covered.iter().filter(|b| **b).count();
     let data_cells = has.iter().filter(|v| **v > 0.5).count();
 
@@ -1513,20 +1190,9 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
     };
     let fill_dist = (100.0 / res).clamp(10.0, 3000.0);
     let mut dtm: Vec<f32> = if use_classes {
-        (0..n)
-            .map(|i| {
-                if g.gcnt[i] > 0 {
-                    (g.zref + (g.gsum[i] / g.gcnt[i] as f32) as f64) as f32
-                } else {
-                    f32::NAN
-                }
-            })
-            .collect()
+        (0..n).map(|i| if g.gcnt[i] > 0 { (g.zref + (g.gsum[i] / g.gcnt[i] as f32) as f64) as f32 } else { f32::NAN }).collect()
     } else {
-        let p = Smrf {
-            window: o.window,
-            ..Smrf::default()
-        };
+        let p = Smrf { window: o.window, ..Smrf::default() };
         smrf_ground(&g.zmin, w, h, res, &p)?
     };
     let ground_cells = dtm.iter().filter(|v| !v.is_nan()).count();
@@ -1577,30 +1243,14 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
         }
     }
     // everything above the ground (buildings are found and measured on this)
-    let ndsm: Vec<f32> = (0..n)
-        .map(|i| {
-            if dsm[i].is_nan() || dtm[i].is_nan() {
-                f32::NAN
-            } else {
-                (dsm[i] - dtm[i]).max(0.0)
-            }
-        })
-        .collect();
+    let ndsm: Vec<f32> = (0..n).map(|i| if dsm[i].is_nan() || dtm[i].is_nan() { f32::NAN } else { (dsm[i] - dtm[i]).max(0.0) }).collect();
     let chm = &ndsm;
 
     // buildings
-    let to_ll = CoordTransform::new(
-        &gis_order(SpatialRef::from_wkt(&spec.wkt).map_err(|e| e.to_string())?),
-        &wgs84(),
-    )
-    .map_err(|e| e.to_string())?;
+    let to_ll = CoordTransform::new(&gis_order(SpatialRef::from_wkt(&spec.wkt).map_err(|e| e.to_string())?), &wgs84()).map_err(|e| e.to_string())?;
     let class_buildings = g.classes[6] as f64 / g.used.max(1) as f64 >= 0.001;
     let (bmask, bgrid, bk, building_method) = if class_buildings {
-        let f: Vec<f32> = g
-            .building
-            .iter()
-            .map(|b| if *b { 1.0 } else { 0.0 })
-            .collect();
+        let f: Vec<f32> = g.building.iter().map(|b| if *b { 1.0 } else { 0.0 }).collect();
         let closed = filter_square(&filter_square(&f, w, h, 1, true), w, h, 1, false);
         let m: Vec<bool> = (0..n).map(|i| closed[i] > 0.5 && chm[i] >= 1.5).collect();
         (m.clone(), m, 1usize, "classes")
@@ -1620,9 +1270,7 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
             }
         }
         let coarse = planar_buildings(&cd, &cc, cw, ch, res * k as f64);
-        let fine: Vec<bool> = (0..n)
-            .map(|i| coarse[(i / w / k) * cw + (i % w) / k])
-            .collect();
+        let fine: Vec<bool> = (0..n).map(|i| coarse[(i / w / k) * cw + (i % w) / k]).collect();
         (fine, coarse, k, "planar")
     } else {
         (vec![false; n], vec![false; n], 1, "none")
@@ -1635,25 +1283,8 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
         let min_cells = (10.0 / (bres * bres)).ceil() as usize;
         let keep: Vec<bool> = comps.iter().map(|c| c.len() >= min_cells).collect();
         if keep.iter().any(|k| *k) {
-            let lab: Vec<i32> = labels
-                .iter()
-                .map(|l| {
-                    if *l > 0 && keep[*l as usize - 1] {
-                        *l as i32
-                    } else {
-                        0
-                    }
-                })
-                .collect();
-            let polys = polygonize(
-                &lab,
-                bw,
-                bh,
-                [spec.x0, bres, 0.0, spec.y1, 0.0, -bres],
-                &spec.wkt,
-                bres * 0.75,
-                &to_ll,
-            )?;
+            let lab: Vec<i32> = labels.iter().map(|l| if *l > 0 && keep[*l as usize - 1] { *l as i32 } else { 0 }).collect();
+            let polys = polygonize(&lab, bw, bh, [spec.x0, bres, 0.0, spec.y1, 0.0, -bres], &spec.wkt, bres * 0.75, &to_ll)?;
             for (label, rings) in polys {
                 let cells = &comps[label as usize - 1];
                 let mut hs: Vec<f32> = Vec::new();
@@ -1675,12 +1306,7 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
                 }
                 let cnt = hs.len() as f64;
                 let height = percentile(&mut hs, 0.9);
-                buildings.push(Building {
-                    polygons: rings,
-                    area_m2: cells.len() as f64 * bres * bres,
-                    height,
-                    ground: gs / cnt,
-                });
+                buildings.push(Building { polygons: rings, area_m2: cells.len() as f64 * bres * bres, height, ground: gs / cnt });
             }
         }
     }
@@ -1691,15 +1317,7 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
     let veg_classes = veg_pts as f64 / g.used.max(1) as f64 >= 0.005;
     let chm: Vec<f32> = if veg_classes {
         let mut c: Vec<f32> = (0..n)
-            .map(|i| {
-                if !covered[i] || dtm[i].is_nan() {
-                    f32::NAN
-                } else if g.vmax[i].is_nan() {
-                    0.0
-                } else {
-                    (g.vmax[i] - dtm[i]).max(0.0)
-                }
-            })
+            .map(|i| if !covered[i] || dtm[i].is_nan() { f32::NAN } else if g.vmax[i].is_nan() { 0.0 } else { (g.vmax[i] - dtm[i]).max(0.0) })
             .collect();
         fill_pinholes(&mut c, w, h);
         c
@@ -1710,19 +1328,7 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
     // around each building also goes (roof edges smeared by the pinhole fill).
     let bmask: Vec<bool> = if bmask.iter().any(|b| *b) {
         let r = ((0.5 / res).ceil() as usize).max(1);
-        filter_square(
-            &bmask
-                .iter()
-                .map(|b| if *b { 1.0 } else { 0.0 })
-                .collect::<Vec<f32>>(),
-            w,
-            h,
-            r,
-            true,
-        )
-        .iter()
-        .map(|v| *v > 0.5)
-        .collect()
+        filter_square(&bmask.iter().map(|b| if *b { 1.0 } else { 0.0 }).collect::<Vec<f32>>(), w, h, r, true).iter().map(|v| *v > 0.5).collect()
     } else {
         bmask
     };
@@ -1738,51 +1344,21 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
     let (mut xs, mut ys): (Vec<f64>, Vec<f64>) = tops.iter().map(|(i, _)| spec.center(*i)).unzip();
     let mut zs = vec![0.0; xs.len()];
     if !xs.is_empty() {
-        to_ll
-            .transform_coords(&mut xs, &mut ys, &mut zs)
-            .map_err(|e| e.to_string())?;
+        to_ll.transform_coords(&mut xs, &mut ys, &mut zs).map_err(|e| e.to_string())?;
     }
-    let trees: Vec<Tree> = tops
-        .iter()
-        .enumerate()
-        .map(|(k, (_, hgt))| Tree {
-            lon: xs[k],
-            lat: ys[k],
-            height: *hgt as f64,
-            crown: 2.0 * crown_radius(*hgt as f64),
-        })
-        .collect();
+    let trees: Vec<Tree> = tops.iter().enumerate().map(|(k, (_, hgt))| Tree { lon: xs[k], lat: ys[k], height: *hgt as f64, crown: 2.0 * crown_radius(*hgt as f64) }).collect();
 
     // statistics
-    let mut canopy: Vec<f32> = (0..n)
-        .filter(|i| covered[*i] && !bmask[*i] && chm[*i] >= 2.0)
-        .map(|i| chm[i])
-        .collect();
+    let mut canopy: Vec<f32> = (0..n).filter(|i| covered[*i] && !bmask[*i] && chm[*i] >= 2.0).map(|i| chm[i]).collect();
     let canopy_cover = canopy.len() as f64 / cov_cells.max(1) as f64;
     let chm_max = canopy.iter().copied().fold(0f32, f32::max) as f64;
     let chm_p50 = percentile(&mut canopy, 0.5);
     let chm_p95 = percentile(&mut canopy, 0.95);
-    let (dmin, dmax) = dtm
-        .iter()
-        .filter(|v| !v.is_nan())
-        .fold((f64::MAX, f64::MIN), |(a, b), v| {
-            (a.min(*v as f64), b.max(*v as f64))
-        });
-    let gb = [
-        spec.x0,
-        spec.y1 - h as f64 * res,
-        spec.x0 + w as f64 * res,
-        spec.y1,
-    ];
+    let (dmin, dmax) = dtm.iter().filter(|v| !v.is_nan()).fold((f64::MAX, f64::MIN), |(a, b), v| (a.min(*v as f64), b.max(*v as f64)));
+    let gb = [spec.x0, spec.y1 - h as f64 * res, spec.x0 + w as f64 * res, spec.y1];
     let lonlat = to_ll.transform_bounds(&gb, 21).unwrap_or([0.0; 4]);
     let coverage_m2 = data_cells as f64 * res * res;
-    let classes: Vec<(u8, u64)> = g
-        .classes
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| **c > 0)
-        .map(|(k, c)| (k as u8, *c))
-        .collect();
+    let classes: Vec<(u8, u64)> = g.classes.iter().enumerate().filter(|(_, c)| **c > 0).map(|(k, c)| (k as u8, *c)).collect();
     let stats = Stats {
         files,
         header_points,
@@ -1794,11 +1370,7 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
         classes,
         ground_method: if use_classes { "classes" } else { "smrf" },
         ground_share: share,
-        density: if coverage_m2 > 0.0 {
-            g.used as f64 / coverage_m2
-        } else {
-            density0
-        },
+        density: if coverage_m2 > 0.0 { g.used as f64 / coverage_m2 } else { density0 },
         coverage_m2,
         res,
         dtm_min: dmin,
@@ -1819,33 +1391,14 @@ pub fn process(paths: &[PathBuf], o: &Options, cancel: &AtomicBool) -> Result<Pr
         read_seconds,
         notes,
     };
-    Ok(Products {
-        spec,
-        dtm,
-        dsm,
-        chm,
-        trees,
-        buildings,
-        stats,
-        sample,
-    })
+    Ok(Products { spec, dtm, dsm, chm, trees, buildings, stats, sample })
 }
 
 /// Polygonise a label raster (0 = background) into simplified lon/lat polygons per label.
-fn polygonize(
-    labels: &[i32],
-    w: usize,
-    h: usize,
-    gt: [f64; 6],
-    wkt: &str,
-    tolerance: f64,
-    to_ll: &CoordTransform,
-) -> Result<Vec<(i32, Vec<Vec<Vec<[f64; 2]>>>)>, String> {
+fn polygonize(labels: &[i32], w: usize, h: usize, gt: [f64; 6], wkt: &str, tolerance: f64, to_ll: &CoordTransform) -> Result<Vec<(i32, Vec<Vec<Vec<[f64; 2]>>>)>, String> {
     let e = |x: gdal::errors::GdalError| x.to_string();
     let drv = DriverManager::get_driver_by_name("MEM").map_err(e)?;
-    let mut ds = drv
-        .create_with_band_type::<i32, _>("", w, h, 1)
-        .map_err(e)?;
+    let mut ds = drv.create_with_band_type::<i32, _>("", w, h, 1).map_err(e)?;
     ds.set_geo_transform(&gt).map_err(e)?;
     ds.set_projection(wkt).map_err(e)?;
     let mut band = ds.rasterband(1).map_err(e)?;
@@ -1855,50 +1408,25 @@ fn polygonize(
     let srs = gis_order(SpatialRef::from_wkt(wkt).map_err(e)?);
     let vdrv = DriverManager::get_driver_by_name("Memory").map_err(e)?;
     let mut vds = vdrv.create_vector_only("").map_err(e)?;
-    let lyr = vds
-        .create_layer(LayerOptions {
-            name: "buildings",
-            srs: Some(&srs),
-            ty: gdal_sys::OGRwkbGeometryType::wkbPolygon,
-            options: None,
-        })
-        .map_err(e)?;
-    lyr.create_defn_fields(&[("label", gdal_sys::OGRFieldType::OFTInteger)])
-        .map_err(e)?;
+    let lyr = vds.create_layer(LayerOptions { name: "buildings", srs: Some(&srs), ty: gdal_sys::OGRwkbGeometryType::wkbPolygon, options: None }).map_err(e)?;
+    lyr.create_defn_fields(&[("label", gdal_sys::OGRFieldType::OFTInteger)]).map_err(e)?;
     let mask = unsafe { gdal_sys::GDALGetMaskBand(band.c_rasterband()) };
-    let err = unsafe {
-        gdal_sys::GDALPolygonize(
-            band.c_rasterband(),
-            mask,
-            lyr.c_layer(),
-            0,
-            std::ptr::null_mut(),
-            None,
-            std::ptr::null_mut(),
-        )
-    };
+    let err = unsafe { gdal_sys::GDALPolygonize(band.c_rasterband(), mask, lyr.c_layer(), 0, std::ptr::null_mut(), None, std::ptr::null_mut()) };
     if err != gdal_sys::CPLErr::CE_None {
-        return Err(format!(
-            "outlining buildings: {}",
-            crate::raster::last_error()
-        ));
+        return Err(format!("outlining buildings: {}", crate::raster::last_error()));
     }
     let mut lyr = vds.layer(0).map_err(e)?;
     let mut out: Vec<(i32, Vec<Vec<Vec<[f64; 2]>>>)> = Vec::new();
     for f in lyr.features() {
         let label = f.field_as_integer(0).ok().flatten().unwrap_or(0);
         let Some(geom) = f.geometry() else { continue };
-        let simple = geom
-            .simplify_preserve_topology(tolerance)
-            .unwrap_or_else(|_| geom.clone());
+        let simple = geom.simplify_preserve_topology(tolerance).unwrap_or_else(|_| geom.clone());
         let mut ll = simple.clone();
         if ll.transform_inplace(to_ll).is_err() {
             continue;
         }
         let Ok(wkb) = ll.wkb() else { continue };
-        let Ok(crate::wkb::Geom::Polygons(polys)) = crate::wkb::parse(&wkb) else {
-            continue;
-        };
+        let Ok(crate::wkb::Geom::Polygons(polys)) = crate::wkb::parse(&wkb) else { continue };
         match out.iter_mut().find(|(l, _)| *l == label) {
             Some((_, v)) => v.extend(polys),
             None => out.push((label, polys)),
@@ -1926,10 +1454,7 @@ mod tests {
             // a loop back to the inbox must not hang
             std::os::unix::fs::symlink(&inbox, inbox.join("survey-loop")).unwrap();
             let found = find_clouds(&inbox, 100);
-            assert!(
-                found.iter().any(|p| p.ends_with("survey/a.laz")),
-                "{found:?}"
-            );
+            assert!(found.iter().any(|p| p.ends_with("survey/a.laz")), "{found:?}");
             assert!(found.iter().any(|p| p.ends_with("b.laz")), "{found:?}");
         }
         let _ = std::fs::remove_dir_all(&d);
@@ -1940,11 +1465,7 @@ mod tests {
             .map(|i| {
                 let a = i.saturating_sub(r);
                 let b = (i + r).min(line.len() - 1);
-                let vals: Vec<f32> = line[a..=b]
-                    .iter()
-                    .copied()
-                    .filter(|v| !v.is_nan())
-                    .collect();
+                let vals: Vec<f32> = line[a..=b].iter().copied().filter(|v| !v.is_nan()).collect();
                 if vals.is_empty() {
                     f32::NAN
                 } else if max {
@@ -1960,9 +1481,7 @@ mod tests {
     fn running_extremes_match_brute_force() {
         let mut seed = 7u64;
         let mut rnd = || {
-            seed = seed
-                .wrapping_mul(6364136223846793005)
-                .wrapping_add(1442695040888963407);
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
             ((seed >> 33) % 1000) as f32 / 10.0
         };
         for len in [1usize, 2, 5, 17, 64] {
@@ -1977,10 +1496,7 @@ mod tests {
                     extreme_1d(&line, &mut out, r, max, &mut b, &mut g, &mut h);
                     let want = brute(&line, r, max);
                     for (o, w) in out.iter().zip(&want) {
-                        assert!(
-                            o == w || (w.is_nan() && o.is_infinite()),
-                            "len {len} r {r} max {max}: {out:?} vs {want:?}"
-                        );
+                        assert!(o == w || (w.is_nan() && o.is_infinite()), "len {len} r {r} max {max}: {out:?} vs {want:?}");
                     }
                 }
             }
@@ -2039,10 +1555,7 @@ mod tests {
             }
         }
         assert_eq!(on_bldg, 0, "{on_bldg} of {bldg} roof cells taken as ground");
-        assert!(
-            kept as f64 > 0.98 * open as f64,
-            "only {kept} of {open} open-ground cells kept"
-        );
+        assert!(kept as f64 > 0.98 * open as f64, "only {kept} of {open} open-ground cells kept");
     }
 
     #[test]
@@ -2050,13 +1563,7 @@ mod tests {
         let res = 0.5;
         let (w, h) = (120, 80);
         let mut chm = vec![0f32; w * h];
-        let trees: [(f64, f64, f64); 5] = [
-            (10.0, 10.0, 12.0),
-            (25.0, 12.0, 18.0),
-            (40.0, 30.0, 8.0),
-            (15.0, 30.0, 22.0),
-            (50.0, 12.0, 15.0),
-        ];
+        let trees: [(f64, f64, f64); 5] = [(10.0, 10.0, 12.0), (25.0, 12.0, 18.0), (40.0, 30.0, 8.0), (15.0, 30.0, 22.0), (50.0, 12.0, 15.0)];
         for &(tx, ty, th) in &trees {
             let cr = crown_radius(th);
             for y in 0..h {
@@ -2077,10 +1584,7 @@ mod tests {
         assert_eq!(tops.len(), trees.len(), "{tops:?}");
         for (i, ht) in &tops {
             let (mx, my) = ((i % w) as f64 * res + 0.25, (i / w) as f64 * res + 0.25);
-            let t = trees
-                .iter()
-                .find(|t| (t.0 - mx).abs() < 1.0 && (t.1 - my).abs() < 1.0)
-                .expect("top near a tree");
+            let t = trees.iter().find(|t| (t.0 - mx).abs() < 1.0 && (t.1 - my).abs() < 1.0).expect("top near a tree");
             assert!((*ht as f64 - t.2).abs() < 0.6, "height {ht} vs {}", t.2);
         }
         // a masked tree (inside a building footprint) is not reported
@@ -2089,10 +1593,7 @@ mod tests {
                 mask[y * w + x] = true;
             }
         }
-        assert_eq!(
-            tree_tops(&chm, w, h, res, 3.0, &mask).len(),
-            trees.len() - 1
-        );
+        assert_eq!(tree_tops(&chm, w, h, res, 3.0, &mask).len(), trees.len() - 1);
     }
 
     #[test]
@@ -2113,9 +1614,7 @@ mod tests {
         // a round crown 10 m tall, 4 m radius
         for y in 0..h {
             for x in 0..w {
-                let d = (((x as f64 + 0.5) * c - 30.0).powi(2)
-                    + ((y as f64 + 0.5) * c - 22.0).powi(2))
-                .sqrt();
+                let d = (((x as f64 + 0.5) * c - 30.0).powi(2) + ((y as f64 + 0.5) * c - 22.0).powi(2)).sqrt();
                 if d < 4.0 {
                     let z = (10.0 * (1.0 - (d / 4.0).powi(2))).max(0.0) as f32;
                     if z > chm[y * w + x] {
@@ -2126,15 +1625,9 @@ mod tests {
             }
         }
         let m = planar_buildings(&dsm, &chm, w, h, c);
-        let roof = (12..24)
-            .flat_map(|y| (12..32).map(move |x| (x, y)))
-            .filter(|(x, y)| m[y * w + x])
-            .count();
+        let roof = (12..24).flat_map(|y| (12..32).map(move |x| (x, y))).filter(|(x, y)| m[y * w + x]).count();
         assert!(roof > 200, "only {roof} of 240 roof cells found");
-        let crown = (40..48)
-            .flat_map(|y| (56..64).map(move |x| (x, y)))
-            .filter(|(x, y)| m[y * w + x])
-            .count();
+        let crown = (40..48).flat_map(|y| (56..64).map(move |x| (x, y))).filter(|(x, y)| m[y * w + x]).count();
         assert_eq!(crown, 0, "{crown} crown cells taken for a roof");
     }
 }

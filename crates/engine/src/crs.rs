@@ -1,7 +1,7 @@
 //! Coordinate systems from PROJ's database (View › Coordinate system): search by code, name or area,
 //! and a system's PROJ string so the web map can show coordinates in it (proj4js).
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::ffi::CStr;
 use std::sync::OnceLock;
 
@@ -15,11 +15,7 @@ pub struct CrsInfo {
 }
 
 fn text(p: *const std::ffi::c_char) -> String {
-    if p.is_null() {
-        String::new()
-    } else {
-        unsafe { CStr::from_ptr(p) }.to_string_lossy().to_string()
-    }
+    if p.is_null() { String::new() } else { unsafe { CStr::from_ptr(p) }.to_string_lossy().to_string() }
 }
 
 /// Every non-deprecated EPSG geographic and projected CRS (read once).
@@ -31,8 +27,7 @@ pub fn all() -> &'static [CrsInfo] {
         let mut n: std::ffi::c_int = 0;
         // SAFETY: the list is read and destroyed here; strings are copied out first.
         unsafe {
-            let list =
-                gdal_sys::OSRGetCRSInfoListFromDatabase(auth.as_ptr(), std::ptr::null(), &mut n);
+            let list = gdal_sys::OSRGetCRSInfoListFromDatabase(auth.as_ptr(), std::ptr::null(), &mut n);
             if list.is_null() {
                 return out;
             }
@@ -51,12 +46,7 @@ pub fn all() -> &'static [CrsInfo] {
                     name: text(c.pszName),
                     kind,
                     area: text(c.pszAreaName),
-                    bbox: (c.bBboxValid != 0).then_some([
-                        c.dfWestLongitudeDeg,
-                        c.dfSouthLatitudeDeg,
-                        c.dfEastLongitudeDeg,
-                        c.dfNorthLatitudeDeg,
-                    ]),
+                    bbox: (c.bBboxValid != 0).then_some([c.dfWestLongitudeDeg, c.dfSouthLatitudeDeg, c.dfEastLongitudeDeg, c.dfNorthLatitudeDeg]),
                 });
             }
             gdal_sys::OSRDestroyCRSInfoList(list);
@@ -73,9 +63,7 @@ pub fn search(q: &str, at: Option<(f64, f64)>, limit: usize) -> Value {
         .iter()
         .filter(|c| {
             let hay = format!("{} {} {}", c.code, c.name, c.area).to_lowercase();
-            words
-                .iter()
-                .all(|w| hay.contains(w.trim_start_matches("epsg:")))
+            words.iter().all(|w| hay.contains(w.trim_start_matches("epsg:")))
         })
         .map(|c| {
             let mut s = 0;
@@ -94,21 +82,13 @@ pub fn search(q: &str, at: Option<(f64, f64)>, limit: usize) -> Value {
             (s, c)
         })
         .collect();
-    hits.sort_by(|a, b| {
-        b.0.cmp(&a.0)
-            .then_with(|| a.1.code.len().cmp(&b.1.code.len()))
-    });
+    hits.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.code.len().cmp(&b.1.code.len())));
     json!({ "total": hits.len(), "systems": hits.iter().take(limit).map(|(_, c)| json!({ "code": format!("EPSG:{}", c.code), "name": c.name, "kind": c.kind, "area": c.area })).collect::<Vec<_>>() })
 }
 
 /// One system: its name and PROJ string (for proj4js), or an error for an unknown code.
 pub fn describe(code: &str) -> Result<Value, String> {
-    let n: u32 = code
-        .trim()
-        .trim_start_matches("EPSG:")
-        .trim_start_matches("epsg:")
-        .parse()
-        .map_err(|_| format!("'{code}' is not an EPSG code"))?;
+    let n: u32 = code.trim().trim_start_matches("EPSG:").trim_start_matches("epsg:").parse().map_err(|_| format!("'{code}' is not an EPSG code"))?;
     let srs = gdal::spatial_ref::SpatialRef::from_epsg(n).map_err(|e| format!("EPSG:{n}: {e}"))?;
     let proj4 = srs.to_proj4().map_err(|e| e.to_string())?;
     let info = all().iter().find(|c| c.code == n.to_string());
@@ -209,18 +189,8 @@ mod tests {
     fn finds_png_grids_and_describes_them() {
         crate::raster::configure_gdal();
         let r = search("PNG94 MG", Some((147.2, -9.4)), 20);
-        let codes: Vec<&str> = r["systems"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|s| s["code"].as_str().unwrap())
-            .collect();
-        assert!(
-            codes
-                .iter()
-                .any(|c| *c == "EPSG:5550" || *c == "EPSG:5551" || *c == "EPSG:5552"),
-            "{codes:?}"
-        );
+        let codes: Vec<&str> = r["systems"].as_array().unwrap().iter().map(|s| s["code"].as_str().unwrap()).collect();
+        assert!(codes.iter().any(|c| *c == "EPSG:5550" || *c == "EPSG:5551" || *c == "EPSG:5552"), "{codes:?}");
         let d = describe("EPSG:32755").unwrap();
         assert!(d["proj4"].as_str().unwrap().contains("+zone=55"));
         assert!(d["name"].as_str().unwrap().contains("UTM zone 55S"));
