@@ -159,7 +159,7 @@ fn geometry_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
 }
 
 /// A geometry in the layer's CRS → GeoJSON in WGS 84.
-fn geometry_out(g: &Geometry, srs: Option<&SpatialRef>) -> Result<Value, String> {
+pub(crate) fn geometry_out(g: &Geometry, srs: Option<&SpatialRef>) -> Result<Value, String> {
     let mut g = g.clone();
     if let Some(s) = srs.filter(|s| !catalog::is_wgs84(s)) {
         let mut src = s.clone();

@@ -29,6 +29,7 @@ pub mod geostats;
 pub mod guest;
 pub mod sensors;
 pub mod sta;
+pub mod sync;
 pub mod jobs;
 pub mod lidar;
 pub mod mvt;
