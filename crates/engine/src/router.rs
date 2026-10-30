@@ -908,8 +908,67 @@ impl Engine {
                 Err(e) => e,
             },
             ("PUT", ["api", "projects", slug]) if !guest => match self.named_project(slug) {
-                Ok(p) => self.project_put(&p, &req.body),
+                Ok(p) => {
+                    let kept = {
+                        let _g = self.project_lock.lock().unwrap();
+                        crate::collab::keep_version(&self.projects_dir(), slug)
+                    };
+                    match kept {
+                        Ok(_) => self.project_put(&p, &req.body),
+                        Err(e) => ApiResponse::error(500, format!("could not keep the previous version: {e}")),
+                    }
+                }
                 Err(e) => e,
+            },
+            // Review (collab.rs): version history and comments pinned to the map.
+            ("GET", ["api", "projects", slug, "history"]) if !guest => match self.named_project(slug) {
+                Ok(_) => ApiResponse::json(200, &json!({ "versions": crate::collab::versions(&self.projects_dir(), slug), "keep": crate::collab::KEEP })),
+                Err(e) => e,
+            },
+            ("GET", ["api", "projects", slug, "history", v]) if !guest => match self.named_project(slug) {
+                Ok(_) => match crate::collab::version(&self.projects_dir(), slug, v) {
+                    Ok(doc) => ApiResponse::json(200, &doc),
+                    Err(e) => ApiResponse::error(404, e),
+                },
+                Err(e) => e,
+            },
+            ("POST", ["api", "projects", slug, "history", v, "restore"]) if !guest => match self.named_project(slug) {
+                Ok(p) if p.exists() => {
+                    let _g = self.project_lock.lock().unwrap();
+                    match crate::collab::restore(&self.projects_dir(), slug, v) {
+                        Ok(r) => ApiResponse::json(200, &r),
+                        Err(e) => ApiResponse::error(404, e),
+                    }
+                }
+                Ok(_) => ApiResponse::error(404, format!("no project '{slug}'")),
+                Err(e) => e,
+            },
+            ("GET", ["api", "projects", slug, "comments"]) if !guest => match self.named_project(slug) {
+                Ok(_) => ApiResponse::json(200, &json!({ "comments": crate::collab::comments(&self.projects_dir(), slug) })),
+                Err(e) => e,
+            },
+            ("POST", ["api", "projects", slug, "comments"]) if !guest => match (self.named_project(slug), serde_json::from_slice::<serde_json::Value>(&req.body)) {
+                (Ok(p), _) if !p.exists() => ApiResponse::error(404, format!("no project '{slug}'")),
+                (Ok(_), Ok(body)) => {
+                    let _g = self.project_lock.lock().unwrap();
+                    match crate::collab::add_comment(&self.projects_dir(), slug, &body) {
+                        Ok(c) => ApiResponse::json(201, &c),
+                        Err(e) => ApiResponse::error(400, e),
+                    }
+                }
+                (Ok(_), Err(_)) => ApiResponse::error(400, "invalid JSON"),
+                (Err(e), _) => e,
+            },
+            ("POST", ["api", "projects", slug, "comments", id, action @ ("resolve" | "reopen")]) if !guest => match (self.named_project(slug), id.parse::<u64>()) {
+                (Ok(_), Ok(n)) => {
+                    let _g = self.project_lock.lock().unwrap();
+                    match crate::collab::resolve(&self.projects_dir(), slug, n, *action == "resolve") {
+                        Ok(r) => ApiResponse::json(200, &r),
+                        Err(e) => ApiResponse::error(404, e),
+                    }
+                }
+                (Ok(_), Err(_)) => ApiResponse::error(400, format!("'{id}' is not a comment id")),
+                (Err(e), _) => e,
             },
             ("DELETE", ["api", "projects", slug]) if !guest => match self.named_project(slug) {
                 Ok(p) => match std::fs::remove_file(&p) {
