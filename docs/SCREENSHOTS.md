@@ -31,7 +31,7 @@ Retaken 30 October 2026 (PGT) from main, 1600x960 at 2x, dark theme, all in Pro 
 | plugin-climate.png | 462 coastal cells | 2,529 land cells, flood exposure | README, USER_GUIDE, site |
 | plugin-conservation.png | 10 km hexes, 35 of 176 | 8 km grid, 68 of 740 cells, GEBCO | README, USER_GUIDE, site |
 | plugin-disaster.png | Slope 4, relief 2, tree 1 | Slope 3, relief 2, tree 1 | README, USER_GUIDE, site |
-| plugin-environment.png | 38.9 km, 882 samples | 39.1 km, 634 samples, 0 to 1,730 m | README, USER_GUIDE, site |
+| plugin-environment.png | 38.9 km, 882 samples | Profile chart panel (distance vs elevation, min/max/climb), A Lae coast to B Saruwaged Range, km ticks, place labels, elevation ramp legend; 39.1 km, 0 to 1,726 m | README, USER_GUIDE, site |
 | plugin-forestry.png | 136 patches, 33 links | 69 patches ≥ 20 ha, core 300 m (83.7 %) | README, USER_GUIDE, site |
 | plugin-geoscience.png | Slope zones | Slope zones 41 / 23 / 36 % | README, USER_GUIDE, site |
 | plugin-hydrology.png | Streams and basins | Wet ground suitability on land cells | README, USER_GUIDE, site |

@@ -1,0 +1,31 @@
+{
+"type": "FeatureCollection",
+"features": [
+{
+"type": "Feature",
+"properties": {
+"name": "Lae"
+},
+"geometry": {
+"type": "Point",
+"coordinates": [
+147.0008,
+-6.7301
+]
+}
+},
+{
+"type": "Feature",
+"properties": {
+"name": "Markham River mouth"
+},
+"geometry": {
+"type": "Point",
+"coordinates": [
+146.9696,
+-6.7457
+]
+}
+}
+]
+}

@@ -94,7 +94,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
       small: ['analyze.tool.dissolve', 'analyze.tool.merge', 'analyze.tool.join', 'analyze.tool.near', 'analyze.tool.summarize', 'analyze.zonal'],
     },
     { group: 'Network', big: ['analyze.servicearea'], small: ['analyze.closest', 'analyze.route'] },
-    { group: 'Spatial statistics', big: ['analyze.hotspots'], small: ['analyze.charts'] },
+    { group: 'Spatial statistics', big: ['analyze.hotspots'], small: ['analyze.charts', 'analyze.profile'] },
     { group: 'Interpolation', big: ['analyze.kriging'], small: ['modelling.rkrige'] },
     { group: 'Assistant', big: ['analyze.ask'], small: ['analyze.askModel'] },
   ],
