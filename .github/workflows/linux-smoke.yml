@@ -54,7 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { distro: "ubuntu:22.04", kind: deb, suffix: ubuntu22.04, setup: "apt-get install -y -q --no-install-recommends software-properties-common gpg-agent && add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable && bash scripts/setup-linux.sh" }
+          - { distro: "ubuntu:22.04", kind: deb, suffix: ubuntu22.04, setup: "apt-get install -y -q --no-install-recommends software-properties-common gpg-agent && add-apt-repository -y ppa:ubuntugis/ppa && bash scripts/setup-linux.sh" }
           - { distro: "ubuntu:24.04", kind: deb, suffix: ubuntu24.04, setup: "bash scripts/setup-linux.sh" }
           - { distro: "debian:12", kind: deb, suffix: debian12, setup: "bash scripts/setup-linux.sh" }
           - { distro: "debian:13", kind: deb, suffix: debian13, setup: "bash scripts/setup-linux.sh" }
@@ -118,7 +118,7 @@ jobs:
         run: |
           P=$(ls dist/*.${{ matrix.kind }})
           if command -v apt-get >/dev/null; then
-            [ "${{ matrix.suffix }}" = ubuntu22.04 ] && { apt-get install -y -q --no-install-recommends software-properties-common gpg-agent && add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable; }
+            [ "${{ matrix.suffix }}" = ubuntu22.04 ] && { apt-get install -y -q --no-install-recommends software-properties-common gpg-agent && add-apt-repository -y ppa:ubuntugis/ppa; }
             apt-get install -y -q --no-install-recommends "./$P"
           elif command -v dnf >/dev/null; then dnf install -y -q "./$P"
           else zypper -n -q install --allow-unsigned-rpm "./$P"; fi
