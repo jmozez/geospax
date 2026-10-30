@@ -149,11 +149,10 @@ pub fn open(engine: &Arc<Engine>, svc: &Value, sub: &str, approve_code: bool) ->
         Some("recipe") => {
             let body = crate::raster::http(&url, None, 60)?;
             let text = String::from_utf8(body).map_err(|_| format!("{name} is not a text file"))?;
-            if let Ok(r) = crate::automation::recipe::Recipe::parse(&text, crate::automation::recipe::Origin::Api) {
-                if r.has_code_steps() && !approve_code {
+            if let Ok(r) = crate::automation::recipe::Recipe::parse(&text, crate::automation::recipe::Origin::Api)
+                && r.has_code_steps() && !approve_code {
                     return Err(format!("{CODE_RECIPE}: {name}"));
                 }
-            }
             let (r, _) = engine.automation.save_user(&text).map_err(|e| e.join("; "))?;
             Ok(json!({ "layers": [], "rasters": [], "recipe": r.summary_json() }))
         }

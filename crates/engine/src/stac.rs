@@ -115,7 +115,7 @@ pub fn add_asset(engine: &Arc<Engine>, href: &str, id: &str, title: &str, stream
             let dir = e.state_dir.join("stac");
             std::fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
             let out = dir.join(format!("{rid}.tif"));
-            let tmp = dir.join(format!("{rid}.part.tif"));
+            let tmp = dir.join(format!("{rid}.cut.tif"));
             let mut args = crate::raster::strings(&["-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "TILED=YES", "-overwrite"]);
             if let Some(b) = bbox {
                 args.extend(["-te_srs".into(), "EPSG:4326".into(), "-te".into(), b[0].to_string(), b[1].to_string(), b[2].to_string(), b[3].to_string()]);
@@ -134,7 +134,15 @@ pub fn add_asset(engine: &Arc<Engine>, href: &str, id: &str, title: &str, stream
                 }
                 !j.cancel.load(Ordering::Relaxed)
             })?);
-            std::fs::rename(&tmp, &out).map_err(|err| err.to_string())?;
+            if crate::raster::cog_enabled() {
+                // the cut is rewritten as a COG so it can be re-served or shared as is
+                let cut = crate::raster::open(&tmp)?;
+                crate::raster::save_gtiff(&cut, &out, false)?;
+                drop(cut);
+                let _ = std::fs::remove_file(&tmp);
+            } else {
+                std::fs::rename(&tmp, &out).map_err(|err| err.to_string())?;
+            }
             let h = e.register_raster(&out, &rid)?;
             Ok(json!({ "rasters": [h.info.id.clone()], "path": out.display().to_string() }))
         })();
