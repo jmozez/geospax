@@ -915,6 +915,20 @@ Calculate, Add field, Delete and Export as the ribbon.
 The engine's API does the same for scripts: `POST /api/layers/{id}/select`, `…/table`, `…/calculate`,
 `…/features`, `PUT …/filter` ([README](../README.md), section API).
 
+### SQL across layers
+
+**Analyze › SQL** runs one read-only query across every layer on the map, even when they come from different files (a GeoPackage, a shapefile and a CSV in one join). It uses GDAL's SQLite dialect with SpatiaLite functions. Name a layer by its id in double quotes (click a layer name above the editor to insert it):
+
+```sql
+SELECT p.province, count(*) AS clinics
+FROM "clinics" c JOIN "provinces" p ON ST_Intersects(c.geometry, p.geometry)
+GROUP BY p.province
+```
+
+A result without geometry shows as a table (the first 5,000 rows). A result with geometry is saved to `outputs/sql/<name>.gpkg` and joins Contents as `sql.<name>`. Only `SELECT` and `WITH` statements run; writes, `ATTACH`, `PRAGMA` and file paths are refused. The same query is `POST /api/sql` with `{"sql": "...", "name": "..."}`. Definition queries on a layer are not applied inside SQL; add a `WHERE` instead.
+
+The query engine is GDAL's SQLite dialect, not DuckDB. A DuckDB engine (for very large GeoParquet) is a later step.
+
 ## 5b. LiDAR point clouds
 
 Put the `.las` or `.laz` files from a drone LiDAR survey (exported from DJI Terra, Pix4D and the like), an aircraft
