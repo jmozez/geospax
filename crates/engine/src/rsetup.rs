@@ -124,11 +124,10 @@ if (is.null(ap) || nrow(ap) == 0) cat("GSXERR", "the package list could not be r
 
 /// Where binaries come from: CRAN (Windows, macOS) or Posit Public Package Manager (Linux).
 fn repo() -> String {
-    if cfg!(target_os = "linux") {
-        if let Some(distro) = ppm_distro(&std::fs::read_to_string("/etc/os-release").unwrap_or_default()) {
+    if cfg!(target_os = "linux")
+        && let Some(distro) = ppm_distro(&std::fs::read_to_string("/etc/os-release").unwrap_or_default()) {
             return format!("https://packagemanager.posit.co/cran/__linux__/{distro}/latest");
         }
-    }
     "https://cloud.r-project.org".into()
 }
 
@@ -414,6 +413,23 @@ fn install_r(downloads: &Path) -> Result<(), String> {
     }
 }
 
+/// Every package name in the repository (for suggestions as the user types), read once per run.
+pub fn available() -> Result<Value, String> {
+    static CACHE: std::sync::Mutex<Option<Vec<String>>> = std::sync::Mutex::new(None);
+    if let Some(v) = CACHE.lock().unwrap().as_ref() {
+        return Ok(json!({ "packages": v }));
+    }
+    let (cmd, _) = sidecar::find(Lang::R).ok_or("R is not installed")?;
+    let script = format!("options(repos = c(CRAN = {}), timeout = 120)\ncat(rownames(utils::available.packages()), sep = \"\\n\")\n", rs(&repo()));
+    let out = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).output().map_err(|e| e.to_string())?;
+    let names: Vec<String> = String::from_utf8_lossy(&out.stdout).lines().map(str::trim).filter(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')).map(str::to_string).collect();
+    if names.is_empty() {
+        return Err(format!("could not read the package list from {}", repo()));
+    }
+    *CACHE.lock().unwrap() = Some(names.clone());
+    Ok(json!({ "packages": names }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -433,21 +449,4 @@ mod tests {
         assert_eq!(newest_link(html, "R-", "-win.exe").as_deref(), Some("R-4.5.1-win.exe"));
         assert_eq!(packages_of(&["maps".into(), "lidR".into()]), ["tmap", "ggplot2", "ggspatial", "patchwork", "viridisLite", "lidR"]);
     }
-}
-
-/// Every package name in the repository (for suggestions as the user types), read once per run.
-pub fn available() -> Result<Value, String> {
-    static CACHE: std::sync::Mutex<Option<Vec<String>>> = std::sync::Mutex::new(None);
-    if let Some(v) = CACHE.lock().unwrap().as_ref() {
-        return Ok(json!({ "packages": v }));
-    }
-    let (cmd, _) = sidecar::find(Lang::R).ok_or("R is not installed")?;
-    let script = format!("options(repos = c(CRAN = {}), timeout = 120)\ncat(rownames(utils::available.packages()), sep = \"\\n\")\n", rs(&repo()));
-    let out = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).output().map_err(|e| e.to_string())?;
-    let names: Vec<String> = String::from_utf8_lossy(&out.stdout).lines().map(str::trim).filter(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')).map(str::to_string).collect();
-    if names.is_empty() {
-        return Err(format!("could not read the package list from {}", repo()));
-    }
-    *CACHE.lock().unwrap() = Some(names.clone());
-    Ok(json!({ "packages": names }))
 }

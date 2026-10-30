@@ -583,7 +583,7 @@ impl Scene {
                 acc.vert([p[0], p[1], top], roof_c);
             }
             let pt = |i: usize| [flat[2 * i], flat[2 * i + 1]];
-            for t in tris.chunks_exact(3) {
+            for t in tris.as_chunks::<3>().0 {
                 let (a, b2, c) = (pt(t[0]), pt(t[1]), pt(t[2]));
                 let ccw = (b2[0] - a[0]) * (c[1] - a[1]) - (b2[1] - a[1]) * (c[0] - a[0]) > 0.0;
                 let (i0, i1, i2) = (v + t[0] as u16, v + t[1] as u16, v + t[2] as u16);
@@ -726,7 +726,7 @@ impl Scene {
         }
         impl Buf {
             fn view(&mut self, bytes: &[u8], target: Option<u32>) -> usize {
-                while self.bin.len() % 4 != 0 {
+                while !self.bin.len().is_multiple_of(4) {
                     self.bin.push(0);
                 }
                 let mut v = json!({ "buffer": 0, "byteOffset": self.bin.len(), "byteLength": bytes.len() });
@@ -831,7 +831,7 @@ impl Scene {
             js.push(b' ');
         }
         let mut bin = b.bin;
-        while bin.len() % 4 != 0 {
+        while !bin.len().is_multiple_of(4) {
             bin.push(0);
         }
         let total = 12 + 8 + js.len() + 8 + bin.len();
@@ -944,7 +944,7 @@ impl Scene {
                 continue;
             }
             let tex = p.texture.and_then(|t| self.textures.get(t));
-            for t in p.idx.chunks_exact(3) {
+            for t in p.idx.as_chunks::<3>().0 {
                 let (ia, ib, ic) = (t[0] as usize, t[1] as usize, t[2] as usize);
                 let (Some(a), Some(b), Some(c)) = (sv[ia], sv[ib], sv[ic]) else { continue };
                 let area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
@@ -1189,7 +1189,7 @@ mod tests {
                     assert_eq!(a["componentType"], 5123);
                     let bv = &doc["bufferViews"][a["bufferView"].as_u64().unwrap() as usize];
                     let o = bv["byteOffset"].as_u64().unwrap() as usize;
-                    let idx: Vec<u16> = bin[o..o + a["count"].as_u64().unwrap() as usize * 2].chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+                    let idx: Vec<u16> = bin[o..o + a["count"].as_u64().unwrap() as usize * 2].as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
                     assert!(idx.iter().all(|i| (*i as usize) < count && *i != u16::MAX));
                     assert_eq!(idx.len() % 3, 0);
                 }
@@ -1212,7 +1212,7 @@ mod tests {
         let b = s.prims.iter().find(|p| p.group == "buildings").unwrap();
         let mut roof = 0.0;
         let mut walls_up = 0;
-        for t in b.idx.chunks_exact(3) {
+        for t in b.idx.as_chunks::<3>().0 {
             let (p, q, r) = (b.pos[t[0] as usize], b.pos[t[1] as usize], b.pos[t[2] as usize]);
             // heights are from the base (the lowest ground, 50 m): the roof is at 9 m
             let top = (p[2] - 9.0).abs() < 1e-3 && (q[2] - 9.0).abs() < 1e-3 && (r[2] - 9.0).abs() < 1e-3;
@@ -1277,7 +1277,7 @@ mod tests {
         // every wall faces away from the data: its outward normal points to a no-data side
         let surf = &s.surface;
         for p in &sides {
-            for q in p.pos.chunks_exact(4) {
+            for q in p.pos.as_chunks::<4>().0 {
                 let (a, b) = (q[0], q[1]);
                 let mid = [(a[0] + b[0]) as f64 / 2.0, (a[1] + b[1]) as f64 / 2.0];
                 let nrm = normalize([(b[1] - a[1]) as f64, -(b[0] - a[0]) as f64, 0.0]);
