@@ -460,6 +460,11 @@ const EXTRA_COMMANDS: Command[] = [
   { id: 'analyze.profile', tab: 'analyze', group: 'Spatial statistics', title: 'Profile chart', icon: 'lineChart', hint: 'Elevation profile chart (distance against elevation) of profile points, with A and B and km ticks on the map', run: xCmd('profile') },
   { id: 'view.swipe', tab: 'view', group: 'Compare', title: 'Swipe', icon: 'swipe', big: true, hint: 'Drag a divider to see the map with and without the selected layer', run: xCmd('swipe') },
   { id: 'view.spyglass', tab: 'view', group: 'Compare', title: 'Spyglass', icon: 'search', hint: 'A lens around the pointer shows the map without the selected layer', run: xCmd('spyglass') },
+  {
+    id: 'view.gpupoints', tab: 'view', group: 'Projection', title: 'GPU points', icon: 'speed',
+    hint: 'Draw the selected point layer with deck.gl on the GPU (Arrow stream) for millions of points; run again to switch back',
+    run: (h) => void import('./gpupoints').then((m) => m.toggleGpuPoints(h)),
+  },
   { id: 'view.time', tab: 'view', group: 'Time', title: 'Time slider', icon: 'clock', big: true, hint: 'Step the selected layer through time by a date or year field', run: xCmd('time') },
   { id: 'view.grid', tab: 'view', group: 'Map grid', title: 'Grid', icon: 'grid', hint: 'Latitude and longitude lines with labels', run: xCmd('grid') },
   { id: 'view.scale', tab: 'view', group: 'Map grid', title: 'Go to scale', icon: 'ruler', hint: 'Zoom to a map scale such as 1:50 000', run: xCmd('scale') },
@@ -476,6 +481,11 @@ const EXTRA_COMMANDS: Command[] = [
   { id: 'edit.copyalong', tab: 'edit', group: 'Clipboard', title: 'Copy along line', icon: 'polarArray', hint: 'Copies of the selected feature at equal steps along a line', run: editCmd('copy-along') },
   { id: 'edit.trace', tab: 'edit', group: 'Create', title: 'Trace', icon: 'curve', hint: 'New edges follow existing features between snapped vertices (on/off)', run: editCmd('trace') },
   { id: 'edit.gps', tab: 'edit', group: 'Create', title: 'GPS point', icon: 'pin', hint: 'A point at the newest live GPS position (phone or GNSS receiver)', run: editCmd('gps-point') },
+  {
+    id: 'edit.fieldsync', tab: 'edit', group: 'Fields', title: 'Field sync', icon: 'form',
+    hint: 'Package a layer for offline field work (USB, laptop, phone) and merge the field copy back, with conflicts to review',
+    run: (h) => void import('./fieldsync').then((m) => m.openFieldSync(h)),
+  },
   { id: 'edit.rules', tab: 'edit', group: 'Fields', title: 'Attribute rules', icon: 'form', hint: 'Value lists, defaults and required fields for consistent data', run: editCmd('rules') },
   tool('edit.topology', 'edit', 'Manage edits', 'Check topology', 'topology', ['r:check-topology'], 'Find overlaps, gaps and invalid polygons'),
   // ---- Design
@@ -667,6 +677,11 @@ export const COMMANDS: Command[] = [
     id: 'home.open', tab: 'home', group: 'Project', title: 'Open project', icon: 'folder', big: true,
     hint: 'Open one of your saved projects', keys: 'Ctrl+O',
     run: project('open'),
+  },
+  {
+    id: 'home.review', tab: 'share', group: 'Publish', title: 'Review', icon: 'form',
+    hint: 'Comments pinned to the map and the version history of this named project, for a team sharing one server',
+    run: (h) => void import('./review').then((m) => m.openReview(h)),
   },
   {
     id: 'home.saveAs', tab: 'home', group: 'Project', title: 'Save as', icon: 'save',
