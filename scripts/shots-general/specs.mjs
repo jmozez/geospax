@@ -75,7 +75,7 @@ export default [
             'lae_profile_places_w.geojson': { symbology: { kind: 'single', color: '#ffffff' }, point: { shape: 'diamond', size: 9, strokeColor: '#111', strokeWidth: 1.2 }, opacity: 1,
               labels: { on: true, field: 'name', font: 'bold', size: 13, color: '#ffffff', haloColor: '#000000', haloWidth: 1.8, anchor: 'left', offset: [0, 0], placement: 'point', overlap: true, minzoom: 0, maxzoom: 24, wrap: 0, transform: 'none', letterSpacing: 0 } },
             'lae_profile_places_e.geojson': { symbology: { kind: 'single', color: '#ffffff' }, point: { shape: 'diamond', size: 9, strokeColor: '#111', strokeWidth: 1.2 }, opacity: 1,
-              labels: { on: true, field: 'name', font: 'bold', size: 13, color: '#ffffff', haloColor: '#000000', haloWidth: 1.8, anchor: 'right', offset: [0, 0], placement: 'point', overlap: true, minzoom: 0, maxzoom: 24, wrap: 0, transform: 'none', letterSpacing: 0 } } },
+              labels: { on: true, field: 'name', font: 'bold', size: 13, color: '#ffffff', haloColor: '#000000', haloWidth: 1.8, anchor: 'right', offset: [0.9, 0], placement: 'point', overlap: true, minzoom: 0, maxzoom: 24, wrap: 0, transform: 'none', letterSpacing: 0 } } },
    view: { center: [146.98, -6.62], zoom: 10 }, focus: 'markham-transect-profile-points-20261029-223420.geojson',
    extra: async (p) => { await p.evaluate(() => document.dispatchEvent(new CustomEvent('geospax:profile', { detail: { reverse: true, a: 'Lae coast, Huon Gulf', b: 'Saruwaged Range' } }))); await p.waitForTimeout(2500);
      const b = await p.locator('.gx-profile svg').boundingBox(); if (b) await p.mouse.move(b.x + b.width * 0.36, b.y + b.height * 0.5); } },
