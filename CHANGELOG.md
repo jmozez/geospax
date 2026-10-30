@@ -6,6 +6,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased]
 
 ### Added
+- Raster results and STAC downloads are written as cloud-optimised GeoTIFFs (COG) with internal overviews by default; `GEOSPAX_RASTER_COG=0` restores plain GeoTIFF.
 - Analysis › Profile chart: a distance-against-elevation panel for profile point layers, with min, max, relief, total climb and descent, an elevation legend, A/B ends, km ticks on the map and a hover marker linking chart and map.
 
 ### Changed
