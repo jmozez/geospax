@@ -59,13 +59,12 @@ pub fn find(lang: Lang) -> Option<(String, String)> {
         list.extend(windows_r_installs());
     }
     for cmd in list {
-        if let Ok(out) = crate::command(&cmd).arg("--version").stdin(Stdio::null()).output() {
-            if out.status.success() {
+        if let Ok(out) = crate::command(&cmd).arg("--version").stdin(Stdio::null()).output()
+            && out.status.success() {
                 let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
                 let version = text.lines().next().unwrap_or("").trim().to_string();
                 return Some((cmd, version));
             }
-        }
     }
     None
 }

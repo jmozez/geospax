@@ -732,18 +732,15 @@ fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<Ste
         }
         args.extend(["-tr".into(), res.to_string(), res.to_string()]);
         // clip: true with a polygon layer as the area: cells outside its polygons are left empty
-        if p.get("clip").and_then(Value::as_bool) == Some(true) {
-            if let Some(Value::String(id)) = p.get("aoi") {
-                if let Ok(l) = sc.layer(id) {
-                    if l.info.geometry == GeomKind::Polygon {
+        if p.get("clip").and_then(Value::as_bool) == Some(true)
+            && let Some(Value::String(id)) = p.get("aoi")
+                && let Ok(l) = sc.layer(id)
+                    && l.info.geometry == GeomKind::Polygon {
                         args.extend(["-cutline".into(), l.info.source.clone(), "-cl".into(), l.info.name.clone()]);
                         if k == 0 {
                             why.push(format!("cut to the polygons of {}", sc.title_of(&l)));
                         }
                     }
-                }
-            }
-        }
         let refs: Vec<&gdal::Dataset> = srcs.iter().collect();
         let cancel = sc.cancel;
         drop(raster::warp_progress(&refs, &tmp.to_string_lossy(), &args, |f| {
@@ -759,7 +756,7 @@ fn rasters(sc: &mut StepCtx, p: &Value, source: &str, t0: Instant) -> Result<Ste
         }
         // loss year: the year itself (2001–2025), no loss left empty, so the legend reads in years
         if r.kind == "lossyear" {
-            recode(&tmp, |v| if v >= 1.0 && v <= 99.0 { 2000.0 + v } else { -9999.0 })?;
+            recode(&tmp, |v| if (1.0..=99.0).contains(&v) { 2000.0 + v } else { -9999.0 })?;
         }
         std::fs::rename(&tmp, &out).map_err(|e| e.to_string())?;
         let credit = match source {

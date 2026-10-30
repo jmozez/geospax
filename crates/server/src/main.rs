@@ -182,7 +182,8 @@ const SERVER_USAGE: &str = "geospax-server: the GeoSpaX web edition (and the com
 
 usage: geospax-server [options]                 serve the app at http://localhost:8080
        geospax-server run|check|watch|recipes|steps ...   recipes without a web server (see below)
-       geospax-server mcp [--data DIR] [--state-dir DIR]  GeoSpaX's tools for AI assistants (MCP over stdio)
+       geospax-server mcp [--data DIR] [--state-dir DIR] [--read-only] [--tools a,b] [--audit FILE]
+                                                           GeoSpaX's tools for AI assistants (MCP over stdio)
 
 options:
   --data DIR|FILE        GIS data to serve (repeatable; default ./data)
@@ -228,7 +229,21 @@ fn usage_exit(msg: &str) -> ! {
 /// `geospax-server mcp …`: the assistant's tools for MCP clients (Claude Desktop, Claude Code, editors).
 /// stdout carries only MCP messages; everything else goes to stderr. No devices, triggers or web server.
 fn mcp(argv: Vec<String>) -> i32 {
-    let mut a = parse_args_from(argv);
+    let mut policy = geospax_engine::ai::McpPolicy {
+        read_only: std::env::var("GEOSPAX_MCP_READ_ONLY").is_ok_and(|v| v == "1"),
+        ..Default::default()
+    };
+    let mut rest = Vec::new();
+    let mut it = argv.into_iter();
+    while let Some(k) = it.next() {
+        match k.as_str() {
+            "--read-only" => policy.read_only = true,
+            "--tools" => policy.allow = Some(it.next().unwrap_or_else(|| usage_exit("missing value for --tools")).split(',').map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect()),
+            "--audit" => policy.audit = Some(it.next().unwrap_or_else(|| usage_exit("missing value for --audit")).into()),
+            _ => rest.push(k),
+        }
+    }
+    let mut a = parse_args_from(rest);
     a.cfg.devices.scan_mounts = false;
     a.cfg.automation.triggers = false;
     let engine = match Engine::open(a.cfg) {
@@ -240,7 +255,7 @@ fn mcp(argv: Vec<String>) -> i32 {
     };
     eprintln!("geospax mcp: {} layers, {} rasters; waiting for an MCP client on stdin", engine.layers().len(), engine.rasters().len());
     let stdin = std::io::stdin();
-    match geospax_engine::ai::mcp_serve(&engine, stdin.lock(), std::io::stdout().lock()) {
+    match geospax_engine::ai::mcp_serve_with(&engine, &policy, stdin.lock(), std::io::stdout().lock()) {
         Ok(()) => 0,
         Err(e) => {
             eprintln!("geospax mcp: {e}");

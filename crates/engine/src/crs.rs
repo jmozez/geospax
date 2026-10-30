@@ -70,12 +70,11 @@ pub fn search(q: &str, at: Option<(f64, f64)>, limit: usize) -> Value {
             if words.len() == 1 && c.code == words[0].trim_start_matches("epsg:") {
                 s += 1000;
             }
-            if let (Some((lon, lat)), Some(b)) = (at, c.bbox) {
-                if lon >= b[0] && lon <= b[2] && lat >= b[1] && lat <= b[3] {
+            if let (Some((lon, lat)), Some(b)) = (at, c.bbox)
+                && lon >= b[0] && lon <= b[2] && lat >= b[1] && lat <= b[3] {
                     // the smaller the area of use, the better it fits the place
                     s += 100 - (((b[2] - b[0]) * (b[3] - b[1])).sqrt() as i32).min(99);
                 }
-            }
             if c.kind == "projected" {
                 s += 1;
             }
