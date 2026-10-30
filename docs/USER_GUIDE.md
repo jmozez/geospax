@@ -495,6 +495,12 @@ in `<state>/.geospax/plugins`; `--plugins DIR` adds a folder you are developing 
 script that reads a JSON request on stdin and prints JSON back. Full contract, runtimes and the
 honest compatibility table: [PLUGINS.md](PLUGINS.md).
 
+### GPU points for big point layers
+
+Vector tiles are the right default, but a layer of millions of points (LiDAR ground returns, AIS pings, GBIF records) can still stutter on a modest laptop. Select the layer in Contents and press **View › GPU points**. GeoSpaX streams its coordinates once as Apache Arrow (`GET /api/layers/{id}/arrow`) and deck.gl draws them on the GPU over the MapLibre map, in the layer's colour; MapLibre keeps the basemap and every other layer. Press it again to switch the layer back to vector tiles.
+
+It is off by default and per layer. Current limits: point layers only; one colour and size (no classified symbology, labels or identify while it is on); deck.gl uses WebGL2, not WebGPU yet. Help › Diagnostics › *Arrow → deck.gl* times the same path.
+
 ## 2d. Guided tours: make every showcase map
 
 Every picture in the README and on the site was made inside GeoSpaX on open data. This section walks
