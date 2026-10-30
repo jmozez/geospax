@@ -133,14 +133,13 @@ fn geometry_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
         // allowed (the user may still be shaping it) but say so in the server log
         eprintln!("edit: invalid geometry saved as drawn");
     }
-    if let Some(srs) = lyr.spatial_ref() {
-        if !catalog::is_wgs84(&srs) {
+    if let Some(srs) = lyr.spatial_ref()
+        && !catalog::is_wgs84(&srs) {
             let mut dst = srs.clone();
             dst.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
             let ct = CoordTransform::new(&wgs84()?, &dst).map_err(gerr)?;
             geom.transform_inplace(&ct).map_err(gerr)?;
         }
-    }
     let want = gdal::vector::geometry_type_flatten(lyr.defn().geometry_type());
     let have = gdal::vector::geometry_type_flatten(geom.geometry_type());
     let multi = match (want, have) {
@@ -330,11 +329,10 @@ impl Engine {
     /// Re-attach edit copies and new layers from earlier sessions (called once at start).
     pub fn load_edits(&self) {
         for (id, e) in self.edit_index() {
-            if e.copy.is_file() {
-                if let Err(err) = self.reload_layer(&id, &e.copy, &e.layer, &e.name) {
+            if e.copy.is_file()
+                && let Err(err) = self.reload_layer(&id, &e.copy, &e.layer, &e.name) {
                     eprintln!("warning: edited copy of {id} not loaded: {err}");
                 }
-            }
         }
     }
 
@@ -356,7 +354,7 @@ impl Engine {
     }
 
     fn reload(&self, l: &LayerHandle) -> Result<Arc<LayerHandle>, String> {
-        self.reload_layer(&l.info.id, &l.path().to_path_buf(), &l.layer_name().to_string(), &l.info.name.clone())
+        self.reload_layer(&l.info.id, l.path(), l.layer_name(), &l.info.name.clone())
     }
 
     /// The layer, made editable: the first call copies it into `<state>/edits` (see module docs).
@@ -613,11 +611,10 @@ impl Engine {
                     }
                     let Some(g) = feat.geometry() else { continue };
                     let mut g = g.clone();
-                    if let Some(ct) = &to {
-                        if g.transform_inplace(&ct.0).is_err() {
+                    if let Some(ct) = &to
+                        && g.transform_inplace(&ct.0).is_err() {
                             continue;
                         }
-                    }
                     let Ok(bytes) = g.wkb() else { continue };
                     let Ok(geom) = wkb::parse(&bytes) else { continue };
                     let (a, len, p) = measure(&geom);
@@ -1025,33 +1022,6 @@ fn count_dialect(ds: &Dataset, sql: &str, d: Dialect) -> Result<u64, String> {
     Ok(n.max(0) as u64)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn geodesic_measures() {
-        // a 1° × 1° cell at the equator: 12,363.7 km² on the sphere (R = 6,371,008.8 m)
-        let sq = Geom::Polygons(vec![vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]]]);
-        let (a, p, _) = measure(&sq);
-        let exact = EARTH_R * EARTH_R * 1f64.to_radians() * (1f64.to_radians().sin());
-        assert!((a - exact).abs() / exact < 1e-9, "{a} vs {exact}");
-        assert!((p / 1000.0 - 444.7).abs() < 0.5, "perimeter {p}");
-        // 1° of longitude along the equator: 111.195 km
-        let l = Geom::Lines(vec![vec![[0.0, 0.0], [1.0, 0.0]]]);
-        assert!((measure(&l).1 - 111_195.08).abs() < 0.1);
-    }
-
-    #[test]
-    fn sql_quoting() {
-        assert_eq!(ident("a\"b"), "\"a\"\"b\"");
-        assert_eq!(tidy("CPL error class: '3', error number: '1', error msg: 'In ExecuteSQL(): sqlite3_prepare_v2(SELECT x):\n  no such column: x'"), "no such column: x");
-        assert_eq!(literal("O'Neil"), "'O''Neil'");
-        assert_eq!(Engine::scope_sql("fid", Some("x > 1"), Some(&[3, 4])), " WHERE (x > 1) AND \"fid\" IN (3,4)");
-        assert_eq!(Engine::scope_sql("fid", None, Some(&[])), " WHERE \"fid\" IN (NULL)");
-    }
-}
-
 // ---------------------------------------------------------------- geometry edits (Edit › Modify)
 
 /// A geometry GEOS made through the OGR C API, copied into an owned `Geometry` (via WKB) and the
@@ -1095,14 +1065,13 @@ fn parts(g: &Geometry) -> Vec<Geometry> {
 /// A sketch (GeoJSON in WGS 84) in the layer's CRS, its type kept.
 fn sketch_in<L: LayerAccess>(lyr: &L, g: &Value) -> Result<Geometry, String> {
     let mut geom = Geometry::from_geojson(&g.to_string()).map_err(|e| format!("bad sketch: {e}"))?;
-    if let Some(srs) = lyr.spatial_ref() {
-        if !catalog::is_wgs84(&srs) {
+    if let Some(srs) = lyr.spatial_ref()
+        && !catalog::is_wgs84(&srs) {
             let mut dst = srs.clone();
             dst.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
             let ct = CoordTransform::new(&wgs84()?, &dst).map_err(gerr)?;
             geom.transform_inplace(&ct).map_err(gerr)?;
         }
-    }
     Ok(geom)
 }
 
@@ -1380,5 +1349,32 @@ impl Engine {
         });
         let _ = std::fs::remove_dir_all(&dir);
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn geodesic_measures() {
+        // a 1° × 1° cell at the equator: 12,363.7 km² on the sphere (R = 6,371,008.8 m)
+        let sq = Geom::Polygons(vec![vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]]]);
+        let (a, p, _) = measure(&sq);
+        let exact = EARTH_R * EARTH_R * 1f64.to_radians() * (1f64.to_radians().sin());
+        assert!((a - exact).abs() / exact < 1e-9, "{a} vs {exact}");
+        assert!((p / 1000.0 - 444.7).abs() < 0.5, "perimeter {p}");
+        // 1° of longitude along the equator: 111.195 km
+        let l = Geom::Lines(vec![vec![[0.0, 0.0], [1.0, 0.0]]]);
+        assert!((measure(&l).1 - 111_195.08).abs() < 0.1);
+    }
+
+    #[test]
+    fn sql_quoting() {
+        assert_eq!(ident("a\"b"), "\"a\"\"b\"");
+        assert_eq!(tidy("CPL error class: '3', error number: '1', error msg: 'In ExecuteSQL(): sqlite3_prepare_v2(SELECT x):\n  no such column: x'"), "no such column: x");
+        assert_eq!(literal("O'Neil"), "'O''Neil'");
+        assert_eq!(Engine::scope_sql("fid", Some("x > 1"), Some(&[3, 4])), " WHERE (x > 1) AND \"fid\" IN (3,4)");
+        assert_eq!(Engine::scope_sql("fid", None, Some(&[])), " WHERE \"fid\" IN (NULL)");
     }
 }

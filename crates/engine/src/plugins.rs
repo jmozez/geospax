@@ -427,19 +427,17 @@ fn finish(mut i: PluginInfo, path: &Path) -> PluginInfo {
             }
             "process" => {
                 // the first word of `run:` is the program (node, java, a binary next to the manifest…)
-                if let Some(prog) = run_program(path) {
-                    if !prog.contains('/') && !prog.contains("${") && which(&prog).is_none() {
+                if let Some(prog) = run_program(path)
+                    && !prog.contains('/') && !prog.contains("${") && which(&prog).is_none() {
                         i.runnable = false;
                         i.needs = Some(prog);
                     }
-                }
             }
-            "wasm" => {
-                if which("wasmtime").is_none() && which("wasm3").is_none() && which("deno").is_none() {
+            "wasm"
+                if which("wasmtime").is_none() && which("wasm3").is_none() && which("deno").is_none() => {
                     i.runnable = false;
                     i.needs = Some("wasmtime (or wasm3/deno)".to_string());
                 }
-            }
             _ => {}
         }
     }
@@ -706,9 +704,7 @@ fn read_arcgis(path: &Path) -> Option<PluginInfo> {
         match arcgis_pyt_tools(&pyt) {
             Ok(ts) => {
                 tools.extend(ts);
-                warning = format!(
-                    "ArcGIS Pro add-in: the .NET assembly cannot run in GeoSpaX (no CLR), but its Python toolbox tools were imported and run through arcpy. Its ribbon was imported too."
-                );
+                warning = "ArcGIS Pro add-in: the .NET assembly cannot run in GeoSpaX (no CLR), but its Python toolbox tools were imported and run through arcpy. Its ribbon was imported too.".to_string();
                 needs = None;
             }
             Err(e) => {
@@ -995,7 +991,7 @@ impl Plugins {
             *part = part
                 .replace("${plugin}", &p.path)
                 .replace("${tool}", &tool.id)
-                .replace("${workdir}", &workdir().to_string_lossy().to_string());
+                .replace("${workdir}", workdir().to_string_lossy().as_ref());
         }
         let (prog, args) = parts.split_first().ok_or("empty `run:` command")?;
         // Results go to <state>/plugin-results/<plugin>/; the tool lists what it wrote in "outputs"
@@ -1077,11 +1073,10 @@ impl Plugins {
         let stderr = String::from_utf8_lossy(&wait.stderr).to_string();
         if !wait.status.success() {
             // exit 1 with a message is the tool refusing its input: say why, in its words
-            if wait.status.code() == Some(1) {
-                if let Some(why) = first_line(&stderr) {
+            if wait.status.code() == Some(1)
+                && let Some(why) = first_line(&stderr) {
                     return Err(format!("{}: {why}", p.name));
                 }
-            }
             return Err(format!(
                 "{prog} exited with {}: {}",
                 wait.status,
@@ -1275,7 +1270,7 @@ fn read_grid_to_tif(header: &Path) -> Result<PathBuf, String> {
     if bytes.len() < w * h * 4 {
         return Err(format!("{} has {} bytes, the header says {w}×{h} float32", data_path.display(), bytes.len()));
     }
-    let vals: Vec<f32> = bytes[..w * h * 4].chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+    let vals: Vec<f32> = bytes[..w * h * 4].as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
     let name = header.file_name().unwrap().to_string_lossy().replace(".grid.json", "");
     let tif = header.with_file_name(format!("{name}.tif"));
     crate::raster::write_tif_f32(&tif, w, h, [gt[0], gt[1], gt[2], gt[3], gt[4], gt[5]], meta["crs"].as_str().unwrap_or(""), vals, Some(f32::NAN as f64))?;

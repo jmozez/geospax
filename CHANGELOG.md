@@ -5,6 +5,9 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Changed
+- Code health: clippy warnings in the engine and server cut from 137 to 51 (collapsed `if`s, `is_multiple_of`, `chunks_exact` and similar); no behaviour change.
+
 ### Added
 - Analysis › Profile chart: a distance-against-elevation panel for profile point layers, with min, max, relief, total climb and descent, an elevation legend, A/B ends, km ticks on the map and a hover marker linking chart and map.
 
