@@ -35,6 +35,7 @@ pub fn refused(method: &str, segs: &[&str]) -> Option<&'static str> {
         ("POST", ["api", "settings", ..]) | ("POST", ["api", "cache", ..]) | ("POST", ["api", "bench"]) => "server settings",
         ("POST", ["api", "devices", ..]) | ("POST", ["api", "phone", ..]) | ("POST", ["api", "hooks", ..]) => "devices and phones",
         ("POST", ["api", "services"]) | ("POST", ["api", "stac", "add"]) => "adding web services",
+        (_, ["api", "sync", ..]) | (_, ["api", "layers", _, "field-package"]) => "field sync (files on the server)",
         _ => return None,
     };
     Some(why)
@@ -343,6 +344,8 @@ mod tests {
         assert!(refused("GET", &["api", "folders", "pick"]).is_some());
         assert!(refused("POST", &["api", "recipes"]).is_some());
         assert!(refused("POST", &["api", "services"]).is_some());
+        assert!(refused("POST", &["api", "sync", "review"]).is_some());
+        assert!(refused("POST", &["api", "layers", "x", "field-package"]).is_some());
         assert!(refused("GET", &["api", "browse"]).is_some());
         // what the demo is for still works
         assert!(refused("POST", &["api", "recipes", "r-rayshader", "run"]).is_none());
