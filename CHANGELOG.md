@@ -11,6 +11,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Share › Export data › PMTiles: a layer as one vector tile archive that any static web host or MapLibre map can serve, no tile server needed.
 - GeoParquet export writes a GeoParquet 1.1 `bbox` covering column and 65,536-row groups, so readers can skip row groups outside an area.
 - Raster results and STAC downloads are written as cloud-optimised GeoTIFFs (COG) with internal overviews by default; `GEOSPAX_RASTER_COG=0` restores plain GeoTIFF.
+- MCP server: `--read-only`, a `--tools` allow list and an `--audit` JSON Lines log of every tool call (docs/AI.md).
 - Analysis › Profile chart: a distance-against-elevation panel for profile point layers, with min, max, relief, total climb and descent, an elevation legend, A/B ends, km ticks on the map and a hover marker linking chart and map.
 
 ### Changed
