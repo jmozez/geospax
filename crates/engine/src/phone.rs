@@ -91,11 +91,10 @@ impl PhoneLink {
 
     /// Called by `Engine::start_services`: resume the link if it was on (or the adapter asks for it).
     pub fn start_if_enabled(&self, engine: &Arc<Engine>) {
-        if self.cfg.enable || self.saved.lock().unwrap().enabled {
-            if let Err(e) = self.start(engine) {
+        if (self.cfg.enable || self.saved.lock().unwrap().enabled)
+            && let Err(e) = self.start(engine) {
                 eprintln!("phone link: {e}");
             }
-        }
     }
 
     pub fn enable(&self, engine: &Arc<Engine>) -> Result<Value, String> {
@@ -520,15 +519,14 @@ fn upload<R: Read>(engine: &Arc<Engine>, req: &Request, rd: &mut R) -> Reply {
     if crate::devices::is_image(&ext) {
         if crate::devices::read_photo(&path).is_some() {
             gps = json!("photo");
-        } else if let (Some(lat), Some(lon)) = (param(q, "lat").and_then(|v| v.parse::<f64>().ok()), param(q, "lon").and_then(|v| v.parse::<f64>().ok())) {
-            if lat.abs() <= 90.0 && lon.abs() <= 180.0 {
+        } else if let (Some(lat), Some(lon)) = (param(q, "lat").and_then(|v| v.parse::<f64>().ok()), param(q, "lon").and_then(|v| v.parse::<f64>().ok()))
+            && lat.abs() <= 90.0 && lon.abs() <= 180.0 {
                 let ts = param(q, "ts").and_then(|v| v.parse::<f64>().ok()).map(|ms| ms / 1000.0);
                 let acc = param(q, "acc").and_then(|v| v.parse::<f64>().ok());
                 if std::fs::write(sidecar_path(&path), xmp_sidecar(lat, lon, ts, acc)).is_ok() {
                     gps = json!("phone");
                 }
             }
-        }
     }
     json_response(200, &json!({ "ok": true, "file": path.file_name().map(|n| n.to_string_lossy().to_string()), "bytes": req.length, "gps": gps }))
 }

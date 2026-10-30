@@ -545,6 +545,10 @@ and places; a GBIF occurrence file; 1 M synthetic points, buildings and hotspots
 GeoPackage, zipped Shapefile, KML, GPX, CSV, GeoTIFF, FlatGeobuf, GeoParquet or LAS/LAZ works the
 same way.
 
+Raster results (tool outputs, terrain products and STAC downloads cut to an area) are written as
+cloud-optimised GeoTIFFs (COG): tiled, DEFLATE-compressed and with internal overviews, so they open fast
+and can be put on any web host and streamed. Set `GEOSPAX_RASTER_COG=0` to write plain tiled GeoTIFFs.
+
 ### Pro mode: the full workbench
 
 ![GeoSpaX Pro mode with the ribbon, layer tree and Layer tab](assets/screenshot-pro.webp)
