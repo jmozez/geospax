@@ -1022,60 +1022,6 @@ fn count_dialect(ds: &Dataset, sql: &str, d: Dialect) -> Result<u64, String> {
     Ok(n.max(0) as u64)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn geodesic_measures() {
-        // a 1° × 1° cell at the equator: 12,363.7 km² on the sphere (R = 6,371,008.8 m)
-        let sq = Geom::Polygons(vec![vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]]]);
-        let (a, p, _) = measure(&sq);
-        let exact = EARTH_R * EARTH_R * 1f64.to_radians() * (1f64.to_radians().sin());
-        assert!((a - exact).abs() / exact < 1e-9, "{a} vs {exact}");
-        assert!((p / 1000.0 - 444.7).abs() < 0.5, "perimeter {p}");
-        // 1° of longitude along the equator: 111.195 km
-        let l = Geom::Lines(vec![vec![[0.0, 0.0], [1.0, 0.0]]]);
-        assert!((measure(&l).1 - 111_195.08).abs() < 0.1);
-    }
-
-    fn sql_quoting() {
-        assert_eq!(ident("a\"b"), "\"a\"\"b\"");
-        assert_eq!(tidy("CPL error class: '3', error number: '1', error msg: 'In ExecuteSQL(): sqlite3_prepare_v2(SELECT x):\n  no such column: x'"), "no such column: x");
-        assert_eq!(literal("O'Neil"), "'O''Neil'");
-        assert_eq!(Engine::scope_sql("fid", Some("x > 1"), Some(&[3, 4])), " WHERE (x > 1) AND \"fid\" IN (3,4)");
-        assert_eq!(Engine::scope_sql("fid", None, Some(&[])), " WHERE \"fid\" IN (NULL)");
-
-    fn exports_a_layer_as_pmtiles() {
-        crate::raster::configure_gdal();
-        let dir = std::env::temp_dir().join(format!("gx-pmx-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(
-            dir.join("sites.geojson"),
-            r#"{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"n":"a"},"geometry":{"type":"Point","coordinates":[147.15,-9.47]}},{"type":"Feature","properties":{"n":"b"},"geometry":{"type":"Point","coordinates":[147.2,-9.44]}}]}"#,
-        )
-        .unwrap();
-        let e = Engine::open(crate::EngineConfig {
-            plugins: Default::default(),
-            data: vec![dir.clone()],
-            cache_tiles: 0,
-            threads: 1,
-            bench_log: None,
-            read_mode: Default::default(),
-            state_dir: Some(dir.join(".state")),
-            devices: Default::default(),
-            automation: Default::default(),
-            phone: Default::default(),
-        })
-        let l = e.layers().into_iter().next().expect("one layer");
-        let (bytes, name, mime) = e.layer_download(&l, "pmtiles").unwrap();
-        assert_eq!(name, "sites.pmtiles");
-        assert_eq!(mime, "application/vnd.pmtiles");
-        assert_eq!(&bytes[..7], b"PMTiles");
-        assert_eq!(bytes[7], 3, "PMTiles spec version 3");
-}
-
 // ---------------------------------------------------------------- geometry edits (Edit › Modify)
 
 /// A geometry GEOS made through the OGR C API, copied into an owned `Geometry` (via WKB) and the
@@ -1456,5 +1402,38 @@ mod tests {
         assert_eq!(literal("O'Neil"), "'O''Neil'");
         assert_eq!(Engine::scope_sql("fid", Some("x > 1"), Some(&[3, 4])), " WHERE (x > 1) AND \"fid\" IN (3,4)");
         assert_eq!(Engine::scope_sql("fid", None, Some(&[])), " WHERE \"fid\" IN (NULL)");
+    }
+
+    #[test]
+    fn exports_a_layer_as_pmtiles() {
+        crate::raster::configure_gdal();
+        let dir = std::env::temp_dir().join(format!("gx-pmx-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("sites.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"n":"a"},"geometry":{"type":"Point","coordinates":[147.15,-9.47]}},{"type":"Feature","properties":{"n":"b"},"geometry":{"type":"Point","coordinates":[147.2,-9.44]}}]}"#,
+        )
+        .unwrap();
+        let e = Engine::open(crate::EngineConfig {
+            plugins: Default::default(),
+            data: vec![dir.clone()],
+            cache_tiles: 0,
+            threads: 1,
+            bench_log: None,
+            read_mode: Default::default(),
+            state_dir: Some(dir.join(".state")),
+            devices: Default::default(),
+            automation: Default::default(),
+            phone: Default::default(),
+        })
+        .unwrap();
+        let l = e.layers().into_iter().next().expect("one layer");
+        let (bytes, name, mime) = e.layer_download(&l, "pmtiles").unwrap();
+        assert_eq!(name, "sites.pmtiles");
+        assert_eq!(mime, "application/vnd.pmtiles");
+        assert_eq!(&bytes[..7], b"PMTiles");
+        assert_eq!(bytes[7], 3, "PMTiles spec version 3");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
