@@ -388,6 +388,24 @@ hides, Enter opens the symbology, Alt+↑/↓ moves the layer in the drawing ord
 ◐ System (follows your operating system); View → Theme does the same. The choice is remembered; add
 `?theme=dark` to a link to force one. The map's background and land colours follow the theme.
 
+### Reviewing a shared project
+
+When a team shares one self-hosted web edition (docs/DEPLOY.md, token mode), **Home › Review** works on
+the named project that is open (save it with **Save as** first):
+
+- **Comments pinned to the map.** Type your name and a comment; it is pinned to the centre of the
+  map. **Show** flies there, **Reply** threads an answer, **Resolve** closes the thread (and
+  **Reopen** opens it again).
+- **Version history.** Every save keeps the version it replaced, the last 50 per project, under
+  `<state>/projects/.history/`. **Restore** puts one back and keeps the one it replaced, so nothing
+  is lost; open the project again to load it.
+
+Limits for now: everyone with the server's token has the same rights, and the name on a comment is
+the one the reviewer typed. Sign-in with your organisation's accounts (OIDC) and roles such as
+viewer, editor and approver need an identity provider and are planned. The guest demo has no
+review. The API is `GET|POST /api/projects/{id}/comments`, `POST /api/projects/{id}/comments/{n}/resolve|reopen`,
+`GET /api/projects/{id}/history[/{version}]` and `POST /api/projects/{id}/history/{version}/restore`.
+
 ## 2c. Plugins: tools from five ecosystems
 
 Plugins are in the **Explorer** under **Plugins**. **Manage plugins…** (first row) lists what is
