@@ -461,7 +461,7 @@ const EXTRA_COMMANDS: Command[] = [
   { id: 'view.swipe', tab: 'view', group: 'Compare', title: 'Swipe', icon: 'swipe', big: true, hint: 'Drag a divider to see the map with and without the selected layer', run: xCmd('swipe') },
   { id: 'view.spyglass', tab: 'view', group: 'Compare', title: 'Spyglass', icon: 'search', hint: 'A lens around the pointer shows the map without the selected layer', run: xCmd('spyglass') },
   {
-    id: 'view.gpupoints', tab: 'view', group: 'Big data', title: 'GPU points', icon: 'speed',
+    id: 'view.gpupoints', tab: 'view', group: 'Projection', title: 'GPU points', icon: 'speed',
     hint: 'Draw the selected point layer with deck.gl on the GPU (Arrow stream) for millions of points; run again to switch back',
     run: (h) => void import('./gpupoints').then((m) => m.toggleGpuPoints(h)),
   },

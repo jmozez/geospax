@@ -9,7 +9,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Code health: clippy warnings in the engine and server cut from 137 to 51 (collapsed `if`s, `is_multiple_of`, `chunks_exact` and similar); no behaviour change.
 
 ### Added
-- View › GPU points (off by default, per layer): draws a large point layer with deck.gl from the Arrow stream instead of vector tiles, for millions of points on modest hardware. WebGL2 for now; WebGPU, lines and polygons later.
+- View › GPU points (off by default, per layer): draws a large point layer with deck.gl from the Arrow stream instead of vector tiles, aimed at layers too large for smooth vector tile display. WebGL2 for now; WebGPU, lines and polygons later.
 - Analyze › SQL: one read-only SQL query across every layer on the map (GDAL SQLite dialect with SpatiaLite functions), joining layers from different files. Results with geometry become a layer (`sql.<name>`); tables show in the window. Also `POST /api/sql`. Writes, ATTACH, PRAGMA and file paths are refused.
 - Ask pane: when the assistant proposes a recipe, it now shows a plan card (recipe, inputs with defaults marked, and steps in order) and nothing runs until you press Run. Dismiss discards it. MCP clients are unchanged.
 - View › Coordinate system: a Pacific pack of 17 checked systems (PNG94 and PNGMG94 zones 54 to 56, AGD66, Fiji Map Grid, UTM zones for the Solomons, Vanuatu, Samoa and Tonga, NZTM, MGA 55 and Pacific-centred PDC Mercator) shown first, also at `GET /api/crs/pacific`.
