@@ -156,9 +156,11 @@ jobs:
       - name: GDAL 3.8 from the UbuntuGIS PPA (Ubuntu 22.04 ships 3.4; GeoSpaX needs 3.6 or newer)
         run: |
           apt-get install -y -q --no-install-recommends software-properties-common gpg-agent
-          add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable
+          add-apt-repository -y ppa:ubuntugis/ppa
       - name: System packages, Rust, Node (scripts/setup-linux.sh)
-        run: bash scripts/setup-linux.sh && apt-get install -y -q --no-install-recommends binutils
+        run: |
+          bash scripts/setup-linux.sh && apt-get install -y -q --no-install-recommends binutils
+          gdal-config --version | grep -Eq '^3\.([6-9]|1[0-9])\.' || { echo "::error::GDAL $(gdal-config --version) is too old"; exit 1; }
       - uses: actions/cache@v4
         with:
           path: |
