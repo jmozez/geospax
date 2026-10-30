@@ -21,6 +21,8 @@ const q = (id, field, colors, o = {}) => {
   let lo = -Infinity; const counts = br.map((u) => { const c = v.filter((x) => x > lo && x <= u).length; lo = u; return c; });
   return g(field, br, colors.slice(colors.length - br.length), { ...o, counts, min: v[0], method: 'quantile' });
 };
+// the elevation samples per 250 m class (0–250, …, 1500–1750 m)
+const ELEV_COUNTS = (() => { const v = JSON.parse(readFileSync(fileOf('markham-transect-profile-points-20261029-223420'))).features.map((f) => f.properties.elev); return [250, 500, 750, 1000, 1250, 1500, 1750].map((u) => v.filter((x) => x > u - 250 && x <= u).length); })();
 export default [
 { file: 'ribbon-swipe', keep: ['core-areas-300-m-edge-20261029-223410.geojson'], style: { 'core-areas-300-m-edge-20261029-223410.geojson': { symbology: { kind: 'single', color: '#2fbf71' }, fill: { fill: true, strokeColor: '#b8f5c9', strokeWidth: 1, strokeDash: 'solid' }, outline: true, opacity: 0.7 } },
   view: { center: [146.8, -6.62], zoom: 10.6 }, focus: 'core-areas-300-m-edge-20261029-223410.geojson',
@@ -64,9 +66,17 @@ export default [
             'core-areas-300-m-edge-20261029-223410.geojson': { symbology: { kind: 'single', color: '#2fbf71' }, fill: { fill: true, strokeColor: '#b8f5c9', strokeWidth: 0.8, strokeDash: 'solid' }, outline: true, opacity: 0.42 } },
    view: { center: [146.8, -6.62], zoom: 10.1 }, focus: 'core-areas-300-m-edge-20261029-223410.geojson' },
  { file: 'plugin-lulc', keep: [r('g-hansen2.hansen_lossyear')], view: { center: [146.8, -6.62], zoom: 10.6 }, focus: 'r:g-hansen2.hansen_lossyear' },
- { file: 'plugin-environment', keep: ['markham_transect.geojson', 'markham-transect-profile-points-20261029-223420.geojson'],
+ // Elevation profile, Lae coast (A) to the Saruwaged Range (B): the Profile chart panel (Analysis) under the map,
+ // A, B and km ticks on the line, a hypsometric 250 m ramp on the samples, places (OSM names) labelled.
+ // The places files are scripts/shots-general/lae_profile_places_{e,w}.geojson (labels east / west of the line), copied into GS_WORK/data/Uploads.
+ { file: 'plugin-environment', keep: ['lae_profile_places_e.geojson', 'lae_profile_places_w.geojson', 'markham-transect-profile-points-20261029-223420.geojson'],
    ropacity: { hillshade: 0.35 },
-   style: { 'markham_transect.geojson': { symbology: { kind: 'single', color: '#ffffff' }, line: { width: 3, dash: 'solid', cap: 'round', join: 'round', casingWidth: 2, casingColor: 'rgba(0,0,0,0.6)' }, opacity: 1 },
-            'markham-transect-profile-points-20261029-223420.geojson': q('markham-transect-profile-points-20261029-223420', 'elev', ['#2c7bb6', '#abd9e9', '#ffffbf', '#fdae61', '#d7191c'], { ramp: 'rdylbu', round: 10, point: { shape: 'circle', size: 10, strokeColor: '#111', strokeWidth: 0.6 }, opacity: 1 }) },
-   view: { center: [146.975, -6.59], zoom: 10.3 }, focus: 'markham-transect-profile-points-20261029-223420.geojson' },
+   style: { 'markham-transect-profile-points-20261029-223420.geojson': g('elev', [250, 500, 750, 1000, 1250, 1500, 1750], ['#1a9850', '#66bd63', '#a6d96a', '#fee08b', '#fdae61', '#c2803f', '#8c510a'], { method: 'equal', ramp: 'terrain', min: 0, counts: ELEV_COUNTS, point: { shape: 'circle', size: 9, strokeColor: 'rgba(0,0,0,0.55)', strokeWidth: 0.5 }, opacity: 1 }),
+            'lae_profile_places_w.geojson': { symbology: { kind: 'single', color: '#ffffff' }, point: { shape: 'diamond', size: 9, strokeColor: '#111', strokeWidth: 1.2 }, opacity: 1,
+              labels: { on: true, field: 'name', font: 'bold', size: 13, color: '#ffffff', haloColor: '#000000', haloWidth: 1.8, anchor: 'left', offset: [0, 0], placement: 'point', overlap: true, minzoom: 0, maxzoom: 24, wrap: 0, transform: 'none', letterSpacing: 0 } },
+            'lae_profile_places_e.geojson': { symbology: { kind: 'single', color: '#ffffff' }, point: { shape: 'diamond', size: 9, strokeColor: '#111', strokeWidth: 1.2 }, opacity: 1,
+              labels: { on: true, field: 'name', font: 'bold', size: 13, color: '#ffffff', haloColor: '#000000', haloWidth: 1.8, anchor: 'right', offset: [0, 0], placement: 'point', overlap: true, minzoom: 0, maxzoom: 24, wrap: 0, transform: 'none', letterSpacing: 0 } } },
+   view: { center: [146.98, -6.62], zoom: 10 }, focus: 'markham-transect-profile-points-20261029-223420.geojson',
+   extra: async (p) => { await p.evaluate(() => document.dispatchEvent(new CustomEvent('geospax:profile', { detail: { reverse: true, a: 'Lae coast, Huon Gulf', b: 'Saruwaged Range' } }))); await p.waitForTimeout(2500);
+     const b = await p.locator('.gx-profile svg').boundingBox(); if (b) await p.mouse.move(b.x + b.width * 0.36, b.y + b.height * 0.5); } },
 ];

@@ -761,7 +761,7 @@ its ribbon tab. On open data around Lae they made these:
 | **Climate** | Flood exposure: land cells scored by low ground (2) and low average elevation (1) | `climate` › flood exposure |
 | **Conservation** | 1,197 OBIS fish records on an 8 km hotspot grid: 68 of 740 cells hold records | `conservation` › hexagon hotspots |
 | **Disaster** | Landslide susceptibility: slope (3) + local relief (2) + low tree cover (1), 0 to 1 | `disaster` › susceptibility |
-| **Environment** | A 39.1 km elevation profile transect, 634 samples, 0 to 1,730 m | `environment` › profile |
+| **Environment** | Elevation profile from the Lae coast (Huon Gulf) to the Saruwaged Range: 39.1 km, rising from 0 to 1,726 m (total climb 4,684 m). Open it with Analysis › Profile chart. | `environment` › profile |
 | **Forestry** | 69 Hansen forest patches of 20 ha or more: patch metrics and core forest 300 m from any edge (83.7 % core) | `forestry` › fragmentation |
 | **Geoscience** | Horn slope in three zones: 41 % under 8°, 23 % from 8° to 20°, 36 % at 20° and over | `geoscience` › slope zones |
 | **Hydrology** | Wet ground: low, gentle, open cells where water gathers | `hydrology` › suitability |

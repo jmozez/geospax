@@ -137,7 +137,7 @@ World Imagery. The plugins share one tested toolkit (GSX), so a tool behaves the
 
 **Environment · elevation profile.** A 39.1 km transect from the Saruwaged foothills to the Huon Gulf sampled on the Copernicus 30 m DEM at 634 points, coloured by height: from sea level to 1,730 m, with 3,102 m of climb along the way.
 
-<p align="center"><img src="docs/assets/plugin-environment.png" alt="GeoSpaX Environment plugin: elevation profile along a transect to the Huon Gulf" width="900" /></p>
+<p align="center"><img src="docs/assets/plugin-environment.png" alt="GeoSpaX Environment plugin: Elevation profile from the Lae coast (Huon Gulf) to the Saruwaged Range: 39.1 km, rising from 0 to 1,726 m (total climb 4,684 m)" width="900" /></p>
 
 **Forestry · fragmentation and core forest.** 69 forest patches of 20 ha or more from Hansen tree cover (canopy 60 % or more, no loss since 2000), outlined in orange, with the core forest more than 300 m from any edge in green: 83.7 % of the forest is core.
 

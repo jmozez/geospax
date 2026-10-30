@@ -457,6 +457,7 @@ const EXTRA_COMMANDS: Command[] = [
   { id: 'home.labels', tab: 'home', group: 'Symbology', title: 'Labels', icon: 'tag', hint: 'Labels of the selected layer on or off', run: xCmd('labels') },
   { id: 'home.coords', tab: 'home', group: 'Inquiry', title: 'Coordinates', icon: 'crosshair', hint: 'Show positions as degrees, DMS, UTM, MGRS or any EPSG system', run: xCmd('coords') },
   // ---- View
+  { id: 'analyze.profile', tab: 'analyze', group: 'Spatial statistics', title: 'Profile chart', icon: 'lineChart', hint: 'Elevation profile chart (distance against elevation) of profile points, with A and B and km ticks on the map', run: xCmd('profile') },
   { id: 'view.swipe', tab: 'view', group: 'Compare', title: 'Swipe', icon: 'swipe', big: true, hint: 'Drag a divider to see the map with and without the selected layer', run: xCmd('swipe') },
   { id: 'view.spyglass', tab: 'view', group: 'Compare', title: 'Spyglass', icon: 'search', hint: 'A lens around the pointer shows the map without the selected layer', run: xCmd('spyglass') },
   { id: 'view.time', tab: 'view', group: 'Time', title: 'Time slider', icon: 'clock', big: true, hint: 'Step the selected layer through time by a date or year field', run: xCmd('time') },

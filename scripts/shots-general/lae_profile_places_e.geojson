@@ -1,0 +1,44 @@
+{
+"type": "FeatureCollection",
+"features": [
+{
+"type": "Feature",
+"properties": {
+"name": "Busu River"
+},
+"geometry": {
+"type": "Point",
+"coordinates": [
+146.9801,
+-6.5869
+]
+}
+},
+{
+"type": "Feature",
+"properties": {
+"name": "Huon Gulf"
+},
+"geometry": {
+"type": "Point",
+"coordinates": [
+147.05,
+-6.785
+]
+}
+},
+{
+"type": "Feature",
+"properties": {
+"name": "Saruwaged Range (1,726 m)"
+},
+"geometry": {
+"type": "Point",
+"coordinates": [
+146.9409,
+-6.4554
+]
+}
+}
+]
+}
