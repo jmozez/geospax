@@ -28,7 +28,8 @@ const want = {
   fragmentation: { patches: 'patches' },
   connectivity: { patches: 'patches' },
   change: { t1: 'habitat', t2: 'habitat_2024' },
-  dbscan: { points: 'sites' },
+  dbscan: { points: 'sites', land_dem: undefined, land_polygons: undefined }, // the land mask is never guessed
+  'on-land': { points: 'sites', land_dem: undefined, land_polygons: undefined },
   'nearest-neighbour': { points: 'sites' },
   diversity: { occurrences: 'sites', areas: undefined, species: 'species' },
   'local-moran': { layer: 'sites', field: 'score' },

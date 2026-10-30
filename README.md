@@ -153,7 +153,7 @@ World Imagery. The plugins share one tested toolkit (GSX), so a tool behaves the
 
 <p align="center"><img src="docs/assets/plugin-lulc.png" alt="GeoSpaX forest change 2001 to 2025: year of forest loss in the Markham valley from Hansen Global Forest Change" width="900" /></p>
 
-**Marine · DBSCAN clusters.** 1,197 OBIS fish records grouped into 28 clusters by DBSCAN (111 records left as noise, in grey) over GEBCO 2026 bathymetry of the Huon Gulf.
+**Marine · clean records, then clusters.** The new on-land check flagged 242 of 1,197 OBIS fish records that sit on land (mostly old museum specimens pinned to a town or a 0.1° grid point), dropped them, and DBSCAN grouped the 955 marine records into 20 clusters (47 left as noise, in grey) over GEBCO 2026 bathymetry of the Huon Gulf.
 
 <p align="center"><img src="docs/assets/plugin-marine.png" alt="GeoSpaX Marine plugin: clusters of fish records over GEBCO bathymetry of the Huon Gulf" width="900" /></p>
 
