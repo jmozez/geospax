@@ -150,8 +150,8 @@ pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value
             nf.set_geometry(body).map_err(e)?;
             nf.create(&out).map_err(e)?;
             count += 1;
-            if is_area && !hollow && pen.is_some() {
-                if let Some(edge) = outline(&g) {
+            if is_area && !hollow && pen.is_some()
+                && let Some(edge) = outline(&g) {
                     let mut of = Feature::new(out.defn()).map_err(e)?;
                     of.set_field_string(layer_idx, &cad).map_err(e)?;
                     set_style(&of, pen.as_deref().unwrap_or_default());
@@ -159,7 +159,6 @@ pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value
                     of.create(&out).map_err(e)?;
                     count += 1;
                 }
-            }
             // a hatched shape's pattern, as lines on its own <LAYER>-HATCH layer
             if let Some(pat) = pattern {
                 for h in hatch_lines(&g, pat) {
@@ -171,8 +170,8 @@ pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value
                 }
             }
             // a dimension's length, as text at the middle of the line
-            if !is_text && cad.ends_with("DIMENSIONS") {
-                if let (Some(t), Some(mid)) = (label.as_deref(), midpoint(&g)) {
+            if !is_text && cad.ends_with("DIMENSIONS")
+                && let (Some(t), Some(mid)) = (label.as_deref(), midpoint(&g)) {
                     let mut tf = Feature::new(out.defn()).map_err(e)?;
                     tf.set_field_string(layer_idx, &cad).map_err(e)?;
                     set_style(&tf, &format!("LABEL(f:\"Arial\",t:\"{}\",s:2g)", t.replace('"', "'")));
@@ -180,7 +179,6 @@ pub fn export_dxf(engine: &Engine, ids: &[String], hatch: &Value, blocks: &Value
                     tf.create(&out).map_err(e)?;
                     count += 1;
                 }
-            }
         }
     }
     drop(out);
@@ -218,11 +216,10 @@ pub fn hatch_lines(g: &Geometry, pattern: &str) -> Vec<Geometry> {
             let (px, py) = (cx - dy * o, cy + dx * o);
             let wkt = format!("LINESTRING ({} {}, {} {})", px - dx * r, py - dy * r, px + dx * r, py + dy * r);
             let Ok(line) = Geometry::from_wkt(&wkt) else { continue };
-            if let Some(c) = line.intersection(g) {
-                if !c.is_empty() {
+            if let Some(c) = line.intersection(g)
+                && !c.is_empty() {
                     out.push(c);
                 }
-            }
         }
     }
     out

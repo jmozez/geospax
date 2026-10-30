@@ -236,7 +236,7 @@ pub fn add(engine: &Arc<Engine>, path: &str, layer: Option<&str>) -> Result<Valu
     if !already.is_empty() {
         return Ok(json!({ "layers": already, "rasters": [], "already": true }));
     }
-    let (layers, rasters, kept, skipped) = crate::upload::register_files(engine, &[p.clone()]);
+    let (layers, rasters, kept, skipped) = crate::upload::register_files(engine, std::slice::from_ref(&p));
     if layers.is_empty() && rasters.is_empty() {
         let why = skipped.first().cloned().or_else(|| kept.first().map(|k| format!("{k}: point clouds are opened by the lidar-to-terrain recipe")));
         return Err(why.unwrap_or_else(|| format!("{}: nothing GeoSpaX can draw", p.display())));
