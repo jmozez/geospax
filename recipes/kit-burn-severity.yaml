@@ -1,0 +1,45 @@
+# Earth observation pack: burn scars and their severity from Sentinel-2 (dNBR).
+recipe: kit-burn-severity
+version: 1
+kit: Disaster and geoscience
+title: Burn severity (Sentinel-2 dNBR)
+description: >-
+  Normalised Burn Ratio from the clearest Sentinel-2 L2A pass before a fire and the newest clear
+  pass after it, cloud-masked at 20 m, and the change between them (a drop in NBR marks burnt
+  ground). The report lists both scenes and dates. Set `days_since` to the number of days since
+  the fire started, so the "before" window ends before it.
+inputs:
+  area: { type: layer, default: auto, description: the area (a fire perimeter, concession or district) }
+  days_since: { type: number, default: 30, description: days since the fire started }
+  days: { type: number, default: 60, description: length of each search window in days }
+  max_cloud: { type: number, default: 40, description: scene cloud cover limit (%) }
+steps:
+  - id: area
+    use: io.open
+    with: { layer: "${inputs.area}" }
+  - id: search_before
+    use: rs.search
+    with: { aoi: "${area.layer}", buffer: 500, days: "${inputs.days}", ago: "${inputs.days_since}", max_cloud: "${inputs.max_cloud}" }
+  - id: before
+    use: rs.index
+    with: { index: nbr, name: nbr_before, resolution: 20, min_clear: 0.7 }
+  - id: search_after
+    use: rs.search
+    with: { aoi: "${area.layer}", buffer: 500, days: "${inputs.days_since}", max_cloud: "${inputs.max_cloud}" }
+  - id: after
+    use: rs.index
+    with: { index: nbr, name: nbr_after, resolution: 20, min_clear: 0.7 }
+  - id: change
+    use: tool
+    with: { tool: gsx/raster-change, params: { before: "${before.raster}", after: "${after.raster}" } }
+  - id: classes_map
+    use: export.map
+    with: { name: burn-scars, layers: ["${change.rasters.1}", "${area.layer}"], title: "NBR loss (burnt) and gain · ${before.date} to ${after.date}" }
+  - id: difference_map
+    use: export.map
+    with: { name: nbr-difference, layers: ["${change.rasters.0}", "${area.layer}"], title: Change in NBR (after − before) }
+  - id: report
+    use: export.report
+    needs: [classes_map, difference_map]
+    with: { title: "Burn severity · ${run.date}" }
+outputs: [classes_map, difference_map, report]

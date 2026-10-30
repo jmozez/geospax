@@ -669,7 +669,8 @@ pub(super) fn rs_search(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> 
     let datetime = match p_str(p, "datetime") {
         Some(d) => d.to_string(),
         None => {
-            let end = chrono::Utc::now();
+            // `ago` moves the window back (365 = the same season last year), for before / after pairs
+            let end = chrono::Utc::now() - chrono::Duration::seconds((p_f64(p, "ago").unwrap_or(0.0).max(0.0) * 86400.0) as i64);
             let start = end - chrono::Duration::seconds((days * 86400.0) as i64);
             format!("{}/{}", start.format("%Y-%m-%dT%H:%M:%SZ"), end.format("%Y-%m-%dT%H:%M:%SZ"))
         }
