@@ -1125,15 +1125,31 @@ pub fn write_tif_u8(path: &Path, w: usize, h: usize, gt: [f64; 6], wkt: &str, da
     save_gtiff(&ds, path, false)
 }
 
-/// Copy any dataset to a compressed GeoTIFF atomically (`.part` then rename).
+/// Copy any dataset to a compressed GeoTIFF atomically (`.part` then rename). Results are
+/// cloud-optimised GeoTIFFs (COG: tiled, with internal overviews, header first) so they stream over
+/// HTTP and open fast in any GIS; `GEOSPAX_RASTER_COG=0` writes plain tiled GeoTIFFs instead.
 pub fn save_gtiff(ds: &Dataset, path: &Path, float: bool) -> Result<(), String> {
     let tmp = path.with_extension("part.tif");
-    let mut args = strings(&["-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "TILED=YES"]);
-    if float {
-        args.extend(strings(&["-co", "PREDICTOR=3"]));
-    }
+    let args = if cog_enabled() {
+        let mut a = strings(&["-of", "COG", "-co", "COMPRESS=DEFLATE", "-co", "BIGTIFF=IF_SAFER", "-co", "NUM_THREADS=ALL_CPUS"]);
+        if float {
+            a.extend(strings(&["-co", "PREDICTOR=YES"]));
+        }
+        a
+    } else {
+        let mut a = strings(&["-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "TILED=YES"]);
+        if float {
+            a.extend(strings(&["-co", "PREDICTOR=3"]));
+        }
+        a
+    };
     drop(translate(ds, &tmp.to_string_lossy(), &args)?);
     std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+/// Whether raster results are written as COG (the default; `GEOSPAX_RASTER_COG=0` turns it off).
+pub fn cog_enabled() -> bool {
+    !matches!(std::env::var("GEOSPAX_RASTER_COG").as_deref(), Ok("0") | Ok("false") | Ok("off"))
 }
 
 /// Read band 1 at full resolution (the AOI rasters the steps make are small).
@@ -1239,6 +1255,22 @@ pub fn load_all(paths: &[PathBuf], warnings: &mut Vec<String>) -> Vec<Arc<Raster
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn results_are_cloud_optimised() {
+        configure_gdal();
+        let dir = std::env::temp_dir().join(format!("gx-cog-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("r.tif");
+        let srs = gdal::spatial_ref::SpatialRef::from_epsg(4326).unwrap().to_wkt().unwrap();
+        let data: Vec<f32> = (0..1024 * 1024).map(|i| (i % 977) as f32).collect();
+        write_tif_f32(&p, 1024, 1024, [147.0, 0.001, 0.0, -9.0, 0.0, -0.001], &srs, data, Some(-9999.0)).unwrap();
+        let ds = Dataset::open(&p).unwrap();
+        use gdal::Metadata;
+        assert_eq!(ds.metadata_item("LAYOUT", "IMAGE_STRUCTURE").as_deref(), Some("COG"));
+        assert!(ds.rasterband(1).unwrap().overview_count().unwrap() > 0, "internal overviews");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn stats_and_kinds() {
