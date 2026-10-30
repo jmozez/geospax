@@ -97,12 +97,11 @@ pub fn render(r: &ReportInput, map_png: Option<&[u8]>) -> Result<Vec<u8>, String
         let rows: Vec<Vec<String>> = r.cards.iter().map(|(big, label)| vec![big.clone(), label.clone()]).collect();
         body.push_str(&table(&[], &rows));
     }
-    if let Some(png) = map_png {
-        if let Some(size) = png_size(png) {
+    if let Some(png) = map_png
+        && let Some(size) = png_size(png) {
             pic(&mut body, png, "png", "Map", size);
             body.push_str(&para(Some("Caption"), &format!("Figure 1. {}", r.title)));
         }
-    }
     for (i, f) in r.figures.iter().enumerate() {
         if let Some(size) = png_size(&f.png) {
             body.push_str(&para(Some("Heading1"), &f.title));
@@ -111,13 +110,12 @@ pub fn render(r: &ReportInput, map_png: Option<&[u8]>) -> Result<Vec<u8>, String
         }
     }
     for (i, (title, _, caption)) in r.charts.iter().enumerate() {
-        if let Some(png) = r.chart_pngs.get(i) {
-            if let Some(size) = png_size(png) {
+        if let Some(png) = r.chart_pngs.get(i)
+            && let Some(size) = png_size(png) {
                 body.push_str(&para(Some("Heading1"), title));
                 pic(&mut body, png, "png", title, size);
                 body.push_str(&para(Some("Caption"), caption));
             }
-        }
     }
     for v in &r.views {
         // a 3D still is a JPEG; Word needs its size, so it is placed at the page width, 16:9

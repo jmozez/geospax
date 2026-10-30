@@ -192,11 +192,10 @@ fn style_layer_inner(engine: &Engine, l: &LayerHandle, fs: Option<&FeatureSet>, 
         label_field: label_field.clone(),
         confidence,
     };
-    if hint.is_none() {
-        if let Some((_, color, why)) = DEVICE_COLORS.iter().find(|(r, _, _)| Some(*r) == device_role(&id)) {
+    if hint.is_none()
+        && let Some((_, color, why)) = DEVICE_COLORS.iter().find(|(r, _, _)| Some(*r) == device_role(&id)) {
             return single(color, why.to_string(), 0.9);
         }
-    }
     // classes with a conventional palette (LISA: Anselin 1995, as GeoDa and ArcGIS Pro draw them)
     let hint = if hint.is_none() && l.info.fields.iter().any(|f| f.name == "lisa_cluster") { Some("lisa_cluster") } else { hint };
     let fallback = single_color(&id);
