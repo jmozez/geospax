@@ -137,7 +137,8 @@ export class ProfilePanel {
   private reversed = false;
   private km = false;
   private layer: LayerInfo | null = null;
-  constructor(private h: ProfileHost) {}
+  private h: ProfileHost;
+  constructor(h: ProfileHost) { this.h = h; }
 
   /** Open for the selected layer (or the first layer with a distance and an elevation field); toggles off when open. */
   async toggle(opts: { reverse?: boolean; a?: string; b?: string } = {}) {
