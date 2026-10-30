@@ -677,11 +677,10 @@ pub(super) fn interpolate_auto(sc: &mut StepCtx, p: &Value) -> Result<StepOut, S
         (Some(k), "auto") => k.cv.rmse <= idw_rmse,
         _ => false,
     };
-    if !use_kriging && kriging_note.is_empty() {
-        if let Some(k) = &kr {
+    if !use_kriging && kriging_note.is_empty()
+        && let Some(k) = &kr {
             kriging_note = format!("IDW cross-validated better than kriging (RMSE {} vs {})", sig(idw_rmse, 3), sig(k.cv.rmse, 3));
         }
-    }
 
     // ---- prediction grid (UTM), limited to the samples' convex hull
     let b = bbox(&pts);

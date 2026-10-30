@@ -360,11 +360,10 @@ impl Recipe {
                 refs_in(w, &mut heads);
             }
             for h in heads.iter().map(|h| h.split('.').next().unwrap_or("").to_string()).chain(s.needs.iter().cloned()) {
-                if let Some(&j) = idx.get(h.as_str()) {
-                    if j != i {
+                if let Some(&j) = idx.get(h.as_str())
+                    && j != i {
                         deps[i].insert(j);
                     }
-                }
             }
         }
         let mut done = vec![false; n];
@@ -458,7 +457,7 @@ fn parse_trigger(item: &Value) -> Result<Option<Trigger>, String> {
             Ok(Some(Trigger::Folder { path: path.to_string(), pattern: spec.get("pattern").and_then(Value::as_str).map(str::to_string), on_start }))
         }
         "schedule" => {
-            let every = spec.get("every").map(|e| parse_duration(e)).transpose()?;
+            let every = spec.get("every").map(parse_duration).transpose()?;
             let cron = spec.get("cron").and_then(Value::as_str).map(Cron::parse).transpose()?;
             if every.is_none() && cron.is_none() {
                 return Err("schedule needs every: (e.g. 30m, 6h) or cron: (e.g. \"0 6 * * MON\")".into());
@@ -558,11 +557,11 @@ pub fn parse_duration(v: &Value) -> Result<Duration, String> {
 
 pub fn human_duration(d: Duration) -> String {
     let s = d.as_secs();
-    if s % 86400 == 0 {
+    if s.is_multiple_of(86400) {
         format!("{} day{}", s / 86400, if s / 86400 == 1 { "" } else { "s" })
-    } else if s % 3600 == 0 {
+    } else if s.is_multiple_of(3600) {
         format!("{} h", s / 3600)
-    } else if s % 60 == 0 {
+    } else if s.is_multiple_of(60) {
         format!("{} min", s / 60)
     } else {
         format!("{s} s")
