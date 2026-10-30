@@ -208,6 +208,7 @@ fn content_type(name: &str) -> &'static str {
         "pdf" => "application/pdf",
         "html" => "text/html; charset=utf-8",
         "json" => "application/json",
+        "glb" => "model/gltf-binary",
         "geojson" => "application/geo+json",
         "gpkg" => "application/geopackage+sqlite3",
         "csv" => "text/csv; charset=utf-8",
