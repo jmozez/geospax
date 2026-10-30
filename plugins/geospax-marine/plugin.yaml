@@ -12,6 +12,17 @@ geojson: true
 default: true
 run: node --no-warnings ${plugin}/../gsx/run.mjs ${tool}
 tools:
+  - id: "on-land"
+    name: "Records on land (marine QC)"
+    summary: "Flags marine occurrences that fall on land (DEM above 0 m with a coastal tolerance, or inside land polygons), and can drop them."
+    group: "Marine"
+    icon: alert
+    params:
+      - { name: "points", label: "Points", kind: layer, required: true }
+      - { name: "land_dem", label: "Land mask raster (bathymetry / topography)", kind: raster, description: "Never guessed: pick e.g. GEBCO; records with no cell at or below 0 m within the coastal tolerance count as on land." }
+      - { name: "land_polygons", label: "Land mask: land polygons", kind: layer, description: "Optional, e.g. OSM land polygons or Natural Earth 10 m land." }
+      - { name: "coastal_m", label: "Coastal tolerance (m)", kind: number, default: 1000, description: "A record is kept as marine if any sea cell lies within this distance (allows for coarse coastlines)." }
+      - { name: "drop", label: "Drop records on land", kind: bool, default: false }
   - id: "diversity"
     name: "Richness and diversity"
     summary: "Species richness, Shannon H′, Simpson and evenness of an occurrence layer, overall and per area."
@@ -38,6 +49,10 @@ tools:
       - { name: "min_points", label: "Minimum points", kind: number, default: 4 }
       - { name: "epsilon_m", label: "Radius (m)", kind: number, description: "Empty: from the median nearest-neighbour distance × multiplier." }
       - { name: "multiplier", label: "Automatic radius × ", kind: number, default: 1.5 }
+      - { name: "land_dem", label: "Land mask raster (bathymetry / topography)", kind: raster, description: "Never guessed: pick e.g. GEBCO; records with no cell at or below 0 m within the coastal tolerance count as on land." }
+      - { name: "land_polygons", label: "Land mask: land polygons", kind: layer, description: "Optional, e.g. OSM land polygons or Natural Earth 10 m land." }
+      - { name: "coastal_m", label: "Coastal tolerance (m)", kind: number, default: 1000, description: "A record is kept as marine if any sea cell lies within this distance (allows for coarse coastlines)." }
+      - { name: "drop_on_land", label: "Drop records on land before clustering", kind: bool, default: true, description: "Only used when a land mask is given." }
   - id: "sdm"
     name: "Species distribution model"
     summary: "BIOCLIM, Mahalanobis or presence-background logistic suitability from occurrences and environmental rasters, with spatially blocked cross-validation (AUC, TSS, Boyce)."
