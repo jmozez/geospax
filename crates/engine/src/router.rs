@@ -795,6 +795,13 @@ impl Engine {
                 };
                 ApiResponse::json(200, &crate::crs::search(&q, at, 40))
             }
+            ("POST", ["api", "sql"]) => {
+                let b = body_json(&req.body);
+                match self.sql_query(b["sql"].as_str().unwrap_or(""), b["name"].as_str()) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
             ("GET", ["api", "crs", "pacific"]) => ApiResponse::json(200, &crate::crs::pacific()),
             ("GET", ["api", "crs", code]) => match crate::crs::describe(code) {
                 Ok(v) => ApiResponse::json(200, &v),
