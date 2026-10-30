@@ -5,6 +5,7 @@
 #
 # Reads the GLIBC_x.y symbol versions each ELF file imports (objdump -T) and reports the highest.
 set -euo pipefail
+command -v objdump >/dev/null || { echo "::error::objdump not found (install binutils)"; exit 1; }
 MAX=2.35
 if [[ "${1:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then MAX=$1; shift; fi
 [ $# -gt 0 ] || { sed -n 2,6p "$0"; exit 2; }
@@ -12,7 +13,7 @@ newer() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" != "$2" ]; }
 bad=0 n=0
 while IFS= read -r f; do
   head -c4 "$f" 2>/dev/null | grep -q $'\x7fELF' || continue
-  need=$(objdump -T "$f" 2>/dev/null | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/GLIBC_//' | sort -Vu | tail -1)
+  need=$(objdump -T "$f" 2>/dev/null | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/GLIBC_//' | sort -Vu | tail -1 || true)
   n=$((n+1))
   [ -n "$need" ] || continue
   if newer "$need" "$MAX"; then echo "::error::$f needs GLIBC_$need (newer than $MAX)"; bad=1; fi
