@@ -420,11 +420,32 @@ jobs:
           Start-Sleep -Seconds 15
           if (Test-Path "$env:INST\geospax.exe") { throw "GeoSpaX is still installed" }
 
+  supply-chain:
+    name: Supply chain (cargo audit gate and CycloneDX SBOM)
+    # fails on any RustSec vulnerability in Cargo.lock (unmaintained or unsound warnings are listed, not fatal);
+    # the release needs this job, so a vulnerable build cannot be published
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit,cargo-cyclonedx
+      - name: cargo audit (RustSec advisories)
+        run: cargo audit
+      - name: npm audit (web, desktop shell, field app; high and critical)
+        run: for a in web apps/desktop apps/field; do (cd $a && npm audit --package-lock-only --omit dev --audit-level=high); done
+      - name: CycloneDX SBOMs
+        run: scripts/sbom.sh sbom
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geospax-sbom
+          path: sbom/*.cdx.json
+
   release:
     name: GitHub release
     # on a pushed tag, or from "Run workflow" with a release tag (the release then creates the tag)
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
-    needs: [linux, flatpak, appimage-test, android, android-emulator, windows-native]
+    needs: [linux, flatpak, appimage-test, android, android-emulator, windows-native, supply-chain]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -458,6 +479,10 @@ jobs:
         with:
           name: geospax-field-apk
           path: releases
+      - uses: actions/download-artifact@v4
+        with:
+          name: geospax-sbom
+          path: releases/sbom
       - name: Update feed (latest.json) from the updater signatures
         run: python3 scripts/update-feed.py "$TAG" releases
         env:
@@ -474,6 +499,7 @@ jobs:
             releases/**/GeoSpaX_*_x64-setup.exe.sig
             releases/**/latest.json
             releases/**/GeoSpaX-*-windows-x64.zip
+            releases/sbom/*.cdx.json
           generate_release_notes: true
 
   docker:
