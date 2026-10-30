@@ -193,11 +193,10 @@ pub fn page_size(size: &str, extent: [f64; 4]) -> (f64, f64) {
 /// The page for a map in a projection (auto sizes follow the projected shape of the extent).
 pub fn page_size_in(size: &str, extent: [f64; 4], proj: Proj) -> (f64, f64) {
     let s = size.trim().to_ascii_lowercase();
-    if let Some((w, h)) = s.split_once('x') {
-        if let (Ok(w), Ok(h)) = (w.trim().parse::<f64>(), h.trim().parse::<f64>()) {
+    if let Some((w, h)) = s.split_once('x')
+        && let (Ok(w), Ok(h)) = (w.trim().parse::<f64>(), h.trim().parse::<f64>()) {
             return (w.clamp(600.0, 8000.0), h.clamp(400.0, 8000.0));
         }
-    }
     match s.as_str() {
         "a4" => (1754.0, 1240.0),
         "a4-portrait" => (1240.0, 1754.0),
@@ -379,7 +378,7 @@ pub fn fmt_num(v: f64) -> String {
         let s = i.abs().to_string();
         let mut out = String::new();
         for (k, ch) in s.chars().enumerate() {
-            if k > 0 && (s.len() - k) % 3 == 0 {
+            if k > 0 && (s.len() - k).is_multiple_of(3) {
                 out.push(',');
             }
             out.push(ch);

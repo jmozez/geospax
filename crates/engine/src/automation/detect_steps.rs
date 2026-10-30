@@ -60,11 +60,10 @@ fn parse_names(s: &str) -> Vec<String> {
     }
     let mut out: Vec<(usize, String)> = Vec::new();
     for part in s.trim().trim_start_matches('{').trim_end_matches('}').split(',') {
-        if let Some((k, v)) = part.split_once(':') {
-            if let Ok(i) = k.trim().parse::<usize>() {
+        if let Some((k, v)) = part.split_once(':')
+            && let Ok(i) = k.trim().parse::<usize>() {
                 out.push((i, v.trim().trim_matches(|c| c == '\'' || c == '"').to_string()));
             }
-        }
     }
     out.sort_by_key(|x| x.0);
     out.into_iter().map(|x| x.1).collect()
@@ -94,11 +93,10 @@ pub fn inspect(path: &Path) -> Result<ModelInfo, String> {
     if labels.is_empty() {
         labels = prop("names").map(|s| parse_names(&s)).unwrap_or_default();
     }
-    if labels.is_empty() {
-        if let Ok(t) = std::fs::read_to_string(path.with_extension("txt")) {
+    if labels.is_empty()
+        && let Ok(t) = std::fs::read_to_string(path.with_extension("txt")) {
             labels = t.lines().map(str::trim).filter(|l| !l.is_empty()).map(String::from).collect();
         }
-    }
     let licence = side["licence"].as_str().or(side["license"].as_str()).map(String::from).or_else(|| prop("license")).unwrap_or_default();
     let source = side["source"].as_str().map(String::from).or_else(|| prop("author")).unwrap_or_default();
     let (h, w) = (dims[2], dims[3]);

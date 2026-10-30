@@ -285,8 +285,8 @@ pub(super) fn grass(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             let cats = std::fs::read_to_string(f.with_extension("cats")).unwrap_or_default();
             let cols = std::fs::read_to_string(f.with_extension("colors")).unwrap_or_default();
             let mut classes = grass_classes(&cats, &cols);
-            if let Ok(ds) = raster::open(&f.with_extension("tif")) {
-                if let Ok((v, _, _)) = raster::read_full(&ds, 1) {
+            if let Ok(ds) = raster::open(&f.with_extension("tif"))
+                && let Ok((v, _, _)) = raster::read_full(&ds, 1) {
                     let nd = ds.rasterband(1).ok().and_then(|b| b.no_data_value());
                     let valid: Vec<f32> = v.into_iter().filter(|x| x.is_finite() && nd.is_none_or(|n| (*x as f64 - n).abs() > 1e-6)).collect();
                     let tot = valid.len().max(1) as f64;
@@ -300,7 +300,6 @@ pub(super) fn grass(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                     }
                     classes.retain(|c| c["share"].as_f64().unwrap_or(0.0) > 0.0);
                 }
-            }
             if !classes.is_empty() {
                 why.push(format!("{}: {} classes with GRASS's own labels and colours ({})", o.name, classes.len(), classes.iter().take(4).filter_map(|c| c["label"].as_str()).collect::<Vec<_>>().join(", ")));
                 side["kind"] = json!("classes");
