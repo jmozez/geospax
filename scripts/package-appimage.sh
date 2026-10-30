@@ -45,6 +45,8 @@ case ",$BUNDLES," in *,deb,*|*,rpm,*)
     [ -e "$f" ] || { echo "cannot find $f for the package dependencies"; exit 1; }
     DEPS="$DEPS,$(owner "$f")"
   done
+  # WebKitGTK opens OpenGL ES at run time, so no package pulls it in; without it the window cannot draw
+  if command -v dpkg >/dev/null; then DEPS="$DEPS,libgles2"; else DEPS="$DEPS,libGLESv2.so.2()(64bit)"; fi
   DEPS=$(echo "${DEPS#,}" | tr ',' '\n' | sort -u | paste -sd,); echo "== package depends: $DEPS" ;;
 esac
 CONFIG=$(python3 - "$ST" "$GDAL_SHARE" "$PROJ_SHARE" "${TAURI_SIGNING_PRIVATE_KEY:+1}" "$DEPS" <<'PY'
