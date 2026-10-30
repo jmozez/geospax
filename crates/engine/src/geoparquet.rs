@@ -8,8 +8,8 @@
 //! Overture Maps (buildings, roads, places, water, land use, boundaries, addresses) is read from its
 //! public S3 bucket, newest release first.
 
-use crate::jobs::Status;
 use crate::Engine;
+use crate::jobs::Status;
 use arrow_array::cast::AsArray;
 use arrow_array::types::{Float32Type, Float64Type, Int32Type, Int64Type};
 use arrow_array::{Array, ArrayRef, RecordBatch, StructArray};
@@ -20,12 +20,12 @@ use parquet::errors::ParquetError;
 use parquet::file::metadata::ParquetMetaData;
 use parquet::file::reader::{ChunkReader, Length};
 use parquet::file::statistics::Statistics;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::ffi::CString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 // ---------------------------------------------------------------- byte ranges through GDAL
 
@@ -63,7 +63,10 @@ impl VsiFile {
         if len < 12 {
             return Err(format!("{path}: not a Parquet file"));
         }
-        Ok(Self { path: path.to_string(), len })
+        Ok(Self {
+            path: path.to_string(),
+            len,
+        })
     }
 
     fn read_at(&self, start: u64, len: usize) -> Result<Vec<u8>, String> {
@@ -105,7 +108,10 @@ impl ChunkReader for VsiFile {
     fn get_bytes(&self, start: u64, length: usize) -> parquet::errors::Result<Bytes> {
         let b = self.read_at(start, length).map_err(ParquetError::General)?;
         if b.len() < length {
-            return Err(ParquetError::EOF(format!("{}: short read at {start}", self.path)));
+            return Err(ParquetError::EOF(format!(
+                "{}: short read at {start}",
+                self.path
+            )));
         }
         Ok(Bytes::from(b))
     }
@@ -142,10 +148,21 @@ pub fn plan(path: &str, area: Option<[f64; 4]>) -> Result<Plan, String> {
             None => true,
             Some(a) => {
                 let get = |name: &str, max: bool| {
-                    rg.columns().iter().find(|c| c.column_path().string() == name).and_then(|c| c.statistics()).and_then(|s| stat_f64(s, max))
+                    rg.columns()
+                        .iter()
+                        .find(|c| c.column_path().string() == name)
+                        .and_then(|c| c.statistics())
+                        .and_then(|s| stat_f64(s, max))
                 };
-                match (get("bbox.xmin", false), get("bbox.ymin", false), get("bbox.xmax", true), get("bbox.ymax", true)) {
-                    (Some(x0), Some(y0), Some(x1), Some(y1)) => x0 <= a[2] && x1 >= a[0] && y0 <= a[3] && y1 >= a[1],
+                match (
+                    get("bbox.xmin", false),
+                    get("bbox.ymin", false),
+                    get("bbox.xmax", true),
+                    get("bbox.ymax", true),
+                ) {
+                    (Some(x0), Some(y0), Some(x1), Some(y1)) => {
+                        x0 <= a[2] && x1 >= a[0] && y0 <= a[3] && y1 >= a[1]
+                    }
                     _ => true,
                 }
             }
@@ -155,7 +172,12 @@ pub fn plan(path: &str, area: Option<[f64; 4]>) -> Result<Plan, String> {
             rows += rg.num_rows();
         }
     }
-    Ok(Plan { path: path.to_string(), meta, groups, rows })
+    Ok(Plan {
+        path: path.to_string(),
+        meta,
+        groups,
+        rows,
+    })
 }
 
 /// The geometry column named by the file's "geo" metadata (GeoParquet), else "geometry".
@@ -180,7 +202,13 @@ enum Kind {
 
 fn column_kind(t: &DataType) -> Option<Kind> {
     Some(match t {
-        DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 | DataType::UInt8 | DataType::UInt16 | DataType::UInt32 => Kind::Int,
+        DataType::Int8
+        | DataType::Int16
+        | DataType::Int32
+        | DataType::Int64
+        | DataType::UInt8
+        | DataType::UInt16
+        | DataType::UInt32 => Kind::Int,
         DataType::Float32 | DataType::Float64 => Kind::Real,
         DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View | DataType::Boolean => Kind::Text,
         _ => return None,
@@ -200,11 +228,26 @@ fn cell(a: &ArrayRef, i: usize) -> Option<String> {
         DataType::Float64 => a.as_primitive::<Float64Type>().value(i).to_string(),
         DataType::Int32 => a.as_primitive::<Int32Type>().value(i).to_string(),
         DataType::Int64 => a.as_primitive::<Int64Type>().value(i).to_string(),
-        DataType::Int8 => a.as_primitive::<arrow_array::types::Int8Type>().value(i).to_string(),
-        DataType::Int16 => a.as_primitive::<arrow_array::types::Int16Type>().value(i).to_string(),
-        DataType::UInt8 => a.as_primitive::<arrow_array::types::UInt8Type>().value(i).to_string(),
-        DataType::UInt16 => a.as_primitive::<arrow_array::types::UInt16Type>().value(i).to_string(),
-        DataType::UInt32 => a.as_primitive::<arrow_array::types::UInt32Type>().value(i).to_string(),
+        DataType::Int8 => a
+            .as_primitive::<arrow_array::types::Int8Type>()
+            .value(i)
+            .to_string(),
+        DataType::Int16 => a
+            .as_primitive::<arrow_array::types::Int16Type>()
+            .value(i)
+            .to_string(),
+        DataType::UInt8 => a
+            .as_primitive::<arrow_array::types::UInt8Type>()
+            .value(i)
+            .to_string(),
+        DataType::UInt16 => a
+            .as_primitive::<arrow_array::types::UInt16Type>()
+            .value(i)
+            .to_string(),
+        DataType::UInt32 => a
+            .as_primitive::<arrow_array::types::UInt32Type>()
+            .value(i)
+            .to_string(),
         _ => return None,
     })
 }
@@ -242,9 +285,21 @@ fn fields_of(schema: &arrow_schema::Schema, geom: &str) -> Vec<(String, Kind, So
         if let Some(k) = column_kind(f.data_type()) {
             out.push((n.clone(), k, Source::Plain(n.clone())));
         } else if let DataType::Struct(kids) = f.data_type() {
-            if let Some(p) = kids.iter().find(|c| c.name() == "primary").filter(|c| column_kind(c.data_type()) == Some(Kind::Text)) {
-                let out_name = if n == "names" { "name".to_string() } else { format!("{n}_primary") };
-                out.push((out_name, Kind::Text, Source::Nested(n.clone(), p.name().clone())));
+            if let Some(p) = kids
+                .iter()
+                .find(|c| c.name() == "primary")
+                .filter(|c| column_kind(c.data_type()) == Some(Kind::Text))
+            {
+                let out_name = if n == "names" {
+                    "name".to_string()
+                } else {
+                    format!("{n}_primary")
+                };
+                out.push((
+                    out_name,
+                    Kind::Text,
+                    Source::Nested(n.clone(), p.name().clone()),
+                ));
             }
         }
     }
@@ -254,7 +309,9 @@ fn fields_of(schema: &arrow_schema::Schema, geom: &str) -> Vec<(String, Kind, So
 fn get_col(b: &RecordBatch, s: &Source) -> Option<ArrayRef> {
     match s {
         Source::Plain(n) => b.column_by_name(n).cloned(),
-        Source::Nested(n, k) => b.column_by_name(n).and_then(|c| c.as_struct_opt().and_then(|s| sub(s, k))),
+        Source::Nested(n, k) => b
+            .column_by_name(n)
+            .and_then(|c| c.as_struct_opt().and_then(|s| sub(s, k))),
     }
 }
 
@@ -265,12 +322,30 @@ pub struct Written {
 
 /// Write the features of the planned row groups that lie in `area` to a GeoPackage layer.
 /// `progress(groups_done, groups_total)` returns false to stop.
-pub fn write_gpkg(plans: &[Plan], area: Option<[f64; 4]>, out: &Path, layer: &str, limit: u64, mut progress: impl FnMut(usize, usize) -> bool) -> Result<Written, String> {
+pub fn write_gpkg(
+    plans: &[Plan],
+    area: Option<[f64; 4]>,
+    out: &Path,
+    layer: &str,
+    limit: u64,
+    mut progress: impl FnMut(usize, usize) -> bool,
+) -> Result<Written, String> {
     use gdal::spatial_ref::{AxisMappingStrategy, SpatialRef};
-    use gdal::vector::{Feature, FieldDefn, Geometry, LayerAccess, LayerOptions, OGRFieldType as F, OGRwkbGeometryType as G};
+    use gdal::vector::{
+        Feature, FieldDefn, Geometry, LayerAccess, LayerOptions, OGRFieldType as F,
+        OGRwkbGeometryType as G,
+    };
     let e = |x: gdal::errors::GdalError| x.to_string();
-    let first = plans.iter().find(|p| !p.groups.is_empty()).or(plans.first()).ok_or("no files to read")?;
-    let schema = parquet::arrow::parquet_to_arrow_schema(first.meta.file_metadata().schema_descr(), first.meta.file_metadata().key_value_metadata()).map_err(|x| x.to_string())?;
+    let first = plans
+        .iter()
+        .find(|p| !p.groups.is_empty())
+        .or(plans.first())
+        .ok_or("no files to read")?;
+    let schema = parquet::arrow::parquet_to_arrow_schema(
+        first.meta.file_metadata().schema_descr(),
+        first.meta.file_metadata().key_value_metadata(),
+    )
+    .map_err(|x| x.to_string())?;
     let geom = geometry_column(&first.meta);
     if schema.field_with_name(&geom).is_err() {
         return Err(format!("no geometry column ({geom}) in this Parquet file"));
@@ -285,9 +360,26 @@ pub fn write_gpkg(plans: &[Plan], area: Option<[f64; 4]>, out: &Path, layer: &st
     let mut srs = SpatialRef::from_epsg(4326).map_err(e)?;
     srs.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
     let mut txn = ds.start_transaction().map_err(e)?;
-    let lyr = txn.create_layer(LayerOptions { name: layer, srs: Some(&srs), ty: G::wkbUnknown, options: None }).map_err(e)?;
+    let lyr = txn
+        .create_layer(LayerOptions {
+            name: layer,
+            srs: Some(&srs),
+            ty: G::wkbUnknown,
+            options: None,
+        })
+        .map_err(e)?;
     for (n, k, _) in &fields {
-        FieldDefn::new(n, match k { Kind::Int => F::OFTInteger64, Kind::Real => F::OFTReal, Kind::Text => F::OFTString }).map_err(e)?.add_to_layer(&lyr).map_err(e)?;
+        FieldDefn::new(
+            n,
+            match k {
+                Kind::Int => F::OFTInteger64,
+                Kind::Real => F::OFTReal,
+                Kind::Text => F::OFTString,
+            },
+        )
+        .map_err(e)?
+        .add_to_layer(&lyr)
+        .map_err(e)?;
     }
     let total: usize = plans.iter().map(|p| p.groups.len()).sum();
     let mut done = 0usize;
@@ -305,22 +397,36 @@ pub fn write_gpkg(plans: &[Plan], area: Option<[f64; 4]>, out: &Path, layer: &st
                 .map_err(|x| x.to_string())?;
             for batch in reader {
                 let b = batch.map_err(|x| x.to_string())?;
-                let Some(gcol) = b.column_by_name(&geom).cloned() else { continue };
-                let bbox = b.column_by_name("bbox").and_then(|c| c.as_struct_opt().cloned());
-                let bb = |name: &str| bbox.as_ref().and_then(|s| sub(s, name)).and_then(|c| arrow_cast_f64(&c));
+                let Some(gcol) = b.column_by_name(&geom).cloned() else {
+                    continue;
+                };
+                let bbox = b
+                    .column_by_name("bbox")
+                    .and_then(|c| c.as_struct_opt().cloned());
+                let bb = |name: &str| {
+                    bbox.as_ref()
+                        .and_then(|s| sub(s, name))
+                        .and_then(|c| arrow_cast_f64(&c))
+                };
                 let (bx0, by0, bx1, by1) = (bb("xmin"), bb("ymin"), bb("xmax"), bb("ymax"));
-                let cols: Vec<Option<ArrayRef>> = fields.iter().map(|(_, _, s)| get_col(&b, s)).collect();
+                let cols: Vec<Option<ArrayRef>> =
+                    fields.iter().map(|(_, _, s)| get_col(&b, s)).collect();
                 for i in 0..b.num_rows() {
-                    if let (Some(a), Some(x0), Some(y0), Some(x1), Some(y1)) = (area, &bx0, &by0, &bx1, &by1) {
+                    if let (Some(a), Some(x0), Some(y0), Some(x1), Some(y1)) =
+                        (area, &bx0, &by0, &bx1, &by1)
+                    {
                         if x0[i] > a[2] || x1[i] < a[0] || y0[i] > a[3] || y1[i] < a[1] {
                             continue;
                         }
                     }
                     let Some(w) = wkb(&gcol, i) else { continue };
-                    let Ok(gm) = Geometry::from_wkb(w) else { continue };
+                    let Ok(gm) = Geometry::from_wkb(w) else {
+                        continue;
+                    };
                     if let (Some(a), None) = (area, &bx0) {
                         let env = gm.envelope();
-                        if env.MinX > a[2] || env.MaxX < a[0] || env.MinY > a[3] || env.MaxY < a[1] {
+                        if env.MinX > a[2] || env.MaxX < a[0] || env.MinY > a[3] || env.MaxY < a[1]
+                        {
                             continue;
                         }
                     }
@@ -328,8 +434,12 @@ pub fn write_gpkg(plans: &[Plan], area: Option<[f64; 4]>, out: &Path, layer: &st
                     for (j, (_, k, _)) in fields.iter().enumerate() {
                         match cols[j].as_ref().and_then(|c| cell(c, i)) {
                             Some(v) => match k {
-                                Kind::Int => f.set_field_integer64(j, v.parse().unwrap_or(0)).map_err(e)?,
-                                Kind::Real => f.set_field_double(j, v.parse().unwrap_or(f64::NAN)).map_err(e)?,
+                                Kind::Int => f
+                                    .set_field_integer64(j, v.parse().unwrap_or(0))
+                                    .map_err(e)?,
+                                Kind::Real => f
+                                    .set_field_double(j, v.parse().unwrap_or(f64::NAN))
+                                    .map_err(e)?,
                                 Kind::Text => f.set_field_string(j, &v).map_err(e)?,
                             },
                             None => f.set_field_null(j).map_err(e)?,
@@ -349,12 +459,21 @@ pub fn write_gpkg(plans: &[Plan], area: Option<[f64; 4]>, out: &Path, layer: &st
     progress(total, total);
     drop(lyr);
     txn.commit().map_err(e)?;
-    Ok(Written { features: n, path: out.to_path_buf() })
+    Ok(Written {
+        features: n,
+        path: out.to_path_buf(),
+    })
 }
 
 fn arrow_cast_f64(a: &ArrayRef) -> Option<Vec<f64>> {
     match a.data_type() {
-        DataType::Float32 => Some(a.as_primitive::<Float32Type>().values().iter().map(|v| *v as f64).collect()),
+        DataType::Float32 => Some(
+            a.as_primitive::<Float32Type>()
+                .values()
+                .iter()
+                .map(|v| *v as f64)
+                .collect(),
+        ),
         DataType::Float64 => Some(a.as_primitive::<Float64Type>().values().to_vec()),
         _ => None,
     }
@@ -366,11 +485,21 @@ fn arrow_cast_f64(a: &ArrayRef) -> Option<Vec<f64>> {
 pub const OVERTURE: &[(&str, &str, &str, &str)] = &[
     ("buildings", "Buildings", "buildings", "building"),
     ("roads", "Roads and paths", "transportation", "segment"),
-    ("places", "Places (shops, schools, clinics…)", "places", "place"),
+    (
+        "places",
+        "Places (shops, schools, clinics…)",
+        "places",
+        "place",
+    ),
     ("water", "Water", "base", "water"),
     ("land_use", "Land use", "base", "land_use"),
     ("land_cover", "Land cover", "base", "land_cover"),
-    ("boundaries", "Boundaries (countries, regions)", "divisions", "division_area"),
+    (
+        "boundaries",
+        "Boundaries (countries, regions)",
+        "divisions",
+        "division_area",
+    ),
     ("addresses", "Addresses", "addresses", "address"),
 ];
 
@@ -381,7 +510,11 @@ fn overture_root() -> String {
     }
     let bucket = "/vsis3/overturemaps-us-west-2";
     for (k, v) in [("AWS_NO_SIGN_REQUEST", "YES"), ("AWS_REGION", "us-west-2")] {
-        let (p, k, v) = (CString::new(bucket).unwrap(), CString::new(k).unwrap(), CString::new(v).unwrap());
+        let (p, k, v) = (
+            CString::new(bucket).unwrap(),
+            CString::new(k).unwrap(),
+            CString::new(v).unwrap(),
+        );
         unsafe { gdal_sys::VSISetPathSpecificOption(p.as_ptr(), k.as_ptr(), v.as_ptr()) };
     }
     format!("{bucket}/release")
@@ -400,7 +533,12 @@ fn read_dir(path: &str) -> Vec<String> {
         if p.is_null() {
             break;
         }
-        out.push(unsafe { std::ffi::CStr::from_ptr(p) }.to_string_lossy().trim_end_matches('/').to_string());
+        out.push(
+            unsafe { std::ffi::CStr::from_ptr(p) }
+                .to_string_lossy()
+                .trim_end_matches('/')
+                .to_string(),
+        );
         i += 1;
     }
     unsafe { gdal_sys::CSLDestroy(list) };
@@ -410,17 +548,30 @@ fn read_dir(path: &str) -> Vec<String> {
 /// The newest release folder (named by date, e.g. 2026-09-17.0).
 pub fn latest_release() -> Result<String, String> {
     let root = overture_root();
-    let mut r: Vec<String> = read_dir(&root).into_iter().filter(|n| n.chars().next().is_some_and(|c| c.is_ascii_digit())).collect();
+    let mut r: Vec<String> = read_dir(&root)
+        .into_iter()
+        .filter(|n| n.chars().next().is_some_and(|c| c.is_ascii_digit()))
+        .collect();
     r.sort();
-    r.pop().map(|x| format!("{root}/{x}")).ok_or_else(|| "could not reach Overture Maps (no releases listed)".into())
+    r.pop()
+        .map(|x| format!("{root}/{x}"))
+        .ok_or_else(|| "could not reach Overture Maps (no releases listed)".into())
 }
 
 /// Download one Overture theme for `area` (lon/lat, at most about 0.5° across) as a job with the
 /// download gauge; the layer is added to the map when it is done.
 pub fn overture(engine: &Arc<Engine>, theme: &str, area: [f64; 4]) -> Result<Value, String> {
-    let &(id, title, tfolder, kind) = OVERTURE.iter().find(|t| t.0 == theme).ok_or_else(|| format!("unknown Overture theme {theme}"))?;
-    if !(area[0] < area[2] && area[1] < area[3]) || area[2] - area[0] > 0.5 || area[3] - area[1] > 0.5 {
-        return Err("zoom in: Overture data is fetched for an area up to about 50 km across".into());
+    let &(id, title, tfolder, kind) = OVERTURE
+        .iter()
+        .find(|t| t.0 == theme)
+        .ok_or_else(|| format!("unknown Overture theme {theme}"))?;
+    if !(area[0] < area[2] && area[1] < area[3])
+        || area[2] - area[0] > 0.5
+        || area[3] - area[1] > 0.5
+    {
+        return Err(
+            "zoom in: Overture data is fetched for an area up to about 50 km across".into(),
+        );
     }
     let job = engine.jobs.create("overture", id);
     let (e, j) = (engine.clone(), job.clone());
@@ -475,11 +626,21 @@ pub fn overture(engine: &Arc<Engine>, theme: &str, area: [f64; 4]) -> Result<Val
 }
 
 /// A GeoParquet file (local or remote GDAL path) for an optional area, as a layer on the map.
-pub fn open_file(engine: &Arc<Engine>, path: &str, area: Option<[f64; 4]>) -> Result<Value, String> {
+pub fn open_file(
+    engine: &Arc<Engine>,
+    path: &str,
+    area: Option<[f64; 4]>,
+) -> Result<Value, String> {
     let p = plan(path, area)?;
-    let stem = Path::new(path).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "geoparquet".into());
+    let stem = Path::new(path)
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "geoparquet".into());
     let id = crate::raster::sanitize(&stem);
-    let out = engine.state_dir.join("geoparquet").join(format!("{id}.gpkg"));
+    let out = engine
+        .state_dir
+        .join("geoparquet")
+        .join(format!("{id}.gpkg"));
     let w = write_gpkg(&[p], area, &out, &id, 5_000_000, |_, _| true)?;
     let ids = engine.register_layers(crate::catalog::load_layers(&w.path)?);
     Ok(json!({ "layers": ids, "rasters": [], "features": w.features }))
@@ -491,7 +652,9 @@ pub fn open_file(engine: &Arc<Engine>, path: &str, area: Option<[f64; 4]>) -> Re
 /// columns, the geometry as WKB in `geometry`. Coordinates are written as they are in the source:
 /// pass a file in WGS 84 (lon/lat) for the default OGC:CRS84. Returns the number of rows.
 pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, String> {
-    use arrow_array::builder::{BinaryBuilder, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder};
+    use arrow_array::builder::{
+        BinaryBuilder, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder,
+    };
     use arrow_schema::{Field, Schema};
     use gdal::vector::{FieldValue, LayerAccess, OGRFieldType};
     use parquet::arrow::ArrowWriter;
@@ -504,29 +667,50 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
         None => ds.layer(0).map_err(gerr)?,
     };
     #[derive(Clone, Copy)]
-    enum K { Int, Real, Bool, Text }
-    let fields: Vec<(String, K)> = lyr
-        .defn()
-        .fields()
-        .map(|f| {
-            let k = match f.field_type() {
-                OGRFieldType::OFTInteger | OGRFieldType::OFTInteger64 => {
-                    if f.name().is_empty() { K::Text } else { K::Int }
-                }
-                OGRFieldType::OFTReal => K::Real,
-                _ => K::Text,
-            };
-            (f.name(), k)
-        })
-        .collect();
+    enum K {
+        Int,
+        Real,
+        Bool,
+        Text,
+    }
+    let fields: Vec<(String, K)> =
+        lyr.defn()
+            .fields()
+            .map(|f| {
+                let k = match f.field_type() {
+                    OGRFieldType::OFTInteger | OGRFieldType::OFTInteger64 => {
+                        if f.name().is_empty() { K::Text } else { K::Int }
+                    }
+                    OGRFieldType::OFTReal => K::Real,
+                    _ => K::Text,
+                };
+                (f.name(), k)
+            })
+            .collect();
     let _ = K::Bool; // booleans arrive as integers from GDAL; kept for completeness
     let mut cols: Vec<Field> = fields
         .iter()
-        .map(|(n, k)| Field::new(n, match k { K::Int => DataType::Int64, K::Real => DataType::Float64, K::Bool => DataType::Boolean, K::Text => DataType::Utf8 }, true))
+        .map(|(n, k)| {
+            Field::new(
+                n,
+                match k {
+                    K::Int => DataType::Int64,
+                    K::Real => DataType::Float64,
+                    K::Bool => DataType::Boolean,
+                    K::Text => DataType::Utf8,
+                },
+                true,
+            )
+        })
         .collect();
     cols.push(Field::new("geometry", DataType::Binary, true));
     // bounds and geometry types for the "geo" metadata
-    let mut bbox = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
+    let mut bbox = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    ];
     let mut types: std::collections::BTreeSet<String> = Default::default();
     let mut ints: Vec<Int64Builder> = Vec::new();
     let mut reals: Vec<Float64Builder> = Vec::new();
@@ -535,10 +719,22 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
     let mut slot = Vec::with_capacity(fields.len());
     for (_, k) in &fields {
         slot.push(match k {
-            K::Int => { ints.push(Int64Builder::new()); ints.len() - 1 }
-            K::Real => { reals.push(Float64Builder::new()); reals.len() - 1 }
-            K::Bool => { bools.push(BooleanBuilder::new()); bools.len() - 1 }
-            K::Text => { texts.push(StringBuilder::new()); texts.len() - 1 }
+            K::Int => {
+                ints.push(Int64Builder::new());
+                ints.len() - 1
+            }
+            K::Real => {
+                reals.push(Float64Builder::new());
+                reals.len() - 1
+            }
+            K::Bool => {
+                bools.push(BooleanBuilder::new());
+                bools.len() - 1
+            }
+            K::Text => {
+                texts.push(StringBuilder::new());
+                texts.len() - 1
+            }
         });
     }
     let mut geoms = BinaryBuilder::new();
@@ -548,9 +744,20 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
             let v = f.field(i).ok().flatten();
             let j = slot[i];
             match k {
-                K::Int => ints[j].append_option(match v { Some(FieldValue::IntegerValue(x)) => Some(x as i64), Some(FieldValue::Integer64Value(x)) => Some(x), _ => None }),
-                K::Real => reals[j].append_option(match v { Some(FieldValue::RealValue(x)) => Some(x), Some(FieldValue::IntegerValue(x)) => Some(x as f64), _ => None }),
-                K::Bool => bools[j].append_option(match v { Some(FieldValue::IntegerValue(x)) => Some(x != 0), _ => None }),
+                K::Int => ints[j].append_option(match v {
+                    Some(FieldValue::IntegerValue(x)) => Some(x as i64),
+                    Some(FieldValue::Integer64Value(x)) => Some(x),
+                    _ => None,
+                }),
+                K::Real => reals[j].append_option(match v {
+                    Some(FieldValue::RealValue(x)) => Some(x),
+                    Some(FieldValue::IntegerValue(x)) => Some(x as f64),
+                    _ => None,
+                }),
+                K::Bool => bools[j].append_option(match v {
+                    Some(FieldValue::IntegerValue(x)) => Some(x != 0),
+                    _ => None,
+                }),
                 K::Text => texts[j].append_option(v.map(|v| match v {
                     FieldValue::StringValue(s) => s,
                     FieldValue::DateValue(d) => d.to_string(),
@@ -562,7 +769,12 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
         match f.geometry() {
             Some(g) => {
                 let e = g.envelope();
-                bbox = [bbox[0].min(e.MinX), bbox[1].min(e.MinY), bbox[2].max(e.MaxX), bbox[3].max(e.MaxY)];
+                bbox = [
+                    bbox[0].min(e.MinX),
+                    bbox[1].min(e.MinY),
+                    bbox[2].max(e.MaxX),
+                    bbox[3].max(e.MaxY),
+                ];
                 types.insert(g.geometry_name().to_ascii_lowercase());
                 geoms.append_value(g.wkb().map_err(gerr)?);
             }
@@ -572,17 +784,32 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
     }
     let names: Vec<String> = types
         .iter()
-        .map(|t| match t.as_str() {
-            "point" => "Point", "linestring" => "LineString", "polygon" => "Polygon", "multipoint" => "MultiPoint",
-            "multilinestring" => "MultiLineString", "multipolygon" => "MultiPolygon", _ => "GeometryCollection",
-        }.to_string())
+        .map(|t| {
+            match t.as_str() {
+                "point" => "Point",
+                "linestring" => "LineString",
+                "polygon" => "Polygon",
+                "multipoint" => "MultiPoint",
+                "multilinestring" => "MultiLineString",
+                "multipolygon" => "MultiPolygon",
+                _ => "GeometryCollection",
+            }
+            .to_string()
+        })
         .collect();
     let mut col = json!({ "encoding": "WKB", "geometry_types": names });
     if bbox[0].is_finite() {
         col["bbox"] = json!(bbox);
     }
-    let geo = json!({ "version": "1.1.0", "primary_column": "geometry", "columns": { "geometry": col } });
-    let schema = Arc::new(Schema::new(cols).with_metadata([("geo".to_string(), geo.to_string())].into_iter().collect::<std::collections::HashMap<_, _>>()));
+    let geo =
+        json!({ "version": "1.1.0", "primary_column": "geometry", "columns": { "geometry": col } });
+    let schema = Arc::new(
+        Schema::new(cols).with_metadata(
+            [("geo".to_string(), geo.to_string())]
+                .into_iter()
+                .collect::<std::collections::HashMap<_, _>>(),
+        ),
+    );
     let mut arrays: Vec<ArrayRef> = Vec::with_capacity(fields.len() + 1);
     for (i, (_, k)) in fields.iter().enumerate() {
         let j = slot[i];
@@ -595,7 +822,9 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
     }
     arrays.push(Arc::new(geoms.finish()));
     let batch = RecordBatch::try_new(schema.clone(), arrays).map_err(|e| e.to_string())?;
-    let props = WriterProperties::builder().set_compression(Compression::ZSTD(ZstdLevel::default())).build();
+    let props = WriterProperties::builder()
+        .set_compression(Compression::ZSTD(ZstdLevel::default()))
+        .build();
     let file = std::fs::File::create(out).map_err(|e| e.to_string())?;
     let mut w = ArrowWriter::try_new(file, schema, Some(props)).map_err(|e| e.to_string())?;
     w.write(&batch).map_err(|e| e.to_string())?;
@@ -621,7 +850,12 @@ mod tests {
     /// An Overture-like file: id, names.primary, height, bbox struct, WKB geometry; 3 row groups
     /// of 4 points each, the groups 10° apart so the statistics separate them.
     pub fn fixture(path: &Path) {
-        let bbox_fields = Fields::from(vec![Field::new("xmin", DataType::Float32, true), Field::new("ymin", DataType::Float32, true), Field::new("xmax", DataType::Float32, true), Field::new("ymax", DataType::Float32, true)]);
+        let bbox_fields = Fields::from(vec![
+            Field::new("xmin", DataType::Float32, true),
+            Field::new("ymin", DataType::Float32, true),
+            Field::new("xmax", DataType::Float32, true),
+            Field::new("ymax", DataType::Float32, true),
+        ]);
         let names_fields = Fields::from(vec![Field::new("primary", DataType::Utf8, true)]);
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Utf8, false),
@@ -631,23 +865,48 @@ mod tests {
             Field::new("geometry", DataType::Binary, true),
         ])
         .with_metadata([("geo".to_string(), r#"{"version":"1.1.0","primary_column":"geometry","columns":{"geometry":{"encoding":"WKB"}}}"#.to_string())].into_iter().collect::<std::collections::HashMap<_, _>>()));
-        let props = WriterProperties::builder().set_max_row_group_row_count(Some(4)).build();
-        let mut w = ArrowWriter::try_new(std::fs::File::create(path).unwrap(), schema.clone(), Some(props)).unwrap();
+        let props = WriterProperties::builder()
+            .set_max_row_group_row_count(Some(4))
+            .build();
+        let mut w = ArrowWriter::try_new(
+            std::fs::File::create(path).unwrap(),
+            schema.clone(),
+            Some(props),
+        )
+        .unwrap();
         for g in 0..3 {
             let xs: Vec<f64> = (0..4).map(|i| g as f64 * 10.0 + i as f64 * 0.01).collect();
             let ys: Vec<f64> = (0..4).map(|i| 5.0 + i as f64 * 0.01).collect();
-            let f32s = |v: &Vec<f64>| Arc::new(Float32Array::from(v.iter().map(|x| *x as f32).collect::<Vec<_>>())) as ArrayRef;
-            let bbox = StructArray::new(bbox_fields.clone(), vec![f32s(&xs), f32s(&ys), f32s(&xs), f32s(&ys)], None);
-            let names = StructArray::new(names_fields.clone(), vec![Arc::new(StringArray::from((0..4).map(|i| format!("b{g}{i}")).collect::<Vec<_>>())) as ArrayRef], None);
+            let f32s = |v: &Vec<f64>| {
+                Arc::new(Float32Array::from(
+                    v.iter().map(|x| *x as f32).collect::<Vec<_>>(),
+                )) as ArrayRef
+            };
+            let bbox = StructArray::new(
+                bbox_fields.clone(),
+                vec![f32s(&xs), f32s(&ys), f32s(&xs), f32s(&ys)],
+                None,
+            );
+            let names = StructArray::new(
+                names_fields.clone(),
+                vec![Arc::new(StringArray::from(
+                    (0..4).map(|i| format!("b{g}{i}")).collect::<Vec<_>>(),
+                )) as ArrayRef],
+                None,
+            );
             let geoms: Vec<Vec<u8>> = xs.iter().zip(&ys).map(|(x, y)| point_wkb(*x, *y)).collect();
             let batch = RecordBatch::try_new(
                 schema.clone(),
                 vec![
-                    Arc::new(StringArray::from((0..4).map(|i| format!("id{g}{i}")).collect::<Vec<_>>())),
+                    Arc::new(StringArray::from(
+                        (0..4).map(|i| format!("id{g}{i}")).collect::<Vec<_>>(),
+                    )),
                     Arc::new(names),
                     Arc::new(Int64Array::from(vec![3, 6, 9, 12])),
                     Arc::new(bbox),
-                    Arc::new(BinaryArray::from(geoms.iter().map(|g| g.as_slice()).collect::<Vec<_>>())),
+                    Arc::new(BinaryArray::from(
+                        geoms.iter().map(|g| g.as_slice()).collect::<Vec<_>>(),
+                    )),
                 ],
             )
             .unwrap();
@@ -683,7 +942,14 @@ mod tests {
         let ds = gdal::Dataset::open(&out).unwrap();
         use gdal::vector::LayerAccess;
         let mut l = ds.layer(0).unwrap();
-        let names: Vec<String> = l.features().filter_map(|f| f.field_index("name").ok().and_then(|i| f.field_as_string(i).ok().flatten())).collect();
+        let names: Vec<String> = l
+            .features()
+            .filter_map(|f| {
+                f.field_index("name")
+                    .ok()
+                    .and_then(|i| f.field_as_string(i).ok().flatten())
+            })
+            .collect();
         assert_eq!(names, vec!["b10", "b11", "b12"]);
         assert!(!hs.is_empty());
     }

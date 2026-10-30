@@ -8,7 +8,7 @@
 //! cancel flag. It is not a sandbox: recipes with code steps must come from a trusted source
 //! (AUTOMATION.md §8).
 
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -50,8 +50,23 @@ pub struct ScriptRun {
 pub fn find(lang: Lang) -> Option<(String, String)> {
     let (env, candidates): (&str, &[&str]) = match lang {
         // Windows: "python3" is usually the Microsoft Store stub, "py" is the python.org launcher
-        Lang::Python => ("GEOSPAX_PYTHON", if cfg!(windows) { &["python", "py", "python3"] } else { &["python3", "python"] }),
-        Lang::R => ("GEOSPAX_RSCRIPT", &["Rscript", "/usr/local/bin/Rscript", "/opt/homebrew/bin/Rscript", "/Library/Frameworks/R.framework/Resources/bin/Rscript"]),
+        Lang::Python => (
+            "GEOSPAX_PYTHON",
+            if cfg!(windows) {
+                &["python", "py", "python3"]
+            } else {
+                &["python3", "python"]
+            },
+        ),
+        Lang::R => (
+            "GEOSPAX_RSCRIPT",
+            &[
+                "Rscript",
+                "/usr/local/bin/Rscript",
+                "/opt/homebrew/bin/Rscript",
+                "/Library/Frameworks/R.framework/Resources/bin/Rscript",
+            ],
+        ),
     };
     let mut list: Vec<String> = std::env::var(env).ok().into_iter().collect();
     list.extend(candidates.iter().map(|s| s.to_string()));
@@ -59,9 +74,17 @@ pub fn find(lang: Lang) -> Option<(String, String)> {
         list.extend(windows_r_installs());
     }
     for cmd in list {
-        if let Ok(out) = crate::command(&cmd).arg("--version").stdin(Stdio::null()).output() {
+        if let Ok(out) = crate::command(&cmd)
+            .arg("--version")
+            .stdin(Stdio::null())
+            .output()
+        {
             if out.status.success() {
-                let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+                let text = format!(
+                    "{}{}",
+                    String::from_utf8_lossy(&out.stdout),
+                    String::from_utf8_lossy(&out.stderr)
+                );
                 let version = text.lines().next().unwrap_or("").trim().to_string();
                 return Some((cmd, version));
             }
@@ -76,8 +99,14 @@ fn windows_r_installs() -> Vec<String> {
     if !cfg!(windows) {
         return found;
     }
-    for (var, sub) in [("ProgramFiles", "R"), ("ProgramW6432", "R"), ("LOCALAPPDATA", "Programs\\R")] {
-        let Some(base) = std::env::var_os(var) else { continue };
+    for (var, sub) in [
+        ("ProgramFiles", "R"),
+        ("ProgramW6432", "R"),
+        ("LOCALAPPDATA", "Programs\\R"),
+    ] {
+        let Some(base) = std::env::var_os(var) else {
+            continue;
+        };
         if let Ok(rd) = std::fs::read_dir(PathBuf::from(base).join(sub)) {
             for e in rd.flatten() {
                 let exe = e.path().join("bin").join("Rscript.exe");
@@ -108,7 +137,9 @@ pub fn r_library() -> Option<&'static PathBuf> {
 pub fn install_hint(lang: Lang) -> &'static str {
     match lang {
         Lang::Python => "install Python 3 (https://www.python.org) or set GEOSPAX_PYTHON",
-        Lang::R => "open R › R setup to install it (or install R from https://cran.r-project.org, or set GEOSPAX_RSCRIPT)",
+        Lang::R => {
+            "open R › R setup to install it (or install R from https://cran.r-project.org, or set GEOSPAX_RSCRIPT)"
+        }
     }
 }
 
@@ -124,12 +155,21 @@ pub fn r_literal(v: &Value) -> String {
         Value::Number(n) => n.to_string(),
         Value::String(s) => r_str(s),
         Value::Array(a) => {
-            let scalars = a.iter().all(|x| x.is_number()) || a.iter().all(|x| x.is_string()) || a.iter().all(|x| x.is_boolean());
+            let scalars = a.iter().all(|x| x.is_number())
+                || a.iter().all(|x| x.is_string())
+                || a.iter().all(|x| x.is_boolean());
             let items: Vec<String> = a.iter().map(r_literal).collect();
-            if scalars && !a.is_empty() { format!("c({})", items.join(", ")) } else { format!("list({})", items.join(", ")) }
+            if scalars && !a.is_empty() {
+                format!("c({})", items.join(", "))
+            } else {
+                format!("list({})", items.join(", "))
+            }
         }
         Value::Object(o) => {
-            let items: Vec<String> = o.iter().map(|(k, x)| format!("{} = {}", r_str(k), r_literal(x))).collect();
+            let items: Vec<String> = o
+                .iter()
+                .map(|(k, x)| format!("{} = {}", r_str(k), r_literal(x)))
+                .collect();
             format!("list({})", items.join(", "))
         }
     }
@@ -151,8 +191,17 @@ fn r_str(s: &str) -> String {
     out
 }
 
-fn python_wrapper(code: &str, inputs: &[(String, PathBuf)], params: &Value, packages: &[String], outputs: &Path) -> String {
-    let inputs_py: Vec<String> = inputs.iter().map(|(n, p)| format!("{}: {}", py_str(n), py_str(&p.to_string_lossy()))).collect();
+fn python_wrapper(
+    code: &str,
+    inputs: &[(String, PathBuf)],
+    params: &Value,
+    packages: &[String],
+    outputs: &Path,
+) -> String {
+    let inputs_py: Vec<String> = inputs
+        .iter()
+        .map(|(n, p)| format!("{}: {}", py_str(n), py_str(&p.to_string_lossy())))
+        .collect();
     let packages_py: Vec<String> = packages.iter().map(|p| py_str(p)).collect();
     format!(
         r#"# GeoSpaX Python step (generated). Your code is between the markers below.
@@ -219,8 +268,17 @@ if isinstance(globals().get("RESULT"), dict):
     )
 }
 
-fn r_wrapper(code: &str, inputs: &[(String, PathBuf)], params: &Value, packages: &[String], outputs: &Path) -> String {
-    let inputs_r: Vec<String> = inputs.iter().map(|(n, p)| format!("{} = {}", r_str(n), r_str(&p.to_string_lossy()))).collect();
+fn r_wrapper(
+    code: &str,
+    inputs: &[(String, PathBuf)],
+    params: &Value,
+    packages: &[String],
+    outputs: &Path,
+) -> String {
+    let inputs_r: Vec<String> = inputs
+        .iter()
+        .map(|(n, p)| format!("{} = {}", r_str(n), r_str(&p.to_string_lossy())))
+        .collect();
     let packages_r: Vec<String> = packages.iter().map(|p| r_str(p)).collect();
     format!(
         r##"# GeoSpaX R step (generated). Your code is between the markers below.
@@ -319,16 +377,35 @@ pub static GUEST: AtomicBool = AtomicBool::new(false);
 
 /// Run one code step in `dir` (created). Fails on a non-zero exit, timeout or cancel.
 #[allow(clippy::too_many_arguments)]
-pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value, packages: &[String], dir: &Path, timeout: Duration, cancel: &AtomicBool) -> Result<ScriptRun, String> {
+pub fn run(
+    lang: Lang,
+    code: &str,
+    inputs: &[(String, PathBuf)],
+    params: &Value,
+    packages: &[String],
+    dir: &Path,
+    timeout: Duration,
+    cancel: &AtomicBool,
+) -> Result<ScriptRun, String> {
     if GUEST.load(std::sync::atomic::Ordering::Relaxed) {
-        return Err(format!("{} steps do not run in the guest demo: download GeoSpaX for the full app", lang.name()));
+        return Err(format!(
+            "{} steps do not run in the guest demo: download GeoSpaX for the full app",
+            lang.name()
+        ));
     }
-    let (cmd, version) = find(lang).ok_or_else(|| format!("{} is not installed: {}", lang.name(), install_hint(lang)))?;
+    let (cmd, version) = find(lang)
+        .ok_or_else(|| format!("{} is not installed: {}", lang.name(), install_hint(lang)))?;
     let outputs = dir.join("outputs");
     std::fs::create_dir_all(&outputs).map_err(|e| format!("{}: {e}", outputs.display()))?;
     let (file, text) = match lang {
-        Lang::Python => ("step.py", python_wrapper(code, inputs, params, packages, &outputs)),
-        Lang::R => ("step.R", r_wrapper(code, inputs, params, packages, &outputs)),
+        Lang::Python => (
+            "step.py",
+            python_wrapper(code, inputs, params, packages, &outputs),
+        ),
+        Lang::R => (
+            "step.R",
+            r_wrapper(code, inputs, params, packages, &outputs),
+        ),
     };
     let script = dir.join(file);
     std::fs::write(&script, text).map_err(|e| e.to_string())?;
@@ -337,12 +414,56 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
     let out = std::fs::File::create(&stdout_path).map_err(|e| e.to_string())?;
     let err = std::fs::File::create(&stderr_path).map_err(|e| e.to_string())?;
     let mut c = crate::command(&cmd);
-    c.arg(&script).current_dir(dir).stdin(Stdio::null()).stdout(out).stderr(err).env_clear();
-    for k in ["PATH", "HOME", "USER", "LANG", "LC_ALL", "TZ", "TMPDIR", "PYTHONPATH", "VIRTUAL_ENV", "CONDA_PREFIX", "R_HOME", "R_LIBS", "R_LIBS_USER", "R_LIBS_SITE", "PROJ_DATA", "PROJ_LIB", "GDAL_DATA", "SYSTEMROOT",
+    c.arg(&script)
+        .current_dir(dir)
+        .stdin(Stdio::null())
+        .stdout(out)
+        .stderr(err)
+        .env_clear();
+    for k in [
+        "PATH",
+        "HOME",
+        "USER",
+        "LANG",
+        "LC_ALL",
+        "TZ",
+        "TMPDIR",
+        "PYTHONPATH",
+        "VIRTUAL_ENV",
+        "CONDA_PREFIX",
+        "R_HOME",
+        "R_LIBS",
+        "R_LIBS_USER",
+        "R_LIBS_SITE",
+        "PROJ_DATA",
+        "PROJ_LIB",
+        "GDAL_DATA",
+        "SYSTEMROOT",
         // Windows: Python and R need these to find temp dirs, user libraries and system DLLs
         // a proxy and its certificates, so R and Python reach the internet where the app does (GDAL, curl)
-        "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy", "CURL_CA_BUNDLE", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE",
-        "SYSTEMDRIVE", "WINDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PATHEXT", "COMSPEC", "R_USER", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE"] {
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+        "CURL_CA_BUNDLE",
+        "SSL_CERT_FILE",
+        "REQUESTS_CA_BUNDLE",
+        "SYSTEMDRIVE",
+        "WINDIR",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "PROGRAMDATA",
+        "PATHEXT",
+        "COMSPEC",
+        "R_USER",
+        "NUMBER_OF_PROCESSORS",
+        "PROCESSOR_ARCHITECTURE",
+    ] {
         if let Ok(v) = std::env::var(k) {
             c.env(k, v);
         }
@@ -352,10 +473,16 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
     }
     // the chart look chosen in Settings: the R prelude sets the ggplot2 theme and palette from these
     let st = super::charts::style();
-    c.env("GEOSPAX_CHART_THEME", &st.theme).env("GEOSPAX_CHART_PALETTE", &st.palette).env("GEOSPAX_CHART_BASE_SIZE", st.base_size.to_string());
-    c.env("PYTHONIOENCODING", "utf-8").env("PYTHONDONTWRITEBYTECODE", "1").env("GEOSPAX_STEP", "1");
+    c.env("GEOSPAX_CHART_THEME", &st.theme)
+        .env("GEOSPAX_CHART_PALETTE", &st.palette)
+        .env("GEOSPAX_CHART_BASE_SIZE", st.base_size.to_string());
+    c.env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .env("GEOSPAX_STEP", "1");
     let t0 = Instant::now();
-    let mut child = c.spawn().map_err(|e| format!("could not start {cmd}: {e}"))?;
+    let mut child = c
+        .spawn()
+        .map_err(|e| format!("could not start {cmd}: {e}"))?;
     let status = loop {
         if let Some(s) = child.try_wait().map_err(|e| e.to_string())? {
             break s;
@@ -368,7 +495,11 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
         if t0.elapsed() > timeout {
             let _ = child.kill();
             let _ = child.wait();
-            return Err(format!("{} step timed out after {} s", lang.name(), timeout.as_secs()));
+            return Err(format!(
+                "{} step timed out after {} s",
+                lang.name(),
+                timeout.as_secs()
+            ));
         }
         std::thread::sleep(Duration::from_millis(50));
     };
@@ -378,22 +509,43 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
     if !status.success() {
         let tail: Vec<&str> = stderr.lines().filter(|l| !l.trim().is_empty()).collect();
         let tail = tail[tail.len().saturating_sub(6)..].join(" | ");
-        return Err(format!("{} exited with {}: {}", lang.name(), status.code().map(|c| c.to_string()).unwrap_or_else(|| "a signal".into()), if tail.is_empty() { "no error output".into() } else { tail }));
+        return Err(format!(
+            "{} exited with {}: {}",
+            lang.name(),
+            status
+                .code()
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "a signal".into()),
+            if tail.is_empty() {
+                "no error output".into()
+            } else {
+                tail
+            }
+        ));
     }
     let mut layers = Vec::new();
     let (mut rasters, mut figures, mut tables) = (Vec::new(), Vec::new(), Vec::new());
     let mut result = Map::new();
-    let mut entries: Vec<PathBuf> = std::fs::read_dir(&outputs).map_err(|e| e.to_string())?.flatten().map(|e| e.path()).collect();
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(&outputs)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .map(|e| e.path())
+        .collect();
     entries.sort();
     for p in entries {
-        let name = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        let name = p
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
         match p.extension().and_then(|e| e.to_str()).unwrap_or("") {
             "geojson" | "gpkg" | "fgb" | "shp" | "kml" => layers.push((name, p)),
             "tif" | "tiff" => rasters.push((name, p)),
             "png" | "pdf" | "svg" => figures.push((name, p)),
             "csv" => tables.push((name, p)),
             "json" if name == "result" => {
-                if let Ok(Value::Object(m)) = serde_json::from_slice::<Value>(&std::fs::read(&p).unwrap_or_default()) {
+                if let Ok(Value::Object(m)) =
+                    serde_json::from_slice::<Value>(&std::fs::read(&p).unwrap_or_default())
+                {
                     result.extend(m);
                 }
             }
@@ -401,7 +553,11 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
                 for line in std::fs::read_to_string(&p).unwrap_or_default().lines() {
                     if let Some((k, v)) = line.split_once('\t') {
                         let v = v.trim();
-                        let val = v.parse::<i64>().map(|i| json!(i)).or_else(|_| v.parse::<f64>().map(|f| json!(f))).unwrap_or_else(|_| json!(v));
+                        let val = v
+                            .parse::<i64>()
+                            .map(|i| json!(i))
+                            .or_else(|_| v.parse::<f64>().map(|f| json!(f)))
+                            .unwrap_or_else(|_| json!(v));
                         result.insert(k.to_string(), val);
                     }
                 }
@@ -409,7 +565,18 @@ pub fn run(lang: Lang, code: &str, inputs: &[(String, PathBuf)], params: &Value,
             _ => {}
         }
     }
-    Ok(ScriptRun { interpreter: cmd, version, layers, rasters, figures, tables, result, stdout, stderr, ms })
+    Ok(ScriptRun {
+        interpreter: cmd,
+        version,
+        layers,
+        rasters,
+        figures,
+        tables,
+        result,
+        stdout,
+        stderr,
+        ms,
+    })
 }
 
 #[cfg(test)]
@@ -418,7 +585,12 @@ mod tests {
 
     #[test]
     fn r_literals() {
-        assert_eq!(r_literal(&json!({ "field": "ph", "power": 2, "grid": [60, 45], "x": null, "ok": true })), r#"list("field" = "ph", "grid" = c(60, 45), "ok" = TRUE, "power" = 2, "x" = NULL)"#);
+        assert_eq!(
+            r_literal(
+                &json!({ "field": "ph", "power": 2, "grid": [60, 45], "x": null, "ok": true })
+            ),
+            r#"list("field" = "ph", "grid" = c(60, 45), "ok" = TRUE, "power" = 2, "x" = NULL)"#
+        );
         assert_eq!(r_str("a\"b\\c"), r#""a\"b\\c""#);
     }
 
@@ -431,13 +603,45 @@ mod tests {
         let input = dir.join("pts.geojson");
         std::fs::write(&input, r#"{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"v":1},"geometry":{"type":"Point","coordinates":[144.2,-5.8]}}]}"#).unwrap();
         let code = "fc = pts if isinstance(pts, dict) else json.loads(pts.to_json())\nsave('copy', fc)\nresult(n=len(fc['features']), scale=params['scale'])";
-        let r = run(Lang::Python, code, &[("pts".into(), input)], &json!({ "scale": 2 }), &[], &dir, Duration::from_secs(60), &AtomicBool::new(false)).unwrap();
+        let r = run(
+            Lang::Python,
+            code,
+            &[("pts".into(), input)],
+            &json!({ "scale": 2 }),
+            &[],
+            &dir,
+            Duration::from_secs(60),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
         assert_eq!(r.layers.len(), 1);
         assert_eq!(r.result["n"], json!(1));
         assert_eq!(r.result["scale"], json!(2));
-        let e = run(Lang::Python, "raise ValueError('boom')", &[], &json!({}), &[], &dir, Duration::from_secs(60), &AtomicBool::new(false)).err().unwrap();
+        let e = run(
+            Lang::Python,
+            "raise ValueError('boom')",
+            &[],
+            &json!({}),
+            &[],
+            &dir,
+            Duration::from_secs(60),
+            &AtomicBool::new(false),
+        )
+        .err()
+        .unwrap();
         assert!(e.contains("boom"), "{e}");
-        let e = run(Lang::Python, "pass", &[], &json!({}), &["surely_not_a_module_xyz".into()], &dir, Duration::from_secs(60), &AtomicBool::new(false)).err().unwrap();
+        let e = run(
+            Lang::Python,
+            "pass",
+            &[],
+            &json!({}),
+            &["surely_not_a_module_xyz".into()],
+            &dir,
+            Duration::from_secs(60),
+            &AtomicBool::new(false),
+        )
+        .err()
+        .unwrap();
         assert!(e.contains("pip install"), "{e}");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -462,7 +666,17 @@ save_figure("base", function() terra::plot(r), formats = c("png", "pdf"))
 result(cells = terra::ncell(r))
 list(surface = r, summary = df)
 "#;
-        let run = run(Lang::R, code, &[], &json!({}), &["terra".into(), "ggplot2".into()], &dir, Duration::from_secs(120), &AtomicBool::new(false)).unwrap();
+        let run = run(
+            Lang::R,
+            code,
+            &[],
+            &json!({}),
+            &["terra".into(), "ggplot2".into()],
+            &dir,
+            Duration::from_secs(120),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
         assert_eq!(run.rasters.len(), 1, "{}", run.stderr);
         assert_eq!(run.tables.len(), 1);
         assert_eq!(run.figures.len(), 3, "{:?}", run.figures);

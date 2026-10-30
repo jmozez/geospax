@@ -10,7 +10,10 @@ use std::io::Write as _;
 const PAGE_EMU: u64 = 5_760_000;
 
 fn x(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 /// width and height of a PNG from its header
@@ -24,13 +27,21 @@ fn png_size(png: &[u8]) -> Option<(u32, u32)> {
 }
 
 fn para(style: Option<&str>, text: &str) -> String {
-    let p = style.map(|s| format!("<w:pPr><w:pStyle w:val=\"{s}\"/></w:pPr>")).unwrap_or_default();
-    format!("<w:p>{p}<w:r><w:t xml:space=\"preserve\">{}</w:t></w:r></w:p>", x(text))
+    let p = style
+        .map(|s| format!("<w:pPr><w:pStyle w:val=\"{s}\"/></w:pPr>"))
+        .unwrap_or_default();
+    format!(
+        "<w:p>{p}<w:r><w:t xml:space=\"preserve\">{}</w:t></w:r></w:p>",
+        x(text)
+    )
 }
 
 fn cell(text: &str, bold: bool) -> String {
     let rpr = if bold { "<w:rPr><w:b/></w:rPr>" } else { "" };
-    format!("<w:tc><w:p><w:r>{rpr}<w:t xml:space=\"preserve\">{}</w:t></w:r></w:p></w:tc>", x(text))
+    format!(
+        "<w:tc><w:p><w:r>{rpr}<w:t xml:space=\"preserve\">{}</w:t></w:r></w:p></w:tc>",
+        x(text)
+    )
 }
 
 fn table(head: &[&str], rows: &[Vec<String>]) -> String {
@@ -84,17 +95,22 @@ const STYLES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 pub fn render(r: &ReportInput, map_png: Option<&[u8]>) -> Result<Vec<u8>, String> {
     let mut body = String::new();
     let mut media: Vec<(String, Vec<u8>, &'static str)> = Vec::new(); // (file, bytes, extension)
-    let mut pic = |body: &mut String, bytes: &[u8], ext: &'static str, name: &str, size: (u32, u32)| {
-        let n = media.len() + 1;
-        let file = format!("image{n}.{ext}");
-        body.push_str(&picture(&format!("rIdImg{n}"), n, name, size));
-        media.push((file, bytes.to_vec(), ext));
-    };
+    let mut pic =
+        |body: &mut String, bytes: &[u8], ext: &'static str, name: &str, size: (u32, u32)| {
+            let n = media.len() + 1;
+            let file = format!("image{n}.{ext}");
+            body.push_str(&picture(&format!("rIdImg{n}"), n, name, size));
+            media.push((file, bytes.to_vec(), ext));
+        };
 
     body.push_str(&para(Some("Title"), &r.title));
     body.push_str(&para(Some("Subtitle"), &r.subtitle));
     if !r.cards.is_empty() {
-        let rows: Vec<Vec<String>> = r.cards.iter().map(|(big, label)| vec![big.clone(), label.clone()]).collect();
+        let rows: Vec<Vec<String>> = r
+            .cards
+            .iter()
+            .map(|(big, label)| vec![big.clone(), label.clone()])
+            .collect();
         body.push_str(&table(&[], &rows));
     }
     if let Some(png) = map_png {
@@ -107,7 +123,10 @@ pub fn render(r: &ReportInput, map_png: Option<&[u8]>) -> Result<Vec<u8>, String
         if let Some(size) = png_size(&f.png) {
             body.push_str(&para(Some("Heading1"), &f.title));
             pic(&mut body, &f.png, "png", &f.title, size);
-            body.push_str(&para(Some("Caption"), &format!("Figure {}. {}", i + 2, f.title)));
+            body.push_str(&para(
+                Some("Caption"),
+                &format!("Figure {}. {}", i + 2, f.title),
+            ));
         }
     }
     for (i, (title, _, caption)) in r.charts.iter().enumerate() {
@@ -137,7 +156,11 @@ pub fn render(r: &ReportInput, map_png: Option<&[u8]>) -> Result<Vec<u8>, String
     }
     if !r.decisions.is_empty() {
         body.push_str(&para(Some("Heading1"), "Automatic decisions"));
-        let rows: Vec<Vec<String>> = r.decisions.iter().map(|(l, why)| vec![l.clone(), why.clone()]).collect();
+        let rows: Vec<Vec<String>> = r
+            .decisions
+            .iter()
+            .map(|(l, why)| vec![l.clone(), why.clone()])
+            .collect();
         body.push_str(&table(&["Layer", "Decision and why"], &rows));
     }
     if !r.layers.is_empty() {
@@ -146,18 +169,31 @@ pub fn render(r: &ReportInput, map_png: Option<&[u8]>) -> Result<Vec<u8>, String
             .layers
             .iter()
             .map(|l| {
-                let details: Vec<String> = l.rows.iter().map(|(k, v)| format!("{k}: {v}")).collect();
-                vec![l.title.clone(), l.kind.clone(), super::cartography::fmt_num(l.features as f64), details.join("; ")]
+                let details: Vec<String> =
+                    l.rows.iter().map(|(k, v)| format!("{k}: {v}")).collect();
+                vec![
+                    l.title.clone(),
+                    l.kind.clone(),
+                    super::cartography::fmt_num(l.features as f64),
+                    details.join("; "),
+                ]
             })
             .collect();
         body.push_str(&table(&["Layer", "Type", "Features", "Details"], &rows));
     }
     if !r.provenance.is_empty() {
         body.push_str(&para(Some("Heading1"), "Provenance"));
-        let rows: Vec<Vec<String>> = r.provenance.iter().map(|(k, v)| vec![k.clone(), v.clone()]).collect();
+        let rows: Vec<Vec<String>> = r
+            .provenance
+            .iter()
+            .map(|(k, v)| vec![k.clone(), v.clone()])
+            .collect();
         body.push_str(&table(&[], &rows));
     }
-    body.push_str(&para(Some("Caption"), "Generated by GeoSpaX. The full run log is in report.html next to this file."));
+    body.push_str(&para(
+        Some("Caption"),
+        "Generated by GeoSpaX. The full run log is in report.html next to this file.",
+    ));
 
     let mut doc = String::from(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" \
@@ -172,7 +208,11 @@ xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" 
 <Relationship Id=\"rIdStyles\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>",
     );
     for (i, (file, _, _)) in media.iter().enumerate() {
-        let _ = write!(rels, "<Relationship Id=\"rIdImg{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/{file}\"/>", i + 1);
+        let _ = write!(
+            rels,
+            "<Relationship Id=\"rIdImg{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/{file}\"/>",
+            i + 1
+        );
     }
     rels.push_str("</Relationships>");
 
@@ -194,8 +234,10 @@ xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title>{}</dc:title><dc:creator
     let mut buf = std::io::Cursor::new(Vec::new());
     {
         let mut z = zip::ZipWriter::new(&mut buf);
-        let opt = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-        let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let opt = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        let stored = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
         let parts: [(&str, &[u8]); 5] = [
             ("[Content_Types].xml", types.as_bytes()),
             ("_rels/.rels", root_rels.as_bytes()),
@@ -207,11 +249,13 @@ xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title>{}</dc:title><dc:creator
             z.start_file(name, opt).map_err(|e| e.to_string())?;
             z.write_all(data).map_err(|e| e.to_string())?;
         }
-        z.start_file("word/_rels/document.xml.rels", opt).map_err(|e| e.to_string())?;
+        z.start_file("word/_rels/document.xml.rels", opt)
+            .map_err(|e| e.to_string())?;
         z.write_all(rels.as_bytes()).map_err(|e| e.to_string())?;
         for (file, bytes, _) in &media {
             // pictures are already compressed
-            z.start_file(format!("word/media/{file}"), stored).map_err(|e| e.to_string())?;
+            z.start_file(format!("word/media/{file}"), stored)
+                .map_err(|e| e.to_string())?;
             z.write_all(bytes).map_err(|e| e.to_string())?;
         }
         z.finish().map_err(|e| e.to_string())?;
@@ -255,12 +299,20 @@ mod tests {
         let bytes = render(&input(), Some(&png)).unwrap();
         let mut z = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
         let mut doc = String::new();
-        z.by_name("word/document.xml").unwrap().read_to_string(&mut doc).unwrap();
+        z.by_name("word/document.xml")
+            .unwrap()
+            .read_to_string(&mut doc)
+            .unwrap();
         assert!(doc.contains("Hotspots &amp; &lt;roads&gt;"));
-        assert!(doc.contains("r:embed=\"rIdImg1\"") && doc.contains("cx=\"5760000\" cy=\"2880000\""));
+        assert!(
+            doc.contains("r:embed=\"rIdImg1\"") && doc.contains("cx=\"5760000\" cy=\"2880000\"")
+        );
         assert!(z.by_name("word/media/image1.png").is_ok());
         let mut rels = String::new();
-        z.by_name("word/_rels/document.xml.rels").unwrap().read_to_string(&mut rels).unwrap();
+        z.by_name("word/_rels/document.xml.rels")
+            .unwrap()
+            .read_to_string(&mut rels)
+            .unwrap();
         assert!(rels.contains("media/image1.png"));
     }
 
@@ -268,6 +320,9 @@ mod tests {
     fn without_a_map_there_is_no_picture() {
         let bytes = render(&input(), None).unwrap();
         let z = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
-        assert!(z.file_names().all(|n| !n.unwrap().starts_with("word/media/")));
+        assert!(
+            z.file_names()
+                .all(|n| !n.unwrap().starts_with("word/media/"))
+        );
     }
 }

@@ -2,8 +2,8 @@
 //! Each visitor keeps a project of their own (the browser sends `?ws=<id>`), so nobody sees another
 //! visitor's map; what could misuse the server is refused; and guest files are deleted after a week.
 
-use crate::router::{ApiRequest, ApiResponse};
 use crate::Engine;
+use crate::router::{ApiRequest, ApiResponse};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -27,13 +27,27 @@ pub const KEEP: Duration = Duration::from_secs(7 * 24 * 3600);
 pub fn refused(method: &str, segs: &[&str]) -> Option<&'static str> {
     let why = match (method, segs) {
         (_, ["api", "folders", ..]) | (_, ["api", "browse", ..]) => "folders of the server",
-        ("POST", ["api", "r", ..]) | ("POST", ["api", "python", ..]) => "installing R or Python packages",
-        (m, ["api", "plugins", ..]) if m != "GET" && !matches!(segs, [_, _, _, "tools", _, "run"]) => "installing or removing plugins",
+        ("POST", ["api", "r", ..]) | ("POST", ["api", "python", ..]) => {
+            "installing R or Python packages"
+        }
+        (m, ["api", "plugins", ..])
+            if m != "GET" && !matches!(segs, [_, _, _, "tools", _, "run"]) =>
+        {
+            "installing or removing plugins"
+        }
         (m, ["api", "models", ..]) if m != "GET" => "adding AI models",
-        (m, ["api", "recipes", ..]) if m != "GET" && !matches!(segs, [_, _, _, "run"] | [_, _, "validate"]) => "saving recipes",
+        (m, ["api", "recipes", ..])
+            if m != "GET" && !matches!(segs, [_, _, _, "run"] | [_, _, "validate"]) =>
+        {
+            "saving recipes"
+        }
         ("PUT", ["api", "ai", ..]) | ("POST", ["api", "ask"]) => "the AI assistant",
-        ("POST", ["api", "settings", ..]) | ("POST", ["api", "cache", ..]) | ("POST", ["api", "bench"]) => "server settings",
-        ("POST", ["api", "devices", ..]) | ("POST", ["api", "phone", ..]) | ("POST", ["api", "hooks", ..]) => "devices and phones",
+        ("POST", ["api", "settings", ..])
+        | ("POST", ["api", "cache", ..])
+        | ("POST", ["api", "bench"]) => "server settings",
+        ("POST", ["api", "devices", ..])
+        | ("POST", ["api", "phone", ..])
+        | ("POST", ["api", "hooks", ..]) => "devices and phones",
         ("POST", ["api", "services"]) | ("POST", ["api", "stac", "add"]) => "adding web services",
         _ => return None,
     };
@@ -43,7 +57,8 @@ pub fn refused(method: &str, segs: &[&str]) -> Option<&'static str> {
 /// A visitor's workspace id from `?ws=`: 8 to 64 letters, digits or dashes, else none.
 pub fn workspace(ws: Option<&str>) -> Option<String> {
     let w = ws?.trim();
-    ((8..=64).contains(&w.len()) && w.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')).then(|| w.to_ascii_lowercase())
+    ((8..=64).contains(&w.len()) && w.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+        .then(|| w.to_ascii_lowercase())
 }
 
 /// Where a visitor's project is kept.
@@ -63,7 +78,9 @@ pub fn clean(state_dir: &Path, data_dirs: &[PathBuf]) -> usize {
     let mut n = 0;
     // files anywhere below `dir` not touched for a week, then the folders left empty
     fn sweep(dir: &Path, old: &dyn Fn(&Path) -> bool, n: &mut usize) {
-        let Ok(rd) = std::fs::read_dir(dir) else { return };
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return;
+        };
         for e in rd.flatten() {
             let p = e.path();
             if e.file_name().to_string_lossy().starts_with('.') {
@@ -71,7 +88,11 @@ pub fn clean(state_dir: &Path, data_dirs: &[PathBuf]) -> usize {
             }
             if p.is_dir() {
                 sweep(&p, old, n);
-                if std::fs::read_dir(&p).map(|mut d| d.next().is_none()).unwrap_or(false) && std::fs::remove_dir(&p).is_ok() {
+                if std::fs::read_dir(&p)
+                    .map(|mut d| d.next().is_none())
+                    .unwrap_or(false)
+                    && std::fs::remove_dir(&p).is_ok()
+                {
                     *n += 1;
                 }
             } else if old(&p) && std::fs::remove_file(&p).is_ok() {
@@ -105,7 +126,10 @@ impl Owners {
     /// Start: everything already on the server belongs to nobody; earlier claims are read back.
     pub fn init(&self, engine: &Engine) {
         let path = engine.state_dir.join("guests").join("owners.json");
-        let mut map: HashMap<String, String> = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        let mut map: HashMap<String, String> = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
         for k in current_items(engine) {
             map.entry(k).or_default();
         }
@@ -137,25 +161,56 @@ impl Owners {
             return false;
         }
         let now = Instant::now();
-        let recent: Vec<String> = self.writers.lock().unwrap().iter().filter(|(_, t)| now.duration_since(**t) < CLAIM_WINDOW).map(|(w, _)| w.clone()).collect();
-        let owner = if recent.len() == 1 { recent[0].clone() } else { String::new() };
+        let recent: Vec<String> = self
+            .writers
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, t)| now.duration_since(**t) < CLAIM_WINDOW)
+            .map(|(w, _)| w.clone())
+            .collect();
+        let owner = if recent.len() == 1 {
+            recent[0].clone()
+        } else {
+            String::new()
+        };
         self.set(key.to_string(), &owner);
         owner == ws
     }
 }
 
 fn current_items(engine: &Engine) -> Vec<String> {
-    let mut v: Vec<String> = engine.layers().iter().map(|l| format!("l:{}", l.info.id)).collect();
+    let mut v: Vec<String> = engine
+        .layers()
+        .iter()
+        .map(|l| format!("l:{}", l.info.id))
+        .collect();
     v.extend(engine.rasters().iter().map(|r| format!("r:{}", r.info.id)));
-    v.extend(ids_in(&engine.jobs.json()).into_iter().map(|i| format!("job:{i}")));
-    v.extend(ids_in(&Value::Array(engine.automation.runs_json(10_000))).into_iter().map(|i| format!("run:{i}")));
+    v.extend(
+        ids_in(&engine.jobs.json())
+            .into_iter()
+            .map(|i| format!("job:{i}")),
+    );
+    v.extend(
+        ids_in(&Value::Array(engine.automation.runs_json(10_000)))
+            .into_iter()
+            .map(|i| format!("run:{i}")),
+    );
     v
 }
 
 /// `id` of every object in a JSON array.
 fn ids_in(v: &Value) -> Vec<String> {
     v.as_array()
-        .map(|a| a.iter().filter_map(|o| match &o["id"] { Value::String(s) => Some(s.clone()), Value::Number(n) => Some(n.to_string()), _ => None }).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|o| match &o["id"] {
+                    Value::String(s) => Some(s.clone()),
+                    Value::Number(n) => Some(n.to_string()),
+                    _ => None,
+                })
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -171,7 +226,11 @@ fn scrub(v: &mut Value, roots: &[String]) {
         }
         Value::Array(a) => a.iter_mut().for_each(|x| scrub(x, roots)),
         Value::Object(o) => {
-            o.retain(|k, x| !(matches!(k.as_str(), "saved" | "path") && x.as_str().is_some_and(|s| roots.iter().any(|r| s.starts_with(r.as_str())))));
+            o.retain(|k, x| {
+                !(matches!(k.as_str(), "saved" | "path")
+                    && x.as_str()
+                        .is_some_and(|s| roots.iter().any(|r| s.starts_with(r.as_str()))))
+            });
             o.values_mut().for_each(|x| scrub(x, roots));
         }
         _ => {}
@@ -180,7 +239,15 @@ fn scrub(v: &mut Value, roots: &[String]) {
 
 fn dir_size(dir: &Path) -> u64 {
     std::fs::read_dir(dir)
-        .map(|rd| rd.flatten().map(|e| match e.metadata() { Ok(m) if m.is_dir() => dir_size(&e.path()), Ok(m) => m.len(), Err(_) => 0 }).sum())
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| match e.metadata() {
+                    Ok(m) if m.is_dir() => dir_size(&e.path()),
+                    Ok(m) => m.len(),
+                    Err(_) => 0,
+                })
+                .sum()
+        })
         .unwrap_or(0)
 }
 
@@ -203,25 +270,52 @@ fn open_without_workspace(method: &str, segs: &[&str]) -> bool {
     method == "GET"
         && matches!(
             segs,
-            ["api", "about"] | ["api", "health"] | ["api", "docs", ..] | ["api", "samples"] | ["api", "plugins", ..] | ["api", "recipes", ..]
-                | ["api", "steps"] | ["api", "providers"] | ["api", "raster", "ramps"] | ["api", "settings", "charts"] | ["api", "rev"]
+            ["api", "about"]
+                | ["api", "health"]
+                | ["api", "docs", ..]
+                | ["api", "samples"]
+                | ["api", "plugins", ..]
+                | ["api", "recipes", ..]
+                | ["api", "steps"]
+                | ["api", "providers"]
+                | ["api", "raster", "ramps"]
+                | ["api", "settings", "charts"]
+                | ["api", "rev"]
         )
 }
 
 /// The guest demo's door: refused requests, then ownership of whatever the request names, then the
 /// request itself, then only this visitor's layers, rasters, runs and jobs in the lists it returns.
 pub fn handle(engine: &Arc<Engine>, mut req: ApiRequest) -> ApiResponse {
-    let segs_owned: Vec<String> = req.path.trim_matches('/').split('/').filter(|s| !s.is_empty()).map(crate::router::pct_decode).collect();
+    let segs_owned: Vec<String> = req
+        .path
+        .trim_matches('/')
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .map(crate::router::pct_decode)
+        .collect();
     let segs: Vec<&str> = segs_owned.iter().map(String::as_str).collect();
     if let Some(why) = refused(&req.method, &segs) {
-        return ApiResponse::error(403, format!("not in the guest demo ({why}): download GeoSpaX for the full app"));
+        return ApiResponse::error(
+            403,
+            format!("not in the guest demo ({why}): download GeoSpaX for the full app"),
+        );
     }
-    let ws = workspace(req.ws.as_deref()).or_else(|| workspace(crate::router::param(&req.query, "ws").as_deref()));
+    let ws = workspace(req.ws.as_deref())
+        .or_else(|| workspace(crate::router::param(&req.query, "ws").as_deref()));
     let Some(ws) = ws else {
-        return if open_without_workspace(&req.method, &segs) { engine.handle_inner(req) } else { ApiResponse::error(403, "guest demo: open the app to get a workspace") };
+        return if open_without_workspace(&req.method, &segs) {
+            engine.handle_inner(req)
+        } else {
+            ApiResponse::error(403, "guest demo: open the app to get a workspace")
+        };
     };
     if crate::router::param(&req.query, "ws").is_none() {
-        req.query = if req.query.is_empty() { format!("ws={ws}") } else { format!("{}&ws={ws}", req.query) };
+        req.query = if req.query.is_empty() {
+            format!("ws={ws}")
+        } else {
+            format!("{}&ws={ws}", req.query)
+        };
     }
     let owners = &engine.owners;
     // visitors' text never goes into the server's own log
@@ -245,17 +339,33 @@ pub fn handle(engine: &Arc<Engine>, mut req: ApiRequest) -> ApiResponse {
     }
     // and so must every layer or raster its body or query names (tool inputs, map previews...)
     if !matches!(segs.as_slice(), ["api", "project", ..]) {
-        let known: HashSet<String> = engine.layers().iter().map(|l| l.info.id.clone()).chain(engine.rasters().iter().map(|r| r.info.id.clone())).collect();
+        let known: HashSet<String> = engine
+            .layers()
+            .iter()
+            .map(|l| l.info.id.clone())
+            .chain(engine.rasters().iter().map(|r| r.info.id.clone()))
+            .collect();
         let body: Value = serde_json::from_slice(&req.body).unwrap_or(Value::Null);
         let mut named = Vec::new();
         strings(&body, &mut named);
-        let q: Vec<String> = req.query.split('&').filter_map(|kv| kv.split_once('=').map(|(_, v)| crate::router::pct_decode(v))).collect();
+        let q: Vec<String> = req
+            .query
+            .split('&')
+            .filter_map(|kv| {
+                kv.split_once('=')
+                    .map(|(_, v)| crate::router::pct_decode(v))
+            })
+            .collect();
         named.extend(q.iter().map(String::as_str));
         for s in named.iter().flat_map(|s| s.split(',')) {
             let s = s.trim();
             if known.contains(s) {
                 let is_raster = engine.rasters().iter().any(|r| r.info.id == s);
-                let key = if is_raster { format!("r:{s}") } else { format!("l:{s}") };
+                let key = if is_raster {
+                    format!("r:{s}")
+                } else {
+                    format!("l:{s}")
+                };
                 if !owners.owns(&key, &ws) {
                     return not_found();
                 }
@@ -263,19 +373,35 @@ pub fn handle(engine: &Arc<Engine>, mut req: ApiRequest) -> ApiResponse {
         }
     }
 
-    if matches!(segs.as_slice(), ["api", "upload"]) && dir_size(&crate::upload::upload_dir(engine)) > MAX_GUEST_STORAGE {
-        return ApiResponse::error(507, "the guest demo is full right now: try again later, or download GeoSpaX");
+    if matches!(segs.as_slice(), ["api", "upload"])
+        && dir_size(&crate::upload::upload_dir(engine)) > MAX_GUEST_STORAGE
+    {
+        return ApiResponse::error(
+            507,
+            "the guest demo is full right now: try again later, or download GeoSpaX",
+        );
     }
 
-    let write = req.method != "GET" && !matches!(segs.as_slice(), ["api", "project", ..] | ["api", "log"]);
+    let write =
+        req.method != "GET" && !matches!(segs.as_slice(), ["api", "project", ..] | ["api", "log"]);
     let mut res = if write {
         let _one = owners.write_lock.lock().unwrap();
-        owners.writers.lock().unwrap().insert(ws.clone(), Instant::now());
+        owners
+            .writers
+            .lock()
+            .unwrap()
+            .insert(ws.clone(), Instant::now());
         // what this request makes at once (an upload's layers, a new job or run) is this visitor's;
         // what a job makes later is claimed through the 15-minute window in `owns`
         let before: HashSet<String> = current_items(engine).into_iter().collect();
         let res = engine.handle_inner(req);
-        let known = owners.map.lock().unwrap().keys().cloned().collect::<HashSet<_>>();
+        let known = owners
+            .map
+            .lock()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect::<HashSet<_>>();
         for k in current_items(engine) {
             if !before.contains(&k) && !known.contains(&k) {
                 owners.set(k, &ws);
@@ -289,7 +415,13 @@ pub fn handle(engine: &Arc<Engine>, mut req: ApiRequest) -> ApiResponse {
     // no folders of the server in replies (where an upload or a tool saved, which file an error is about)
     if res.content_type.starts_with("application/json") {
         if let Ok(mut v) = serde_json::from_slice::<Value>(&res.body) {
-            let mut roots: Vec<String> = engine.data_dirs.iter().chain(std::iter::once(&engine.state_dir)).map(|d| d.display().to_string()).filter(|r| r.len() > 1).collect();
+            let mut roots: Vec<String> = engine
+                .data_dirs
+                .iter()
+                .chain(std::iter::once(&engine.state_dir))
+                .map(|d| d.display().to_string())
+                .filter(|r| r.len() > 1)
+                .collect();
             roots.sort_by_key(|r| std::cmp::Reverse(r.len()));
             scrub(&mut v, &roots);
             res.body = serde_json::to_vec(&v).unwrap_or_default();
@@ -308,7 +440,11 @@ pub fn handle(engine: &Arc<Engine>, mut req: ApiRequest) -> ApiResponse {
         if let Ok(mut v) = serde_json::from_slice::<Value>(&res.body) {
             if let Some(a) = v[field].as_array_mut() {
                 a.retain(|o| {
-                    let id = match &o["id"] { Value::String(s) => s.clone(), Value::Number(n) => n.to_string(), _ => return false };
+                    let id = match &o["id"] {
+                        Value::String(s) => s.clone(),
+                        Value::Number(n) => n.to_string(),
+                        _ => return false,
+                    };
                     owners.owns(&format!("{prefix}{id}"), &ws)
                 });
             }
@@ -359,10 +495,16 @@ mod tests {
         assert!(o.owns("l:a.mine", "aaaaaaaa") && !o.owns("l:a.mine", "bbbbbbbb"));
         // nobody wrote lately: a layer that turns up belongs to nobody, for good
         assert!(!o.owns("l:old", "aaaaaaaa") && !o.owns("l:old", "bbbbbbbb"));
-        o.writers.lock().unwrap().insert("aaaaaaaa".into(), Instant::now());
+        o.writers
+            .lock()
+            .unwrap()
+            .insert("aaaaaaaa".into(), Instant::now());
         assert!(o.owns("l:from-a-job", "aaaaaaaa"));
         // two visitors busy at once: unclear whose, so never shown to either
-        o.writers.lock().unwrap().insert("bbbbbbbb".into(), Instant::now());
+        o.writers
+            .lock()
+            .unwrap()
+            .insert("bbbbbbbb".into(), Instant::now());
         assert!(!o.owns("l:unclear", "aaaaaaaa") && !o.owns("l:unclear", "bbbbbbbb"));
         // jobs and runs are only ever credited when they start
         assert!(!o.owns("job:7", "aaaaaaaa"));
@@ -370,7 +512,10 @@ mod tests {
 
     #[test]
     fn workspace_ids_are_checked() {
-        assert_eq!(workspace(Some("ab12cd34-ef")).as_deref(), Some("ab12cd34-ef"));
+        assert_eq!(
+            workspace(Some("ab12cd34-ef")).as_deref(),
+            Some("ab12cd34-ef")
+        );
         assert!(workspace(Some("../../etc/passwd")).is_none());
         assert!(workspace(Some("short")).is_none());
         assert!(workspace(None).is_none());

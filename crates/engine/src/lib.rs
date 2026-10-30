@@ -11,24 +11,19 @@ pub mod ai;
 pub mod arrow_export;
 pub mod automation;
 pub mod browse;
-pub mod services;
-pub mod stac;
-pub mod cloud;
-pub mod geoparquet;
-pub mod pyenv;
-pub mod github;
-pub mod db;
-pub mod design;
 pub mod catalog;
 pub mod classify;
+pub mod cloud;
 pub mod crs;
+pub mod db;
+pub mod design;
 pub mod devices;
 pub mod docs;
 pub mod edit;
+pub mod geoparquet;
 pub mod geostats;
+pub mod github;
 pub mod guest;
-pub mod sensors;
-pub mod sta;
 pub mod jobs;
 pub mod lidar;
 pub mod mvt;
@@ -37,12 +32,17 @@ pub mod phone;
 pub mod plugins;
 pub mod pmtiles_io;
 pub mod project_import;
+pub mod pyenv;
 pub mod raster;
 pub mod reader;
 pub mod router;
 pub mod rsetup;
 pub mod samples;
 pub mod scene3d;
+pub mod sensors;
+pub mod services;
+pub mod sta;
+pub mod stac;
 pub mod tile;
 pub mod upload;
 pub mod wkb;
@@ -56,7 +56,10 @@ use catalog::{Handle, LayerHandle};
 /// Folder of the running executable. The Windows edition and the portable ZIP keep GDAL/PROJ data
 /// (`share\gdal`, `share\proj`), fonts and the web UI next to geospax.exe.
 pub fn exe_dir() -> Option<std::path::PathBuf> {
-    std::env::current_exe().ok()?.parent().map(|p| p.to_path_buf())
+    std::env::current_exe()
+        .ok()?
+        .parent()
+        .map(|p| p.to_path_buf())
 }
 
 /// A child process that never opens a console window: without CREATE_NO_WINDOW every Python, R, GRASS or
@@ -180,7 +183,10 @@ impl GpkgFiltered {
 
 /// Runtime GDAL version as a number (3.10.3 -> 3100300).
 pub fn gdal_version_num() -> u32 {
-    gdal::version::version_info("VERSION_NUM").trim().parse().unwrap_or(0)
+    gdal::version::version_info("VERSION_NUM")
+        .trim()
+        .parse()
+        .unwrap_or(0)
 }
 
 /// How to render a tile.
@@ -338,8 +344,14 @@ impl Engine {
                 warnings.push(format!("duplicate layer id {}", l.info.id));
             }
         }
-        let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(2);
-        let threads = if cfg.threads == 0 { cpus.max(2) } else { cfg.threads };
+        let cpus = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(2);
+        let threads = if cfg.threads == 0 {
+            cpus.max(2)
+        } else {
+            cfg.threads
+        };
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .thread_name(|i| format!("tile-worker-{i}"))
@@ -373,8 +385,18 @@ impl Engine {
             ));
         }
         let state_dir = cfg.state_dir.clone().unwrap_or_else(|| {
-            let base = cfg.data.first().cloned().unwrap_or_else(|| PathBuf::from("."));
-            let dir = if base.is_dir() { base } else { base.parent().map(PathBuf::from).unwrap_or_else(|| PathBuf::from(".")) };
+            let base = cfg
+                .data
+                .first()
+                .cloned()
+                .unwrap_or_else(|| PathBuf::from("."));
+            let dir = if base.is_dir() {
+                base
+            } else {
+                base.parent()
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("."))
+            };
             dir.join(".geospax")
         });
         // Re-attach overview pyramids built in earlier sessions (if still fresh).
@@ -493,9 +515,16 @@ impl Engine {
     pub fn remove_layer(&self, id: &str) -> bool {
         let removed = {
             let mut r = self.reg.write().unwrap();
-            let Some(i) = r.by_id.remove(id) else { return false };
+            let Some(i) = r.by_id.remove(id) else {
+                return false;
+            };
             r.layers.remove(i);
-            let ids: Vec<(String, usize)> = r.layers.iter().enumerate().map(|(i, l)| (l.info.id.clone(), i)).collect();
+            let ids: Vec<(String, usize)> = r
+                .layers
+                .iter()
+                .enumerate()
+                .map(|(i, l)| (l.info.id.clone(), i))
+                .collect();
             r.by_id = ids.into_iter().collect();
             true
         };
@@ -526,8 +555,14 @@ impl Engine {
             Some(o) => serde_json::to_value(&o.meta).unwrap_or_default(),
             None => serde_json::Value::Null,
         };
-        v["overview_suggested"] = overview::suggested_max_zoom(&l.info).map(serde_json::Value::from).unwrap_or_default();
-        v["overview_job"] = self.jobs.active("overviews", &l.info.id).map(|j| j.json()).unwrap_or_default();
+        v["overview_suggested"] = overview::suggested_max_zoom(&l.info)
+            .map(serde_json::Value::from)
+            .unwrap_or_default();
+        v["overview_job"] = self
+            .jobs
+            .active("overviews", &l.info.id)
+            .map(|j| j.json())
+            .unwrap_or_default();
         // editing and definition query state (edit.rs)
         v["edited"] = self.is_edited(l).into();
         v["filter"] = l.filter().map(serde_json::Value::from).unwrap_or_default();
@@ -555,7 +590,11 @@ impl Engine {
             std::thread::spawn(move || done(e.handle(req)));
             return;
         }
-        let lane = if req.is_heavy() { &self.pool } else { &self.ctl_pool };
+        let lane = if req.is_heavy() {
+            &self.pool
+        } else {
+            &self.ctl_pool
+        };
         lane.spawn(move || done(e.handle(req)));
     }
 
@@ -566,11 +605,19 @@ impl Engine {
     }
 
     /// Resolve `?fields=a,b` to OGR field indices (None = layer defaults).
-    pub fn resolve_fields(&self, layer: &LayerHandle, spec: Option<&str>) -> Result<Option<Vec<usize>>, String> {
-        let Some(spec) = spec.filter(|s| !s.is_empty()) else { return Ok(None) };
+    pub fn resolve_fields(
+        &self,
+        layer: &LayerHandle,
+        spec: Option<&str>,
+    ) -> Result<Option<Vec<usize>>, String> {
+        let Some(spec) = spec.filter(|s| !s.is_empty()) else {
+            return Ok(None);
+        };
         let mut idx = Vec::new();
         for name in spec.split(',').map(router::pct_decode) {
-            let i = layer.field_index(&name).ok_or_else(|| format!("unknown field '{name}'"))?;
+            let i = layer
+                .field_index(&name)
+                .ok_or_else(|| format!("unknown field '{name}'"))?;
             if !matches!(layer.info.fields[i].kind, "integer" | "real" | "string") {
                 return Err(format!("field '{name}' cannot be encoded in tiles"));
             }
@@ -587,21 +634,40 @@ impl Engine {
 
     /// Tile lookup: overview pyramid (z <= its max zoom) -> LRU cache -> live
     /// render. Returns (tile, cache_hit).
-    pub fn tile(&self, layer_id: &str, z: u8, x: u32, y: u32, fields: Option<&str>) -> Result<(Arc<TileResult>, bool), String> {
+    pub fn tile(
+        &self,
+        layer_id: &str,
+        z: u8,
+        x: u32,
+        y: u32,
+        fields: Option<&str>,
+    ) -> Result<(Arc<TileResult>, bool), String> {
         let (idx, layer) = {
             let r = self.reg.read().unwrap();
-            let idx = *r.by_id.get(layer_id).ok_or_else(|| format!("unknown layer '{layer_id}'"))?;
+            let idx = *r
+                .by_id
+                .get(layer_id)
+                .ok_or_else(|| format!("unknown layer '{layer_id}'"))?;
             (idx, r.layers[idx].clone())
         };
         if z > 24 || x >= (1u32 << z) || y >= (1u32 << z) {
             return Err(format!("invalid tile {z}/{x}/{y}"));
         }
         let layer = &layer;
-        if let Some(ov) = layer.overview().filter(|o| z <= o.meta.max_zoom && layer.filter().is_none()) {
+        if let Some(ov) = layer
+            .overview()
+            .filter(|o| z <= o.meta.max_zoom && layer.filter().is_none())
+        {
             let t0 = Instant::now();
             let bytes = ov.reader.get(z, x, y)?.unwrap_or_default();
             let t = ms(t0);
-            let r = Arc::new(TileResult { bytes, read_ms: t, total_ms: t, source: "overview", ..Default::default() });
+            let r = Arc::new(TileResult {
+                bytes,
+                read_ms: t,
+                total_ms: t,
+                source: "overview",
+                ..Default::default()
+            });
             self.record(&r, false);
             return Ok((r, false));
         }
@@ -618,7 +684,16 @@ impl Engine {
                 return Ok((hit, true));
             }
         }
-        let r = Arc::new(self.render_tile(layer, z, x, y, &RenderOpts { overview: false, fields })?);
+        let r = Arc::new(self.render_tile(
+            layer,
+            z,
+            x,
+            y,
+            &RenderOpts {
+                overview: false,
+                fields,
+            },
+        )?);
         if let Some(c) = &self.cache {
             c.lock().unwrap().put(key, r.clone());
         }
@@ -651,7 +726,13 @@ impl Engine {
         let s = self.stats.lock().unwrap();
         let mut v: Vec<f64> = s.recent_ms.iter().copied().collect();
         v.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let pct = |p: f64| if v.is_empty() { 0.0 } else { v[((v.len() - 1) as f64 * p).round() as usize] };
+        let pct = |p: f64| {
+            if v.is_empty() {
+                0.0
+            } else {
+                v[((v.len() - 1) as f64 * p).round() as usize]
+            }
+        };
         let rendered = s.tiles - s.cache_hits - s.overview_tiles;
         serde_json::json!({
             "uptime_s": self.started.elapsed().as_secs_f64(),
@@ -674,12 +755,23 @@ impl Engine {
     }
 
     /// Render one tile from source (no cache, no overview lookup).
-    pub fn render_tile(&self, layer: &LayerHandle, z: u8, x: u32, y: u32, opts: &RenderOpts) -> Result<TileResult, String> {
+    pub fn render_tile(
+        &self,
+        layer: &LayerHandle,
+        z: u8,
+        x: u32,
+        y: u32,
+        opts: &RenderOpts,
+    ) -> Result<TileResult, String> {
         let t0 = Instant::now();
         let info = &layer.info;
         let tb = tile::tile_bounds(z, x, y);
         if (!opts.overview && z < info.minzoom) || !tile::intersects(tb, info.bounds) {
-            return Ok(TileResult { total_ms: ms(t0), source: "live", ..Default::default() });
+            return Ok(TileResult {
+                total_ms: ms(t0),
+                source: "live",
+                ..Default::default()
+            });
         }
         // Buffered filter rect (BUFFER of EXTENT on each side), in lon/lat.
         let f = mvt::BUFFER / mvt::EXTENT as f64;
@@ -689,7 +781,12 @@ impl Engine {
         let at_max = z >= info.maxzoom;
         let params = if opts.overview {
             // Features under 2 px (16 units) become density points on a 4 px grid.
-            mvt::Params { tolerance: 2.0, min_size: 16.0, density_cell: 32.0, points_density: info.geometry == GeomKind::Point }
+            mvt::Params {
+                tolerance: 2.0,
+                min_size: 16.0,
+                density_cell: 32.0,
+                points_density: info.geometry == GeomKind::Point,
+            }
         } else {
             mvt::Params {
                 tolerance: if at_max { 0.5 } else { 2.0 }, // ~0.06 px / 0.25 px at 512 px tiles
@@ -697,18 +794,32 @@ impl Engine {
                 ..Default::default()
             }
         };
-        let field_idx: Vec<usize> = opts.fields.clone().unwrap_or_else(|| layer.field_idx.clone());
-        let keys: Vec<String> = field_idx.iter().map(|&i| info.fields[i].name.clone()).collect();
+        let field_idx: Vec<usize> = opts
+            .fields
+            .clone()
+            .unwrap_or_else(|| layer.field_idx.clone());
+        let keys: Vec<String> = field_idx
+            .iter()
+            .map(|&i| info.fields[i].name.clone())
+            .collect();
         let proj = tile::TileProjector::new(z, x, y, mvt::EXTENT);
         let mut enc = mvt::LayerEncoder::new(&info.id, keys);
 
         let ts = Instant::now();
         let h = layer.checkout()?;
         let mut rt = ReadTimes::default();
-        let result = self.read_tile(layer, &h, rect, &field_idx, ts, &mut rt, &mut |fid, geom, attrs| {
-            enc.add(fid, attrs, geom, &proj, params);
-            enc.count < MAX_FEATURES_PER_TILE
-        });
+        let result = self.read_tile(
+            layer,
+            &h,
+            rect,
+            &field_idx,
+            ts,
+            &mut rt,
+            &mut |fid, geom, attrs| {
+                enc.add(fid, attrs, geom, &proj, params);
+                enc.count < MAX_FEATURES_PER_TILE
+            },
+        );
         layer.checkin(h);
         let teardown_ms = rt.teardown_start.map(ms).unwrap_or(0.0);
         result?;
@@ -728,7 +839,11 @@ impl Engine {
         if !enc.is_empty() {
             layers.insert(0, enc.finish());
         }
-        let bytes = if layers.is_empty() { Vec::new() } else { mvt::tile(&layers) };
+        let bytes = if layers.is_empty() {
+            Vec::new()
+        } else {
+            mvt::tile(&layers)
+        };
         Ok(TileResult {
             bytes,
             features,
@@ -759,16 +874,23 @@ impl Engine {
         rt: &mut ReadTimes,
         sink: &mut dyn FnMut(Option<u64>, &wkb::Geom, Vec<(u32, mvt::Val)>) -> bool,
     ) -> Result<(), String> {
-        let mut lyr = h.ds.layer_by_name(&layer.layer_name).map_err(|e| e.to_string())?;
+        let mut lyr =
+            h.ds.layer_by_name(&layer.layer_name)
+                .map_err(|e| e.to_string())?;
         let r = match &h.from_wgs84 {
-            Some(ct) => ct.0.transform_bounds(&rect, 21).map_err(|e| e.to_string())?,
+            Some(ct) => {
+                ct.0.transform_bounds(&rect, 21)
+                    .map_err(|e| e.to_string())?
+            }
             None => rect,
         };
         // A filter that covers the whole layer is pointless, and it is also
         // harmful: GDAL 3.10's GPKG driver then swaps the R-tree for an
         // ST_EnvIntersects() SQL filter, which crashes inside its asynchronous
         // Arrow worker thread. Clearing it selects the fast whole-table scan.
-        let covers_layer = layer.native_bounds.is_some_and(|b| r[0] <= b[0] && r[1] <= b[1] && r[2] >= b[2] && r[3] >= b[3]);
+        let covers_layer = layer
+            .native_bounds
+            .is_some_and(|b| r[0] <= b[0] && r[1] <= b[1] && r[2] >= b[2] && r[3] >= b[3]);
         if covers_layer {
             lyr.clear_spatial_filter();
         } else {
@@ -800,28 +922,42 @@ impl Engine {
             tr = Instant::now();
             more
         };
-        let gpkg_workaround =
-            if !covers_layer && layer.info.driver == "GPKG" { self.gpkg_filtered } else { GpkgFiltered::Async };
+        let gpkg_workaround = if !covers_layer && layer.info.driver == "GPKG" {
+            self.gpkg_filtered
+        } else {
+            GpkgFiltered::Async
+        };
         let mode = match (self.read_mode, gpkg_workaround) {
             (ReadMode::Arrow, GpkgFiltered::Features) => ReadMode::Features,
             (m, _) => m,
         };
         let scanned = match mode {
             ReadMode::Arrow => {
-                let named: Vec<(u32, String)> =
-                    field_idx.iter().enumerate().map(|(k, &i)| (k as u32, layer.info.fields[i].name.clone())).collect();
+                let named: Vec<(u32, String)> = field_idx
+                    .iter()
+                    .enumerate()
+                    .map(|(k, &i)| (k as u32, layer.info.fields[i].name.clone()))
+                    .collect();
                 if gpkg_workaround == GpkgFiltered::Base {
                     // thread-local: only this read on this thread is affected
-                    let _ = gdal::config::set_thread_local_config_option("OGR_GPKG_STREAM_BASE_IMPL", "YES");
+                    let _ = gdal::config::set_thread_local_config_option(
+                        "OGR_GPKG_STREAM_BASE_IMPL",
+                        "YES",
+                    );
                 }
                 let r = reader::for_each_arrow(&mut lyr, &named, &mut row);
                 if gpkg_workaround == GpkgFiltered::Base {
-                    let _ = gdal::config::clear_thread_local_config_option("OGR_GPKG_STREAM_BASE_IMPL");
+                    let _ =
+                        gdal::config::clear_thread_local_config_option("OGR_GPKG_STREAM_BASE_IMPL");
                 }
                 r?
             }
             ReadMode::Features => {
-                let idx: Vec<(u32, usize)> = field_idx.iter().enumerate().map(|(k, &i)| (k as u32, i)).collect();
+                let idx: Vec<(u32, usize)> = field_idx
+                    .iter()
+                    .enumerate()
+                    .map(|(k, &i)| (k as u32, i))
+                    .collect();
                 reader::for_each_feature(&mut lyr, &idx, &mut row)?
             }
         };
@@ -837,36 +973,68 @@ impl Engine {
     /// A window of attribute rows for the attribute table (Pro-style): every field of
     /// the layer plus a bbox per row, so the table can page and zoom without holding the
     /// whole layer in memory.
-    pub fn rows(&self, layer: &LayerHandle, offset: usize, limit: usize) -> Result<RowsPage, String> {
+    pub fn rows(
+        &self,
+        layer: &LayerHandle,
+        offset: usize,
+        limit: usize,
+    ) -> Result<RowsPage, String> {
         let h = layer.checkout()?;
         let res = (|| {
-            let mut lyr = h.ds.layer_by_name(&layer.layer_name).map_err(|e| e.to_string())?;
+            let mut lyr =
+                h.ds.layer_by_name(&layer.layer_name)
+                    .map_err(|e| e.to_string())?;
             // Handles are pooled: a tile read may have left a spatial filter on this layer,
             // which would silently shrink the table to one tile's worth of features.
             lyr.clear_spatial_filter();
-            let idx: Vec<(u32, usize)> = layer.field_idx.iter().enumerate().map(|(k, &i)| (k as u32, i)).collect();
+            let idx: Vec<(u32, usize)> = layer
+                .field_idx
+                .iter()
+                .enumerate()
+                .map(|(k, &i)| (k as u32, i))
+                .collect();
             let names: Vec<String> = layer
                 .field_idx
                 .iter()
-                .map(|&i| layer.info.fields.get(i).map(|f| f.name.clone()).unwrap_or_default())
+                .map(|&i| {
+                    layer
+                        .info
+                        .fields
+                        .get(i)
+                        .map(|f| f.name.clone())
+                        .unwrap_or_default()
+                })
                 .collect();
-            let mut page = RowsPage { total: layer.info.feature_count as usize, offset, fields: names, rows: Vec::new() };
+            let mut page = RowsPage {
+                total: layer.info.feature_count as usize,
+                offset,
+                fields: names,
+                rows: Vec::new(),
+            };
             let mut n = 0usize;
-            let r = reader::for_each_feature(&mut lyr, &idx, &mut |fid: Option<u64>, wkb: &[u8], attrs: Vec<(u32, mvt::Val)>| {
-                if n >= offset && page.rows.len() < limit {
-                    let values = attrs
-                        .into_iter()
-                        .map(|(_, v)| match v {
-                            mvt::Val::Str(s) => serde_json::Value::String(s),
-                            mvt::Val::Int(i) => serde_json::Value::from(i),
-                            mvt::Val::Dbl(d) => serde_json::Value::from(d),
-                        })
-                        .collect();
-                    page.rows.push(Row { fid: fid.unwrap_or(n as u64), bbox: wkb::bbox(wkb), values });
-                }
-                n += 1;
-                page.rows.len() < limit // stop reading once the window is full
-            });
+            let r = reader::for_each_feature(
+                &mut lyr,
+                &idx,
+                &mut |fid: Option<u64>, wkb: &[u8], attrs: Vec<(u32, mvt::Val)>| {
+                    if n >= offset && page.rows.len() < limit {
+                        let values = attrs
+                            .into_iter()
+                            .map(|(_, v)| match v {
+                                mvt::Val::Str(s) => serde_json::Value::String(s),
+                                mvt::Val::Int(i) => serde_json::Value::from(i),
+                                mvt::Val::Dbl(d) => serde_json::Value::from(d),
+                            })
+                            .collect();
+                        page.rows.push(Row {
+                            fid: fid.unwrap_or(n as u64),
+                            bbox: wkb::bbox(wkb),
+                            values,
+                        });
+                    }
+                    n += 1;
+                    page.rows.len() < limit // stop reading once the window is full
+                },
+            );
             let _ = reader::set_ignored_fields(&lyr, &layer.field_idx, false);
             r?;
             Ok(page)
@@ -876,10 +1044,16 @@ impl Engine {
     }
 
     /// All values of one attribute (Arrow scan, geometry ignored).
-    pub fn scan_column(&self, layer: &LayerHandle, field_idx: usize) -> Result<reader::ColumnValues, String> {
+    pub fn scan_column(
+        &self,
+        layer: &LayerHandle,
+        field_idx: usize,
+    ) -> Result<reader::ColumnValues, String> {
         let h = layer.checkout()?;
         let res = (|| {
-            let mut lyr = h.ds.layer_by_name(&layer.layer_name).map_err(|e| e.to_string())?;
+            let mut lyr =
+                h.ds.layer_by_name(&layer.layer_name)
+                    .map_err(|e| e.to_string())?;
             let r = reader::scan_column(&mut lyr, field_idx);
             // restore: geometry back on for the next tile read on this handle
             let _ = reader::set_ignored_fields(&lyr, &layer.field_idx, false);

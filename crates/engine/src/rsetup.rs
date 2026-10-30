@@ -8,26 +8,58 @@
 //! through pkexec (asks for the password). Without a desktop to ask on (a server), it says
 //! which command to run instead.
 
+use crate::Engine;
 use crate::automation::sidecar::{self, Lang};
 use crate::jobs::{Job, Status};
-use crate::Engine;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 /// Package kits, in the order the R tab shows them: (id, title, packages).
 pub const KITS: &[(&str, &str, &[&str])] = &[
-    ("spatial", "Spatial data (sf, terra, stars)", &["sf", "terra", "stars"]),
-    ("maps", "Publication maps (tmap, ggplot2)", &["tmap", "ggplot2", "ggspatial", "patchwork", "viridisLite"]),
-    ("relief", "3D relief (rayshader)", &["rayshader", "rayrender"]),
-    ("sdm", "Species distribution models (biomod2, MaxEnt)", &["biomod2", "maxnet", "dismo", "predicts"]),
-    ("ml", "Machine learning (tidymodels)", &["tidymodels", "ranger"]),
-    ("data", "Data wrangling and databases (tidyverse, dbplyr)", &["tidyverse", "dbplyr", "DBI", "RSQLite", "duckdb"]),
-    ("stats", "Spatial statistics (gstat, spdep, spatstat)", &["gstat", "spdep", "spatstat"]),
-    ("online", "Online data (geodata, rgbif)", &["geodata", "rgbif"]),
+    (
+        "spatial",
+        "Spatial data (sf, terra, stars)",
+        &["sf", "terra", "stars"],
+    ),
+    (
+        "maps",
+        "Publication maps (tmap, ggplot2)",
+        &["tmap", "ggplot2", "ggspatial", "patchwork", "viridisLite"],
+    ),
+    (
+        "relief",
+        "3D relief (rayshader)",
+        &["rayshader", "rayrender"],
+    ),
+    (
+        "sdm",
+        "Species distribution models (biomod2, MaxEnt)",
+        &["biomod2", "maxnet", "dismo", "predicts"],
+    ),
+    (
+        "ml",
+        "Machine learning (tidymodels)",
+        &["tidymodels", "ranger"],
+    ),
+    (
+        "data",
+        "Data wrangling and databases (tidyverse, dbplyr)",
+        &["tidyverse", "dbplyr", "DBI", "RSQLite", "duckdb"],
+    ),
+    (
+        "stats",
+        "Spatial statistics (gstat, spdep, spatstat)",
+        &["gstat", "spdep", "spatstat"],
+    ),
+    (
+        "online",
+        "Online data (geodata, rgbif)",
+        &["geodata", "rgbif"],
+    ),
     ("gee", "Google Earth Engine (rgee)", &["rgee"]),
 ];
 
@@ -35,7 +67,9 @@ pub const KITS: &[(&str, &str, &[&str])] = &[
 pub const DEFAULT_KITS: &[&str] = &["spatial", "maps", "stats"];
 
 fn library() -> PathBuf {
-    sidecar::r_library().cloned().unwrap_or_else(|| PathBuf::from("r-library"))
+    sidecar::r_library()
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from("r-library"))
 }
 
 fn all_packages() -> Vec<&'static str> {
@@ -65,7 +99,10 @@ fn rs(s: &str) -> String {
 
 /// Is R there, which version, and which packages are installed (GeoSpaX's library first).
 pub fn status() -> Value {
-    let kits: Vec<Value> = KITS.iter().map(|(id, title, pk)| json!({ "id": id, "title": title, "packages": pk })).collect();
+    let kits: Vec<Value> = KITS
+        .iter()
+        .map(|(id, title, pk)| json!({ "id": id, "title": title, "packages": pk }))
+        .collect();
     let lib = library();
     let Some((cmd, version)) = sidecar::find(Lang::R) else {
         return json!({ "installed": false, "library": lib, "kits": kits, "packages": {}, "can_install_r": can_install_r().is_ok(), "install_note": can_install_r().err(), "hint": sidecar::install_hint(Lang::R) });
@@ -77,11 +114,22 @@ pub fn status() -> Value {
         names = names.join(", ")
     );
     let mut packages = Map::new();
-    if let Ok(out) = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).output() {
+    if let Ok(out) = crate::command(&cmd)
+        .args(["-e", &script])
+        .stdin(Stdio::null())
+        .output()
+    {
         for line in String::from_utf8_lossy(&out.stdout).lines() {
             let mut it = line.split('\t');
             if let (Some(p), Some(v)) = (it.next(), it.next()) {
-                packages.insert(p.to_string(), if v.is_empty() { Value::Null } else { Value::from(v) });
+                packages.insert(
+                    p.to_string(),
+                    if v.is_empty() {
+                        Value::Null
+                    } else {
+                        Value::from(v)
+                    },
+                );
             }
         }
     }
@@ -107,16 +155,25 @@ if (is.null(ap) || nrow(ap) == 0) cat("GSXERR", "the package list could not be r
         repo = rs(&repo()),
         lib = rs(&lib.to_string_lossy())
     );
-    let out = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).output().map_err(|e| e.to_string())?;
+    let out = crate::command(&cmd)
+        .args(["-e", &script])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| e.to_string())?;
     let text = String::from_utf8_lossy(&out.stdout);
     if let Some(e) = text.lines().find_map(|l| l.strip_prefix("GSXERR")) {
-        return Err(format!("could not reach the package repository ({}): {}", repo(), e.trim()));
+        return Err(format!(
+            "could not reach the package repository ({}): {}",
+            repo(),
+            e.trim()
+        ));
     }
     let list: Vec<Value> = text
         .lines()
         .filter_map(|l| {
             let f: Vec<&str> = l.split('\t').collect();
-            (f.len() >= 3 && !f[0].is_empty()).then(|| json!({ "name": f[0], "installed": f[1], "available": f[2] }))
+            (f.len() >= 3 && !f[0].is_empty())
+                .then(|| json!({ "name": f[0], "installed": f[1], "available": f[2] }))
         })
         .collect();
     Ok(json!({ "packages": list, "library": lib }))
@@ -125,7 +182,9 @@ if (is.null(ap) || nrow(ap) == 0) cat("GSXERR", "the package list could not be r
 /// Where binaries come from: CRAN (Windows, macOS) or Posit Public Package Manager (Linux).
 fn repo() -> String {
     if cfg!(target_os = "linux") {
-        if let Some(distro) = ppm_distro(&std::fs::read_to_string("/etc/os-release").unwrap_or_default()) {
+        if let Some(distro) =
+            ppm_distro(&std::fs::read_to_string("/etc/os-release").unwrap_or_default())
+        {
             return format!("https://packagemanager.posit.co/cran/__linux__/{distro}/latest");
         }
     }
@@ -134,16 +193,33 @@ fn repo() -> String {
 
 /// Posit Package Manager's name for this Linux (noble, jammy, bookworm, rhel9 …).
 fn ppm_distro(os_release: &str) -> Option<String> {
-    let get = |k: &str| os_release.lines().find_map(|l| l.strip_prefix(&format!("{k}="))).map(|v| v.trim_matches('"').to_string());
+    let get = |k: &str| {
+        os_release
+            .lines()
+            .find_map(|l| l.strip_prefix(&format!("{k}=")))
+            .map(|v| v.trim_matches('"').to_string())
+    };
     let id = get("ID").unwrap_or_default();
     let like = get("ID_LIKE").unwrap_or_default();
-    let code = get("UBUNTU_CODENAME").or_else(|| get("VERSION_CODENAME")).unwrap_or_default();
-    let major = get("VERSION_ID").unwrap_or_default().split('.').next().unwrap_or("").to_string();
+    let code = get("UBUNTU_CODENAME")
+        .or_else(|| get("VERSION_CODENAME"))
+        .unwrap_or_default();
+    let major = get("VERSION_ID")
+        .unwrap_or_default()
+        .split('.')
+        .next()
+        .unwrap_or("")
+        .to_string();
     match id.as_str() {
         "ubuntu" | "debian" if !code.is_empty() => Some(code),
         _ if like.contains("ubuntu") && !code.is_empty() => Some(code),
-        "rhel" | "rocky" | "almalinux" | "centos" | "ol" if !major.is_empty() => Some(format!("rhel{major}")),
-        "opensuse-leap" | "sles" if !major.is_empty() => Some(format!("opensuse{}", get("VERSION_ID").unwrap_or_default().replace('.', ""))),
+        "rhel" | "rocky" | "almalinux" | "centos" | "ol" if !major.is_empty() => {
+            Some(format!("rhel{major}"))
+        }
+        "opensuse-leap" | "sles" if !major.is_empty() => Some(format!(
+            "opensuse{}",
+            get("VERSION_ID").unwrap_or_default().replace('.', "")
+        )),
         _ => None,
     }
 }
@@ -153,8 +229,14 @@ fn can_install_r() -> Result<(), String> {
     if cfg!(windows) || cfg!(target_os = "macos") {
         return Ok(());
     }
-    let desktop = std::env::var_os("DISPLAY").is_some() || std::env::var_os("WAYLAND_DISPLAY").is_some();
-    let pkexec = crate::command("pkexec").arg("--version").stdin(Stdio::null()).output().map(|o| o.status.success()).unwrap_or(false);
+    let desktop =
+        std::env::var_os("DISPLAY").is_some() || std::env::var_os("WAYLAND_DISPLAY").is_some();
+    let pkexec = crate::command("pkexec")
+        .arg("--version")
+        .stdin(Stdio::null())
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
     if desktop && pkexec {
         Ok(())
     } else {
@@ -163,13 +245,21 @@ fn can_install_r() -> Result<(), String> {
 }
 
 /// Install R (when `with_r` and it is missing) and then `packages`, as a background job.
-pub fn start_install(engine: &Arc<Engine>, with_r: bool, packages: Vec<String>, update: bool) -> Result<Arc<Job>, String> {
+pub fn start_install(
+    engine: &Arc<Engine>,
+    with_r: bool,
+    packages: Vec<String>,
+    update: bool,
+) -> Result<Arc<Job>, String> {
     if let Some(j) = engine.jobs.active("r-setup", "r") {
         return Err(format!("R setup job {} is already running", j.id));
     }
     let need_r = sidecar::find(Lang::R).is_none();
     if need_r && !with_r {
-        return Err(format!("R is not installed: {}", sidecar::install_hint(Lang::R)));
+        return Err(format!(
+            "R is not installed: {}",
+            sidecar::install_hint(Lang::R)
+        ));
     }
     if need_r {
         can_install_r()?;
@@ -249,8 +339,18 @@ cat("GSXFAILED", failed, "\n")
         list = list.join(", "),
         upd = if update { "TRUE" } else { "FALSE" }
     );
-    job.log(format!("$ Rscript (library {}, packages from {})", lib.display(), repo()));
-    let mut child = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| format!("could not start {cmd}: {e}"))?;
+    job.log(format!(
+        "$ Rscript (library {}, packages from {})",
+        lib.display(),
+        repo()
+    ));
+    let mut child = crate::command(&cmd)
+        .args(["-e", &script])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("could not start {cmd}: {e}"))?;
     let stdout = child.stdout.take().ok_or("no output from R")?;
     // R's own errors (before the sink takes over, or from the compiler) go to the log too
     let mut stderr_lines: Option<std::sync::Arc<std::sync::Mutex<Vec<String>>>> = None;
@@ -268,7 +368,8 @@ cat("GSXFAILED", failed, "\n")
     let base = job.json()["done"].as_u64().unwrap_or(0);
     let mut failed: Vec<String> = Vec::new();
     // the gauge: packages to install (with dependencies), installed so far, bytes downloaded
-    let (t0, mut planned, mut units, mut bytes, mut label) = (std::time::Instant::now(), 0u64, 0u64, 0u64, String::new());
+    let (t0, mut planned, mut units, mut bytes, mut label) =
+        (std::time::Instant::now(), 0u64, 0u64, 0u64, String::new());
     let gauge = |planned: u64, units: u64, bytes: u64, label: &str| {
         if planned == 0 {
             return;
@@ -276,18 +377,27 @@ cat("GSXFAILED", failed, "\n")
         let frac = (units as f64 / planned as f64).min(0.99);
         let el = t0.elapsed().as_secs_f64();
         // bytes per finished package so far gives the expected total download
-        let total = (units > 0 && bytes > 0).then(|| (bytes as f64 / units.max(1) as f64 * planned as f64).max(bytes as f64) as u64);
+        let total = (units > 0 && bytes > 0).then(|| {
+            (bytes as f64 / units.max(1) as f64 * planned as f64).max(bytes as f64) as u64
+        });
         let eta = (frac > 0.0).then(|| el / frac * (1.0 - frac));
         let v = serde_json::json!({ "label": label, "fraction": frac, "bytes": bytes, "total": total, "rate": if el > 0.0 { bytes as f64 / el } else { 0.0 }, "eta_s": eta, "elapsed_s": el, "units": units, "planned": planned });
         job.update(|s| s.transfer = Some(v));
     };
     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
         // R prints the size of each file it downloads and a line for each package it installs
-        if let Some(n) = line.split("length ").nth(1).and_then(|r| r.split(" bytes").next()).and_then(|n| n.trim().parse::<u64>().ok()) {
+        if let Some(n) = line
+            .split("length ")
+            .nth(1)
+            .and_then(|r| r.split(" bytes").next())
+            .and_then(|n| n.trim().parse::<u64>().ok())
+        {
             bytes += n;
             gauge(planned, units, bytes, &label);
         }
-        if line.starts_with("* DONE (") || line.contains("successfully unpacked and MD5 sums checked") {
+        if line.starts_with("* DONE (")
+            || line.contains("successfully unpacked and MD5 sums checked")
+        {
             units += 1;
             gauge(planned, units, bytes, &label);
         }
@@ -315,9 +425,15 @@ cat("GSXFAILED", failed, "\n")
                 });
             }
             Some(&"GSXOK") if parts.len() >= 4 => {
-                job.log(if parts[3] == "already" { format!("✓ {} {} was already installed", parts[1], parts[2]) } else { format!("✓ {} {} installed", parts[1], parts[2]) });
+                job.log(if parts[3] == "already" {
+                    format!("✓ {} {} was already installed", parts[1], parts[2])
+                } else {
+                    format!("✓ {} {} installed", parts[1], parts[2])
+                });
             }
-            Some(&"GSXFAIL") if parts.len() >= 2 => job.log(format!("✗ {} could not be installed", parts[1])),
+            Some(&"GSXFAIL") if parts.len() >= 2 => {
+                job.log(format!("✗ {} could not be installed", parts[1]))
+            }
             Some(&"GSXNOREPO") => {
                 let url = parts.get(1).unwrap_or(&"CRAN").to_string();
                 job.log(format!("✗ cannot reach the package repository {url}: check the internet connection or proxy"));
@@ -325,7 +441,9 @@ cat("GSXFAILED", failed, "\n")
             }
             Some(&"GSXPLAN") => {
                 planned = parts.get(1).and_then(|n| n.parse().ok()).unwrap_or(0);
-                job.log(format!("{planned} package(s) to download and install, with their dependencies"));
+                job.log(format!(
+                    "{planned} package(s) to download and install, with their dependencies"
+                ));
                 gauge(planned, units, bytes, &label);
             }
             Some(&"GSXFAILED") => failed = parts[1..].iter().map(|s| s.to_string()).collect(),
@@ -345,11 +463,21 @@ cat("GSXFAILED", failed, "\n")
     }
     job.update(|s| s.done = s.total);
     if failed.is_empty() {
-        Ok(format!("{} R package(s) ready in {}", packages.len(), lib.display()))
+        Ok(format!(
+            "{} R package(s) ready in {}",
+            packages.len(),
+            lib.display()
+        ))
     } else {
         match no_repo {
-            Some(url) => Err(format!("could not install {}: the package repository {url} cannot be reached (internet connection or proxy)", failed.join(", "))),
-            None => Err(format!("could not install {} (the log above says why; some packages need system libraries)", failed.join(", "))),
+            Some(url) => Err(format!(
+                "could not install {}: the package repository {url} cannot be reached (internet connection or proxy)",
+                failed.join(", ")
+            )),
+            None => Err(format!(
+                "could not install {} (the log above says why; some packages need system libraries)",
+                failed.join(", ")
+            )),
         }
     }
 }
@@ -361,7 +489,13 @@ fn newest_link(html: &str, prefix: &str, suffix: &str) -> Option<String> {
         .filter(|s| s.starts_with(prefix) && s.ends_with(suffix) && !s.contains('/'))
         .map(str::to_string)
         .collect();
-    found.sort_by_key(|f| f.trim_start_matches(prefix).split(|c: char| !c.is_ascii_digit()).filter_map(|n| n.parse::<u32>().ok()).take(3).collect::<Vec<_>>());
+    found.sort_by_key(|f| {
+        f.trim_start_matches(prefix)
+            .split(|c: char| !c.is_ascii_digit())
+            .filter_map(|n| n.parse::<u32>().ok())
+            .take(3)
+            .collect::<Vec<_>>()
+    });
     found.pop()
 }
 
@@ -372,33 +506,81 @@ fn download(url: &str, dest: &Path) -> Result<(), String> {
 }
 
 fn run(c: &mut std::process::Command, what: &str) -> Result<(), String> {
-    let out = c.stdin(Stdio::null()).output().map_err(|e| format!("{what}: {e}"))?;
+    let out = c
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("{what}: {e}"))?;
     if out.status.success() {
         Ok(())
     } else {
-        Err(format!("{what} failed: {}", String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or("")))
+        Err(format!(
+            "{what} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+                .lines()
+                .last()
+                .unwrap_or("")
+        ))
     }
 }
 
 fn install_r(downloads: &Path) -> Result<(), String> {
     const CRAN: &str = "https://cloud.r-project.org";
     if cfg!(windows) {
-        let page = String::from_utf8_lossy(&crate::raster::http(&format!("{CRAN}/bin/windows/base/"), None, 60)?).to_string();
-        let exe = newest_link(&page, "R-", "-win.exe").ok_or("could not find the R installer on CRAN")?;
+        let page = String::from_utf8_lossy(&crate::raster::http(
+            &format!("{CRAN}/bin/windows/base/"),
+            None,
+            60,
+        )?)
+        .to_string();
+        let exe =
+            newest_link(&page, "R-", "-win.exe").ok_or("could not find the R installer on CRAN")?;
         let file = downloads.join(&exe);
         download(&format!("{CRAN}/bin/windows/base/{exe}"), &file)?;
         // for the current user: no admin rights; sidecar::find looks in %LOCALAPPDATA%\Programs\R
-        let dir = PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap_or_default()).join("Programs").join("R").join(exe.trim_end_matches("-win.exe"));
-        run(crate::command(&file).args(["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER"]).arg(format!("/DIR={}", dir.display())), "the R installer")
+        let dir = PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap_or_default())
+            .join("Programs")
+            .join("R")
+            .join(exe.trim_end_matches("-win.exe"));
+        run(
+            crate::command(&file)
+                .args([
+                    "/VERYSILENT",
+                    "/SUPPRESSMSGBOXES",
+                    "/NORESTART",
+                    "/CURRENTUSER",
+                ])
+                .arg(format!("/DIR={}", dir.display())),
+            "the R installer",
+        )
     } else if cfg!(target_os = "macos") {
-        let sub = if cfg!(target_arch = "aarch64") { "big-sur-arm64" } else { "big-sur-x86_64" };
-        let page = String::from_utf8_lossy(&crate::raster::http(&format!("{CRAN}/bin/macosx/{sub}/base/"), None, 60)?).to_string();
-        let suffix = if cfg!(target_arch = "aarch64") { "-arm64.pkg" } else { "-x86_64.pkg" };
-        let pkg = newest_link(&page, "R-", suffix).ok_or("could not find the R installer on CRAN")?;
+        let sub = if cfg!(target_arch = "aarch64") {
+            "big-sur-arm64"
+        } else {
+            "big-sur-x86_64"
+        };
+        let page = String::from_utf8_lossy(&crate::raster::http(
+            &format!("{CRAN}/bin/macosx/{sub}/base/"),
+            None,
+            60,
+        )?)
+        .to_string();
+        let suffix = if cfg!(target_arch = "aarch64") {
+            "-arm64.pkg"
+        } else {
+            "-x86_64.pkg"
+        };
+        let pkg =
+            newest_link(&page, "R-", suffix).ok_or("could not find the R installer on CRAN")?;
         let file = downloads.join(&pkg);
         download(&format!("{CRAN}/bin/macosx/{sub}/base/{pkg}"), &file)?;
-        let script = format!("do shell script \"installer -pkg '{}' -target /\" with administrator privileges", file.display());
-        run(crate::command("osascript").args(["-e", &script]), "the R installer")
+        let script = format!(
+            "do shell script \"installer -pkg '{}' -target /\" with administrator privileges",
+            file.display()
+        );
+        run(
+            crate::command("osascript").args(["-e", &script]),
+            "the R installer",
+        )
     } else {
         let os = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
         let cmd = if os.contains("ID=fedora") || os.contains("rhel") || os.contains("centos") {
@@ -410,7 +592,10 @@ fn install_r(downloads: &Path) -> Result<(), String> {
         } else {
             "apt-get update && apt-get install -y r-base-core"
         };
-        run(crate::command("pkexec").args(["sh", "-c", cmd]), "installing R")
+        run(
+            crate::command("pkexec").args(["sh", "-c", cmd]),
+            "installing R",
+        )
     }
 }
 
@@ -420,18 +605,40 @@ mod tests {
 
     #[test]
     fn linux_package_repos() {
-        assert_eq!(ppm_distro("ID=ubuntu\nVERSION_CODENAME=noble\nUBUNTU_CODENAME=noble").as_deref(), Some("noble"));
+        assert_eq!(
+            ppm_distro("ID=ubuntu\nVERSION_CODENAME=noble\nUBUNTU_CODENAME=noble").as_deref(),
+            Some("noble")
+        );
         assert_eq!(ppm_distro("ID=linuxmint\nID_LIKE=\"ubuntu debian\"\nVERSION_CODENAME=wilma\nUBUNTU_CODENAME=noble").as_deref(), Some("noble"));
-        assert_eq!(ppm_distro("ID=debian\nVERSION_CODENAME=bookworm").as_deref(), Some("bookworm"));
-        assert_eq!(ppm_distro("ID=\"rocky\"\nVERSION_ID=\"9.4\"").as_deref(), Some("rhel9"));
+        assert_eq!(
+            ppm_distro("ID=debian\nVERSION_CODENAME=bookworm").as_deref(),
+            Some("bookworm")
+        );
+        assert_eq!(
+            ppm_distro("ID=\"rocky\"\nVERSION_ID=\"9.4\"").as_deref(),
+            Some("rhel9")
+        );
         assert_eq!(ppm_distro("ID=gentoo"), None);
     }
 
     #[test]
     fn newest_installer() {
         let html = r#"<a href="R-4.4.3-win.exe">R-4.4.3-win.exe</a> <a href="R-4.5.1-win.exe">x</a> <a href="R-4.5.0-win.exe">"#;
-        assert_eq!(newest_link(html, "R-", "-win.exe").as_deref(), Some("R-4.5.1-win.exe"));
-        assert_eq!(packages_of(&["maps".into(), "lidR".into()]), ["tmap", "ggplot2", "ggspatial", "patchwork", "viridisLite", "lidR"]);
+        assert_eq!(
+            newest_link(html, "R-", "-win.exe").as_deref(),
+            Some("R-4.5.1-win.exe")
+        );
+        assert_eq!(
+            packages_of(&["maps".into(), "lidR".into()]),
+            [
+                "tmap",
+                "ggplot2",
+                "ggspatial",
+                "patchwork",
+                "viridisLite",
+                "lidR"
+            ]
+        );
     }
 }
 
@@ -442,9 +649,21 @@ pub fn available() -> Result<Value, String> {
         return Ok(json!({ "packages": v }));
     }
     let (cmd, _) = sidecar::find(Lang::R).ok_or("R is not installed")?;
-    let script = format!("options(repos = c(CRAN = {}), timeout = 120)\ncat(rownames(utils::available.packages()), sep = \"\\n\")\n", rs(&repo()));
-    let out = crate::command(&cmd).args(["-e", &script]).stdin(Stdio::null()).output().map_err(|e| e.to_string())?;
-    let names: Vec<String> = String::from_utf8_lossy(&out.stdout).lines().map(str::trim).filter(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')).map(str::to_string).collect();
+    let script = format!(
+        "options(repos = c(CRAN = {}), timeout = 120)\ncat(rownames(utils::available.packages()), sep = \"\\n\")\n",
+        rs(&repo())
+    );
+    let out = crate::command(&cmd)
+        .args(["-e", &script])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| e.to_string())?;
+    let names: Vec<String> = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '.'))
+        .map(str::to_string)
+        .collect();
     if names.is_empty() {
         return Err(format!("could not read the package list from {}", repo()));
     }

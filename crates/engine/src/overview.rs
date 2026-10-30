@@ -12,8 +12,8 @@
 //! feature count): a stale archive is ignored, never served.
 
 use crate::catalog::LayerHandle;
-use crate::pmtiles_io::{tile_id, PmReader};
-use crate::{tile, Engine, LayerInfo, RenderOpts};
+use crate::pmtiles_io::{PmReader, tile_id};
+use crate::{Engine, LayerInfo, RenderOpts, tile};
 use pmtiles::{Compression, PmTilesWriter, TileCoord, TileType};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -90,7 +90,10 @@ impl Overview {
         let stored: Fingerprint = serde_json::from_value(gx["fingerprint"].clone())
             .map_err(|_| format!("{}: no GeoSpaX fingerprint in metadata", path.display()))?;
         if &stored != fp {
-            return Err(format!("{}: stale (source changed since the overview was built)", path.display()));
+            return Err(format!(
+                "{}: stale (source changed since the overview was built)",
+                path.display()
+            ));
         }
         let stats: serde_json::Value = std::fs::read(sidecar(path))
             .ok()
@@ -98,7 +101,11 @@ impl Overview {
             .unwrap_or_default();
         let density_p90 = stats["per_zoom"]
             .as_array()
-            .map(|zs| zs.iter().map(|z| z["density_p90"].as_u64().unwrap_or(0) as u32).collect())
+            .map(|zs| {
+                zs.iter()
+                    .map(|z| z["density_p90"].as_u64().unwrap_or(0) as u32)
+                    .collect()
+            })
             .unwrap_or_default();
         let meta = OverviewMeta {
             max_zoom: reader.header.max_zoom,
@@ -113,7 +120,9 @@ impl Overview {
 }
 
 pub fn path_for(state_dir: &Path, layer_id: &str) -> PathBuf {
-    state_dir.join("overviews").join(format!("{layer_id}.pmtiles"))
+    state_dir
+        .join("overviews")
+        .join(format!("{layer_id}.pmtiles"))
 }
 
 /// Total tiles of a z0..=max pyramid over `b`.
@@ -127,7 +136,11 @@ pub fn suggested_max_zoom(info: &LayerInfo) -> Option<u8> {
     if !dense && info.minzoom == 0 {
         return None;
     }
-    let mut z = if dense { DEFAULT_MAX_ZOOM.max(info.minzoom.saturating_sub(1)) } else { info.minzoom - 1 };
+    let mut z = if dense {
+        DEFAULT_MAX_ZOOM.max(info.minzoom.saturating_sub(1))
+    } else {
+        info.minzoom - 1
+    };
     z = z.min(info.maxzoom.saturating_sub(1));
     while z > 0 && pyramid_tiles(info.bounds, z) > MAX_TILES {
         z -= 1;
@@ -136,7 +149,10 @@ pub fn suggested_max_zoom(info: &LayerInfo) -> Option<u8> {
 }
 
 fn now_secs() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// Build summary returned by [`build`].
@@ -181,7 +197,9 @@ pub fn build(
     let b = info.bounds;
     let total = pyramid_tiles(b, max_zoom);
     if total > MAX_TILES {
-        return Err(format!("pyramid z0-{max_zoom} would have {total} tiles (limit {MAX_TILES}); lower maxzoom"));
+        return Err(format!(
+            "pyramid z0-{max_zoom} would have {total} tiles (limit {MAX_TILES}); lower maxzoom"
+        ));
     }
     if let Some(dir) = out.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -192,7 +210,11 @@ pub fn build(
         .iter()
         .map(|&i| {
             let f = &info.fields[i];
-            let t = if f.kind == "string" { "String" } else { "Number" };
+            let t = if f.kind == "string" {
+                "String"
+            } else {
+                "Number"
+            };
             (f.name.clone(), serde_json::Value::from(t))
         })
         .collect();
@@ -218,7 +240,10 @@ pub fn build(
         .create(std::io::BufWriter::new(file))
         .map_err(|e| e.to_string())?;
 
-    let opts = RenderOpts { overview: true, fields: None };
+    let opts = RenderOpts {
+        overview: true,
+        fields: None,
+    };
     let (mut done, mut written, mut bytes_raw) = (0u64, 0u64, 0u64);
     let mut per_zoom = Vec::new();
     let result: Result<(), String> = (|| {
@@ -233,7 +258,15 @@ pub fn build(
                 }
             }
             coords.sort_unstable();
-            let mut zr = ZoomReport { z, tiles: 0, bytes_raw: 0, max_tile_bytes: 0, ms: 0.0, density_max: 0, density_p90: 0 };
+            let mut zr = ZoomReport {
+                z,
+                tiles: 0,
+                bytes_raw: 0,
+                max_tile_bytes: 0,
+                ms: 0.0,
+                density_max: 0,
+                density_p90: 0,
+            };
             let mut maxima: Vec<u32> = Vec::new();
             for chunk in coords.chunks(BATCH) {
                 if cancel.load(Ordering::Relaxed) {
@@ -241,7 +274,11 @@ pub fn build(
                 }
                 let rendered: Vec<Result<(Vec<u8>, u32), String>> = chunk
                     .par_iter()
-                    .map(|&(_, x, y)| engine.render_tile(layer, z, x, y, &opts).map(|r| (r.bytes, r.density_max)))
+                    .map(|&(_, x, y)| {
+                        engine
+                            .render_tile(layer, z, x, y, &opts)
+                            .map(|r| (r.bytes, r.density_max))
+                    })
                     .collect();
                 for (&(_, x, y), r) in chunk.iter().zip(rendered) {
                     let (bytes, dmax) = r?;
@@ -265,7 +302,10 @@ pub fn build(
             zr.ms = tz.elapsed().as_secs_f64() * 1000.0;
             maxima.sort_unstable();
             zr.density_max = maxima.last().copied().unwrap_or(0);
-            zr.density_p90 = maxima.get((maxima.len().saturating_sub(1) as f64 * 0.9).round() as usize).copied().unwrap_or(0);
+            zr.density_p90 = maxima
+                .get((maxima.len().saturating_sub(1) as f64 * 0.9).round() as usize)
+                .copied()
+                .unwrap_or(0);
             per_zoom.push(zr);
         }
         Ok(())
@@ -288,6 +328,9 @@ pub fn build(
         per_zoom,
         path: out.display().to_string(),
     };
-    let _ = std::fs::write(sidecar(out), serde_json::to_vec_pretty(&report).unwrap_or_default());
+    let _ = std::fs::write(
+        sidecar(out),
+        serde_json::to_vec_pretty(&report).unwrap_or_default(),
+    );
     Ok(report)
 }

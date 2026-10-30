@@ -8,7 +8,7 @@
 //! other layer, so they keep working offline and in exports.
 
 use crate::Engine;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -21,7 +21,10 @@ pub const KINDS: &[(&str, &str)] = &[
     ("ogcapi", "OGC API Features"),
     ("arcgis-feature", "ArcGIS FeatureServer"),
     ("stac", "STAC catalog"),
-    ("cloud", "Cloud storage (S3, Google Cloud, Azure, web folder)"),
+    (
+        "cloud",
+        "Cloud storage (S3, Google Cloud, Azure, web folder)",
+    ),
     ("github", "GitHub repository"),
     ("postgis", "PostGIS database"),
 ];
@@ -31,7 +34,10 @@ fn file(state: &Path) -> PathBuf {
 }
 
 pub fn load(state: &Path) -> Vec<Value> {
-    std::fs::read(file(state)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+    std::fs::read(file(state))
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
 }
 
 fn save(state: &Path, list: &[Value]) -> Result<(), String> {
@@ -48,7 +54,10 @@ pub fn list(engine: &Engine) -> Value {
 }
 
 pub fn get(engine: &Engine, id: &str) -> Result<Value, String> {
-    load(&engine.state_dir).into_iter().find(|s| s["id"] == id).ok_or_else(|| format!("no web service {id}"))
+    load(&engine.state_dir)
+        .into_iter()
+        .find(|s| s["id"] == id)
+        .ok_or_else(|| format!("no web service {id}"))
 }
 
 fn base(url: &str) -> String {
@@ -56,18 +65,33 @@ fn base(url: &str) -> String {
 }
 
 /// Add a connection after checking that the service answers and has layers.
-pub fn add(engine: &Engine, kind: &str, url: &str, title: Option<&str>, opts: &Value) -> Result<Value, String> {
+pub fn add(
+    engine: &Engine,
+    kind: &str,
+    url: &str,
+    title: Option<&str>,
+    opts: &Value,
+) -> Result<Value, String> {
     if !KINDS.iter().any(|(k, _)| *k == kind) {
         return Err(format!("unknown service type {kind}"));
     }
     let url = base(url);
-    let cloud = (kind == "cloud" && ["s3://", "gs://", "az://"].iter().any(|p| url.starts_with(p))) || (kind == "github" && crate::github::parse(&url).is_ok())
+    let cloud = (kind == "cloud"
+        && ["s3://", "gs://", "az://"]
+            .iter()
+            .any(|p| url.starts_with(p)))
+        || (kind == "github" && crate::github::parse(&url).is_ok())
         || (kind == "postgis" && crate::db::pg_conn(&url).is_ok());
     if kind == "postgis" {
         crate::db::pg_conn(&url)?; // says why an address is not accepted (a password in it, …)
     }
     if !(cloud || url.starts_with("http://") || url.starts_with("https://")) {
-        return Err(if kind == "cloud" { "a cloud address starts with s3://, gs://, az:// or https://" } else { "the address must start with http:// or https://" }.into());
+        return Err(if kind == "cloud" {
+            "a cloud address starts with s3://, gs://, az:// or https://"
+        } else {
+            "the address must start with http:// or https://"
+        }
+        .into());
     }
     let mut probe = json!({ "id": "probe", "kind": kind, "url": url });
     if kind == "cloud" {
@@ -84,15 +108,37 @@ pub fn add(engine: &Engine, kind: &str, url: &str, title: Option<&str>, opts: &V
         return Err("the service answered but lists no layers".into());
     }
     let mut list = load(&engine.state_dir);
-    let n = list.iter().filter_map(|s| s["id"].as_str()?.strip_prefix("svc").and_then(|x| x.parse::<u32>().ok())).max().unwrap_or(0) + 1;
+    let n = list
+        .iter()
+        .filter_map(|s| {
+            s["id"]
+                .as_str()?
+                .strip_prefix("svc")
+                .and_then(|x| x.parse::<u32>().ok())
+        })
+        .max()
+        .unwrap_or(0)
+        + 1;
     let host = match crate::github::parse(&url) {
         Ok((o, r, _, _)) if kind == "github" => format!("{o}/{r}"),
-        _ if kind == "postgis" => url.split('?').next().unwrap_or("").rsplit('/').next().unwrap_or("database").to_string(),
+        _ if kind == "postgis" => url
+            .split('?')
+            .next()
+            .unwrap_or("")
+            .rsplit('/')
+            .next()
+            .unwrap_or("database")
+            .to_string(),
         _ => url.split('/').nth(2).unwrap_or("service").to_string(),
     };
     let mut svc = probe;
     svc["id"] = json!(format!("svc{n}"));
-    svc["title"] = json!(title.filter(|t| !t.trim().is_empty()).map(str::to_string).unwrap_or(host));
+    svc["title"] = json!(
+        title
+            .filter(|t| !t.trim().is_empty())
+            .map(str::to_string)
+            .unwrap_or(host)
+    );
     list.push(svc.clone());
     save(&engine.state_dir, &list)?;
     Ok(json!({ "service": svc, "layers": found.len() }))
@@ -120,7 +166,9 @@ fn query_value(s: &str, key: &str) -> Option<String> {
     let k = format!("{}=", key.to_lowercase());
     let i = lower.find(&k)? + k.len();
     let rest = &s[i..];
-    Some(crate::router::pct_decode(rest.split('&').next().unwrap_or(rest)))
+    Some(crate::router::pct_decode(
+        rest.split('&').next().unwrap_or(rest),
+    ))
 }
 
 /// Text between `<tag ...>` and `</tag>` (no namespaces needed for the few WMTS fields read).
@@ -136,15 +184,25 @@ fn layers_of(svc: &Value) -> Result<Vec<Value>, String> {
     let kind = svc["kind"].as_str().unwrap_or("");
     let sep = if url.contains('?') { '&' } else { '?' };
     Ok(match kind {
-        "xyz" => vec![json!({ "id": "tiles", "title": svc["title"].as_str().unwrap_or("Tiles"), "type": "tiles" })],
+        "xyz" => vec![
+            json!({ "id": "tiles", "title": svc["title"].as_str().unwrap_or("Tiles"), "type": "tiles" }),
+        ],
         "stac" => crate::stac::collections(url)?,
         "cloud" => crate::cloud::list(svc, "")?,
         "github" => crate::github::list(svc, "")?,
         "postgis" => crate::db::list(svc)?,
         "wms" => {
-            let raw = String::from_utf8_lossy(&crate::raster::http(&format!("{url}{sep}SERVICE=WMS&REQUEST=GetCapabilities"), None, 30)?).to_string();
+            let raw = String::from_utf8_lossy(&crate::raster::http(
+                &format!("{url}{sep}SERVICE=WMS&REQUEST=GetCapabilities"),
+                None,
+                30,
+            )?)
+            .to_string();
             if !raw.contains("Capabilities") {
-                return Err(format!("not a WMS: {}", raw.chars().take(160).collect::<String>()));
+                return Err(format!(
+                    "not a WMS: {}",
+                    raw.chars().take(160).collect::<String>()
+                ));
             }
             // namespace prefixes (wms:Layer) are folded away; every <Layer> with a <Name> is drawable
             let xml = raw.replace("<wms:", "<").replace("</wms:", "</");
@@ -160,16 +218,45 @@ fn layers_of(svc: &Value) -> Result<Vec<Value>, String> {
             out
         }
         "wmts" => {
-            let xml = String::from_utf8_lossy(&crate::raster::http(&format!("{url}{sep}SERVICE=WMTS&REQUEST=GetCapabilities"), None, 30)?).to_string();
+            let xml = String::from_utf8_lossy(&crate::raster::http(
+                &format!("{url}{sep}SERVICE=WMTS&REQUEST=GetCapabilities"),
+                None,
+                30,
+            )?)
+            .to_string();
             let mut out = Vec::new();
-            for block in xml.split("<Layer>").skip(1).chain(xml.split("<Layer ").skip(1)) {
+            for block in xml
+                .split("<Layer>")
+                .skip(1)
+                .chain(xml.split("<Layer ").skip(1))
+            {
                 let block = block.split("</Layer>").next().unwrap_or("");
-                let Some(id) = tag_text(block, "ows:Identifier") else { continue };
+                let Some(id) = tag_text(block, "ows:Identifier") else {
+                    continue;
+                };
                 let title = tag_text(block, "ows:Title").unwrap_or(id);
                 // a Web Mercator tile matrix set, and the REST template for it
-                let sets: Vec<&str> = block.split("<TileMatrixSet>").skip(1).filter_map(|x| x.split("</TileMatrixSet>").next()).collect();
-                let Some(set) = sets.iter().find(|s| s.contains("3857") || s.contains("GoogleMaps") || s.contains("WebMercator")).or(sets.first()) else { continue };
-                let Some(t) = block.split("template=\"").nth(1).and_then(|x| x.split('"').next()) else { continue };
+                let sets: Vec<&str> = block
+                    .split("<TileMatrixSet>")
+                    .skip(1)
+                    .filter_map(|x| x.split("</TileMatrixSet>").next())
+                    .collect();
+                let Some(set) = sets
+                    .iter()
+                    .find(|s| {
+                        s.contains("3857") || s.contains("GoogleMaps") || s.contains("WebMercator")
+                    })
+                    .or(sets.first())
+                else {
+                    continue;
+                };
+                let Some(t) = block
+                    .split("template=\"")
+                    .nth(1)
+                    .and_then(|x| x.split('"').next())
+                else {
+                    continue;
+                };
                 if !out.iter().any(|o: &Value| o["id"] == id) {
                     out.push(json!({ "id": id, "title": title, "type": "tiles", "template": t.replace("&amp;", "&").replace("{TileMatrixSet}", set).replace("{Style}", "default"), "matrix_set": set }));
                 }
@@ -177,18 +264,37 @@ fn layers_of(svc: &Value) -> Result<Vec<Value>, String> {
             out
         }
         "arcgis-map" => {
-            let v: Value = serde_json::from_slice(&crate::raster::http(&format!("{url}{sep}f=json"), None, 30)?).map_err(|e| format!("not an ArcGIS service ({e})"))?;
-            vec![json!({ "id": "map", "title": v["mapName"].as_str().or(v["documentInfo"]["Title"].as_str()).unwrap_or("Map"), "type": "tiles" })]
+            let v: Value = serde_json::from_slice(&crate::raster::http(
+                &format!("{url}{sep}f=json"),
+                None,
+                30,
+            )?)
+            .map_err(|e| format!("not an ArcGIS service ({e})"))?;
+            vec![
+                json!({ "id": "map", "title": v["mapName"].as_str().or(v["documentInfo"]["Title"].as_str()).unwrap_or("Map"), "type": "tiles" }),
+            ]
         }
         "arcgis-feature" => {
-            let v: Value = serde_json::from_slice(&crate::raster::http(&format!("{url}{sep}f=json"), None, 30)?).map_err(|e| format!("not an ArcGIS service ({e})"))?;
+            let v: Value = serde_json::from_slice(&crate::raster::http(
+                &format!("{url}{sep}f=json"),
+                None,
+                30,
+            )?)
+            .map_err(|e| format!("not an ArcGIS service ({e})"))?;
             v["layers"].as_array().cloned().unwrap_or_default().iter().map(|l| json!({ "id": l["id"].to_string(), "title": l["name"], "type": "features" })).collect()
         }
         "wfs" | "ogcapi" => {
             use gdal::vector::LayerAccess;
-            let conn = if kind == "wfs" { format!("WFS:{url}") } else { format!("OAPIF:{url}") };
-            let ds = gdal::Dataset::open(Path::new(&conn)).map_err(|e| format!("the service did not answer as expected ({e})"))?;
-            ds.layers().map(|l| json!({ "id": l.name(), "title": l.name(), "type": "features" })).collect()
+            let conn = if kind == "wfs" {
+                format!("WFS:{url}")
+            } else {
+                format!("OAPIF:{url}")
+            };
+            let ds = gdal::Dataset::open(Path::new(&conn))
+                .map_err(|e| format!("the service did not answer as expected ({e})"))?;
+            ds.layers()
+                .map(|l| json!({ "id": l.name(), "title": l.name(), "type": "features" }))
+                .collect()
         }
         _ => vec![],
     })
@@ -199,40 +305,88 @@ fn tile_bbox(z: u32, x: u32, y: u32) -> [f64; 4] {
     let r = 20037508.342789244;
     let n = 2f64.powi(z as i32);
     let size = 2.0 * r / n;
-    [-r + x as f64 * size, r - (y as f64 + 1.0) * size, -r + (x as f64 + 1.0) * size, r - y as f64 * size]
+    [
+        -r + x as f64 * size,
+        r - (y as f64 + 1.0) * size,
+        -r + (x as f64 + 1.0) * size,
+        r - y as f64 * size,
+    ]
 }
 
 /// One map tile from a tile service, fetched by the engine.
-pub fn tile(engine: &Engine, id: &str, layer: &str, z: u32, x: u32, y: u32) -> Result<(Vec<u8>, &'static str), String> {
+pub fn tile(
+    engine: &Engine,
+    id: &str,
+    layer: &str,
+    z: u32,
+    x: u32,
+    y: u32,
+) -> Result<(Vec<u8>, &'static str), String> {
     let svc = get(engine, id)?;
     let url = svc["url"].as_str().unwrap_or("");
     let sep = if url.contains('?') { '&' } else { '?' };
     let b = tile_bbox(z, x, y);
     let bbox = format!("{},{},{},{}", b[0], b[1], b[2], b[3]);
     let target = match svc["kind"].as_str().unwrap_or("") {
-        "xyz" => url.replace("{z}", &z.to_string()).replace("{x}", &x.to_string()).replace("{y}", &y.to_string()).replace("{-y}", &(2u32.pow(z) - 1 - y).to_string()),
-        "wms" => format!("{url}{sep}SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS={}&STYLES=&CRS=EPSG:3857&BBOX={bbox}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=TRUE", enc(layer)),
-        "arcgis-map" => format!("{url}/export?bbox={bbox}&bboxSR=3857&imageSR=3857&size=256,256&format=png32&transparent=true&f=image"),
+        "xyz" => url
+            .replace("{z}", &z.to_string())
+            .replace("{x}", &x.to_string())
+            .replace("{y}", &y.to_string())
+            .replace("{-y}", &(2u32.pow(z) - 1 - y).to_string()),
+        "wms" => format!(
+            "{url}{sep}SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS={}&STYLES=&CRS=EPSG:3857&BBOX={bbox}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=TRUE",
+            enc(layer)
+        ),
+        "arcgis-map" => format!(
+            "{url}/export?bbox={bbox}&bboxSR=3857&imageSR=3857&size=256,256&format=png32&transparent=true&f=image"
+        ),
         "wmts" => {
-            let l = layers_of(&svc)?.into_iter().find(|l| l["id"] == layer).ok_or("no such layer")?;
+            let l = layers_of(&svc)?
+                .into_iter()
+                .find(|l| l["id"] == layer)
+                .ok_or("no such layer")?;
             let t = l["template"].as_str().unwrap_or("");
             // tile matrices are named 0…n, or "<set>:0…n"
             let set = l["matrix_set"].as_str().unwrap_or("");
-            let m = if set.contains(':') && !set.starts_with("GoogleMaps") { format!("{set}:{z}") } else { z.to_string() };
-            t.replace("{TileMatrix}", &m).replace("{TileCol}", &x.to_string()).replace("{TileRow}", &y.to_string())
+            let m = if set.contains(':') && !set.starts_with("GoogleMaps") {
+                format!("{set}:{z}")
+            } else {
+                z.to_string()
+            };
+            t.replace("{TileMatrix}", &m)
+                .replace("{TileCol}", &x.to_string())
+                .replace("{TileRow}", &y.to_string())
         }
         k => return Err(format!("{k} services have features, not map images")),
     };
     let body = crate::raster::http(&target, None, 30)?;
-    let ct = if body.starts_with(&[0xFF, 0xD8]) { "image/jpeg" } else { "image/png" };
-    if !(body.starts_with(&[0x89, b'P', b'N', b'G']) || body.starts_with(&[0xFF, 0xD8]) || body.starts_with(b"RIFF")) {
-        return Err(format!("the service sent no image: {}", String::from_utf8_lossy(&body[..body.len().min(200)])));
+    let ct = if body.starts_with(&[0xFF, 0xD8]) {
+        "image/jpeg"
+    } else {
+        "image/png"
+    };
+    if !(body.starts_with(&[0x89, b'P', b'N', b'G'])
+        || body.starts_with(&[0xFF, 0xD8])
+        || body.starts_with(b"RIFF"))
+    {
+        return Err(format!(
+            "the service sent no image: {}",
+            String::from_utf8_lossy(&body[..body.len().min(200)])
+        ));
     }
     Ok((body, ct))
 }
 
 fn enc(s: &str) -> String {
-    s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~:,".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
+    s.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-_.~:,".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
 }
 
 /// Download a feature layer for an area (lon/lat) into `<state>/services/` and put it on the map.
@@ -247,22 +401,51 @@ pub fn fetch(engine: &Arc<Engine>, id: &str, layer: &str, bbox: [f64; 4]) -> Res
                 "{}/{}/query?where=1%3D1&outFields=*&f=geojson&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&geometry={},{},{},{}",
                 base(url),
                 layer,
-                bbox[0], bbox[1], bbox[2], bbox[3]
+                bbox[0],
+                bbox[1],
+                bbox[2],
+                bbox[3]
             ),
             None,
         ),
-        k => return Err(format!("{k} services have map images: add them as a web layer")),
+        k => {
+            return Err(format!(
+                "{k} services have map images: add them as a web layer"
+            ));
+        }
     };
     // one FlatGeobuf per service layer (<state>/services/<service>/<layer>.fgb): a re-download replaces it
-    let dir = engine.state_dir.join("services").join(crate::raster::sanitize(id));
+    let dir = engine
+        .state_dir
+        .join("services")
+        .join(crate::raster::sanitize(id));
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let title = layers_of(&svc).ok().and_then(|ls| ls.into_iter().find(|l| l["id"] == layer)).and_then(|l| l["title"].as_str().map(str::to_string)).unwrap_or_else(|| layer.to_string());
+    let title = layers_of(&svc)
+        .ok()
+        .and_then(|ls| ls.into_iter().find(|l| l["id"] == layer))
+        .and_then(|l| l["title"].as_str().map(str::to_string))
+        .unwrap_or_else(|| layer.to_string());
     let name = crate::raster::sanitize(&title);
     let out = dir.join(format!("{name}.fgb"));
     let _ = std::fs::remove_file(&out);
-    let mut args = vec!["-f".to_string(), "FlatGeobuf".into(), "-t_srs".into(), "EPSG:4326".into(), "-nln".into(), name.clone()];
+    let mut args = vec![
+        "-f".to_string(),
+        "FlatGeobuf".into(),
+        "-t_srs".into(),
+        "EPSG:4326".into(),
+        "-nln".into(),
+        name.clone(),
+    ];
     if src_layer.is_some() {
-        args.extend(["-spat".into(), bbox[0].to_string(), bbox[1].to_string(), bbox[2].to_string(), bbox[3].to_string(), "-spat_srs".into(), "EPSG:4326".into()]);
+        args.extend([
+            "-spat".into(),
+            bbox[0].to_string(),
+            bbox[1].to_string(),
+            bbox[2].to_string(),
+            bbox[3].to_string(),
+            "-spat_srs".into(),
+            "EPSG:4326".into(),
+        ]);
     }
     // a query URL has no file extension, which GDAL's remote reader refuses: fetch it here
     let input = if src.starts_with("http") {
@@ -285,14 +468,23 @@ pub fn fetch(engine: &Arc<Engine>, id: &str, layer: &str, bbox: [f64; 4]) -> Res
 }
 
 /// `ogr2ogr` in-process: one layer (or all) of `src` into `dest`.
-pub(crate) fn vector_translate(src: &str, layer: Option<&str>, dest: &Path, args: &[String]) -> Result<(), String> {
+pub(crate) fn vector_translate(
+    src: &str,
+    layer: Option<&str>,
+    dest: &Path,
+    args: &[String],
+) -> Result<(), String> {
     use std::ffi::CString;
-    let ds = crate::catalog::open_vector(Path::new(src)).map_err(|e| format!("could not read the source ({e})"))?;
+    let ds = crate::catalog::open_vector(Path::new(src))
+        .map_err(|e| format!("could not read the source ({e})"))?;
     let mut all: Vec<String> = args.to_vec();
     if let Some(l) = layer {
         all.push(l.to_string());
     }
-    let c: Vec<CString> = all.iter().map(|a| CString::new(a.as_str()).unwrap()).collect();
+    let c: Vec<CString> = all
+        .iter()
+        .map(|a| CString::new(a.as_str()).unwrap())
+        .collect();
     let mut ptrs: Vec<*mut std::os::raw::c_char> = c.iter().map(|a| a.as_ptr() as *mut _).collect();
     ptrs.push(std::ptr::null_mut());
     let dest_c = CString::new(dest.to_string_lossy().as_bytes()).map_err(|e| e.to_string())?;
@@ -303,7 +495,14 @@ pub(crate) fn vector_translate(src: &str, layer: Option<&str>, dest: &Path, args
         }
         let mut src_h = [ds.c_dataset()];
         let mut usage = 0;
-        let out = gdal_sys::GDALVectorTranslate(dest_c.as_ptr(), std::ptr::null_mut(), 1, src_h.as_mut_ptr(), opts, &mut usage);
+        let out = gdal_sys::GDALVectorTranslate(
+            dest_c.as_ptr(),
+            std::ptr::null_mut(),
+            1,
+            src_h.as_mut_ptr(),
+            opts,
+            &mut usage,
+        );
         gdal_sys::GDALVectorTranslateOptionsFree(opts);
         if out.is_null() {
             return Err(format!("download failed: {}", crate::raster::last_error()));
@@ -320,13 +519,22 @@ mod tests {
     #[test]
     fn tile_bounds() {
         let b = tile_bbox(0, 0, 0);
-        assert!((b[0] + 20037508.342789244).abs() < 1e-6 && (b[3] - 20037508.342789244).abs() < 1e-6);
+        assert!(
+            (b[0] + 20037508.342789244).abs() < 1e-6 && (b[3] - 20037508.342789244).abs() < 1e-6
+        );
         let b = tile_bbox(1, 1, 0);
         assert!(b[0].abs() < 1e-6 && b[1].abs() < 1e-6);
     }
 
     #[test]
     fn layers_from_wms_names() {
-        assert_eq!(query_value("WMS:https://x/wms?SERVICE=WMS&LAYERS=topo%3Aroads&SRS=EPSG:4326", "LAYERS").as_deref(), Some("topo:roads"));
+        assert_eq!(
+            query_value(
+                "WMS:https://x/wms?SERVICE=WMS&LAYERS=topo%3Aroads&SRS=EPSG:4326",
+                "LAYERS"
+            )
+            .as_deref(),
+            Some("topo:roads")
+        );
     }
 }

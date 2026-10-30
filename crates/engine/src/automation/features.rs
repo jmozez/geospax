@@ -1,10 +1,10 @@
 //! In-memory features for recipe steps: read any registered layer through the engine's read path
 //! (Arrow stream, GPKG workarounds, reprojection to EPSG:4326) and write results with GDAL.
 
+use crate::Engine;
 use crate::catalog::{GeomKind, LayerHandle};
 use crate::mvt;
 use crate::wkb::Geom;
-use crate::Engine;
 use std::path::Path;
 use std::time::Instant;
 
@@ -38,7 +38,11 @@ impl Val {
 }
 
 pub fn num_text(f: f64) -> String {
-    if f.fract() == 0.0 && f.abs() < 1e15 { format!("{}", f as i64) } else { format!("{f}") }
+    if f.fract() == 0.0 && f.abs() < 1e15 {
+        format!("{}", f as i64)
+    } else {
+        format!("{f}")
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -60,11 +64,21 @@ pub struct FeatureSet {
 
 impl FeatureSet {
     pub fn new(kind: GeomKind, fields: Vec<(String, &'static str)>) -> Self {
-        FeatureSet { kind, fields, feats: Vec::new(), total: 0, truncated: false }
+        FeatureSet {
+            kind,
+            fields,
+            feats: Vec::new(),
+            total: 0,
+            truncated: false,
+        }
     }
 
     pub fn field(&self, name: &str) -> Option<usize> {
-        self.fields.iter().position(|(n, _)| n == name).or_else(|| self.fields.iter().position(|(n, _)| n.eq_ignore_ascii_case(name)))
+        self.fields.iter().position(|(n, _)| n == name).or_else(|| {
+            self.fields
+                .iter()
+                .position(|(n, _)| n.eq_ignore_ascii_case(name))
+        })
     }
 
     pub fn bounds(&self) -> Option<[f64; 4]> {
@@ -73,7 +87,12 @@ impl FeatureSet {
             each_coord(&f.geom, &mut |c| {
                 b = Some(match b {
                     None => [c[0], c[1], c[0], c[1]],
-                    Some(b) => [b[0].min(c[0]), b[1].min(c[1]), b[2].max(c[0]), b[3].max(c[1])],
+                    Some(b) => [
+                        b[0].min(c[0]),
+                        b[1].min(c[1]),
+                        b[2].max(c[0]),
+                        b[3].max(c[1]),
+                    ],
                 });
             });
         }
@@ -81,7 +100,10 @@ impl FeatureSet {
     }
 
     pub fn numbers(&self, idx: usize) -> Vec<f64> {
-        self.feats.iter().filter_map(|f| f.props.get(idx).and_then(Val::as_f64)).collect()
+        self.feats
+            .iter()
+            .filter_map(|f| f.props.get(idx).and_then(Val::as_f64))
+            .collect()
     }
 }
 
@@ -103,7 +125,12 @@ pub fn anchor(g: &Geom) -> Option<[f64; 2]> {
     each_coord(g, &mut |c| {
         b = Some(match b {
             None => [c[0], c[1], c[0], c[1]],
-            Some(b) => [b[0].min(c[0]), b[1].min(c[1]), b[2].max(c[0]), b[3].max(c[1])],
+            Some(b) => [
+                b[0].min(c[0]),
+                b[1].min(c[1]),
+                b[2].max(c[0]),
+                b[3].max(c[1]),
+            ],
         })
     });
     b.map(|b| [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0])
@@ -111,7 +138,12 @@ pub fn anchor(g: &Geom) -> Option<[f64; 2]> {
 
 pub fn union_bounds(a: Option<[f64; 4]>, b: Option<[f64; 4]>) -> Option<[f64; 4]> {
     match (a, b) {
-        (Some(a), Some(b)) => Some([a[0].min(b[0]), a[1].min(b[1]), a[2].max(b[2]), a[3].max(b[3])]),
+        (Some(a), Some(b)) => Some([
+            a[0].min(b[0]),
+            a[1].min(b[1]),
+            a[2].max(b[2]),
+            a[3].max(b[3]),
+        ]),
         (a, None) => a,
         (None, b) => b,
     }
@@ -120,18 +152,30 @@ pub fn union_bounds(a: Option<[f64; 4]>, b: Option<[f64; 4]>) -> Option<[f64; 4]
 /// Usable attribute columns (OGR indices) of a layer.
 pub fn usable_fields(layer: &LayerHandle) -> Vec<usize> {
     let info = &layer.info;
-    (0..info.fields.len()).filter(|&i| matches!(info.fields[i].kind, "integer" | "real" | "string")).collect()
+    (0..info.fields.len())
+        .filter(|&i| matches!(info.fields[i].kind, "integer" | "real" | "string"))
+        .collect()
 }
 
 /// Stream a layer's features (geometry in EPSG:4326) through `f` until it returns false.
 /// `field_idx` are OGR field indices; `props[k]` is the value of `field_idx[k]`.
-pub fn scan_layer(engine: &Engine, layer: &LayerHandle, bbox: Option<[f64; 4]>, field_idx: &[usize], f: &mut dyn FnMut(&Geom, Vec<Val>) -> bool) -> Result<(), String> {
+pub fn scan_layer(
+    engine: &Engine,
+    layer: &LayerHandle,
+    bbox: Option<[f64; 4]>,
+    field_idx: &[usize],
+    f: &mut dyn FnMut(&Geom, Vec<Val>) -> bool,
+) -> Result<(), String> {
     let b = layer.info.bounds;
     // A rectangle slightly larger than the layer selects GDAL's fast whole-table scan.
     let pad = ((b[2] - b[0]).abs().max((b[3] - b[1]).abs()) * 0.001).max(1e-6);
     let whole = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
     let rect = match bbox {
-        Some(r) if !(r[0] <= whole[0] && r[1] <= whole[1] && r[2] >= whole[2] && r[3] >= whole[3]) => r,
+        Some(r)
+            if !(r[0] <= whole[0] && r[1] <= whole[1] && r[2] >= whole[2] && r[3] >= whole[3]) =>
+        {
+            r
+        }
         _ => whole,
     };
     if !crate::tile::intersects(rect, b) {
@@ -140,32 +184,49 @@ pub fn scan_layer(engine: &Engine, layer: &LayerHandle, bbox: Option<[f64; 4]>, 
     let n = field_idx.len();
     let h = layer.checkout()?;
     let mut rt = crate::ReadTimes::default();
-    let res = engine.read_tile(layer, &h, rect, field_idx, Instant::now(), &mut rt, &mut |_fid, g, attrs| {
-        let mut props = vec![Val::Null; n];
-        for (k, v) in attrs {
-            if let Some(slot) = props.get_mut(k as usize) {
-                *slot = match v {
-                    mvt::Val::Str(s) => Val::Str(s),
-                    mvt::Val::Int(i) => Val::Int(i),
-                    mvt::Val::Dbl(d) => Val::Num(d),
-                };
+    let res = engine.read_tile(
+        layer,
+        &h,
+        rect,
+        field_idx,
+        Instant::now(),
+        &mut rt,
+        &mut |_fid, g, attrs| {
+            let mut props = vec![Val::Null; n];
+            for (k, v) in attrs {
+                if let Some(slot) = props.get_mut(k as usize) {
+                    *slot = match v {
+                        mvt::Val::Str(s) => Val::Str(s),
+                        mvt::Val::Int(i) => Val::Int(i),
+                        mvt::Val::Dbl(d) => Val::Num(d),
+                    };
+                }
             }
-        }
-        f(g, props)
-    });
+            f(g, props)
+        },
+    );
     layer.checkin(h);
     res
 }
 
 /// Read a layer's features (geometry in EPSG:4326), optionally only those intersecting `bbox`,
 /// with every usable attribute (or `fields`). Stops after `limit` features.
-pub fn read_layer(engine: &Engine, layer: &LayerHandle, bbox: Option<[f64; 4]>, fields: Option<&[usize]>, limit: usize) -> Result<FeatureSet, String> {
+pub fn read_layer(
+    engine: &Engine,
+    layer: &LayerHandle,
+    bbox: Option<[f64; 4]>,
+    fields: Option<&[usize]>,
+    limit: usize,
+) -> Result<FeatureSet, String> {
     let info = &layer.info;
     let field_idx: Vec<usize> = match fields {
         Some(f) => f.to_vec(),
         None => usable_fields(layer),
     };
-    let names: Vec<(String, &'static str)> = field_idx.iter().map(|&i| (info.fields[i].name.clone(), info.fields[i].kind)).collect();
+    let names: Vec<(String, &'static str)> = field_idx
+        .iter()
+        .map(|&i| (info.fields[i].name.clone(), info.fields[i].kind))
+        .collect();
     let mut fs = FeatureSet::new(info.geometry, names);
     fs.total = info.feature_count;
     let mut truncated = false;
@@ -176,7 +237,10 @@ pub fn read_layer(engine: &Engine, layer: &LayerHandle, bbox: Option<[f64; 4]>, 
                 truncated = true;
                 return false;
             }
-            feats.push(Feat { geom: g.clone(), props });
+            feats.push(Feat {
+                geom: g.clone(),
+                props,
+            });
             true
         })?;
     }
@@ -240,7 +304,10 @@ pub fn to_wkb(g: &Geom, multi_points: bool) -> Option<Vec<u8>> {
             }
         }
         Geom::Polygons(ps) => {
-            let ps: Vec<&Vec<Vec<[f64; 2]>>> = ps.iter().filter(|p| p.first().is_some_and(|r| r.len() >= 3)).collect();
+            let ps: Vec<&Vec<Vec<[f64; 2]>>> = ps
+                .iter()
+                .filter(|p| p.first().is_some_and(|r| r.len() >= 3))
+                .collect();
             if ps.is_empty() {
                 return None;
             }
@@ -275,7 +342,12 @@ pub fn driver_for(format: &str) -> Option<(&'static str, &'static str)> {
 }
 
 /// Write `fs` as one layer (EPSG:4326) of a new file. Existing files are replaced.
-pub fn write_features(path: &Path, driver: &str, layer_name: &str, fs: &FeatureSet) -> Result<(), String> {
+pub fn write_features(
+    path: &Path,
+    driver: &str,
+    layer_name: &str,
+    fs: &FeatureSet,
+) -> Result<(), String> {
     use gdal::spatial_ref::{AxisMappingStrategy, SpatialRef};
     use gdal::vector::{LayerOptions, OGRwkbGeometryType as G};
     let e = |x: gdal::errors::GdalError| x.to_string();
@@ -290,7 +362,10 @@ pub fn write_features(path: &Path, driver: &str, layer_name: &str, fs: &FeatureS
     let mut ds = drv.create_vector_only(path).map_err(e)?;
     let mut srs = SpatialRef::from_epsg(4326).map_err(e)?;
     srs.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
-    let multi_points = fs.feats.iter().any(|f| matches!(&f.geom, Geom::Points(p) if p.len() > 1));
+    let multi_points = fs
+        .feats
+        .iter()
+        .any(|f| matches!(&f.geom, Geom::Points(p) if p.len() > 1));
     let ty = match fs.kind {
         GeomKind::Point if multi_points => G::wkbMultiPoint,
         GeomKind::Point => G::wkbPoint,
@@ -298,7 +373,11 @@ pub fn write_features(path: &Path, driver: &str, layer_name: &str, fs: &FeatureS
         GeomKind::Polygon => G::wkbMultiPolygon,
         GeomKind::Unknown => G::wkbUnknown,
     };
-    let csv_geom = if fs.kind == GeomKind::Point && !multi_points { "GEOMETRY=AS_XY" } else { "GEOMETRY=AS_WKT" };
+    let csv_geom = if fs.kind == GeomKind::Point && !multi_points {
+        "GEOMETRY=AS_XY"
+    } else {
+        "GEOMETRY=AS_WKT"
+    };
     let csv_opts = [csv_geom];
     let json_opts = ["RFC7946=YES", "WRITE_BBOX=YES"];
     let options: Option<&[&str]> = match driver {
@@ -306,7 +385,12 @@ pub fn write_features(path: &Path, driver: &str, layer_name: &str, fs: &FeatureS
         "GeoJSON" => Some(&json_opts),
         _ => None,
     };
-    let lo = LayerOptions { name: layer_name, srs: Some(&srs), ty, options };
+    let lo = LayerOptions {
+        name: layer_name,
+        srs: Some(&srs),
+        ty,
+        options,
+    };
     if driver == "GPKG" {
         let mut txn = ds.start_transaction().map_err(e)?;
         {
@@ -321,7 +405,11 @@ pub fn write_features(path: &Path, driver: &str, layer_name: &str, fs: &FeatureS
     Ok(())
 }
 
-fn fill<L: gdal::vector::LayerAccess>(lyr: &L, fs: &FeatureSet, multi_points: bool) -> Result<(), String> {
+fn fill<L: gdal::vector::LayerAccess>(
+    lyr: &L,
+    fs: &FeatureSet,
+    multi_points: bool,
+) -> Result<(), String> {
     use gdal::vector::{Feature, FieldDefn, Geometry, OGRFieldType as F};
     let e = |x: gdal::errors::GdalError| x.to_string();
     // Drivers may add fields of their own (KML: Name, Description) or rename ours (Shapefile:
@@ -334,9 +422,18 @@ fn fill<L: gdal::vector::LayerAccess>(lyr: &L, fs: &FeatureSet, multi_points: bo
             _ => F::OFTString,
         };
         let before = lyr.defn().fields().count();
-        let added = FieldDefn::new(name, t).map_err(e)?.add_to_layer(lyr).is_ok();
+        let added = FieldDefn::new(name, t)
+            .map_err(e)?
+            .add_to_layer(lyr)
+            .is_ok();
         let after = lyr.defn().fields().count();
-        slots.push(if added && after > before { Some(after - 1) } else { lyr.defn().fields().position(|f| f.name().eq_ignore_ascii_case(name)) });
+        slots.push(if added && after > before {
+            Some(after - 1)
+        } else {
+            lyr.defn()
+                .fields()
+                .position(|f| f.name().eq_ignore_ascii_case(name))
+        });
     }
     for f in &fs.feats {
         let mut feat = Feature::new(lyr.defn()).map_err(e)?;
@@ -351,7 +448,8 @@ fn fill<L: gdal::vector::LayerAccess>(lyr: &L, fs: &FeatureSet, multi_points: bo
             }
         }
         if let Some(w) = to_wkb(&f.geom, multi_points) {
-            feat.set_geometry(Geometry::from_wkb(&w).map_err(e)?).map_err(e)?;
+            feat.set_geometry(Geometry::from_wkb(&w).map_err(e)?)
+                .map_err(e)?;
         }
         feat.create(lyr).map_err(e)?;
     }
@@ -374,7 +472,12 @@ pub struct LocalProj {
 impl LocalProj {
     pub fn new(lon0: f64, lat0: f64) -> Self {
         let kx = 111_320.0 * lat0.to_radians().cos().max(0.01);
-        LocalProj { lon0, lat0, kx, ky: 110_540.0 }
+        LocalProj {
+            lon0,
+            lat0,
+            kx,
+            ky: 110_540.0,
+        }
     }
     pub fn for_bounds(b: [f64; 4]) -> Self {
         Self::new((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0)
@@ -390,7 +493,11 @@ impl LocalProj {
 /// UTM zone EPSG code for a lon/lat (WGS 84 / UTM north 326xx, south 327xx).
 pub fn utm_epsg(lon: f64, lat: f64) -> u32 {
     let zone = (((lon + 180.0) / 6.0).floor() as i32).clamp(0, 59) as u32 + 1;
-    if lat < 0.0 { 32700 + zone } else { 32600 + zone }
+    if lat < 0.0 {
+        32700 + zone
+    } else {
+        32600 + zone
+    }
 }
 
 /// A "nice" number (1, 2, 2.5 or 5 × 10^k) at or below `x`.
@@ -414,7 +521,11 @@ pub fn nice_floor(x: f64) -> f64 {
 pub fn fmt_distance(m: f64) -> String {
     if m >= 1000.0 {
         let km = m / 1000.0;
-        if km.fract() == 0.0 { format!("{km:.0} km") } else { format!("{km:.1} km") }
+        if km.fract() == 0.0 {
+            format!("{km:.0} km")
+        } else {
+            format!("{km:.1} km")
+        }
     } else {
         format!("{m:.0} m")
     }
@@ -429,7 +540,15 @@ mod tests {
         let g = Geom::Polygons(vec![vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]]]);
         let w = to_wkb(&g, false).unwrap();
         // the ring gets closed
-        assert_eq!(crate::wkb::parse(&w).unwrap(), Geom::Polygons(vec![vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 0.0]]]]));
+        assert_eq!(
+            crate::wkb::parse(&w).unwrap(),
+            Geom::Polygons(vec![vec![vec![
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 0.0]
+            ]]])
+        );
         let p = Geom::Points(vec![[144.2, -5.8]]);
         assert_eq!(crate::wkb::parse(&to_wkb(&p, false).unwrap()).unwrap(), p);
         let l = Geom::Lines(vec![vec![[0.0, 0.0], [2.0, 1.0]]]);

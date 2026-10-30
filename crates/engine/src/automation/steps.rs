@@ -2,20 +2,23 @@
 //! parameters, does its work synchronously on the run's thread and returns outputs (for `${…}`
 //! references in later steps) plus plain-language "why" lines for the run log and the report.
 
-use super::{report_docx, data_steps, detect_steps, embed_steps, hydro_steps, lidar_steps, providers, raster_steps, scene_steps, stats_steps, taxa_steps};
 use super::automap;
 use super::cartography::{self, Layout, MapLayer, MapSpec};
 use super::features::{self, Feat, FeatureSet, LocalProj, Val};
 use super::report;
 use super::sidecar;
+use super::{
+    data_steps, detect_steps, embed_steps, hydro_steps, lidar_steps, providers, raster_steps,
+    report_docx, scene_steps, stats_steps, taxa_steps,
+};
+use crate::Engine;
 use crate::catalog::{self, GeomKind, LayerHandle};
 use crate::wkb::Geom;
-use crate::Engine;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 pub struct StepSpec {
@@ -30,56 +33,168 @@ pub struct StepSpec {
     pub borrowed: &'static str,
 }
 
-const IMPORT_PARAMS: &[(&str, bool, &str)] = &[("source", false, "device id, mounted device or folder; auto = the device that triggered the run, else the connected one")];
+const IMPORT_PARAMS: &[(&str, bool, &str)] = &[(
+    "source",
+    false,
+    "device id, mounted device or folder; auto = the device that triggered the run, else the connected one",
+)];
 const CODE_PARAMS: &[(&str, bool, &str)] = &[
     ("code", false, "inline code (or use file:)"),
     ("file", false, "path to a script"),
-    ("inputs", false, "{name: layer id} passed to the code as GeoJSON / sf / GeoDataFrame"),
+    (
+        "inputs",
+        false,
+        "{name: layer id} passed to the code as GeoJSON / sf / GeoDataFrame",
+    ),
     ("params", false, "values passed as params"),
-    ("packages", false, "packages the code needs (checked before running)"),
+    (
+        "packages",
+        false,
+        "packages the code needs (checked before running)",
+    ),
     ("timeout_s", false, "default 600"),
 ];
 const MAP_PARAMS: &[(&str, bool, &str)] = &[
-    ("layers", false, "layers to map (default: every layer this run touched)"),
+    (
+        "layers",
+        false,
+        "layers to map (default: every layer this run touched)",
+    ),
     ("title", false, "map title (default: automatic)"),
     ("subtitle", false, "auto or text"),
-    ("size", false, "auto, a4, a4-portrait, a3, letter or WxH pixels"),
-    ("format", false, "png, svg, pdf or a list (default png + svg)"),
-    ("rasters", false, "raster ids, none, or auto (the newest thematic raster + relief shading)"),
-    ("extent", false, "auto, [west, south, east, north] or a layer id"),
-    ("labels", false, "label points with their name field (default true)"),
-    ("context", false, "auto (land, roads, rivers if loaded), none, or layer ids"),
+    (
+        "size",
+        false,
+        "auto, a4, a4-portrait, a3, letter or WxH pixels",
+    ),
+    (
+        "format",
+        false,
+        "png, svg, pdf or a list (default png + svg)",
+    ),
+    (
+        "rasters",
+        false,
+        "raster ids, none, or auto (the newest thematic raster + relief shading)",
+    ),
+    (
+        "extent",
+        false,
+        "auto, [west, south, east, north] or a layer id",
+    ),
+    (
+        "labels",
+        false,
+        "label points with their name field (default true)",
+    ),
+    (
+        "context",
+        false,
+        "auto (land, roads, rivers if loaded), none, or layer ids",
+    ),
     ("grid", false, "lon/lat graticule (default true)"),
-    ("projection", false, "auto (default: Equal Earth for world and continental maps, else Web Mercator), mercator or equal-earth"),
+    (
+        "projection",
+        false,
+        "auto (default: Equal Earth for world and continental maps, else Web Mercator), mercator or equal-earth",
+    ),
     ("scale", false, "PNG pixel scale 1-4 (default 1)"),
     ("name", false, "file name without extension (default map)"),
-    ("frames", false, "index map: [{extent: [w, s, e, n], label}] outlined on the map"),
-    ("exact", false, "show exactly the extent, no margin (map series sheets)"),
-    ("dpi", false, "PNG resolution: 150 (default), 300, 600 … 1200; written into the file"),
-    ("scale_bar", false, "pill (default), checker, line, ruler or none"),
+    (
+        "frames",
+        false,
+        "index map: [{extent: [w, s, e, n], label}] outlined on the map",
+    ),
+    (
+        "exact",
+        false,
+        "show exactly the extent, no margin (map series sheets)",
+    ),
+    (
+        "dpi",
+        false,
+        "PNG resolution: 150 (default), 300, 600 … 1200; written into the file",
+    ),
+    (
+        "scale_bar",
+        false,
+        "pill (default), checker, line, ruler or none",
+    ),
     ("units", false, "metric (default), imperial or both"),
-    ("north_arrow", false, "needle (default), compass, rose, minimal or none"),
+    (
+        "north_arrow",
+        false,
+        "needle (default), compass, rose, minimal or none",
+    ),
     ("legend", false, "right (default), inside or none"),
-    ("legend_at", false, "inside legend corner: auto (where the data is not), tl, tr, bl, br"),
-    ("legend_title", false, "legend heading (default Legend; empty for none)"),
-    ("legend_edit", false, "{layer: {title, hide, labels: {old: new}}}"),
+    (
+        "legend_at",
+        false,
+        "inside legend corner: auto (where the data is not), tl, tr, bl, br",
+    ),
+    (
+        "legend_title",
+        false,
+        "legend heading (default Legend; empty for none)",
+    ),
+    (
+        "legend_edit",
+        false,
+        "{layer: {title, hide, labels: {old: new}}}",
+    ),
     ("legend_order", false, "layer ids, top first"),
-    ("inset", false, "overview map: none (default), auto, tl, tr, bl, br"),
-    ("scale_bar_at", false, "auto (default: where the data is not), tl, tr, bl, br"),
+    (
+        "inset",
+        false,
+        "overview map: none (default), auto, tl, tr, bl, br",
+    ),
+    (
+        "scale_bar_at",
+        false,
+        "auto (default: where the data is not), tl, tr, bl, br",
+    ),
     ("north_arrow_at", false, "auto (default), tl, tr, bl, br"),
-    ("panels", false, "multi-panel page (R patchwork): [{extent?, title?, layers?}]"),
-    ("facet", false, "one panel per value of this field (ggplot2 facet_wrap)"),
-    ("facet_layer", false, "layer the facet field belongs to (default: the top mapped layer)"),
-    ("ncol", false, "panel columns (default: as square as possible)"),
-    ("legends", false, "collect (one shared), keep (one per panel) or auto"),
+    (
+        "panels",
+        false,
+        "multi-panel page (R patchwork): [{extent?, title?, layers?}]",
+    ),
+    (
+        "facet",
+        false,
+        "one panel per value of this field (ggplot2 facet_wrap)",
+    ),
+    (
+        "facet_layer",
+        false,
+        "layer the facet field belongs to (default: the top mapped layer)",
+    ),
+    (
+        "ncol",
+        false,
+        "panel columns (default: as square as possible)",
+    ),
+    (
+        "legends",
+        false,
+        "collect (one shared), keep (one per panel) or auto",
+    ),
     ("tags", false, "panel tags: a (default), A, 1, i or none"),
     ("to", false, "also copy the files to this folder"),
-    ("basemap", false, "online basemap under the map: osm, topo, esri-topo, esri-imagery, esri-dark, carto-light, carto-dark or an XYZ URL (default none)"),
+    (
+        "basemap",
+        false,
+        "online basemap under the map: osm, topo, esri-topo, esri-imagery, esri-dark, carto-light, carto-dark or an XYZ URL (default none)",
+    ),
     ("theme", false, "page theme: light (default) or dark"),
 ];
 
 const SEARCH_PARAMS: &[(&str, bool, &str)] = &[
-    ("aoi", false, "[west, south, east, north], a layer/raster id, or auto"),
+    (
+        "aoi",
+        false,
+        "[west, south, east, north], a layer/raster id, or auto",
+    ),
     ("buffer", false, "margin in metres (default 10 %)"),
     ("max_km", false, "largest area side (default 120)"),
     ("days", false, "look back (default 90)"),
@@ -91,13 +206,27 @@ const SEARCH_PARAMS: &[(&str, bool, &str)] = &[
 ];
 
 pub const CATALOGUE: &[StepSpec] = &[
-    StepSpec { name: "devices.import", family: "Devices", summary: "Import geotagged photos, GPS tracks, waypoints and sensor readings (logger CSV/JSON, FIT) from a phone, camera, drone card, GPS unit, sensor logger or folder.", running: "Importing photos, tracks and readings", params: IMPORT_PARAMS, borrowed: "ArcGIS Pro Geotagged Photos To Points, QGIS ImportPhotos, MapInfo drone add-in, Garmin Connect / Strava FIT import" },
+    StepSpec {
+        name: "devices.import",
+        family: "Devices",
+        summary: "Import geotagged photos, GPS tracks, waypoints and sensor readings (logger CSV/JSON, FIT) from a phone, camera, drone card, GPS unit, sensor logger or folder.",
+        running: "Importing photos, tracks and readings",
+        params: IMPORT_PARAMS,
+        borrowed: "ArcGIS Pro Geotagged Photos To Points, QGIS ImportPhotos, MapInfo drone add-in, Garmin Connect / Strava FIT import",
+    },
     StepSpec {
         name: "sensor.snapshot",
         family: "Devices",
         summary: "Collect live sensor readings (HTTP pushes, MQTT feeds, phones) from the last minutes into a point layer, plus each sensor's path.",
         running: "Collecting live sensor readings",
-        params: &[("minutes", false, "how far back (default 60)"), ("device", false, "sensor id or name, * wildcards allowed (default: all sensors)")],
+        params: &[
+            ("minutes", false, "how far back (default 60)"),
+            (
+                "device",
+                false,
+                "sensor id or name, * wildcards allowed (default: all sensors)",
+            ),
+        ],
         borrowed: "ArcGIS Velocity / GeoEvent Server, QGIS live GPS tracking, OGC SensorThings clients",
     },
     StepSpec {
@@ -105,17 +234,53 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Devices",
         summary: "Summarise every measurement (mean, 95th percentile, maximum), flag air-quality readings against the WHO guidelines, and pick the field to map.",
         running: "Summarising sensor readings",
-        params: &[("layer", false, "readings layer (default: the newest one in this run)"), ("fields", false, "measurements to include (default: every numeric one)"), ("units", false, "{field: unit} (default: from the file headers, else common units)")],
+        params: &[
+            (
+                "layer",
+                false,
+                "readings layer (default: the newest one in this run)",
+            ),
+            (
+                "fields",
+                false,
+                "measurements to include (default: every numeric one)",
+            ),
+            (
+                "units",
+                false,
+                "{field: unit} (default: from the file headers, else common units)",
+            ),
+        ],
         borrowed: "ArcGIS Velocity summaries, R openair, Python pandas describe",
     },
-    StepSpec { name: "devices.import_photos", family: "Devices", summary: "devices.import; `layer` is the photos layer.", running: "Importing photos", params: IMPORT_PARAMS, borrowed: "ArcGIS Pro Geotagged Photos To Points" },
-    StepSpec { name: "devices.import_tracks", family: "Devices", summary: "devices.import; `layer` is the tracks layer.", running: "Importing GPS tracks", params: IMPORT_PARAMS, borrowed: "QGIS GPS Tools, MapInfo GPS import" },
+    StepSpec {
+        name: "devices.import_photos",
+        family: "Devices",
+        summary: "devices.import; `layer` is the photos layer.",
+        running: "Importing photos",
+        params: IMPORT_PARAMS,
+        borrowed: "ArcGIS Pro Geotagged Photos To Points",
+    },
+    StepSpec {
+        name: "devices.import_tracks",
+        family: "Devices",
+        summary: "devices.import; `layer` is the tracks layer.",
+        running: "Importing GPS tracks",
+        params: IMPORT_PARAMS,
+        borrowed: "QGIS GPS Tools, MapInfo GPS import",
+    },
     StepSpec {
         name: "io.open",
         family: "Data",
         summary: "Open layers by id or file path; `auto` picks a suitable loaded layer.",
         running: "Opening data",
-        params: &[("layer", false, "layer id, file path or auto"), ("layers", false, "several ids or paths"), ("path", false, "a file to open"), ("kind", false, "point, line or polygon (for auto)"), ("prefer", false, "largest or samples (for auto)")],
+        params: &[
+            ("layer", false, "layer id, file path or auto"),
+            ("layers", false, "several ids or paths"),
+            ("path", false, "a file to open"),
+            ("kind", false, "point, line or polygon (for auto)"),
+            ("prefer", false, "largest or samples (for auto)"),
+        ],
         borrowed: "ArcGIS Add Data, QGIS Data Source Manager",
     },
     StepSpec {
@@ -123,7 +288,11 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Analysis",
         summary: "SQL (SQLite dialect with SpatiaLite functions) on a layer's dataset; @input is the layer's table.",
         running: "Running SQL",
-        params: &[("layer", true, "layer whose dataset is queried"), ("sql", true, "SELECT … FROM @input …"), ("name", false, "output layer name (default: step id)")],
+        params: &[
+            ("layer", true, "layer whose dataset is queried"),
+            ("sql", true, "SELECT … FROM @input …"),
+            ("name", false, "output layer name (default: step id)"),
+        ],
         borrowed: "MapInfo SQL Select, QGIS virtual layers, ArcGIS Make Query Layer",
     },
     StepSpec {
@@ -131,7 +300,12 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Analysis",
         summary: "Buffer features by a distance in metres (computed in the data's UTM zone), optionally dissolved.",
         running: "Buffering",
-        params: &[("layer", true, "input layer"), ("distance", true, "metres"), ("dissolve", false, "merge into one area"), ("name", false, "output layer name")],
+        params: &[
+            ("layer", true, "input layer"),
+            ("distance", true, "metres"),
+            ("dissolve", false, "merge into one area"),
+            ("name", false, "output layer name"),
+        ],
         borrowed: "ArcGIS Buffer, QGIS Buffer, GRASS v.buffer, SAGA Shapes Buffer",
     },
     StepSpec {
@@ -139,7 +313,17 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Analysis",
         summary: "Aggregate points into hexagons (count, or sum/mean of a field); auto-sized cells.",
         running: "Binning points into hexagons",
-        params: &[("layer", true, "point layer (other geometries use their centre)"), ("size", false, "cell radius in metres or auto"), ("field", false, "numeric field to summarise"), ("stat", false, "count, sum or mean"), ("name", false, "output layer name")],
+        params: &[
+            (
+                "layer",
+                true,
+                "point layer (other geometries use their centre)",
+            ),
+            ("size", false, "cell radius in metres or auto"),
+            ("field", false, "numeric field to summarise"),
+            ("stat", false, "count, sum or mean"),
+            ("name", false, "output layer name"),
+        ],
         borrowed: "ArcGIS Generate Tessellation + Summarize Within, QGIS Create grid + Count points in polygon, deck.gl HexagonLayer",
     },
     StepSpec {
@@ -147,7 +331,13 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Geostatistics",
         summary: "Inverse-distance-weighted surface from point samples; the power is chosen by leave-one-out cross-validation.",
         running: "Interpolating a surface",
-        params: &[("layer", true, "point samples"), ("field", false, "numeric field (auto = the best one)"), ("power", false, "auto or a number"), ("cells", false, "grid columns (default 60)"), ("name", false, "output layer name")],
+        params: &[
+            ("layer", true, "point samples"),
+            ("field", false, "numeric field (auto = the best one)"),
+            ("power", false, "auto or a number"),
+            ("cells", false, "grid columns (default 60)"),
+            ("name", false, "output layer name"),
+        ],
         borrowed: "ArcGIS IDW, QGIS IDW interpolation, GRASS v.surf.idw, SAGA Inverse Distance Weighted",
     },
     StepSpec {
@@ -158,13 +348,37 @@ pub const CATALOGUE: &[StepSpec] = &[
         params: &[
             ("layer", true, "point samples"),
             ("field", false, "numeric field (auto = the best one)"),
-            ("method", false, "auto (kriging or IDW, whichever cross-validates better), kriging or idw"),
-            ("model", false, "variogram model: auto, spherical, exponential or gaussian"),
-            ("cells", false, "grid columns along the long side (default 200)"),
-            ("neighbours", false, "samples per kriging prediction when there are over 200 (default 32)"),
+            (
+                "method",
+                false,
+                "auto (kriging or IDW, whichever cross-validates better), kriging or idw",
+            ),
+            (
+                "model",
+                false,
+                "variogram model: auto, spherical, exponential or gaussian",
+            ),
+            (
+                "cells",
+                false,
+                "grid columns along the long side (default 200)",
+            ),
+            (
+                "neighbours",
+                false,
+                "samples per kriging prediction when there are over 200 (default 32)",
+            ),
             ("power", false, "IDW power (auto = cross-validated)"),
-            ("cutoff", false, "variogram cutoff in metres (default a third of the diagonal)"),
-            ("width", false, "variogram lag width in metres (default cutoff / 15)"),
+            (
+                "cutoff",
+                false,
+                "variogram cutoff in metres (default a third of the diagonal)",
+            ),
+            (
+                "width",
+                false,
+                "variogram lag width in metres (default cutoff / 15)",
+            ),
             ("name", false, "output raster name"),
         ],
         borrowed: "ArcGIS Geostatistical Wizard / Empirical Bayesian Kriging (automatic), R gstat fit.variogram + krige + krige.cv, automap autoKrige, GRASS v.krige, SAGA Ordinary Kriging",
@@ -176,7 +390,11 @@ pub const CATALOGUE: &[StepSpec] = &[
         running: "Finding hot spots",
         params: &[
             ("layer", true, "incident points, or features with a value"),
-            ("field", false, "value to analyse (auto = count incidents; polygons use their best numeric field)"),
+            (
+                "field",
+                false,
+                "value to analyse (auto = count incidents; polygons use their best numeric field)",
+            ),
             ("aggregation", false, "hexagon (default) or fishnet"),
             ("cell", false, "cell size in metres (auto)"),
             ("distance", false, "distance band in metres (auto)"),
@@ -189,20 +407,79 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Cartography",
         summary: "Pick colours, classes and symbols from the data, explain each choice, and save them to the project.",
         running: "Choosing colours and classes",
-        params: &[("layers", false, "layers to style (default: every layer this run touched)"), ("field", false, "field to map, or {layer: field}; none = single colour"), ("save", false, "write the styles to the project (default true)")],
+        params: &[
+            (
+                "layers",
+                false,
+                "layers to style (default: every layer this run touched)",
+            ),
+            (
+                "field",
+                false,
+                "field to map, or {layer: field}; none = single colour",
+            ),
+            (
+                "save",
+                false,
+                "write the styles to the project (default true)",
+            ),
+        ],
         borrowed: "ArcGIS smart mapping, Felt AI auto-style, QGIS",
     },
-    StepSpec { name: "style.apply", family: "Cartography", summary: "Apply saved styles exactly (what 'Save as recipe' records).", running: "Applying saved styles", params: &[("styles", true, "{layer id: style}"), ("save", false, "write to the project (default true)")], borrowed: "ArcGIS layer files, QGIS QML styles" },
-    StepSpec { name: "overviews.build", family: "Performance", summary: "Build a PMTiles overview pyramid for a dense layer (skipped when not needed).", running: "Building overview tiles", params: &[("layer", true, "layer id"), ("maxzoom", false, "highest overview zoom (default: suggested)")], borrowed: "ArcGIS Build Pyramids, QGIS Build Overviews, GDAL gdaladdo" },
-    StepSpec { name: "layout.auto", family: "Cartography", summary: "Page defaults (title, subtitle, size) for later export steps.", running: "Laying out the page", params: &[("title", false, ""), ("subtitle", false, ""), ("size", false, "")], borrowed: "ArcGIS Pro layouts, QGIS Print Layout" },
+    StepSpec {
+        name: "style.apply",
+        family: "Cartography",
+        summary: "Apply saved styles exactly (what 'Save as recipe' records).",
+        running: "Applying saved styles",
+        params: &[
+            ("styles", true, "{layer id: style}"),
+            ("save", false, "write to the project (default true)"),
+        ],
+        borrowed: "ArcGIS layer files, QGIS QML styles",
+    },
+    StepSpec {
+        name: "overviews.build",
+        family: "Performance",
+        summary: "Build a PMTiles overview pyramid for a dense layer (skipped when not needed).",
+        running: "Building overview tiles",
+        params: &[
+            ("layer", true, "layer id"),
+            (
+                "maxzoom",
+                false,
+                "highest overview zoom (default: suggested)",
+            ),
+        ],
+        borrowed: "ArcGIS Build Pyramids, QGIS Build Overviews, GDAL gdaladdo",
+    },
+    StepSpec {
+        name: "layout.auto",
+        family: "Cartography",
+        summary: "Page defaults (title, subtitle, size) for later export steps.",
+        running: "Laying out the page",
+        params: &[
+            ("title", false, ""),
+            ("subtitle", false, ""),
+            ("size", false, ""),
+        ],
+        borrowed: "ArcGIS Pro layouts, QGIS Print Layout",
+    },
     StepSpec {
         name: "tool",
         family: "Analysis",
         summary: "Run any Toolbox tool (species distribution model, suitability, fragmentation, spectral index, the raster and terrain tools, a plugin's tool) with its parameters; its layers and rasters go to the next steps and the map, its result table into the report.",
         running: "Running the tool",
         params: &[
-            ("tool", true, "plugin/tool, e.g. gsx/sdm or geolibre-tools/slope"),
-            ("params", false, "the tool's parameters; layers and rasters by id or by this recipe's own name"),
+            (
+                "tool",
+                true,
+                "plugin/tool, e.g. gsx/sdm or geolibre-tools/slope",
+            ),
+            (
+                "params",
+                false,
+                "the tool's parameters; layers and rasters by id or by this recipe's own name",
+            ),
         ],
         borrowed: "ArcGIS Pro ModelBuilder tool calls, QGIS graphical modeler algorithms",
     },
@@ -212,24 +489,68 @@ pub const CATALOGUE: &[StepSpec] = &[
         summary: "Online data for the area, no API keys: WorldClim 2.1 bioclim, monthly and CMIP6 future; CHELSA 2.1; SoilGrids 2.0; GBIF, OBIS and iNaturalist occurrences; GADM boundaries. Each with its citation.",
         running: "Downloading data",
         params: &[
-            ("source", true, "worldclim, worldclim-monthly, worldclim-future, chelsa, soilgrids, gbif, obis, inat, gadm"),
-            ("aoi", false, "[west, south, east, north], a layer/raster id, or auto"),
+            (
+                "source",
+                true,
+                "worldclim, worldclim-monthly, worldclim-future, chelsa, soilgrids, gbif, obis, inat, gadm",
+            ),
+            (
+                "aoi",
+                false,
+                "[west, south, east, north], a layer/raster id, or auto",
+            ),
             ("buffer", false, "margin in metres (default 10 %)"),
             ("max_km", false, "largest area side (default 5000)"),
-            ("variables", false, "bioclim numbers 1–19 or all (default 1, 12)"),
-            ("resolution", false, "WorldClim: 10m (default), 5m, 2.5m, 30s"),
-            ("variable", false, "worldclim-monthly: tavg, tmin, tmax, prec, srad, wind, vapr"),
+            (
+                "variables",
+                false,
+                "bioclim numbers 1–19 or all (default 1, 12)",
+            ),
+            (
+                "resolution",
+                false,
+                "WorldClim: 10m (default), 5m, 2.5m, 30s",
+            ),
+            (
+                "variable",
+                false,
+                "worldclim-monthly: tavg, tmin, tmax, prec, srad, wind, vapr",
+            ),
             ("months", false, "worldclim-monthly: 1–12 (default all)"),
-            ("gcm", false, "worldclim-future: climate model (default ACCESS-CM2)"),
-            ("ssp", false, "worldclim-future: 126, 245, 370 or 585 (default)"),
-            ("period", false, "worldclim-future: 2021-2040, 2041-2060 (default), 2061-2080, 2081-2100"),
-            ("property", false, "soilgrids: phh2o (default), soc, clay, sand, silt, bdod, cec, nitrogen, cfvo, ocd"),
+            (
+                "gcm",
+                false,
+                "worldclim-future: climate model (default ACCESS-CM2)",
+            ),
+            (
+                "ssp",
+                false,
+                "worldclim-future: 126, 245, 370 or 585 (default)",
+            ),
+            (
+                "period",
+                false,
+                "worldclim-future: 2021-2040, 2041-2060 (default), 2061-2080, 2081-2100",
+            ),
+            (
+                "property",
+                false,
+                "soilgrids: phh2o (default), soc, clay, sand, silt, bdod, cec, nitrogen, cfvo, ocd",
+            ),
             ("depth", false, "soilgrids: 0-5cm (default) … 100-200cm"),
             ("species", false, "gbif/obis/inat: scientific name"),
-            ("limit", false, "gbif/obis/inat: most records (default 2000)"),
+            (
+                "limit",
+                false,
+                "gbif/obis/inat: most records (default 2000)",
+            ),
             ("country", false, "gadm: ISO alpha-3 code"),
             ("level", false, "gadm: 0–3 (default 1)"),
-            ("base", false, "mirror URL or folder with the provider's layout"),
+            (
+                "base",
+                false,
+                "mirror URL or folder with the provider's layout",
+            ),
             ("name", false, "output name (prefix when several)"),
         ],
         borrowed: "R geodata (worldclim_country, cmip6_world, soil_world, gadm), rgbif, robis, rinat; ArcGIS Living Atlas; QGIS plugins",
@@ -239,7 +560,24 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Terrain",
         summary: "Fetch elevation for the area of interest (Copernicus GLO-30 by default, or any DEM file/URL), reprojected to the local UTM zone.",
         running: "Fetching elevation",
-        params: &[("aoi", false, "[west, south, east, north], a layer/raster id, or auto"), ("buffer", false, "margin in metres (default 10 %)"), ("source", false, "copernicus (30 m), copernicus-90, or a DEM path/URL"), ("resolution", false, "metres (default 30)"), ("epsg", false, "output CRS (default: the UTM zone)"), ("max_km", false, "largest area side (default 120)"), ("title", false, ""), ("name", false, "")],
+        params: &[
+            (
+                "aoi",
+                false,
+                "[west, south, east, north], a layer/raster id, or auto",
+            ),
+            ("buffer", false, "margin in metres (default 10 %)"),
+            (
+                "source",
+                false,
+                "copernicus (30 m), copernicus-90, or a DEM path/URL",
+            ),
+            ("resolution", false, "metres (default 30)"),
+            ("epsg", false, "output CRS (default: the UTM zone)"),
+            ("max_km", false, "largest area side (default 120)"),
+            ("title", false, ""),
+            ("name", false, ""),
+        ],
         borrowed: "ArcGIS Living Atlas terrain, QGIS SRTM Downloader, GRASS r.in.srtm, ERDAS terrain preparation",
     },
     StepSpec {
@@ -247,7 +585,25 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Data",
         summary: "Check a layer's scientific names against the World Register of Marine Species (WoRMS): adds the AphiaID, how each name matched, its status, the accepted name for synonyms, the classification and habitat, and a verdict to review (ok, synonym, check spelling, ambiguous, not in WoRMS). The names themselves are kept.",
         running: "Checking names with WoRMS",
-        params: &[("layer", true, "the layer with scientific names"), ("field", false, "the names' field (default: species, scientificName, taxon or name)"), ("within", false, "keep candidates inside a group, e.g. Cnidaria or Animalia (settles homonyms)"), ("base", false, "a WoRMS mirror (default https://www.marinespecies.org)"), ("name", false, "")],
+        params: &[
+            ("layer", true, "the layer with scientific names"),
+            (
+                "field",
+                false,
+                "the names' field (default: species, scientificName, taxon or name)",
+            ),
+            (
+                "within",
+                false,
+                "keep candidates inside a group, e.g. Cnidaria or Animalia (settles homonyms)",
+            ),
+            (
+                "base",
+                false,
+                "a WoRMS mirror (default https://www.marinespecies.org)",
+            ),
+            ("name", false, ""),
+        ],
         borrowed: "WoRMS Taxon match tool; worrms (R) wm_records_names; obistools match_taxa; GBIF species matching",
     },
     StepSpec {
@@ -255,7 +611,46 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "AI models",
         summary: "Run your own ONNX model over an image in tiles, on this computer: object detection (YOLOv5/v8/v11 outputs) → a polygon layer with class, score and area; segmentation → a class raster. The model's licence goes into the methods.",
         running: "Running the model",
-        params: &[("model", true, "model name in Imagery › Models, or an .onnx path"), ("raster", true, "the image (raster id)"), ("task", false, "detect or segment (default: from the model)"), ("threshold", false, "lowest score kept (default 0.25)"), ("iou", false, "overlap merged by non-maximum suppression (default 0.45)"), ("bands", false, "image bands fed to the model (default 1, 2, 3…)"), ("scale", false, "values are divided by this (default 255 for 8-bit, 10000 for 16-bit)"), ("mean", false, "per band, after scaling"), ("std", false, "per band, after scaling"), ("tile", false, "tile size for models of any size (default 512)"), ("overlap", false, "detection tile overlap in px (default 1/8 of the tile)"), ("format", false, "auto, yolov8, yolov5 or boxes"), ("title", false, ""), ("name", false, "")],
+        params: &[
+            (
+                "model",
+                true,
+                "model name in Imagery › Models, or an .onnx path",
+            ),
+            ("raster", true, "the image (raster id)"),
+            ("task", false, "detect or segment (default: from the model)"),
+            ("threshold", false, "lowest score kept (default 0.25)"),
+            (
+                "iou",
+                false,
+                "overlap merged by non-maximum suppression (default 0.45)",
+            ),
+            (
+                "bands",
+                false,
+                "image bands fed to the model (default 1, 2, 3…)",
+            ),
+            (
+                "scale",
+                false,
+                "values are divided by this (default 255 for 8-bit, 10000 for 16-bit)",
+            ),
+            ("mean", false, "per band, after scaling"),
+            ("std", false, "per band, after scaling"),
+            (
+                "tile",
+                false,
+                "tile size for models of any size (default 512)",
+            ),
+            (
+                "overlap",
+                false,
+                "detection tile overlap in px (default 1/8 of the tile)",
+            ),
+            ("format", false, "auto, yolov8, yolov5 or boxes"),
+            ("title", false, ""),
+            ("name", false, ""),
+        ],
         borrowed: "ArcGIS Pro Detect Objects / Classify Pixels Using Deep Learning; QGIS Deepness plugin; Ultralytics YOLO; ERDAS IMAGINE deep learning",
     },
     StepSpec {
@@ -263,7 +658,24 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Satellite embeddings",
         summary: "Read AlphaEarth Foundations satellite embeddings (64 numbers per 10 m pixel summarising a year of observations, Google DeepMind, CC-BY 4.0) for the area of interest.",
         running: "Reading satellite embeddings",
-        params: &[("aoi", false, "[west, south, east, north], a layer/raster id, or auto"), ("buffer", false, "margin in metres (default 10 %)"), ("year", false, "2017–2025 (default 2024)"), ("resolution", false, "metres (default 10; coarser for large areas)"), ("max_km", false, "largest area side (default 60)"), ("epsg", false, "output CRS (default: the UTM zone)"), ("title", false, ""), ("name", false, "")],
+        params: &[
+            (
+                "aoi",
+                false,
+                "[west, south, east, north], a layer/raster id, or auto",
+            ),
+            ("buffer", false, "margin in metres (default 10 %)"),
+            ("year", false, "2017–2025 (default 2024)"),
+            (
+                "resolution",
+                false,
+                "metres (default 10; coarser for large areas)",
+            ),
+            ("max_km", false, "largest area side (default 60)"),
+            ("epsg", false, "output CRS (default: the UTM zone)"),
+            ("title", false, ""),
+            ("name", false, ""),
+        ],
         borrowed: "Google Earth Engine GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL; geospatial foundation-model embeddings (Clay, Prithvi)",
     },
     StepSpec {
@@ -271,7 +683,18 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Satellite embeddings",
         summary: "Map how alike every pixel is to sample points (cosine similarity of their embeddings): find more places like these.",
         running: "Finding similar places",
-        params: &[("embeddings", false, "embedding raster id or auto"), ("samples", false, "point layer, or auto"), ("point", false, "[lon, lat] instead of samples"), ("threshold", false, "similarity counted as alike (default 0.9)"), ("title", false, ""), ("name", false, "")],
+        params: &[
+            ("embeddings", false, "embedding raster id or auto"),
+            ("samples", false, "point layer, or auto"),
+            ("point", false, "[lon, lat] instead of samples"),
+            (
+                "threshold",
+                false,
+                "similarity counted as alike (default 0.9)",
+            ),
+            ("title", false, ""),
+            ("name", false, ""),
+        ],
         borrowed: "Earth Engine similarity search on satellite embeddings; ArcGIS Pro Classify Pixels (one-class); QGIS SCP spectral angle mapping",
     },
     StepSpec {
@@ -279,7 +702,13 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Satellite embeddings",
         summary: "Group the landscape into k kinds of place with alike embeddings (spherical k-means), without any samples.",
         running: "Grouping the landscape",
-        params: &[("embeddings", false, "embedding raster id or auto"), ("classes", false, "number of groups, 2–20 (default 8)"), ("seed", false, "random seed (default 7)"), ("title", false, ""), ("name", false, "")],
+        params: &[
+            ("embeddings", false, "embedding raster id or auto"),
+            ("classes", false, "number of groups, 2–20 (default 8)"),
+            ("seed", false, "random seed (default 7)"),
+            ("title", false, ""),
+            ("name", false, ""),
+        ],
         borrowed: "ArcGIS Pro Iso Cluster Unsupervised Classification; QGIS/GRASS i.cluster + i.maxlik; Earth Engine ee.Clusterer.wekaKMeans",
     },
     StepSpec {
@@ -287,7 +716,14 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Satellite embeddings",
         summary: "Classify the area from labelled samples (k-nearest neighbours on embeddings), with leave-one-out accuracy and area per class.",
         running: "Classifying from samples",
-        params: &[("embeddings", false, "embedding raster id or auto"), ("samples", false, "point layer with the classes, or auto"), ("field", true, "class field of the samples"), ("neighbours", false, "k (default 5)"), ("title", false, ""), ("name", false, "")],
+        params: &[
+            ("embeddings", false, "embedding raster id or auto"),
+            ("samples", false, "point layer with the classes, or auto"),
+            ("field", true, "class field of the samples"),
+            ("neighbours", false, "k (default 5)"),
+            ("title", false, ""),
+            ("name", false, ""),
+        ],
         borrowed: "ArcGIS Pro Train/Classify (Random Trees, SVM); QGIS Semi-Automatic Classification Plugin; GRASS i.maxlik; Earth Engine ee.Classifier",
     },
     StepSpec {
@@ -295,7 +731,17 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Satellite embeddings",
         summary: "How much each pixel changed between two years (1 − cosine similarity of its embeddings).",
         running: "Comparing years",
-        params: &[("before", true, "embedding raster of the first year"), ("after", true, "embedding raster of the second year"), ("threshold", false, "change counted as changed (default 0.3)"), ("title", false, ""), ("name", false, "")],
+        params: &[
+            ("before", true, "embedding raster of the first year"),
+            ("after", true, "embedding raster of the second year"),
+            (
+                "threshold",
+                false,
+                "change counted as changed (default 0.3)",
+            ),
+            ("title", false, ""),
+            ("name", false, ""),
+        ],
         borrowed: "ArcGIS Pro Change Detection Wizard; QGIS/GRASS i.change; Earth Engine embedding change detection",
     },
     StepSpec {
@@ -303,7 +749,16 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Terrain",
         summary: "Hillshade, slope, aspect, TRI, TPI or roughness from a DEM (in metres; geographic DEMs are reprojected first).",
         running: "Deriving terrain",
-        params: &[("dem", false, "raster id or auto"), ("products", false, "hillshade, slope, aspect, tri, tpi, roughness (default the first three)"), ("z", false, "hillshade exaggeration (auto)"), ("prefix", false, "output name prefix")],
+        params: &[
+            ("dem", false, "raster id or auto"),
+            (
+                "products",
+                false,
+                "hillshade, slope, aspect, tri, tpi, roughness (default the first three)",
+            ),
+            ("z", false, "hillshade exaggeration (auto)"),
+            ("prefix", false, "output name prefix"),
+        ],
         borrowed: "ArcGIS Surface toolset, QGIS Raster terrain analysis, GRASS r.slope.aspect / r.relief, SAGA Terrain Analysis, gdaldem",
     },
     StepSpec {
@@ -311,7 +766,17 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Terrain",
         summary: "Contour lines from a DEM with an automatic interval, index contours and smoothing.",
         running: "Tracing contours",
-        params: &[("dem", false, "raster id or auto"), ("interval", false, "metres (auto ≈ 12 levels)"), ("index", false, "every n-th line is an index contour (default 5)"), ("smooth", false, "default true"), ("name", false, "")],
+        params: &[
+            ("dem", false, "raster id or auto"),
+            ("interval", false, "metres (auto ≈ 12 levels)"),
+            (
+                "index",
+                false,
+                "every n-th line is an index contour (default 5)",
+            ),
+            ("smooth", false, "default true"),
+            ("name", false, ""),
+        ],
         borrowed: "ArcGIS Contour, QGIS Contour, GRASS r.contour, SAGA Contour Lines, MapInfo Vertical Mapper",
     },
     StepSpec {
@@ -321,9 +786,21 @@ pub const CATALOGUE: &[StepSpec] = &[
         running: "Routing water over the terrain",
         params: &[
             ("dem", false, "raster id or auto"),
-            ("threshold_km2", false, "upstream area where a stream starts, km² (default 1)"),
-            ("min_basin_km2", false, "smallest basin kept, km² (default 1 % of the area, at least 1)"),
-            ("sea_is_nodata", false, "treat 0 m and below as sea, not land (default true)"),
+            (
+                "threshold_km2",
+                false,
+                "upstream area where a stream starts, km² (default 1)",
+            ),
+            (
+                "min_basin_km2",
+                false,
+                "smallest basin kept, km² (default 1 % of the area, at least 1)",
+            ),
+            (
+                "sea_is_nodata",
+                false,
+                "treat 0 m and below as sea, not land (default true)",
+            ),
             ("name", false, "output name prefix (default hydro)"),
         ],
         borrowed: "ArcGIS Fill + Flow Direction + Flow Accumulation + Stream Order + Basin, QGIS/GRASS r.watershed + r.stream.order, WhiteboxTools FillDepressions + D8Pointer + StrahlerStreamOrder + Basins, TauDEM, SAGA Channel Network",
@@ -334,16 +811,52 @@ pub const CATALOGUE: &[StepSpec] = &[
         summary: "Grid LAS/LAZ point clouds (drone, aircraft or national LiDAR tiles) into a bare-earth terrain model (DTM), a surface model (DSM) and canopy heights (CHM), and find buildings and tree tops.",
         running: "Gridding the point cloud",
         params: &[
-            ("source", false, "a LAS/LAZ file, a folder of tiles or a device; auto = the device or drop folder that triggered the run"),
-            ("resolution", false, "cell size in metres (auto: about 2–3 points per cell, coarser for big areas)"),
-            ("ground", false, "auto (the file's ground class when it has one, else the SMRF filter), classes or smrf"),
-            ("window", false, "SMRF window radius in metres (default 18: buildings up to about 36 m across are removed)"),
+            (
+                "source",
+                false,
+                "a LAS/LAZ file, a folder of tiles or a device; auto = the device or drop folder that triggered the run",
+            ),
+            (
+                "resolution",
+                false,
+                "cell size in metres (auto: about 2–3 points per cell, coarser for big areas)",
+            ),
+            (
+                "ground",
+                false,
+                "auto (the file's ground class when it has one, else the SMRF filter), classes or smrf",
+            ),
+            (
+                "window",
+                false,
+                "SMRF window radius in metres (default 18: buildings up to about 36 m across are removed)",
+            ),
             ("min_tree", false, "lowest tree top in metres (default 3)"),
-            ("epsg", false, "coordinate system of the files when they have none (or a wrong one)"),
-            ("aoi", false, "[west, south, east, north] or a layer/raster id: grid only this area"),
-            ("max_points", false, "refuse more points than this (default 2 billion)"),
-            ("sample", false, "points kept for the 3D view (default 300000, every n-th; 0 = none)"),
-            ("prefix", false, "output name prefix (default none: dtm, dsm, chm, trees, buildings)"),
+            (
+                "epsg",
+                false,
+                "coordinate system of the files when they have none (or a wrong one)",
+            ),
+            (
+                "aoi",
+                false,
+                "[west, south, east, north] or a layer/raster id: grid only this area",
+            ),
+            (
+                "max_points",
+                false,
+                "refuse more points than this (default 2 billion)",
+            ),
+            (
+                "sample",
+                false,
+                "points kept for the 3D view (default 300000, every n-th; 0 = none)",
+            ),
+            (
+                "prefix",
+                false,
+                "output name prefix (default none: dtm, dsm, chm, trees, buildings)",
+            ),
         ],
         borrowed: "ArcGIS LAS Dataset to Raster + Classify LAS Ground + Extract Buildings/Trees, ERDAS IMAGINE point-cloud tools, PDAL filters.smrf + writers.gdal, lidR rasterize_terrain/rasterize_canopy/locate_trees, LAStools lasground/las2dem/lasheight, GRASS r.in.pdal",
     },
@@ -353,19 +866,67 @@ pub const CATALOGUE: &[StepSpec] = &[
         summary: "Turn a DEM into a 3D scene: terrain draped with its map colours and relief shading (or imagery), extruded buildings, modelled trees and a point-cloud sample. Saved as a glTF model, an interactive viewer that works offline, and a rendered 3D view for the report.",
         running: "Building the 3D scene",
         params: &[
-            ("dem", false, "elevation raster id or auto (the newest DEM/DTM of the run)"),
-            ("drape", false, "auto (imagery from this run if any, else the DEM's own colours), none, or raster ids to drape"),
-            ("overlay", false, "layers painted onto the terrain in their map colours (contours, boundaries, tracks)"),
-            ("buildings", false, "polygon layer to extrude, auto (a buildings layer from this run) or none"),
-            ("height", false, "building height: a field, a number in metres, or auto (height_m, height, or levels × 3 m + 1 m; else 8 m)"),
-            ("trees", false, "tree-top point layer (height_m, crown_m), auto or none"),
-            ("cloud", false, "point cloud to show: auto (the sample lidar.grid kept), none, or a LAS/LAZ file or folder"),
+            (
+                "dem",
+                false,
+                "elevation raster id or auto (the newest DEM/DTM of the run)",
+            ),
+            (
+                "drape",
+                false,
+                "auto (imagery from this run if any, else the DEM's own colours), none, or raster ids to drape",
+            ),
+            (
+                "overlay",
+                false,
+                "layers painted onto the terrain in their map colours (contours, boundaries, tracks)",
+            ),
+            (
+                "buildings",
+                false,
+                "polygon layer to extrude, auto (a buildings layer from this run) or none",
+            ),
+            (
+                "height",
+                false,
+                "building height: a field, a number in metres, or auto (height_m, height, or levels × 3 m + 1 m; else 8 m)",
+            ),
+            (
+                "trees",
+                false,
+                "tree-top point layer (height_m, crown_m), auto or none",
+            ),
+            (
+                "cloud",
+                false,
+                "point cloud to show: auto (the sample lidar.grid kept), none, or a LAS/LAZ file or folder",
+            ),
             ("points", false, "most points to show (default 250000)"),
-            ("epsg", false, "coordinate system of a cloud: file that has none"),
-            ("exaggeration", false, "terrain height factor or auto (relief about 10 % of the width: at most 1.5× for surveys finer than 5 m, 3× for regional DEMs)"),
-            ("grid", false, "mesh vertices along the longer side (default 320)"),
-            ("azimuth", false, "picture seen from this compass bearing (default 200: from the south-south-west)"),
-            ("elevation", false, "picture view angle above the horizon in degrees (default 35)"),
+            (
+                "epsg",
+                false,
+                "coordinate system of a cloud: file that has none",
+            ),
+            (
+                "exaggeration",
+                false,
+                "terrain height factor or auto (relief about 10 % of the width: at most 1.5× for surveys finer than 5 m, 3× for regional DEMs)",
+            ),
+            (
+                "grid",
+                false,
+                "mesh vertices along the longer side (default 320)",
+            ),
+            (
+                "azimuth",
+                false,
+                "picture seen from this compass bearing (default 200: from the south-south-west)",
+            ),
+            (
+                "elevation",
+                false,
+                "picture view angle above the horizon in degrees (default 35)",
+            ),
             ("size", false, "picture size WxH (default 1600x1000)"),
             ("title", false, "scene title"),
             ("name", false, "file name without extension (default scene)"),
@@ -377,7 +938,15 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Raster",
         summary: "Reclassify a raster into labelled classes (automatic schemes for slope, NDVI, NDWI, NBR, elevation) and report the area of each class.",
         running: "Classifying",
-        params: &[("raster", false, "raster id or auto"), ("breaks", false, "class limits"), ("labels", false, "one more than breaks"), ("colors", false, ""), ("ramp", false, "for custom breaks"), ("title", false, ""), ("name", false, "")],
+        params: &[
+            ("raster", false, "raster id or auto"),
+            ("breaks", false, "class limits"),
+            ("labels", false, "one more than breaks"),
+            ("colors", false, ""),
+            ("ramp", false, "for custom breaks"),
+            ("title", false, ""),
+            ("name", false, ""),
+        ],
         borrowed: "ArcGIS Reclassify + Tabulate Area, QGIS Reclassify by table, GRASS r.reclass / r.report, ERDAS Recode",
     },
     StepSpec {
@@ -385,7 +954,18 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Raster",
         summary: "Zonal statistics with exact cell coverage: each cell weighted by the share of it inside the zone (mean, min, max, sum, count, stdev, median, majority, area).",
         running: "Computing zonal statistics",
-        params: &[("layer", true, "polygon layer of zones"), ("raster", false, "raster id (auto: the newest)"), ("band", false, "band number (default 1)"), ("stats", false, "comma-separated: mean,min,max,sum,count,stdev,median,majority,area"), ("prefix", false, "field name prefix (default z)"), ("name", false, "output layer name")],
+        params: &[
+            ("layer", true, "polygon layer of zones"),
+            ("raster", false, "raster id (auto: the newest)"),
+            ("band", false, "band number (default 1)"),
+            (
+                "stats",
+                false,
+                "comma-separated: mean,min,max,sum,count,stdev,median,majority,area",
+            ),
+            ("prefix", false, "field name prefix (default z)"),
+            ("name", false, "output layer name"),
+        ],
         borrowed: "ArcGIS Zonal Statistics as Table, QGIS Zonal statistics, exactextract, GDAL gdal raster zonal-stats",
     },
     StepSpec {
@@ -393,7 +973,16 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Analysis",
         summary: "Check a polygon layer for invalid geometries, overlaps between features and gaps between them; each error becomes a feature of a new layer.",
         running: "Checking topology",
-        params: &[("layer", true, "polygon layer"), ("max_gap", false, "largest gap to report, m² (default: all)"), ("min_area", false, "ignore slivers smaller than this, m² (default 0.01)"), ("name", false, "output layer name")],
+        params: &[
+            ("layer", true, "polygon layer"),
+            ("max_gap", false, "largest gap to report, m² (default: all)"),
+            (
+                "min_area",
+                false,
+                "ignore slivers smaller than this, m² (default 0.01)",
+            ),
+            ("name", false, "output layer name"),
+        ],
         borrowed: "ArcGIS Validate Topology, QGIS Topology Checker, GEOS CoverageValidator, GRASS v.clean",
     },
     StepSpec {
@@ -401,7 +990,11 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Raster",
         summary: "Add raster values (elevation, slope, NDVI…) to point features as new fields; reports the strongest correlation with a measured field.",
         running: "Sampling rasters at points",
-        params: &[("layer", false, "point layer (auto: the newest)"), ("rasters", false, "raster ids (auto: this run's rasters)"), ("name", false, "")],
+        params: &[
+            ("layer", false, "point layer (auto: the newest)"),
+            ("rasters", false, "raster ids (auto: this run's rasters)"),
+            ("name", false, ""),
+        ],
         borrowed: "ArcGIS Extract Multi Values to Points, QGIS Sample raster values, GRASS v.what.rast, SAGA Add Grid Values to Points",
     },
     StepSpec {
@@ -418,9 +1011,25 @@ pub const CATALOGUE: &[StepSpec] = &[
         summary: "Spectral index (NDVI, NDWI, NBR, NDMI, SAVI, EVI) from the newest scene that is clear over the area; clouds and shadows are masked.",
         running: "Computing the index",
         params: &[
-            ("index", false, "ndvi (default), ndwi, nbr, ndmi, savi, evi"), ("min_clear", false, "share of the area that must be cloud-free (default 0.7)"), ("max_tries", false, "dates to try (default 5)"),
-            ("resolution", false, "metres (default 10)"), ("mask", false, "mask clouds (default true)"), ("name", false, ""),
-            ("aoi", false, "box, layer id or auto"), ("buffer", false, "metres"), ("max_km", false, ""), ("days", false, "rs.search, when no search ran"), ("datetime", false, ""), ("max_cloud", false, ""), ("collection", false, ""), ("endpoint", false, ""), ("limit", false, ""),
+            ("index", false, "ndvi (default), ndwi, nbr, ndmi, savi, evi"),
+            (
+                "min_clear",
+                false,
+                "share of the area that must be cloud-free (default 0.7)",
+            ),
+            ("max_tries", false, "dates to try (default 5)"),
+            ("resolution", false, "metres (default 10)"),
+            ("mask", false, "mask clouds (default true)"),
+            ("name", false, ""),
+            ("aoi", false, "box, layer id or auto"),
+            ("buffer", false, "metres"),
+            ("max_km", false, ""),
+            ("days", false, "rs.search, when no search ran"),
+            ("datetime", false, ""),
+            ("max_cloud", false, ""),
+            ("collection", false, ""),
+            ("endpoint", false, ""),
+            ("limit", false, ""),
         ],
         borrowed: "ERDAS Indices, ArcGIS NDVI raster function, GRASS i.vi, SAGA Vegetation Index, Earth Engine normalizedDifference",
     },
@@ -430,8 +1039,19 @@ pub const CATALOGUE: &[StepSpec] = &[
         summary: "True-colour imagery (or any band) for the area from the chosen scene.",
         running: "Fetching imagery",
         params: &[
-            ("scene", false, "scene id or auto"), ("asset", false, "visual (default) or a band"), ("resolution", false, "metres"), ("name", false, ""),
-            ("aoi", false, "box, layer id or auto"), ("buffer", false, "metres"), ("max_km", false, ""), ("days", false, "rs.search, when no search ran"), ("datetime", false, ""), ("max_cloud", false, ""), ("collection", false, ""), ("endpoint", false, ""), ("limit", false, ""),
+            ("scene", false, "scene id or auto"),
+            ("asset", false, "visual (default) or a band"),
+            ("resolution", false, "metres"),
+            ("name", false, ""),
+            ("aoi", false, "box, layer id or auto"),
+            ("buffer", false, "metres"),
+            ("max_km", false, ""),
+            ("days", false, "rs.search, when no search ran"),
+            ("datetime", false, ""),
+            ("max_cloud", false, ""),
+            ("collection", false, ""),
+            ("endpoint", false, ""),
+            ("limit", false, ""),
         ],
         borrowed: "ArcGIS Living Atlas imagery, QGIS XYZ basemaps, ERDAS Subset",
     },
@@ -440,7 +1060,16 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Providers",
         summary: "Run GRASS modules headless in a temporary project; inputs are imported and outputs come back as rasters/layers (with GRASS class labels and colours).",
         running: "Running GRASS",
-        params: &[("script", true, "GRASS commands, one per line"), ("outputs", true, "{name: raster | vector | classes}"), ("inputs", false, "{name: raster/layer id or path} (default: the DEM as dem)"), ("timeout", false, "seconds")],
+        params: &[
+            ("script", true, "GRASS commands, one per line"),
+            ("outputs", true, "{name: raster | vector | classes}"),
+            (
+                "inputs",
+                false,
+                "{name: raster/layer id or path} (default: the DEM as dem)",
+            ),
+            ("timeout", false, "seconds"),
+        ],
         borrowed: "GRASS (as QGIS Processing does), r.geomorphon, r.watershed, r.sun, v.net",
     },
     StepSpec {
@@ -448,18 +1077,105 @@ pub const CATALOGUE: &[StepSpec] = &[
         family: "Providers",
         summary: "Run a SAGA tool with saga_cmd; outputs come back as rasters.",
         running: "Running SAGA",
-        params: &[("tool", true, "'<library> <tool>', e.g. ta_hydrology 15"), ("outputs", true, "{PARAM: name}"), ("inputs", false, "{PARAM: raster/layer id or path} (default ELEVATION: the DEM)"), ("options", false, "{PARAM: value}"), ("timeout", false, "seconds")],
+        params: &[
+            ("tool", true, "'<library> <tool>', e.g. ta_hydrology 15"),
+            ("outputs", true, "{PARAM: name}"),
+            (
+                "inputs",
+                false,
+                "{PARAM: raster/layer id or path} (default ELEVATION: the DEM)",
+            ),
+            ("options", false, "{PARAM: value}"),
+            ("timeout", false, "seconds"),
+        ],
         borrowed: "SAGA GIS (as QGIS Processing does): wetness index, channel networks, morphometry",
     },
-    StepSpec { name: "export.map", family: "Output", summary: "Lay out and export a finished map (title, legend, scale bar, north arrow, graticule, labels, credits) as PNG and/or SVG.", running: "Laying out and exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout, QGIS Print Layout, MapInfo Layout Designer" },
-    StepSpec { name: "export.png", family: "Output", summary: "export.map as PNG.", running: "Exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout" },
-    StepSpec { name: "export.pdf", family: "Output", summary: "export.map as a vector PDF (selectable text, print-ready page).", running: "Exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout to PDF, QGIS Export as PDF" },
-    StepSpec { name: "export.svg", family: "Output", summary: "export.map as SVG (vector, editable in Inkscape or Illustrator).", running: "Exporting the map", params: MAP_PARAMS, borrowed: "ArcGIS Pro Export Layout" },
-    StepSpec { name: "export.series", family: "Output", summary: "Bind the run's map pages (a map series / atlas, with its index page) into one multi-page vector PDF.", running: "Binding the map series", params: &[("name", false, "file name (default series)"), ("to", false, "also copy to this folder")], borrowed: "ArcGIS Pro Map Series export, QGIS Atlas export as a single PDF" },
-    StepSpec { name: "export.report", family: "Output", summary: "One-page HTML report: the map, headline numbers, how it was made, every automatic decision, run log and provenance.", running: "Writing the report", params: &[("title", false, ""), ("subtitle", false, ""), ("notes", false, "free text"), ("name", false, "file name (default report)"), ("to", false, "also copy to this folder")], borrowed: "ArcGIS Pro reports, R Markdown / Quarto" },
-    StepSpec { name: "export.data", family: "Output", summary: "Export layers as GeoPackage, GeoJSON, CSV, FlatGeobuf, KML or Shapefile (EPSG:4326).", running: "Exporting data", params: &[("layers", false, "default: every layer this run touched"), ("layer", false, ""), ("format", false, "gpkg, geojson, csv, fgb, kml, shp"), ("to", false, "also copy to this folder")], borrowed: "ArcGIS Export Features, QGIS Save As, ogr2ogr" },
-    StepSpec { name: "python", family: "Code", summary: "Run Python code (geopandas if installed, otherwise plain GeoJSON); returned layers join the map.", running: "Running the Python step", params: CODE_PARAMS, borrowed: "ArcPy, PyQGIS, GRASS Python API, geopandas" },
-    StepSpec { name: "r", family: "Code", summary: "Run R code (sf objects in, sf objects out): gstat kriging, spatstat, terra and the rest of CRAN.", running: "Running the R step", params: CODE_PARAMS, borrowed: "R sf / gstat / terra, ArcGIS R-ArcGIS bridge" },
+    StepSpec {
+        name: "export.map",
+        family: "Output",
+        summary: "Lay out and export a finished map (title, legend, scale bar, north arrow, graticule, labels, credits) as PNG and/or SVG.",
+        running: "Laying out and exporting the map",
+        params: MAP_PARAMS,
+        borrowed: "ArcGIS Pro Export Layout, QGIS Print Layout, MapInfo Layout Designer",
+    },
+    StepSpec {
+        name: "export.png",
+        family: "Output",
+        summary: "export.map as PNG.",
+        running: "Exporting the map",
+        params: MAP_PARAMS,
+        borrowed: "ArcGIS Pro Export Layout",
+    },
+    StepSpec {
+        name: "export.pdf",
+        family: "Output",
+        summary: "export.map as a vector PDF (selectable text, print-ready page).",
+        running: "Exporting the map",
+        params: MAP_PARAMS,
+        borrowed: "ArcGIS Pro Export Layout to PDF, QGIS Export as PDF",
+    },
+    StepSpec {
+        name: "export.svg",
+        family: "Output",
+        summary: "export.map as SVG (vector, editable in Inkscape or Illustrator).",
+        running: "Exporting the map",
+        params: MAP_PARAMS,
+        borrowed: "ArcGIS Pro Export Layout",
+    },
+    StepSpec {
+        name: "export.series",
+        family: "Output",
+        summary: "Bind the run's map pages (a map series / atlas, with its index page) into one multi-page vector PDF.",
+        running: "Binding the map series",
+        params: &[
+            ("name", false, "file name (default series)"),
+            ("to", false, "also copy to this folder"),
+        ],
+        borrowed: "ArcGIS Pro Map Series export, QGIS Atlas export as a single PDF",
+    },
+    StepSpec {
+        name: "export.report",
+        family: "Output",
+        summary: "One-page HTML report: the map, headline numbers, how it was made, every automatic decision, run log and provenance.",
+        running: "Writing the report",
+        params: &[
+            ("title", false, ""),
+            ("subtitle", false, ""),
+            ("notes", false, "free text"),
+            ("name", false, "file name (default report)"),
+            ("to", false, "also copy to this folder"),
+        ],
+        borrowed: "ArcGIS Pro reports, R Markdown / Quarto",
+    },
+    StepSpec {
+        name: "export.data",
+        family: "Output",
+        summary: "Export layers as GeoPackage, GeoJSON, CSV, FlatGeobuf, KML or Shapefile (EPSG:4326).",
+        running: "Exporting data",
+        params: &[
+            ("layers", false, "default: every layer this run touched"),
+            ("layer", false, ""),
+            ("format", false, "gpkg, geojson, csv, fgb, kml, shp"),
+            ("to", false, "also copy to this folder"),
+        ],
+        borrowed: "ArcGIS Export Features, QGIS Save As, ogr2ogr",
+    },
+    StepSpec {
+        name: "python",
+        family: "Code",
+        summary: "Run Python code (geopandas if installed, otherwise plain GeoJSON); returned layers join the map.",
+        running: "Running the Python step",
+        params: CODE_PARAMS,
+        borrowed: "ArcPy, PyQGIS, GRASS Python API, geopandas",
+    },
+    StepSpec {
+        name: "r",
+        family: "Code",
+        summary: "Run R code (sf objects in, sf objects out): gstat kriging, spatstat, terra and the rest of CRAN.",
+        running: "Running the R step",
+        params: CODE_PARAMS,
+        borrowed: "R sf / gstat / terra, ArcGIS R-ArcGIS bridge",
+    },
 ];
 
 /// `script.python` / `script.r` are accepted as aliases.
@@ -482,7 +1198,9 @@ fn edit_distance(a: &str, b: &str) -> usize {
     for i in 1..=a.len() {
         let mut cur = vec![i; b.len() + 1];
         for j in 1..=b.len() {
-            cur[j] = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + (a[i - 1] != b[j - 1]) as usize);
+            cur[j] = (prev[j] + 1)
+                .min(cur[j - 1] + 1)
+                .min(prev[j - 1] + (a[i - 1] != b[j - 1]) as usize);
         }
         prev = cur;
     }
@@ -493,8 +1211,14 @@ fn edit_distance(a: &str, b: &str) -> usize {
 pub fn check(uses: &str, with: &Value) -> (Vec<String>, Vec<String>) {
     let (mut errs, mut warns) = (Vec::new(), Vec::new());
     let Some(s) = spec(uses) else {
-        let best = CATALOGUE.iter().min_by_key(|s| edit_distance(s.name, uses)).map(|s| s.name).unwrap_or("");
-        errs.push(format!("unknown step '{uses}' (did you mean '{best}'? `geospax steps` lists them all)"));
+        let best = CATALOGUE
+            .iter()
+            .min_by_key(|s| edit_distance(s.name, uses))
+            .map(|s| s.name)
+            .unwrap_or("");
+        errs.push(format!(
+            "unknown step '{uses}' (did you mean '{best}'? `geospax steps` lists them all)"
+        ));
         return (errs, warns);
     };
     let given = with.as_object().cloned().unwrap_or_default();
@@ -508,7 +1232,10 @@ pub fn check(uses: &str, with: &Value) -> (Vec<String>, Vec<String>) {
             warns.push(format!("'{uses}' ignores unknown parameter '{k}'"));
         }
     }
-    if matches!(s.name, "python" | "r") && !given.contains_key("code") && !given.contains_key("file") {
+    if matches!(s.name, "python" | "r")
+        && !given.contains_key("code")
+        && !given.contains_key("file")
+    {
         errs.push(format!("'{uses}' needs code: or file:"));
     }
     (errs, warns)
@@ -624,11 +1351,17 @@ pub struct StepOut {
 }
 
 pub(super) fn p_str<'v>(p: &'v Value, k: &str) -> Option<&'v str> {
-    p.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty())
+    p.get(k)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
 }
 
 pub(super) fn p_f64(p: &Value, k: &str) -> Option<f64> {
-    p.get(k).and_then(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok())))
+    p.get(k).and_then(|v| {
+        v.as_f64()
+            .or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))
+    })
 }
 
 pub(super) fn p_bool(p: &Value, k: &str, default: bool) -> bool {
@@ -644,7 +1377,12 @@ pub(super) fn p_bool(p: &Value, k: &str, default: bool) -> bool {
 pub(super) fn p_list(p: &Value, k: &str) -> Vec<String> {
     fn flat(v: &Value, out: &mut Vec<String>) {
         match v {
-            Value::String(s) => out.extend(s.split(',').map(str::trim).filter(|s| !s.is_empty()).map(str::to_string)),
+            Value::String(s) => out.extend(
+                s.split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string),
+            ),
             Value::Array(a) => a.iter().for_each(|x| flat(x, out)),
             _ => {}
         }
@@ -670,7 +1408,15 @@ pub fn fnv64(s: &str) -> String {
 }
 
 pub(super) fn sanitize(s: &str) -> String {
-    s.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.' { c.to_ascii_lowercase() } else { '_' }).collect()
+    s.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.' {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 pub(super) fn humanize(s: &str) -> String {
@@ -700,7 +1446,12 @@ impl StepCtx<'_> {
 
     pub(super) fn layer(&self, id: &str) -> Result<Arc<LayerHandle>, String> {
         self.engine.layer(id).ok_or_else(|| {
-            let mut ids: Vec<String> = self.engine.layers().iter().map(|l| l.info.id.clone()).collect();
+            let mut ids: Vec<String> = self
+                .engine
+                .layers()
+                .iter()
+                .map(|l| l.info.id.clone())
+                .collect();
             ids.sort_by_key(|x| edit_distance(x, id));
             ids.truncate(3);
             format!("unknown layer '{id}' (closest: {})", ids.join(", "))
@@ -708,7 +1459,10 @@ impl StepCtx<'_> {
     }
 
     pub(super) fn title_of(&self, l: &LayerHandle) -> String {
-        self.names.get(&l.info.id).cloned().unwrap_or_else(|| humanize(&l.info.name))
+        self.names
+            .get(&l.info.id)
+            .cloned()
+            .unwrap_or_else(|| humanize(&l.info.name))
     }
 
     pub(super) fn outputs_dir(&self) -> PathBuf {
@@ -717,7 +1471,12 @@ impl StepCtx<'_> {
 
     /// Write a result layer to `<state>/outputs/<recipe>/<name>.gpkg` and register it as
     /// `<recipe>.<name>` (a re-run replaces it: the map updates itself).
-    pub(super) fn write_output(&mut self, name: &str, fs: &FeatureSet, title: String) -> Result<String, String> {
+    pub(super) fn write_output(
+        &mut self,
+        name: &str,
+        fs: &FeatureSet,
+        title: String,
+    ) -> Result<String, String> {
         let name = sanitize(name);
         let dir = self.outputs_dir();
         std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -742,7 +1501,17 @@ impl StepCtx<'_> {
         if p.is_absolute() || p.exists() {
             return p.exists().then_some(p);
         }
-        self.engine.data_dirs.iter().map(|d| if d.is_dir() { d.join(s) } else { d.parent().unwrap_or(Path::new(".")).join(s) }).find(|c| c.exists())
+        self.engine
+            .data_dirs
+            .iter()
+            .map(|d| {
+                if d.is_dir() {
+                    d.join(s)
+                } else {
+                    d.parent().unwrap_or(Path::new(".")).join(s)
+                }
+            })
+            .find(|c| c.exists())
     }
 }
 
@@ -767,7 +1536,10 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
             if let Some(o) = p.as_object() {
                 sc.page.extend(o.clone());
             }
-            Ok(StepOut { outputs: json!({ "page": p }), why: vec!["page defaults set for the export steps".into()] })
+            Ok(StepOut {
+                outputs: json!({ "page": p }),
+                why: vec!["page defaults set for the export steps".into()],
+            })
         }
         "export.map" => export_map(sc, p, None),
         "export.png" => export_map(sc, p, Some("png")),
@@ -829,16 +1601,30 @@ pub(super) fn resolve_source(sc: &StepCtx, src: &str) -> Result<PathBuf, String>
     }
     sc.engine.devices.find_root(s).ok_or_else(|| {
         let known = sc.engine.devices.names();
-        format!("'{s}' is not a folder or a known device (devices: {})", if known.is_empty() { "none".into() } else { known.join(", ") })
+        format!(
+            "'{s}' is not a folder or a known device (devices: {})",
+            if known.is_empty() {
+                "none".into()
+            } else {
+                known.join(", ")
+            }
+        )
     })
 }
 
 fn devices_import(sc: &mut StepCtx, p: &Value, pick: Option<&str>) -> Result<StepOut, String> {
     let root = resolve_source(sc, p_str(p, "source").unwrap_or("auto"))?;
     let scan = crate::devices::scan(&root);
-    let name = root.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| root.display().to_string());
+    let name = root
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| root.display().to_string());
     if !scan.has_geodata() {
-        return Err(format!("no geotagged photos, GPS tracks, waypoints, sensor readings or point clouds in {} ({} images looked at)", root.display(), scan.images));
+        return Err(format!(
+            "no geotagged photos, GPS tracks, waypoints, sensor readings or point clouds in {} ({} images looked at)",
+            root.display(),
+            scan.images
+        ));
     }
     let id = crate::devices::device_id(&root);
     let kind = crate::devices::kind_of(&root, &scan);
@@ -849,8 +1635,22 @@ fn devices_import(sc: &mut StepCtx, p: &Value, pick: Option<&str>) -> Result<Ste
     crate::devices::write_gpkg(&tmp, &name, &scan)?;
     std::fs::rename(&tmp, &out).map_err(|e| e.to_string())?;
     let layers = sc.engine.register_layers(catalog::load_layers(&out)?);
-    let track_m: f64 = scan.tracks.iter().flat_map(|t| t.parts.iter()).map(|p| p.windows(2).map(|w| crate::devices::haversine(w[0], w[1])).sum::<f64>()).sum();
-    let mut times: Vec<&str> = scan.photos.iter().filter_map(|p| p.taken_at.as_deref()).filter(|t| !t.is_empty()).collect();
+    let track_m: f64 = scan
+        .tracks
+        .iter()
+        .flat_map(|t| t.parts.iter())
+        .map(|p| {
+            p.windows(2)
+                .map(|w| crate::devices::haversine(w[0], w[1]))
+                .sum::<f64>()
+        })
+        .sum();
+    let mut times: Vec<&str> = scan
+        .photos
+        .iter()
+        .filter_map(|p| p.taken_at.as_deref())
+        .filter(|t| !t.is_empty())
+        .collect();
     times.sort_unstable();
     let info = json!({
         "layers": layers, "at": chrono::Utc::now().timestamp(), "photos": scan.photos.len(), "tracks": scan.tracks.len(),
@@ -860,21 +1660,43 @@ fn devices_import(sc: &mut StepCtx, p: &Value, pick: Option<&str>) -> Result<Ste
     for l in &layers {
         sc.touch(l);
         let role = l.rsplit('.').next().unwrap_or("");
-        sc.names.insert(l.clone(), format!("{} · {name}", humanize(role)));
+        sc.names
+            .insert(l.clone(), format!("{} · {name}", humanize(role)));
     }
-    let find = |suffix: &str| layers.iter().find(|l| l.ends_with(&format!(".{suffix}"))).cloned();
-    let pts = scan.photos.iter().map(|p| (p.lon, p.lat)).chain(scan.waypoints.iter().map(|w| (w.lon, w.lat))).chain(scan.tracks.iter().flat_map(|t| t.parts.iter().flatten().copied())).chain(scan.readings.iter().map(|r| (r.lon, r.lat)));
-    let bounds = pts.fold(None, |acc: Option<[f64; 4]>, (x, y)| Some(match acc {
-        None => [x, y, x, y],
-        Some(b) => [b[0].min(x), b[1].min(y), b[2].max(x), b[3].max(y)],
-    }));
+    let find = |suffix: &str| {
+        layers
+            .iter()
+            .find(|l| l.ends_with(&format!(".{suffix}")))
+            .cloned()
+    };
+    let pts = scan
+        .photos
+        .iter()
+        .map(|p| (p.lon, p.lat))
+        .chain(scan.waypoints.iter().map(|w| (w.lon, w.lat)))
+        .chain(
+            scan.tracks
+                .iter()
+                .flat_map(|t| t.parts.iter().flatten().copied()),
+        )
+        .chain(scan.readings.iter().map(|r| (r.lon, r.lat)));
+    let bounds = pts.fold(None, |acc: Option<[f64; 4]>, (x, y)| {
+        Some(match acc {
+            None => [x, y, x, y],
+            Some(b) => [b[0].min(x), b[1].min(y), b[2].max(x), b[3].max(y)],
+        })
+    });
     let plural = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
     let mut parts = Vec::new();
     if !scan.photos.is_empty() {
         parts.push(plural(scan.photos.len(), "geotagged photo"));
     }
     if !scan.tracks.is_empty() {
-        parts.push(format!("{} ({})", plural(scan.tracks.len(), "track"), features::fmt_distance(track_m)));
+        parts.push(format!(
+            "{} ({})",
+            plural(scan.tracks.len(), "track"),
+            features::fmt_distance(track_m)
+        ));
     }
     if !scan.waypoints.is_empty() {
         parts.push(plural(scan.waypoints.len(), "waypoint"));
@@ -885,24 +1707,38 @@ fn devices_import(sc: &mut StepCtx, p: &Value, pick: Option<&str>) -> Result<Ste
         if field_names.len() > 4 {
             shown.push("…");
         }
-        parts.push(format!("{} ({})", plural(scan.readings.len(), "sensor reading"), shown.join(", ")));
+        parts.push(format!(
+            "{} ({})",
+            plural(scan.readings.len(), "sensor reading"),
+            shown.join(", ")
+        ));
     }
-    let units: Map<String, Value> = scan.reading_fields.iter().filter_map(|(n, u)| u.as_ref().map(|u| (n.clone(), Value::from(u.clone())))).collect();
+    let units: Map<String, Value> = scan
+        .reading_fields
+        .iter()
+        .filter_map(|(n, u)| u.as_ref().map(|u| (n.clone(), Value::from(u.clone()))))
+        .collect();
     let summary = parts.join(" · ");
     let skipped = scan.images.saturating_sub(scan.photos.len());
     sc.device = Some(name.clone());
     sc.import_summary = Some(summary.clone());
     if !scan.photos.is_empty() {
-        sc.cards.push((scan.photos.len().to_string(), "geotagged photos".into()));
+        sc.cards
+            .push((scan.photos.len().to_string(), "geotagged photos".into()));
     }
     if track_m > 0.0 {
-        sc.cards.push((features::fmt_distance(track_m), "of GPS track".into()));
+        sc.cards
+            .push((features::fmt_distance(track_m), "of GPS track".into()));
     }
     if !scan.waypoints.is_empty() {
-        sc.cards.push((scan.waypoints.len().to_string(), "waypoints".into()));
+        sc.cards
+            .push((scan.waypoints.len().to_string(), "waypoints".into()));
     }
     if !scan.readings.is_empty() {
-        sc.cards.push((scan.readings.len().to_string(), "geotagged sensor readings".into()));
+        sc.cards.push((
+            scan.readings.len().to_string(),
+            "geotagged sensor readings".into(),
+        ));
     }
     sc.methods.push(format!(
         "Data were imported from {name} ({kind}): {summary}{}. Positions come from EXIF GPS tags, DJI XMP metadata, GPX/KML files, NMEA logs, DJI flight telemetry, sensor-logger CSV/JSON coordinates and FIT activity records, as found.",
@@ -923,7 +1759,11 @@ fn devices_import(sc: &mut StepCtx, p: &Value, pick: Option<&str>) -> Result<Ste
         }),
         why: vec![format!(
             "{name} ({kind}): {summary}{} → {} layers in {:.0} ms",
-            if skipped > 0 { format!(", {skipped} without GPS") } else { String::new() },
+            if skipped > 0 {
+                format!(", {skipped} without GPS")
+            } else {
+                String::new()
+            },
             layers.len(),
             scan.ms
         )],
@@ -931,7 +1771,9 @@ fn devices_import(sc: &mut StepCtx, p: &Value, pick: Option<&str>) -> Result<Ste
 }
 
 fn iso_time(t: f64) -> String {
-    chrono::DateTime::from_timestamp(t as i64, 0).map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)).unwrap_or_default()
+    chrono::DateTime::from_timestamp(t as i64, 0)
+        .map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        .unwrap_or_default()
 }
 
 /// Live readings of the last `minutes` -> `<recipe>.live_readings` (+ `live_tracks`).
@@ -957,7 +1799,11 @@ fn sensor_snapshot(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     }
     // readings carry the sensor's name as `sensor` (not `name`), so every reading is not labelled;
     // the `live_latest` layer below (one point per sensor) carries `name` and gets the labels
-    let mut fields: Vec<(String, &'static str)> = vec![("time".into(), "string"), ("device".into(), "string"), ("sensor".into(), "string")];
+    let mut fields: Vec<(String, &'static str)> = vec![
+        ("time".into(), "string"),
+        ("device".into(), "string"),
+        ("sensor".into(), "string"),
+    ];
     fields.extend(names.iter().map(|n| (n.clone(), "real")));
     let mut latest_fields = fields.clone();
     latest_fields[2].0 = "name".into();
@@ -968,11 +1814,28 @@ fn sensor_snapshot(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         if !devices.contains(id) {
             devices.push(id.clone());
         }
-        let mut props = vec![Val::Str(iso_time(r.t)), Val::Str(id.clone()), Val::Str(name.clone())];
-        props.extend(names.iter().map(|n| r.values.iter().find(|(k, _)| k == n).map(|(_, v)| Val::Num(*v)).unwrap_or(Val::Null)));
-        let feat = Feat { geom: Geom::Points(vec![[r.lon, r.lat]]), props };
+        let mut props = vec![
+            Val::Str(iso_time(r.t)),
+            Val::Str(id.clone()),
+            Val::Str(name.clone()),
+        ];
+        props.extend(names.iter().map(|n| {
+            r.values
+                .iter()
+                .find(|(k, _)| k == n)
+                .map(|(_, v)| Val::Num(*v))
+                .unwrap_or(Val::Null)
+        }));
+        let feat = Feat {
+            geom: Geom::Points(vec![[r.lon, r.lat]]),
+            props,
+        };
         // rows are oldest first: the last one per sensor is where it is now
-        match latest.feats.iter().position(|f| matches!(&f.props[1], Val::Str(d) if d == id)) {
+        match latest
+            .feats
+            .iter()
+            .position(|f| matches!(&f.props[1], Val::Str(d) if d == id))
+        {
             Some(i) => latest.feats[i] = feat.clone(),
             None => latest.feats.push(feat.clone()),
         }
@@ -984,12 +1847,24 @@ fn sensor_snapshot(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let now = sc.write_output("live_latest", &latest, "Sensors now".into())?;
     let mut layers = vec![readings.clone()];
     // only the sensors' own paths (not every phone or GNSS receiver that happens to be live)
-    let tracks: Vec<_> = sc.engine.devices.live_tracks(device, since).into_iter().filter(|(id, _, _)| devices.contains(id)).collect();
+    let tracks: Vec<_> = sc
+        .engine
+        .devices
+        .live_tracks(device, since)
+        .into_iter()
+        .filter(|(id, _, _)| devices.contains(id))
+        .collect();
     let mut tracks_layer = None;
     if !tracks.is_empty() {
-        let mut ts = FeatureSet::new(GeomKind::Line, vec![("device".into(), "string"), ("name".into(), "string")]);
+        let mut ts = FeatureSet::new(
+            GeomKind::Line,
+            vec![("device".into(), "string"), ("name".into(), "string")],
+        );
         for (id, name, pts) in &tracks {
-            ts.feats.push(Feat { geom: Geom::Lines(vec![pts.iter().map(|(x, y)| [*x, *y]).collect()]), props: vec![Val::Str(id.clone()), Val::Str(name.clone())] });
+            ts.feats.push(Feat {
+                geom: Geom::Lines(vec![pts.iter().map(|(x, y)| [*x, *y]).collect()]),
+                props: vec![Val::Str(id.clone()), Val::Str(name.clone())],
+            });
         }
         ts.total = ts.feats.len() as u64;
         let id = sc.write_output("live_tracks", &ts, "Sensor paths".into())?;
@@ -999,8 +1874,13 @@ fn sensor_snapshot(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     layers.push(now.clone());
     let n = devices.len();
     let plural = if n == 1 { "" } else { "s" };
-    sc.device = Some(if n == 1 { rows[0].1.clone() } else { format!("{n} sensors") });
-    sc.cards.push((rows.len().to_string(), "live sensor readings".into()));
+    sc.device = Some(if n == 1 {
+        rows[0].1.clone()
+    } else {
+        format!("{n} sensors")
+    });
+    sc.cards
+        .push((rows.len().to_string(), "live sensor readings".into()));
     sc.methods.push(format!(
         "Live readings from {n} sensor{plural} over the last {} minutes were taken from the GeoSpaX device hub (HTTP pushes and MQTT messages, each with its own position).",
         features::num_text(minutes)
@@ -1011,40 +1891,50 @@ fn sensor_snapshot(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             "readings_layer": readings, "tracks_layer": tracks_layer, "latest_layer": now, "layers": layers, "count": rows.len(), "devices": devices, "fields": names,
             "from": iso_time(rows[0].2.t), "to": iso_time(rows[rows.len() - 1].2.t),
         }),
-        why: vec![format!("{} readings from {n} sensor{plural} in the last {} min ({})", rows.len(), features::num_text(minutes), shown.join(", "))],
+        why: vec![format!(
+            "{} readings from {n} sensor{plural} in the last {} min ({})",
+            rows.len(),
+            features::num_text(minutes),
+            shown.join(", ")
+        )],
     })
 }
 
 fn default_unit(field: &str) -> Option<&'static str> {
     let f = field.to_ascii_lowercase();
     let has = |p: &str| f == p || f.starts_with(&format!("{p}_"));
-    Some(if ["pm1", "pm2_5", "pm4", "pm10", "no2", "o3", "so2"].iter().any(|p| has(p)) {
-        "µg/m³"
-    } else if has("co2") {
-        "ppm"
-    } else if has("co") {
-        "mg/m³"
-    } else if has("temperature") || has("temp") {
-        "°C"
-    } else if has("humidity") || has("rh") {
-        "%"
-    } else if has("heart_rate") || has("hr") {
-        "bpm"
-    } else if has("noise") || has("sound") {
-        "dB"
-    } else if has("pressure") {
-        "hPa"
-    } else if has("speed") {
-        "m/s"
-    } else if has("altitude") || has("elevation") {
-        "m"
-    } else if has("cadence") {
-        "rpm"
-    } else if has("power") {
-        "W"
-    } else {
-        return None;
-    })
+    Some(
+        if ["pm1", "pm2_5", "pm4", "pm10", "no2", "o3", "so2"]
+            .iter()
+            .any(|p| has(p))
+        {
+            "µg/m³"
+        } else if has("co2") {
+            "ppm"
+        } else if has("co") {
+            "mg/m³"
+        } else if has("temperature") || has("temp") {
+            "°C"
+        } else if has("humidity") || has("rh") {
+            "%"
+        } else if has("heart_rate") || has("hr") {
+            "bpm"
+        } else if has("noise") || has("sound") {
+            "dB"
+        } else if has("pressure") {
+            "hPa"
+        } else if has("speed") {
+            "m/s"
+        } else if has("altitude") || has("elevation") {
+            "m"
+        } else if has("cadence") {
+            "rpm"
+        } else if has("power") {
+            "W"
+        } else {
+            return None;
+        },
+    )
 }
 
 fn pretty_field(field: &str) -> String {
@@ -1076,11 +1966,27 @@ fn sensor_summary(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         }
     };
     let fs = features::read_layer(sc.engine, &layer, None, None, 500_000)?;
-    let want: Option<Vec<String>> = p.get("fields").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect());
-    let units: HashMap<String, String> = p.get("units").and_then(Value::as_object).map(|m| m.iter().filter_map(|(k, v)| v.as_str().map(|u| (k.clone(), u.to_string()))).collect()).unwrap_or_default();
+    let want: Option<Vec<String>> = p.get("fields").and_then(Value::as_array).map(|a| {
+        a.iter()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect()
+    });
+    let units: HashMap<String, String> = p
+        .get("units")
+        .and_then(Value::as_object)
+        .map(|m| {
+            m.iter()
+                .filter_map(|(k, v)| v.as_str().map(|u| (k.clone(), u.to_string())))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut rows = Vec::new();
     for (i, (name, kind)) in fs.fields.iter().enumerate() {
-        if !matches!(*kind, "real" | "integer") || matches!(name.as_str(), "time" | "t" | "device" | "name" | "source") || automap::is_id_like(name) {
+        if !matches!(*kind, "real" | "integer")
+            || matches!(name.as_str(), "time" | "t" | "device" | "name" | "source")
+            || automap::is_id_like(name)
+        {
             continue;
         }
         if want.as_ref().is_some_and(|w| !w.iter().any(|x| x == name)) {
@@ -1092,23 +1998,48 @@ fn sensor_summary(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         }
     }
     if rows.is_empty() {
-        return Err(format!("'{}' has no numeric measurements to summarise", layer.info.id));
+        return Err(format!(
+            "'{}' has no numeric measurements to summarise",
+            layer.info.id
+        ));
     }
     let names: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
-    let main = crate::sensors::main_field(&names).unwrap_or(names[0]).to_string();
+    let main = crate::sensors::main_field(&names)
+        .unwrap_or(names[0])
+        .to_string();
     let r1 = |x: f64| features::num_text((x * 10.0).round() / 10.0);
     let (mut why, mut out, mut flagged) = (Vec::new(), Map::new(), Vec::new());
     let mut any_guideline = false;
     for (name, (n, min, mean, p95, max), v) in &rows {
-        let unit = units.get(name).cloned().or_else(|| default_unit(name).map(str::to_string)).unwrap_or_default();
-        let u = if unit.is_empty() { String::new() } else { format!(" {unit}") };
-        let mut line = format!("{}: n {n}, mean {}{u}, 95th percentile {}{u}, max {}{u}", pretty_field(name), r1(*mean), r1(*p95), r1(*max));
-        let mut o = json!({ "n": n, "min": min, "mean": mean, "p95": p95, "max": max, "unit": unit });
+        let unit = units
+            .get(name)
+            .cloned()
+            .or_else(|| default_unit(name).map(str::to_string))
+            .unwrap_or_default();
+        let u = if unit.is_empty() {
+            String::new()
+        } else {
+            format!(" {unit}")
+        };
+        let mut line = format!(
+            "{}: n {n}, mean {}{u}, 95th percentile {}{u}, max {}{u}",
+            pretty_field(name),
+            r1(*mean),
+            r1(*p95),
+            r1(*max)
+        );
+        let mut o =
+            json!({ "n": n, "min": min, "mean": mean, "p95": p95, "max": max, "unit": unit });
         if let Some(g) = crate::sensors::guideline(name) {
             any_guideline = true;
             let above = v.iter().filter(|x| **x > g.2).count();
             let pct = above as f64 * 100.0 / *n as f64;
-            line.push_str(&format!(" · {pct:.0} % of readings above the WHO {} guideline ({} {})", g.4, features::num_text(g.2), g.3));
+            line.push_str(&format!(
+                " · {pct:.0} % of readings above the WHO {} guideline ({} {})",
+                g.4,
+                features::num_text(g.2),
+                g.3
+            ));
             o["guideline"] = json!({ "label": g.1, "level": g.2, "unit": g.3, "averaging": g.4, "above": above, "above_pct": (pct * 10.0).round() / 10.0 });
             if above > 0 {
                 flagged.push(format!("{} {pct:.0} %", g.1));
@@ -1120,24 +2051,69 @@ fn sensor_summary(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let m = &out[&main];
     let unit = m["unit"].as_str().unwrap_or("").to_string();
     let with_unit = |x: f64| format!("{} {unit}", r1(x)).trim().to_string();
-    sc.cards.push((with_unit(m["mean"].as_f64().unwrap_or(0.0)), format!("mean {}", pretty_field(&main))));
-    sc.cards.push((with_unit(m["max"].as_f64().unwrap_or(0.0)), format!("highest {}", pretty_field(&main))));
+    sc.cards.push((
+        with_unit(m["mean"].as_f64().unwrap_or(0.0)),
+        format!("mean {}", pretty_field(&main)),
+    ));
+    sc.cards.push((
+        with_unit(m["max"].as_f64().unwrap_or(0.0)),
+        format!("highest {}", pretty_field(&main)),
+    ));
     if let Some(g) = m.get("guideline") {
-        sc.cards.push((format!("{} %", features::num_text(g["above_pct"].as_f64().unwrap_or(0.0).round())), format!("of readings above the WHO {} {} guideline", g["averaging"].as_str().unwrap_or(""), g["label"].as_str().unwrap_or(""))));
+        sc.cards.push((
+            format!(
+                "{} %",
+                features::num_text(g["above_pct"].as_f64().unwrap_or(0.0).round())
+            ),
+            format!(
+                "of readings above the WHO {} {} guideline",
+                g["averaging"].as_str().unwrap_or(""),
+                g["label"].as_str().unwrap_or("")
+            ),
+        ));
     }
     sc.methods.push(if any_guideline {
         "Sensor readings were summarised per measurement (count, mean, 95th percentile, maximum). Air-quality values were compared with the WHO 2021 global air quality guideline levels (PM2.5 15 µg/m³ and PM10 45 µg/m³ as 24-hour means, NO₂ 25 µg/m³ 24-hour, O₃ 100 µg/m³ 8-hour); single readings only indicate exposure and are not 24-hour averages.".to_string()
     } else {
         "Sensor readings were summarised per measurement (count, mean, 95th percentile, maximum).".to_string()
     });
-    why.insert(0, format!("{} readings · mapping {} (the {} measurement)", fs.feats.len(), pretty_field(&main), if crate::sensors::guideline(&main).is_some() { "air-quality" } else { "main" }));
-    Ok(StepOut { outputs: json!({ "main": main, "label": pretty_field(&main), "layer": layer.info.id, "fields": out, "flagged": flagged, "count": fs.feats.len() }), why })
+    why.insert(
+        0,
+        format!(
+            "{} readings · mapping {} (the {} measurement)",
+            fs.feats.len(),
+            pretty_field(&main),
+            if crate::sensors::guideline(&main).is_some() {
+                "air-quality"
+            } else {
+                "main"
+            }
+        ),
+    );
+    Ok(StepOut {
+        outputs: json!({ "main": main, "label": pretty_field(&main), "layer": layer.info.id, "fields": out, "flagged": flagged, "count": fs.feats.len() }),
+        why,
+    })
 }
 
 /// Choose a loaded layer for `auto`.
-pub(super) fn auto_layer(sc: &StepCtx, kind: Option<GeomKind>, prefer: &str) -> Result<Arc<LayerHandle>, String> {
-    let cands: Vec<Arc<LayerHandle>> = sc.engine.layers().into_iter().filter(|l| kind.is_none_or(|k| l.info.geometry == k)).collect();
-    let numeric = |l: &LayerHandle| l.info.fields.iter().any(|f| matches!(f.kind, "integer" | "real") && !automap::is_id_like(&f.name));
+pub(super) fn auto_layer(
+    sc: &StepCtx,
+    kind: Option<GeomKind>,
+    prefer: &str,
+) -> Result<Arc<LayerHandle>, String> {
+    let cands: Vec<Arc<LayerHandle>> = sc
+        .engine
+        .layers()
+        .into_iter()
+        .filter(|l| kind.is_none_or(|k| l.info.geometry == k))
+        .collect();
+    let numeric = |l: &LayerHandle| {
+        l.info
+            .fields
+            .iter()
+            .any(|f| matches!(f.kind, "integer" | "real") && !automap::is_id_like(&f.name))
+    };
     let best = match prefer {
         "samples" => cands
             .iter()
@@ -1146,7 +2122,10 @@ pub(super) fn auto_layer(sc: &StepCtx, kind: Option<GeomKind>, prefer: &str) -> 
                 let score = |l: &LayerHandle| {
                     let n = l.info.id.to_ascii_lowercase();
                     let mut s = 0.0;
-                    if ["sample", "obs", "site", "measure", "survey", "station"].iter().any(|w| n.contains(w)) {
+                    if ["sample", "obs", "site", "measure", "survey", "station"]
+                        .iter()
+                        .any(|w| n.contains(w))
+                    {
                         s += 2.0;
                     }
                     if (5..=100_000).contains(&l.info.feature_count) {
@@ -1171,7 +2150,23 @@ pub(super) fn auto_layer(sc: &StepCtx, kind: Option<GeomKind>, prefer: &str) -> 
                 let score = |l: &LayerHandle| {
                     let n = l.info.id.to_ascii_lowercase();
                     let mut s = 0.0;
-                    if ["incident", "crime", "case", "crash", "accident", "event", "report", "call", "outbreak", "complaint", "fire", "theft"].iter().any(|w| n.contains(w)) {
+                    if [
+                        "incident",
+                        "crime",
+                        "case",
+                        "crash",
+                        "accident",
+                        "event",
+                        "report",
+                        "call",
+                        "outbreak",
+                        "complaint",
+                        "fire",
+                        "theft",
+                    ]
+                    .iter()
+                    .any(|w| n.contains(w))
+                    {
                         s += 3.0;
                     }
                     if l.info.feature_count >= 60 {
@@ -1188,10 +2183,21 @@ pub(super) fn auto_layer(sc: &StepCtx, kind: Option<GeomKind>, prefer: &str) -> 
                 score(a).partial_cmp(&score(b)).unwrap()
             })
             .cloned(),
-        "recent" => sc.touched.iter().rev().filter_map(|id| sc.engine.layer(id)).find(|l| kind.is_none_or(|k| l.info.geometry == k)),
+        "recent" => sc
+            .touched
+            .iter()
+            .rev()
+            .filter_map(|id| sc.engine.layer(id))
+            .find(|l| kind.is_none_or(|k| l.info.geometry == k)),
         _ => cands.iter().max_by_key(|l| l.info.feature_count).cloned(),
     };
-    best.ok_or_else(|| format!("no {}layer is loaded to pick automatically; add data or name one with layer:", kind.map(|k| format!("{k:?} ").to_lowercase()).unwrap_or_default()))
+    best.ok_or_else(|| {
+        format!(
+            "no {}layer is loaded to pick automatically; add data or name one with layer:",
+            kind.map(|k| format!("{k:?} ").to_lowercase())
+                .unwrap_or_default()
+        )
+    })
 }
 
 fn parse_kind(s: Option<&str>) -> Option<GeomKind> {
@@ -1216,14 +2222,24 @@ fn io_open(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         if it == "auto" {
             let prefer = p_str(p, "prefer").unwrap_or("largest");
             let l = auto_layer(sc, parse_kind(p_str(p, "kind")), prefer)?;
-            why.push(format!("picked '{}' automatically ({} features; rule: {prefer})", l.info.id, l.info.feature_count));
+            why.push(format!(
+                "picked '{}' automatically ({} features; rule: {prefer})",
+                l.info.id, l.info.feature_count
+            ));
             ids.push(l.info.id.clone());
         } else if sc.engine.layer(&it).is_some() {
             ids.push(it);
         } else {
-            let path = sc.resolve_path(&it).ok_or_else(|| format!("'{it}' is neither a loaded layer nor a file"))?;
+            let path = sc
+                .resolve_path(&it)
+                .ok_or_else(|| format!("'{it}' is neither a loaded layer nor a file"))?;
             let new = sc.engine.register_layers(catalog::load_layers(&path)?);
-            why.push(format!("opened {} ({} layer{})", path.display(), new.len(), if new.len() == 1 { "" } else { "s" }));
+            why.push(format!(
+                "opened {} ({} layer{})",
+                path.display(),
+                new.len(),
+                if new.len() == 1 { "" } else { "s" }
+            ));
             ids.extend(new);
         }
     }
@@ -1237,11 +2253,22 @@ fn io_open(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         }
     }
     if why.is_empty() {
-        why.push(format!("{} layer{} ({} features)", ids.len(), if ids.len() == 1 { "" } else { "s" }, cartography::fmt_num(total as f64)));
+        why.push(format!(
+            "{} layer{} ({} features)",
+            ids.len(),
+            if ids.len() == 1 { "" } else { "s" },
+            cartography::fmt_num(total as f64)
+        ));
     }
     let first = ids.first().cloned();
-    let kind = first.as_ref().and_then(|id| sc.engine.layer(id)).map(|l| format!("{:?}", l.info.geometry).to_lowercase());
-    Ok(StepOut { outputs: json!({ "layers": ids, "layer": first, "features": total, "kind": kind, "bounds": bounds }), why })
+    let kind = first
+        .as_ref()
+        .and_then(|id| sc.engine.layer(id))
+        .map(|l| format!("{:?}", l.info.geometry).to_lowercase());
+    Ok(StepOut {
+        outputs: json!({ "layers": ids, "layer": first, "features": total, "kind": kind, "bounds": bounds }),
+        why,
+    })
 }
 
 // ------------------------------------------------------------------ analysis
@@ -1249,7 +2276,10 @@ fn io_open(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
 fn vector_sql(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     use gdal::vector::LayerAccess;
     let l = sc.layer(p_str(p, "layer").ok_or("layer is required")?)?;
-    let sql = p_str(p, "sql").ok_or("sql is required")?.replace("@input", &format!("\"{}\"", l.layer_name.replace('"', "\"\"")));
+    let sql = p_str(p, "sql").ok_or("sql is required")?.replace(
+        "@input",
+        &format!("\"{}\"", l.layer_name.replace('"', "\"\"")),
+    );
     let name = sanitize(p_str(p, "name").unwrap_or(&sc.step_id));
     let ds = catalog::open_vector(&l.path)?;
     let mut rs = ds
@@ -1267,14 +2297,25 @@ fn vector_sql(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                     Ok(Some(gdal::vector::FieldValue::IntegerValue(x))) => json!(x),
                     Ok(Some(gdal::vector::FieldValue::Integer64Value(x))) => json!(x),
                     Ok(Some(gdal::vector::FieldValue::RealValue(x))) => json!(x),
-                    _ => f.field_as_string(i).ok().flatten().map(Value::from).unwrap_or(Value::Null),
+                    _ => f
+                        .field_as_string(i)
+                        .ok()
+                        .flatten()
+                        .map(Value::from)
+                        .unwrap_or(Value::Null),
                 };
                 m.insert(c.clone(), v);
             }
             rows.push(Value::Object(m));
         }
         let first = rows.first().map(|r| r.to_string()).unwrap_or_default();
-        return Ok(StepOut { outputs: json!({ "rows": rows, "columns": cols, "count": rows.len() }), why: vec![format!("{} row(s) without geometry; first: {first}", rows.len())] });
+        return Ok(StepOut {
+            outputs: json!({ "rows": rows, "columns": cols, "count": rows.len() }),
+            why: vec![format!(
+                "{} row(s) without geometry; first: {first}",
+                rows.len()
+            )],
+        });
     }
     let dir = sc.outputs_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -1286,9 +2327,19 @@ fn vector_sql(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         let out = drv.create_vector_only(&tmp).map_err(|e| e.to_string())?;
         let cname = std::ffi::CString::new(name.clone()).map_err(|e| e.to_string())?;
         // SAFETY: both handles are valid for the duration of the call; GDAL copies the layer.
-        let copied = unsafe { gdal_sys::GDALDatasetCopyLayer(out.c_dataset(), rs.c_layer(), cname.as_ptr(), std::ptr::null_mut()) };
+        let copied = unsafe {
+            gdal_sys::GDALDatasetCopyLayer(
+                out.c_dataset(),
+                rs.c_layer(),
+                cname.as_ptr(),
+                std::ptr::null_mut(),
+            )
+        };
         if copied.is_null() {
-            return Err(format!("could not write the SQL result: {}", gdal_last_error()));
+            return Err(format!(
+                "could not write the SQL result: {}",
+                gdal_last_error()
+            ));
         }
     }
     drop(rs);
@@ -1303,14 +2354,28 @@ fn vector_sql(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     sc.engine.register_layers(handles);
     sc.touch(&id);
     sc.names.insert(id.clone(), humanize(&name));
-    sc.methods.push(format!("'{}' was derived from {} with SQL: {}", humanize(&name), l.info.id, sql.split_whitespace().collect::<Vec<_>>().join(" ")));
-    Ok(StepOut { outputs: json!({ "layer": id, "features": count }), why: vec![format!("{count} features from SQL on {}", l.info.id)] })
+    sc.methods.push(format!(
+        "'{}' was derived from {} with SQL: {}",
+        humanize(&name),
+        l.info.id,
+        sql.split_whitespace().collect::<Vec<_>>().join(" ")
+    ));
+    Ok(StepOut {
+        outputs: json!({ "layer": id, "features": count }),
+        why: vec![format!("{count} features from SQL on {}", l.info.id)],
+    })
 }
 
 pub(super) fn gdal_last_error() -> String {
     // SAFETY: CPLGetLastErrorMsg returns a pointer to a thread-local, NUL-terminated buffer.
     let p = unsafe { gdal_sys::CPLGetLastErrorMsg() };
-    if p.is_null() { String::new() } else { unsafe { std::ffi::CStr::from_ptr(p) }.to_string_lossy().into_owned() }
+    if p.is_null() {
+        String::new()
+    } else {
+        unsafe { std::ffi::CStr::from_ptr(p) }
+            .to_string_lossy()
+            .into_owned()
+    }
 }
 
 fn vector_buffer(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
@@ -1320,12 +2385,16 @@ fn vector_buffer(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let l = sc.layer(p_str(p, "layer").ok_or("layer is required")?)?;
     let dist = p_f64(p, "distance").ok_or("distance (metres) is required")?;
     if !(dist > 0.0 && dist <= 500_000.0) {
-        return Err(format!("distance must be between 0 and 500 km (got {dist})"));
+        return Err(format!(
+            "distance must be between 0 and 500 km (got {dist})"
+        ));
     }
     let dissolve = p_bool(p, "dissolve", false);
     let name = p_str(p, "name").unwrap_or(&sc.step_id).to_string();
     let fs = features::read_layer(sc.engine, &l, None, None, 200_000)?;
-    let b = fs.bounds().ok_or_else(|| format!("{} has no features to buffer", l.info.id))?;
+    let b = fs
+        .bounds()
+        .ok_or_else(|| format!("{} has no features to buffer", l.info.id))?;
     let epsg = features::utm_epsg((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0);
     let mut wgs = SpatialRef::from_epsg(4326).map_err(e)?;
     wgs.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
@@ -1342,8 +2411,15 @@ fn vector_buffer(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         if sc.cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return Err("cancelled".into());
         }
-        let Some(w) = features::to_wkb(&f.geom, false) else { continue };
-        let g = Geometry::from_wkb(&w).map_err(e)?.transform(&fwd).map_err(e)?.buffer(dist, 8).map_err(e)?;
+        let Some(w) = features::to_wkb(&f.geom, false) else {
+            continue;
+        };
+        let g = Geometry::from_wkb(&w)
+            .map_err(e)?
+            .transform(&fwd)
+            .map_err(e)?
+            .buffer(dist, 8)
+            .map_err(e)?;
         if dissolve {
             if let Ok(Geom::Polygons(ps)) = crate::wkb::parse(&g.wkb().map_err(e)?) {
                 all_polys.extend(ps);
@@ -1361,18 +2437,31 @@ fn vector_buffer(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     if dissolve && !all_polys.is_empty() {
         // buffer(0) of the multipolygon dissolves overlaps in one GEOS pass
         let w = features::to_wkb(&Geom::Polygons(all_polys), false).ok_or("empty buffer")?;
-        let merged = Geometry::from_wkb(&w).map_err(e)?.buffer(0.0, 8).map_err(e)?;
+        let merged = Geometry::from_wkb(&w)
+            .map_err(e)?
+            .buffer(0.0, 8)
+            .map_err(e)?;
         total_area = merged.area();
         let back = merged.transform(&inv).map_err(e)?;
         let geom = crate::wkb::parse(&back.wkb().map_err(e)?).map_err(|x| x.to_string())?;
-        out.feats.push(Feat { geom, props: vec![Val::Num((total_area * 10.0).round() / 10.0)] });
+        out.feats.push(Feat {
+            geom,
+            props: vec![Val::Num((total_area * 10.0).round() / 10.0)],
+        });
     }
     let n = fs.feats.len();
     let id = sc.write_output(&name, &out, humanize(&name))?;
     let zone = epsg % 100;
     let hemi = if epsg >= 32700 { 'S' } else { 'N' };
-    let area_text = if total_area >= 1e6 { format!("{:.2} km²", total_area / 1e6) } else { format!("{:.2} ha", total_area / 1e4) };
-    sc.cards.push((area_text.clone(), format!("{} area", humanize(&name).to_lowercase())));
+    let area_text = if total_area >= 1e6 {
+        format!("{:.2} km²", total_area / 1e6)
+    } else {
+        format!("{:.2} ha", total_area / 1e4)
+    };
+    sc.cards.push((
+        area_text.clone(),
+        format!("{} area", humanize(&name).to_lowercase()),
+    ));
     sc.methods.push(format!(
         "{} = {} buffered by {} m{}, computed in WGS 84 / UTM zone {zone}{hemi} (EPSG:{epsg}, chosen from the data's location); area {area_text}.",
         humanize(&name),
@@ -1382,7 +2471,11 @@ fn vector_buffer(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     ));
     Ok(StepOut {
         outputs: json!({ "layer": id, "features": out.feats.len(), "area_m2": total_area.round(), "area_ha": (total_area / 100.0).round() / 100.0, "epsg": epsg, "distance": dist }),
-        why: vec![format!("{n} features buffered by {} m in UTM {zone}{hemi} (EPSG:{epsg}){}; area {area_text}", cartography::fmt_num(dist), if dissolve { ", dissolved" } else { "" })],
+        why: vec![format!(
+            "{n} features buffered by {} m in UTM {zone}{hemi} (EPSG:{epsg}){}; area {area_text}",
+            cartography::fmt_num(dist),
+            if dissolve { ", dissolved" } else { "" }
+        )],
     })
 }
 
@@ -1403,25 +2496,41 @@ const SQRT3: f64 = 1.732_050_807_568_877_2;
 
 /// Pointy-top hexagon (axial q, r) containing the point.
 pub fn hex_of(p: [f64; 2], size: f64) -> (i64, i64) {
-    hex_round((SQRT3 / 3.0 * p[0] - p[1] / 3.0) / size, (2.0 / 3.0 * p[1]) / size)
+    hex_round(
+        (SQRT3 / 3.0 * p[0] - p[1] / 3.0) / size,
+        (2.0 / 3.0 * p[1]) / size,
+    )
 }
 
 pub fn hex_center(q: i64, r: i64, size: f64) -> [f64; 2] {
-    [size * SQRT3 * (q as f64 + r as f64 / 2.0), size * 1.5 * r as f64]
+    [
+        size * SQRT3 * (q as f64 + r as f64 / 2.0),
+        size * 1.5 * r as f64,
+    ]
 }
 
 fn hexbin(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let spec = p_str(p, "layer").unwrap_or("auto");
-    let l = if spec == "auto" { auto_layer(sc, Some(GeomKind::Point), "largest")? } else { sc.layer(spec)? };
+    let l = if spec == "auto" {
+        auto_layer(sc, Some(GeomKind::Point), "largest")?
+    } else {
+        sc.layer(spec)?
+    };
     let field = p_str(p, "field").filter(|f| *f != "none");
     let fi = match field {
-        Some(f) => Some(l.field_index(f).ok_or_else(|| format!("{} has no field '{f}'", l.info.id))?),
+        Some(f) => Some(
+            l.field_index(f)
+                .ok_or_else(|| format!("{} has no field '{f}'", l.info.id))?,
+        ),
         None => None,
     };
-    let stat = p_str(p, "stat").unwrap_or(if fi.is_some() { "mean" } else { "count" }).to_string();
+    let stat = p_str(p, "stat")
+        .unwrap_or(if fi.is_some() { "mean" } else { "count" })
+        .to_string();
     let name = p_str(p, "name").unwrap_or(&sc.step_id).to_string();
     let idx: Vec<usize> = fi.into_iter().collect();
-    let mut pts: Vec<([f64; 2], Option<f64>)> = Vec::with_capacity(l.info.feature_count.min(5_000_000) as usize);
+    let mut pts: Vec<([f64; 2], Option<f64>)> =
+        Vec::with_capacity(l.info.feature_count.min(5_000_000) as usize);
     let cancel = sc.cancel;
     features::scan_layer(sc.engine, &l, None, &idx, &mut |g, props| {
         if let Some(c) = features::anchor(g) {
@@ -1434,7 +2543,12 @@ fn hexbin(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     }
     let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
     for (c, _) in &pts {
-        b = [b[0].min(c[0]), b[1].min(c[1]), b[2].max(c[0]), b[3].max(c[1])];
+        b = [
+            b[0].min(c[0]),
+            b[1].min(c[1]),
+            b[2].max(c[0]),
+            b[3].max(c[1]),
+        ];
     }
     let proj = LocalProj::for_bounds(b);
     let (lo, hi) = (proj.fwd([b[0], b[1]]), proj.fwd([b[2], b[3]]));
@@ -1445,7 +2559,9 @@ fn hexbin(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     };
     let mut bins: HashMap<(i64, i64), (u64, f64, u64)> = HashMap::new();
     for (c, v) in &pts {
-        let e = bins.entry(hex_of(proj.fwd(*c), size)).or_insert((0, 0.0, 0));
+        let e = bins
+            .entry(hex_of(proj.fwd(*c), size))
+            .or_insert((0, 0.0, 0));
         e.0 += 1;
         if let Some(v) = v {
             e.1 += v;
@@ -1453,7 +2569,8 @@ fn hexbin(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         }
     }
     let area_km2 = 3.0 * SQRT3 / 2.0 * size * size / 1e6;
-    let mut fields: Vec<(String, &'static str)> = vec![("count".into(), "integer"), ("density_km2".into(), "real")];
+    let mut fields: Vec<(String, &'static str)> =
+        vec![("count".into(), "integer"), ("density_km2".into(), "real")];
     if let Some(f) = field {
         fields.push((format!("{f}_{stat}"), "real"));
     }
@@ -1471,16 +2588,42 @@ fn hexbin(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                 proj.inv([c[0] + size * a.cos(), c[1] + size * a.sin()])
             })
             .collect();
-        let mut props = vec![Val::Int(count as i64), Val::Num(((count as f64 / area_km2) * 100.0).round() / 100.0)];
+        let mut props = vec![
+            Val::Int(count as i64),
+            Val::Num(((count as f64 / area_km2) * 100.0).round() / 100.0),
+        ];
         if field.is_some() {
-            props.push(if valid == 0 { Val::Null } else if stat == "sum" { Val::Num(sum) } else { Val::Num(sum / valid as f64) });
+            props.push(if valid == 0 {
+                Val::Null
+            } else if stat == "sum" {
+                Val::Num(sum)
+            } else {
+                Val::Num(sum / valid as f64)
+            });
         }
-        out.feats.push(Feat { geom: Geom::Polygons(vec![vec![ring]]), props });
+        out.feats.push(Feat {
+            geom: Geom::Polygons(vec![vec![ring]]),
+            props,
+        });
     }
     let across = features::fmt_distance(size * SQRT3);
-    let id = sc.write_output(&name, &out, format!("{} per hexagon", if field.is_some() { humanize(&stat) } else { "Points".to_string() }))?;
+    let id = sc.write_output(
+        &name,
+        &out,
+        format!(
+            "{} per hexagon",
+            if field.is_some() {
+                humanize(&stat)
+            } else {
+                "Points".to_string()
+            }
+        ),
+    )?;
     sc.hints.insert(id.clone(), json!({ "outline": true, "opacity": 0.85, "why": "hexagons keep a thin white outline so cells read individually" }));
-    sc.cards.push((cartography::fmt_num(pts.len() as f64), format!("points binned from {}", l.info.id)));
+    sc.cards.push((
+        cartography::fmt_num(pts.len() as f64),
+        format!("points binned from {}", l.info.id),
+    ));
     sc.methods.push(format!(
         "{} points from {} were aggregated into {} hexagons {across} across{}; each hexagon holds the {} of the points inside it.",
         cartography::fmt_num(pts.len() as f64),
@@ -1491,11 +2634,21 @@ fn hexbin(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     ));
     Ok(StepOut {
         outputs: json!({ "layer": id, "cells": out.feats.len(), "size_m": size, "max_count": max_count, "points": pts.len(), "source": l.info.id }),
-        why: vec![format!("{} points → {} hexagons {across} across{}; busiest holds {max_count}", cartography::fmt_num(pts.len() as f64), out.feats.len(), if auto { " (auto-sized)" } else { "" })],
+        why: vec![format!(
+            "{} points → {} hexagons {across} across{}; busiest holds {max_count}",
+            cartography::fmt_num(pts.len() as f64),
+            out.feats.len(),
+            if auto { " (auto-sized)" } else { "" }
+        )],
     })
 }
 
-pub(super) fn idw_at(x: [f64; 2], samples: &[([f64; 2], f64)], power: f64, skip: Option<usize>) -> f64 {
+pub(super) fn idw_at(
+    x: [f64; 2],
+    samples: &[([f64; 2], f64)],
+    power: f64,
+    skip: Option<usize>,
+) -> f64 {
     let (mut num, mut den) = (0.0, 0.0);
     for (j, (c, v)) in samples.iter().enumerate() {
         if Some(j) == skip {
@@ -1525,17 +2678,27 @@ pub fn idw_cv(samples: &[([f64; 2], f64)], power: f64) -> (f64, f64) {
             n += 1.0;
         }
     }
-    if n == 0.0 { (f64::NAN, f64::NAN) } else { ((se / n).sqrt(), ae / n) }
+    if n == 0.0 {
+        (f64::NAN, f64::NAN)
+    } else {
+        ((se / n).sqrt(), ae / n)
+    }
 }
 
 /// Andrew's monotone chain convex hull (counter-clockwise).
 pub fn convex_hull(mut pts: Vec<[f64; 2]>) -> Vec<[f64; 2]> {
-    pts.sort_by(|a, b| a[0].partial_cmp(&b[0]).unwrap().then(a[1].partial_cmp(&b[1]).unwrap()));
+    pts.sort_by(|a, b| {
+        a[0].partial_cmp(&b[0])
+            .unwrap()
+            .then(a[1].partial_cmp(&b[1]).unwrap())
+    });
     pts.dedup();
     if pts.len() < 3 {
         return pts;
     }
-    let cross = |o: [f64; 2], a: [f64; 2], b: [f64; 2]| (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    let cross = |o: [f64; 2], a: [f64; 2], b: [f64; 2]| {
+        (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    };
     let mut lower: Vec<[f64; 2]> = Vec::new();
     for p in &pts {
         while lower.len() >= 2 && cross(lower[lower.len() - 2], lower[lower.len() - 1], *p) <= 0.0 {
@@ -1562,7 +2725,9 @@ pub fn point_in_ring(p: [f64; 2], ring: &[[f64; 2]]) -> bool {
     let mut j = n.wrapping_sub(1);
     for i in 0..n {
         let (a, b) = (ring[i], ring[j]);
-        if (a[1] > p[1]) != (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0] {
+        if (a[1] > p[1]) != (b[1] > p[1])
+            && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]
+        {
             inside = !inside;
         }
         j = i;
@@ -1572,9 +2737,17 @@ pub fn point_in_ring(p: [f64; 2], ring: &[[f64; 2]]) -> bool {
 
 fn idw(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let spec = p_str(p, "layer").unwrap_or("auto");
-    let l = if spec == "auto" { auto_layer(sc, Some(GeomKind::Point), "samples")? } else { sc.layer(spec)? };
+    let l = if spec == "auto" {
+        auto_layer(sc, Some(GeomKind::Point), "samples")?
+    } else {
+        sc.layer(spec)?
+    };
     if l.info.geometry != GeomKind::Point {
-        return Err(format!("IDW needs point samples; {} is a {:?} layer", l.info.id, l.info.geometry).to_lowercase());
+        return Err(format!(
+            "IDW needs point samples; {} is a {:?} layer",
+            l.info.id, l.info.geometry
+        )
+        .to_lowercase());
     }
     let field = match p_str(p, "field").filter(|f| *f != "auto") {
         Some(f) => f.to_string(),
@@ -1582,23 +2755,43 @@ fn idw(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             let st = automap::style_layer(sc.engine, &l, None, None);
             match st.style["symbology"]["kind"].as_str() {
                 Some("graduated") => st.field.unwrap_or_default(),
-                _ => l.info.fields.iter().find(|f| matches!(f.kind, "integer" | "real") && !automap::is_id_like(&f.name)).map(|f| f.name.clone()).ok_or_else(|| format!("{} has no numeric field to interpolate", l.info.id))?,
+                _ => l
+                    .info
+                    .fields
+                    .iter()
+                    .find(|f| matches!(f.kind, "integer" | "real") && !automap::is_id_like(&f.name))
+                    .map(|f| f.name.clone())
+                    .ok_or_else(|| format!("{} has no numeric field to interpolate", l.info.id))?,
             }
         }
     };
-    let fi = l.field_index(&field).ok_or_else(|| format!("{} has no field '{field}'", l.info.id))?;
+    let fi = l
+        .field_index(&field)
+        .ok_or_else(|| format!("{} has no field '{field}'", l.info.id))?;
     if !matches!(l.info.fields[fi].kind, "integer" | "real") {
         return Err(format!("'{field}' is not numeric"));
     }
     let name = p_str(p, "name").unwrap_or(&sc.step_id).to_string();
     let fs = features::read_layer(sc.engine, &l, None, Some(&[fi]), 20_000)?;
-    let raw: Vec<([f64; 2], f64)> = fs.feats.iter().filter_map(|f| Some((features::anchor(&f.geom)?, f.props.first()?.as_f64()?))).collect();
+    let raw: Vec<([f64; 2], f64)> = fs
+        .feats
+        .iter()
+        .filter_map(|f| Some((features::anchor(&f.geom)?, f.props.first()?.as_f64()?)))
+        .collect();
     if raw.len() < 3 {
-        return Err(format!("need at least 3 samples with a value of '{field}' (found {})", raw.len()));
+        return Err(format!(
+            "need at least 3 samples with a value of '{field}' (found {})",
+            raw.len()
+        ));
     }
     let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
     for (c, _) in &raw {
-        b = [b[0].min(c[0]), b[1].min(c[1]), b[2].max(c[0]), b[3].max(c[1])];
+        b = [
+            b[0].min(c[0]),
+            b[1].min(c[1]),
+            b[2].max(c[0]),
+            b[3].max(c[1]),
+        ];
     }
     let proj = LocalProj::for_bounds(b);
     let samples: Vec<([f64; 2], f64)> = raw.iter().map(|(c, v)| (proj.fwd(*c), *v)).collect();
@@ -1606,23 +2799,61 @@ fn idw(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         Some(x) if x > 0.0 => vec![x],
         _ => vec![1.0, 1.5, 2.0, 3.0],
     };
-    let cv: Vec<(f64, f64, f64)> = powers.iter().map(|&pw| {
-        let (rmse, mae) = idw_cv(&samples, pw);
-        (pw, rmse, mae)
-    }).collect();
-    let &(power, rmse, mae) = cv.iter().filter(|c| c.1.is_finite()).min_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).ok_or("cross-validation failed")?;
+    let cv: Vec<(f64, f64, f64)> = powers
+        .iter()
+        .map(|&pw| {
+            let (rmse, mae) = idw_cv(&samples, pw);
+            (pw, rmse, mae)
+        })
+        .collect();
+    let &(power, rmse, mae) = cv
+        .iter()
+        .filter(|c| c.1.is_finite())
+        .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+        .ok_or("cross-validation failed")?;
     // grid over the samples (+5 %), clipped to their convex hull
     let (lo, hi) = (proj.fwd([b[0], b[1]]), proj.fwd([b[2], b[3]]));
     let (w, h) = ((hi[0] - lo[0]).max(1.0), (hi[1] - lo[1]).max(1.0));
-    let cols = p_f64(p, "cells").map(|c| c.clamp(10.0, 300.0) as usize).unwrap_or(60);
+    let cols = p_f64(p, "cells")
+        .map(|c| c.clamp(10.0, 300.0) as usize)
+        .unwrap_or(60);
     let cell = w.max(h) * 1.1 / cols as f64;
-    let (nx, ny) = (((w * 1.1) / cell).ceil() as usize, ((h * 1.1) / cell).ceil() as usize);
-    let (x0, y0) = ((lo[0] + hi[0]) / 2.0 - nx as f64 * cell / 2.0, (lo[1] + hi[1]) / 2.0 - ny as f64 * cell / 2.0);
+    let (nx, ny) = (
+        ((w * 1.1) / cell).ceil() as usize,
+        ((h * 1.1) / cell).ceil() as usize,
+    );
+    let (x0, y0) = (
+        (lo[0] + hi[0]) / 2.0 - nx as f64 * cell / 2.0,
+        (lo[1] + hi[1]) / 2.0 - ny as f64 * cell / 2.0,
+    );
     let hull = convex_hull(samples.iter().map(|s| s.0).collect());
-    let hc = hull.iter().fold([0.0, 0.0], |a, p| [a[0] + p[0] / hull.len() as f64, a[1] + p[1] / hull.len() as f64]);
-    let hull_grown: Vec<[f64; 2]> = hull.iter().map(|p| [hc[0] + (p[0] - hc[0]) * 1.06 + (p[0] - hc[0]).signum() * cell / 2.0, hc[1] + (p[1] - hc[1]) * 1.06 + (p[1] - hc[1]).signum() * cell / 2.0]).collect();
-    let value_field = { let f = sanitize(&field).replace(['.', '-'], "_"); if f == "nearest_m" { "value".to_string() } else { f } };
-    let mut out = FeatureSet::new(GeomKind::Polygon, vec![(value_field.clone(), "real"), ("nearest_m".into(), "real")]);
+    let hc = hull.iter().fold([0.0, 0.0], |a, p| {
+        [
+            a[0] + p[0] / hull.len() as f64,
+            a[1] + p[1] / hull.len() as f64,
+        ]
+    });
+    let hull_grown: Vec<[f64; 2]> = hull
+        .iter()
+        .map(|p| {
+            [
+                hc[0] + (p[0] - hc[0]) * 1.06 + (p[0] - hc[0]).signum() * cell / 2.0,
+                hc[1] + (p[1] - hc[1]) * 1.06 + (p[1] - hc[1]).signum() * cell / 2.0,
+            ]
+        })
+        .collect();
+    let value_field = {
+        let f = sanitize(&field).replace(['.', '-'], "_");
+        if f == "nearest_m" {
+            "value".to_string()
+        } else {
+            f
+        }
+    };
+    let mut out = FeatureSet::new(
+        GeomKind::Polygon,
+        vec![(value_field.clone(), "real"), ("nearest_m".into(), "real")],
+    );
     for iy in 0..ny {
         if sc.cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return Err("cancelled".into());
@@ -1633,16 +2864,46 @@ fn idw(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                 continue;
             }
             let v = idw_at([cx, cy], &samples, power, None);
-            let nearest = samples.iter().map(|s| ((s.0[0] - cx).powi(2) + (s.0[1] - cy).powi(2)).sqrt()).fold(f64::MAX, f64::min);
-            let (ax, ay, bx, by) = (cx - cell / 2.0, cy - cell / 2.0, cx + cell / 2.0, cy + cell / 2.0);
-            let ring = vec![proj.inv([ax, ay]), proj.inv([bx, ay]), proj.inv([bx, by]), proj.inv([ax, by]), proj.inv([ax, ay])];
-            out.feats.push(Feat { geom: Geom::Polygons(vec![vec![ring]]), props: vec![Val::Num((v * 1e4).round() / 1e4), Val::Num(nearest.round())] });
+            let nearest = samples
+                .iter()
+                .map(|s| ((s.0[0] - cx).powi(2) + (s.0[1] - cy).powi(2)).sqrt())
+                .fold(f64::MAX, f64::min);
+            let (ax, ay, bx, by) = (
+                cx - cell / 2.0,
+                cy - cell / 2.0,
+                cx + cell / 2.0,
+                cy + cell / 2.0,
+            );
+            let ring = vec![
+                proj.inv([ax, ay]),
+                proj.inv([bx, ay]),
+                proj.inv([bx, by]),
+                proj.inv([ax, by]),
+                proj.inv([ax, ay]),
+            ];
+            out.feats.push(Feat {
+                geom: Geom::Polygons(vec![vec![ring]]),
+                props: vec![Val::Num((v * 1e4).round() / 1e4), Val::Num(nearest.round())],
+            });
         }
     }
     let id = sc.write_output(&name, &out, format!("{field} (IDW surface)"))?;
     sc.hints.insert(id.clone(), json!({ "outline": false, "opacity": 0.9, "why": "no cell outlines, so the surface reads as continuous" }));
-    let others: Vec<String> = cv.iter().filter(|c| c.0 != power).map(|c| format!("{} → {}", cartography::fmt_num(c.0), cartography::fmt_num(c.1))).collect();
-    sc.cards.push((cartography::fmt_num(rmse), format!("cross-validated RMSE of {field}")));
+    let others: Vec<String> = cv
+        .iter()
+        .filter(|c| c.0 != power)
+        .map(|c| {
+            format!(
+                "{} → {}",
+                cartography::fmt_num(c.0),
+                cartography::fmt_num(c.1)
+            )
+        })
+        .collect();
+    sc.cards.push((
+        cartography::fmt_num(rmse),
+        format!("cross-validated RMSE of {field}"),
+    ));
     sc.methods.push(format!(
         "A continuous surface of '{field}' was interpolated from {} samples by inverse distance weighting on {}-m cells, limited to the samples' convex hull. The power was chosen by leave-one-out cross-validation among {}: power {} gave the lowest error (RMSE {}, MAE {}).",
         samples.len(),
@@ -1665,7 +2926,11 @@ fn idw(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             cartography::fmt_num(cell),
             cartography::fmt_num(power),
             cartography::fmt_num(rmse),
-            if others.is_empty() { String::new() } else { format!("; others: {}", others.join(", ")) }
+            if others.is_empty() {
+                String::new()
+            } else {
+                format!("; others: {}", others.join(", "))
+            }
         )],
     })
 }
@@ -1677,7 +2942,10 @@ fn idw(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
 pub fn project_upsert(engine: &Engine, items: &[(String, Value)]) -> Result<(), String> {
     let _g = engine.project_lock.lock().unwrap();
     let path = engine.state_dir.join("project.json");
-    let mut proj: Value = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null);
+    let mut proj: Value = std::fs::read(&path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or(Value::Null);
     if !proj.is_object() {
         proj = json!({ "version": 1, "order": [], "layers": {} });
     }
@@ -1687,12 +2955,28 @@ pub fn project_upsert(engine: &Engine, items: &[(String, Value)]) -> Result<(), 
     if !proj["order"].is_array() {
         proj["order"] = json!([]);
     }
-    let kind_rank = |id: &str| engine.layer(id).map(|l| if l.info.id == "natural_earth.countries" { 0 } else { rank(l.info.geometry) + 1 }).unwrap_or(9);
+    let kind_rank = |id: &str| {
+        engine
+            .layer(id)
+            .map(|l| {
+                if l.info.id == "natural_earth.countries" {
+                    0
+                } else {
+                    rank(l.info.geometry) + 1
+                }
+            })
+            .unwrap_or(9)
+    };
     {
         let order = proj["order"].as_array_mut().unwrap();
         if order.is_empty() {
             // first save: same default order as the web UI (land, polygons, lines, points)
-            let mut all: Vec<(u8, usize, String)> = engine.layers().iter().enumerate().map(|(i, l)| (kind_rank(&l.info.id), i, l.info.id.clone())).collect();
+            let mut all: Vec<(u8, usize, String)> = engine
+                .layers()
+                .iter()
+                .enumerate()
+                .map(|(i, l)| (kind_rank(&l.info.id), i, l.info.id.clone()))
+                .collect();
             all.sort();
             order.extend(all.into_iter().map(|(_, _, id)| Value::from(id)));
         }
@@ -1702,13 +2986,18 @@ pub fn project_upsert(engine: &Engine, items: &[(String, Value)]) -> Result<(), 
         let order = proj["order"].as_array_mut().unwrap();
         if !order.iter().any(|x| x.as_str() == Some(id)) {
             let r = kind_rank(id);
-            let pos = order.iter().rposition(|x| x.as_str().is_some_and(|s| kind_rank(s) <= r)).map(|i| i + 1).unwrap_or(0);
+            let pos = order
+                .iter()
+                .rposition(|x| x.as_str().is_some_and(|s| kind_rank(s) <= r))
+                .map(|i| i + 1)
+                .unwrap_or(0);
             order.insert(pos, Value::from(id.clone()));
         }
     }
     std::fs::create_dir_all(&engine.state_dir).map_err(|e| e.to_string())?;
     let tmp = path.with_extension("json.part");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(&proj).unwrap_or_default()).map_err(|e| e.to_string())?;
+    std::fs::write(&tmp, serde_json::to_vec_pretty(&proj).unwrap_or_default())
+        .map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
@@ -1733,7 +3022,10 @@ fn automap_style(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         let l = sc.layer(id)?;
         let hint = match p.get("field") {
             Some(Value::String(s)) => Some(s.clone()),
-            Some(Value::Object(m)) => m.iter().find(|(k, _)| *k == id || id.ends_with(&format!(".{k}"))).and_then(|(_, v)| v.as_str().map(str::to_string)),
+            Some(Value::Object(m)) => m
+                .iter()
+                .find(|(k, _)| *k == id || id.ends_with(&format!(".{k}")))
+                .and_then(|(_, v)| v.as_str().map(str::to_string)),
             _ => None,
         };
         let mut st = automap::style_layer(sc.engine, &l, None, hint.as_deref());
@@ -1742,7 +3034,11 @@ fn automap_style(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             if let Some(sym) = h.get("symbology").filter(|_| hint.is_none()) {
                 st.style["symbology"] = sym.clone();
                 st.field = sym["field"].as_str().map(str::to_string);
-                st.why = h.get("why").and_then(Value::as_str).unwrap_or("symbology set by the step that made the layer").to_string();
+                st.why = h
+                    .get("why")
+                    .and_then(Value::as_str)
+                    .unwrap_or("symbology set by the step that made the layer")
+                    .to_string();
                 st.confidence = 1.0;
             }
             for k in ["outline", "opacity"] {
@@ -1751,22 +3047,35 @@ fn automap_style(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                 }
             }
             if let Some(c) = h.get("color") {
-                if st.style["symbology"]["kind"] == "single" || h.get("field").and_then(Value::as_str) == Some("none") {
+                if st.style["symbology"]["kind"] == "single"
+                    || h.get("field").and_then(Value::as_str) == Some("none")
+                {
                     st.style["symbology"] = json!({ "kind": "single", "color": c });
                 }
             }
             if let Some(w) = h.get("width") {
                 st.style["width"] = w.clone();
             }
-            if let Some(w) = h.get("why").and_then(Value::as_str).filter(|_| h.get("symbology").is_none() || hint.is_some()) {
+            if let Some(w) = h
+                .get("why")
+                .and_then(Value::as_str)
+                .filter(|_| h.get("symbology").is_none() || hint.is_some())
+            {
                 st.why.push_str(&format!("; {w}"));
             }
         }
         // a colour the step chose on purpose (contours brown, buildings grey) is kept as is
         let fixed_color = sc.hints.get(id).is_some_and(|h| h.get("color").is_some());
-        if st.style["symbology"]["kind"] == "single" && automap::device_role(id).is_none() && !fixed_color {
+        if st.style["symbology"]["kind"] == "single"
+            && automap::device_role(id).is_none()
+            && !fixed_color
+        {
             let thematic_below = sc.styles.iter().any(|(oid, (os, _, _))| {
-                os["symbology"]["kind"] != "single" && sc.engine.layer(oid).is_some_and(|o| o.info.geometry == GeomKind::Polygon)
+                os["symbology"]["kind"] != "single"
+                    && sc
+                        .engine
+                        .layer(oid)
+                        .is_some_and(|o| o.info.geometry == GeomKind::Polygon)
             });
             let thematic_below = thematic_below || !sc.rasters.is_empty();
             if l.info.geometry == GeomKind::Point && thematic_below {
@@ -1777,55 +3086,94 @@ fn automap_style(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                     .styles
                     .values()
                     .filter_map(|(os, _, _)| os["symbology"]["color"].as_str().map(str::to_string))
-                    .chain(sc.touched.iter().filter_map(|t| automap::device_color(t).map(str::to_string)))
+                    .chain(
+                        sc.touched
+                            .iter()
+                            .filter_map(|t| automap::device_color(t).map(str::to_string)),
+                    )
                     .collect();
-                let mine = st.style["symbology"]["color"].as_str().unwrap_or("").to_string();
+                let mine = st.style["symbology"]["color"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string();
                 if used.iter().any(|u| automap::similar(u, &mine)) {
                     st.style["symbology"]["color"] = json!(automap::distinct_color(&used));
-                    st.why.push_str("; colour kept distinct from the other layers on this map");
+                    st.why
+                        .push_str("; colour kept distinct from the other layers on this map");
                 }
             }
         }
         why.push(format!("{}: {}", sc.title_of(&l), st.why));
         styles.insert(id.clone(), json!({ "kind": st.style["symbology"]["kind"], "field": st.field, "why": st.why, "confidence": st.confidence, "style": st.style }));
         save.push((id.clone(), st.style.clone()));
-        sc.styles.insert(id.clone(), (st.style, st.label_field, st.why));
+        sc.styles
+            .insert(id.clone(), (st.style, st.label_field, st.why));
         sc.touch(id);
     }
     if p_bool(p, "save", true) {
         project_upsert(sc.engine, &save)?;
     }
     sc.methods.push("Colours, classes and symbols were chosen automatically from the data (AutoMap rules: field type, distribution shape and meaning; colour-blind-safe palettes). Each decision and its reason is listed below.".into());
-    Ok(StepOut { outputs: json!({ "layers": ids, "styles": styles }), why })
+    Ok(StepOut {
+        outputs: json!({ "layers": ids, "styles": styles }),
+        why,
+    })
 }
 
 fn style_apply(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
-    let styles = p.get("styles").and_then(Value::as_object).ok_or("styles: {layer id: style} is required")?;
+    let styles = p
+        .get("styles")
+        .and_then(Value::as_object)
+        .ok_or("styles: {layer id: style} is required")?;
     let mut save = Vec::new();
     for (id, st) in styles {
         let l = sc.layer(id)?;
         if st.get("symbology").and_then(|s| s.get("kind")).is_none() {
             return Err(format!("style for {id} has no symbology"));
         }
-        sc.styles.insert(id.clone(), (st.clone(), automap::label_field(&l), "style saved with the recipe".into()));
+        sc.styles.insert(
+            id.clone(),
+            (
+                st.clone(),
+                automap::label_field(&l),
+                "style saved with the recipe".into(),
+            ),
+        );
         save.push((id.clone(), st.clone()));
         sc.touch(id);
     }
     if p_bool(p, "save", true) {
         project_upsert(sc.engine, &save)?;
     }
-    Ok(StepOut { outputs: json!({ "layers": styles.keys().collect::<Vec<_>>() }), why: vec![format!("{} saved style(s) applied", styles.len())] })
+    Ok(StepOut {
+        outputs: json!({ "layers": styles.keys().collect::<Vec<_>>() }),
+        why: vec![format!("{} saved style(s) applied", styles.len())],
+    })
 }
 
 fn overviews_build(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let l = sc.layer(p_str(p, "layer").ok_or("layer is required")?)?;
     let id = l.info.id.clone();
-    let Some(mz) = p_f64(p, "maxzoom").map(|z| z as u8).or_else(|| crate::overview::suggested_max_zoom(&l.info)) else {
-        return Ok(StepOut { outputs: json!({ "layer": id, "skipped": true }), why: vec![format!("{id} renders live at every zoom; no pyramid needed")] });
+    let Some(mz) = p_f64(p, "maxzoom")
+        .map(|z| z as u8)
+        .or_else(|| crate::overview::suggested_max_zoom(&l.info))
+    else {
+        return Ok(StepOut {
+            outputs: json!({ "layer": id, "skipped": true }),
+            why: vec![format!(
+                "{id} renders live at every zoom; no pyramid needed"
+            )],
+        });
     };
     let mz = mz.min(l.info.maxzoom.saturating_sub(1));
     if let Some(o) = l.overview().filter(|o| o.meta.max_zoom >= mz) {
-        return Ok(StepOut { outputs: json!({ "layer": id, "max_zoom": o.meta.max_zoom, "skipped": true }), why: vec![format!("{id} already has a fresh z0-{} pyramid", o.meta.max_zoom)] });
+        return Ok(StepOut {
+            outputs: json!({ "layer": id, "max_zoom": o.meta.max_zoom, "skipped": true }),
+            why: vec![format!(
+                "{id} already has a fresh z0-{} pyramid",
+                o.meta.max_zoom
+            )],
+        });
     }
     let out = crate::overview::path_for(&sc.engine.state_dir, &id);
     let r = crate::overview::build(sc.engine, &l, mz, &out, sc.cancel, &|_, _| {})?;
@@ -1835,25 +3183,44 @@ fn overviews_build(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     sc.methods.push(format!("An overview tile pyramid (z0-{}) was built for {id} so it draws instantly when zoomed out.", r.max_zoom));
     Ok(StepOut {
         outputs: json!({ "layer": id, "max_zoom": r.max_zoom, "tiles": r.tiles_written, "mb": (r.file_bytes as f64 / 1e4).round() / 100.0 }),
-        why: vec![format!("z0-{} → {} tiles, {:.1} MB in {:.1} s", r.max_zoom, r.tiles_written, r.file_bytes as f64 / 1e6, r.build_ms / 1000.0)],
+        why: vec![format!(
+            "z0-{} → {} tiles, {:.1} MB in {:.1} s",
+            r.max_zoom,
+            r.tiles_written,
+            r.file_bytes as f64 / 1e6,
+            r.build_ms / 1000.0
+        )],
     })
 }
 
 fn project_style(engine: &Engine, id: &str) -> Option<Value> {
     let _g = engine.project_lock.lock().unwrap();
-    let v: Value = serde_json::from_slice(&std::fs::read(engine.state_dir.join("project.json")).ok()?).ok()?;
-    v["layers"].get(id).filter(|s| s.get("symbology").is_some()).cloned()
+    let v: Value =
+        serde_json::from_slice(&std::fs::read(engine.state_dir.join("project.json")).ok()?).ok()?;
+    v["layers"]
+        .get(id)
+        .filter(|s| s.get("symbology").is_some())
+        .cloned()
 }
 
 /// Natural Earth 1:50m land and country borders (public domain), the same files as the app's offline
 /// basemap, compiled in so every exported map has a world underneath, also from the CLI.
 static BASEMAP: [(&str, &str, &[u8]); 2] = [
-    ("Land", "land", include_bytes!("../../../../web/public/basemap/land.geojson")),
-    ("Borders", "boundaries", include_bytes!("../../../../web/public/basemap/boundaries.geojson")),
+    (
+        "Land",
+        "land",
+        include_bytes!("../../../../web/public/basemap/land.geojson"),
+    ),
+    (
+        "Borders",
+        "boundaries",
+        include_bytes!("../../../../web/public/basemap/boundaries.geojson"),
+    ),
 ];
 
 fn bundled_context(engine: &Engine) -> Vec<(&'static str, std::sync::Arc<LayerHandle>)> {
-    static CACHE: std::sync::OnceLock<Vec<(&'static str, std::sync::Arc<LayerHandle>)>> = std::sync::OnceLock::new();
+    static CACHE: std::sync::OnceLock<Vec<(&'static str, std::sync::Arc<LayerHandle>)>> =
+        std::sync::OnceLock::new();
     CACHE
         .get_or_init(|| {
             let dir = engine.state_dir.join("basemap");
@@ -1862,7 +3229,10 @@ fn bundled_context(engine: &Engine) -> Vec<(&'static str, std::sync::Arc<LayerHa
                 .iter()
                 .filter_map(|(title, name, bytes)| {
                     let path = dir.join(format!("{name}.geojson"));
-                    if std::fs::metadata(&path).map(|m| m.len() != bytes.len() as u64).unwrap_or(true) {
+                    if std::fs::metadata(&path)
+                        .map(|m| m.len() != bytes.len() as u64)
+                        .unwrap_or(true)
+                    {
                         std::fs::write(&path, bytes).ok()?;
                     }
                     let h = catalog::load_layers(&path).ok()?.into_iter().next()?;
@@ -1875,22 +3245,32 @@ fn bundled_context(engine: &Engine) -> Vec<(&'static str, std::sync::Arc<LayerHa
 
 fn is_context_candidate(l: &LayerHandle) -> bool {
     let n = l.info.id.to_ascii_lowercase();
-    (l.info.geometry == GeomKind::Polygon && ["countries", "admin", "land", "boundar"].iter().any(|w| n.contains(w)))
+    (l.info.geometry == GeomKind::Polygon
+        && ["countries", "admin", "land", "boundar"]
+            .iter()
+            .any(|w| n.contains(w)))
         || (l.info.geometry == GeomKind::Line && ["road", "river"].iter().any(|w| n.contains(w)))
 }
 
 fn copy_to(sc: &StepCtx, p: &Value, files: &[String]) -> Result<Option<String>, String> {
-    let Some(to) = p_str(p, "to") else { return Ok(None) };
+    let Some(to) = p_str(p, "to") else {
+        return Ok(None);
+    };
     let dest = PathBuf::from(to);
     std::fs::create_dir_all(&dest).map_err(|e| format!("{}: {e}", dest.display()))?;
     for f in files {
-        std::fs::copy(sc.dir.join(f), dest.join(f)).map_err(|e| format!("copy {f} to {}: {e}", dest.display()))?;
+        std::fs::copy(sc.dir.join(f), dest.join(f))
+            .map_err(|e| format!("copy {f} to {}: {e}", dest.display()))?;
     }
     Ok(Some(dest.display().to_string()))
 }
 
 /// The overview inset's land (bundled Natural Earth) around the study area, when an inset is wanted.
-fn inset_for(sc: &StepCtx, fur: &cartography::Furniture, study: [f64; 4]) -> Result<Option<cartography::Inset>, String> {
+fn inset_for(
+    sc: &StepCtx,
+    fur: &cartography::Furniture,
+    study: [f64; 4],
+) -> Result<Option<cartography::Inset>, String> {
     if fur.inset_at == super::furniture::Place::Off {
         return Ok(None);
     }
@@ -1898,7 +3278,11 @@ fn inset_for(sc: &StepCtx, fur: &cartography::Furniture, study: [f64; 4]) -> Res
     for (_, l) in bundled_context(sc.engine) {
         if l.info.geometry == crate::catalog::GeomKind::Polygon {
             let land = features::read_layer(sc.engine, &l, Some(around), Some(&[]), 20_000)?;
-            return Ok(Some(cartography::Inset { land, study, around }));
+            return Ok(Some(cartography::Inset {
+                land,
+                study,
+                around,
+            }));
         }
     }
     Ok(None)
@@ -1912,7 +3296,9 @@ struct PanelDef {
 
 /// `panels: [{extent?, title?, layers?}, …]`: the panels of a multi-panel page.
 fn panel_params(p: &Value) -> Result<Vec<PanelDef>, String> {
-    let Some(Value::Array(a)) = p.get("panels") else { return Ok(Vec::new()) };
+    let Some(Value::Array(a)) = p.get("panels") else {
+        return Ok(Vec::new());
+    };
     if a.len() > 40 {
         return Err(format!("{} panels: a page holds at most 40", a.len()));
     }
@@ -1920,12 +3306,31 @@ fn panel_params(p: &Value) -> Result<Vec<PanelDef>, String> {
         .enumerate()
         .map(|(i, d)| {
             let extent = match d.get("extent") {
-                Some(Value::Array(e)) if e.len() == 4 => Some([0, 1, 2, 3].map(|k| e[k].as_f64().unwrap_or(0.0))),
+                Some(Value::Array(e)) if e.len() == 4 => {
+                    Some([0, 1, 2, 3].map(|k| e[k].as_f64().unwrap_or(0.0)))
+                }
                 None | Some(Value::Null) => None,
-                Some(_) => return Err(format!("panels[{i}]: extent must be [west, south, east, north]")),
+                Some(_) => {
+                    return Err(format!(
+                        "panels[{i}]: extent must be [west, south, east, north]"
+                    ));
+                }
             };
-            let layers = d.get("layers").and_then(Value::as_array).map(|l| l.iter().filter_map(Value::as_str).map(str::to_string).collect());
-            Ok(PanelDef { extent, title: d.get("title").and_then(Value::as_str).unwrap_or_default().to_string(), layers })
+            let layers = d.get("layers").and_then(Value::as_array).map(|l| {
+                l.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            });
+            Ok(PanelDef {
+                extent,
+                title: d
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                layers,
+            })
         })
         .collect()
 }
@@ -1936,7 +3341,12 @@ fn panel_tag(i: usize, style: &str) -> String {
         "none" => String::new(),
         "A" => ((b'A' + (i % 26) as u8) as char).to_string(),
         "1" => (i + 1).to_string(),
-        "i" => ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii"].get(i).map(|s| s.to_string()).unwrap_or_else(|| (i + 1).to_string()),
+        "i" => [
+            "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii",
+        ]
+        .get(i)
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| (i + 1).to_string()),
         _ => ((b'a' + (i % 26) as u8) as char).to_string(),
     }
 }
@@ -1948,15 +3358,33 @@ fn panel_tag(i: usize, style: &str) -> String {
 ///
 /// `ncol` sets the columns, `tags` the tag style (a, A, 1, i), `legends` collect | keep | auto (auto:
 /// one shared legend when every panel shows the same layers, else a legend beside each panel).
-fn render_multi(sc: &StepCtx, p: &Value, spec: &MapSpec, defs: Vec<PanelDef>, extent: [f64; 4], rhandles: &[Arc<crate::raster::RasterHandle>]) -> Result<cartography::MapOut, String> {
+fn render_multi(
+    sc: &StepCtx,
+    p: &Value,
+    spec: &MapSpec,
+    defs: Vec<PanelDef>,
+    extent: [f64; 4],
+    rhandles: &[Arc<crate::raster::RasterHandle>],
+) -> Result<cartography::MapOut, String> {
     let mut panels: Vec<(String, [f64; 4], Option<Vec<String>>, Vec<MapLayer>)> = Vec::new();
     if let Some(field) = p_str(p, "facet") {
         let main: Vec<&MapLayer> = spec.layers.iter().filter(|l| !l.context).collect();
         let target = match p_str(p, "facet_layer") {
-            Some(id) => main.iter().find(|l| l.id == id || l.id.ends_with(&format!(".{id}"))).copied().ok_or(format!("facet_layer '{id}' is not on this map"))?,
-            None => *main.iter().rev().find(|l| l.fs.field(field).is_some()).ok_or(format!("no mapped layer has a field '{field}'"))?,
+            Some(id) => main
+                .iter()
+                .find(|l| l.id == id || l.id.ends_with(&format!(".{id}")))
+                .copied()
+                .ok_or(format!("facet_layer '{id}' is not on this map"))?,
+            None => *main
+                .iter()
+                .rev()
+                .find(|l| l.fs.field(field).is_some())
+                .ok_or(format!("no mapped layer has a field '{field}'"))?,
         };
-        let k = target.fs.field(field).ok_or(format!("{} has no field '{field}'", target.title))?;
+        let k = target
+            .fs
+            .field(field)
+            .ok_or(format!("{} has no field '{field}'", target.title))?;
         let mut values: Vec<String> = Vec::new();
         for f in &target.fs.feats {
             let v = f.props[k].text();
@@ -1969,16 +3397,42 @@ fn render_multi(sc: &StepCtx, p: &Value, spec: &MapSpec, defs: Vec<PanelDef>, ex
             _ => a.cmp(b),
         });
         if values.len() > 24 {
-            return Err(format!("'{field}' has {} different values: facets need 24 or fewer (try a field with fewer classes)", values.len()));
+            return Err(format!(
+                "'{field}' has {} different values: facets need 24 or fewer (try a field with fewer classes)",
+                values.len()
+            ));
         }
-        let others: Vec<String> = spec.layers.iter().filter(|l| l.id != target.id).map(|l| l.id.clone()).collect();
+        let others: Vec<String> = spec
+            .layers
+            .iter()
+            .filter(|l| l.id != target.id)
+            .map(|l| l.id.clone())
+            .collect();
         for v in values {
             let mut fs = target.fs.clone();
             fs.feats.retain(|f| f.props[k].text() == v);
             let n = fs.feats.len();
-            let label = if v.is_empty() { "(no value)".to_string() } else { v.clone() };
-            let own = MapLayer { id: target.id.clone(), title: target.title.clone(), kind: target.kind, style: target.style.clone(), fs, label_field: target.label_field.clone(), context: false, legend_note: format!("{n} features") };
-            panels.push((format!("{field} = {label} · {}", cartography::fmt_num(n as f64)), extent, Some(others.clone()), vec![own]));
+            let label = if v.is_empty() {
+                "(no value)".to_string()
+            } else {
+                v.clone()
+            };
+            let own = MapLayer {
+                id: target.id.clone(),
+                title: target.title.clone(),
+                kind: target.kind,
+                style: target.style.clone(),
+                fs,
+                label_field: target.label_field.clone(),
+                context: false,
+                legend_note: format!("{n} features"),
+            };
+            panels.push((
+                format!("{field} = {label} · {}", cartography::fmt_num(n as f64)),
+                extent,
+                Some(others.clone()),
+                vec![own],
+            ));
         }
     } else {
         for d in defs {
@@ -1994,7 +3448,12 @@ fn render_multi(sc: &StepCtx, p: &Value, spec: &MapSpec, defs: Vec<PanelDef>, ex
     let extents: Vec<[f64; 4]> = panels.iter().map(|(_, e, _, _)| *e).collect();
     let ncol = p.get("ncol").and_then(Value::as_u64).map(|c| c as usize);
     let beside = spec.furniture.legend == "right";
-    let (w, h, rects) = cartography::panel_grid(&extents, ncol, own_legends && beside, !own_legends && beside);
+    let (w, h, rects) = cartography::panel_grid(
+        &extents,
+        ncol,
+        own_legends && beside,
+        !own_legends && beside,
+    );
     let tags = p_str(p, "tags").unwrap_or("a");
     let mut out = Vec::new();
     for (i, ((title, e, layers, own), r)) in panels.into_iter().zip(rects).enumerate() {
@@ -2003,34 +3462,66 @@ fn render_multi(sc: &StepCtx, p: &Value, spec: &MapSpec, defs: Vec<PanelDef>, ex
         let fm = cartography::frame_merc(&layout);
         let (rw, rh) = ((r[2] * 1.5) as usize, (r[3] * 1.5) as usize);
         for rh_ in rhandles {
-            if layers.as_ref().is_some_and(|ids| !ids.contains(&rh_.info.id)) {
+            if layers
+                .as_ref()
+                .is_some_and(|ids| !ids.contains(&rh_.info.id))
+            {
                 continue;
             }
             let style = rh_.style();
             let rgba = rh_.render_rgba(&style, fm, rw, rh)?;
             rasters.push(cartography::MapRaster {
                 id: rh_.info.id.clone(),
-                title: sc.names.get(&rh_.info.id).cloned().unwrap_or_else(|| rh_.info.title.clone()),
+                title: sc
+                    .names
+                    .get(&rh_.info.id)
+                    .cloned()
+                    .unwrap_or_else(|| rh_.info.title.clone()),
                 png: crate::raster::encode_png(rgba, rw, rh)?,
                 opacity: style["opacity"].as_f64().unwrap_or(1.0),
                 blend: style["blend"].as_str().map(str::to_string),
                 legend: crate::raster::legend(&rh_.info, &style),
             });
         }
-        out.push(cartography::Panel { tag: panel_tag(i, tags), title, layout, rasters, layers, own });
+        out.push(cartography::Panel {
+            tag: panel_tag(i, tags),
+            title,
+            layout,
+            rasters,
+            layers,
+            own,
+        });
     }
     Ok(cartography::render_panels(spec, &out, w, h, own_legends))
 }
 
 /// `frames: [{extent: [w, s, e, n], label: "A1"}, …]`: page outlines for a map series' index page.
 fn frames_param(p: &Value) -> Result<Vec<([f64; 4], String)>, String> {
-    let Some(Value::Array(a)) = p.get("frames") else { return Ok(Vec::new()) };
+    let Some(Value::Array(a)) = p.get("frames") else {
+        return Ok(Vec::new());
+    };
     a.iter()
         .enumerate()
         .map(|(i, f)| {
-            let e = f.get("extent").and_then(Value::as_array).filter(|e| e.len() == 4).ok_or(format!("frames[{i}]: extent must be [west, south, east, north]"))?;
-            let e: Vec<f64> = e.iter().map(|v| v.as_f64().ok_or(format!("frames[{i}]: extent must be numbers"))).collect::<Result<_, _>>()?;
-            let label = f.get("label").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| (i + 1).to_string());
+            let e = f
+                .get("extent")
+                .and_then(Value::as_array)
+                .filter(|e| e.len() == 4)
+                .ok_or(format!(
+                    "frames[{i}]: extent must be [west, south, east, north]"
+                ))?;
+            let e: Vec<f64> = e
+                .iter()
+                .map(|v| {
+                    v.as_f64()
+                        .ok_or(format!("frames[{i}]: extent must be numbers"))
+                })
+                .collect::<Result<_, _>>()?;
+            let label = f
+                .get("label")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| (i + 1).to_string());
             Ok(([e[0], e[1], e[2], e[3]], label))
         })
         .collect()
@@ -2042,14 +3533,21 @@ fn export_series(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     if svgs.is_empty() {
         return Err("no maps to bind: put export.map steps before export.series".into());
     }
-    let pages: Vec<String> = svgs.iter().map(|f| std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))).collect::<Result<_, _>>()?;
+    let pages: Vec<String> = svgs
+        .iter()
+        .map(|f| std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display())))
+        .collect::<Result<_, _>>()?;
     let name = sanitize(p_str(p, "name").unwrap_or("series"));
     let f = format!("{name}.pdf");
-    std::fs::write(sc.dir.join(&f), cartography::svgs_to_pdf(&pages)?).map_err(|e| e.to_string())?;
+    std::fs::write(sc.dir.join(&f), cartography::svgs_to_pdf(&pages)?)
+        .map_err(|e| e.to_string())?;
     let files = vec![f.clone()];
     let copied = copy_to(sc, p, &files)?;
     sc.artifacts.push(f.clone());
-    Ok(StepOut { outputs: json!({ "pdf": sc.dir.join(&f), "pages": pages.len(), "files": files, "copied_to": copied }), why: vec![format!("{} map pages bound into {f}", pages.len())] })
+    Ok(StepOut {
+        outputs: json!({ "pdf": sc.dir.join(&f), "pages": pages.len(), "files": files, "copied_to": copied }),
+        why: vec![format!("{} map pages bound into {f}", pages.len())],
+    })
 }
 
 fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOut, String> {
@@ -2063,7 +3561,11 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     }
     let p = &Value::Object(opts);
     // rasters listed among layers:, or rasters:, or (auto) the newest thematic raster + relief shading
-    let find_raster = |id: &str| sc.engine.raster(id).or_else(|| sc.engine.raster(&format!("{}.{id}", sc.recipe_id)));
+    let find_raster = |id: &str| {
+        sc.engine
+            .raster(id)
+            .or_else(|| sc.engine.raster(&format!("{}.{id}", sc.recipe_id)))
+    };
     let mut raster_ids: Vec<String> = Vec::new();
     let ids: Vec<String> = layer_list(sc, p, "layers")
         .into_iter()
@@ -2081,10 +3583,21 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         Some(Value::Bool(false)) => raster_ids.clear(),
         Some(Value::String(s)) if s == "none" => raster_ids.clear(),
         Some(v) if !v.is_null() && v.as_str() != Some("auto") => {
-            raster_ids = p_list(p, "rasters").iter().map(|id| find_raster(id).map(|r| r.info.id.clone()).ok_or(format!("unknown raster '{id}'"))).collect::<Result<_, _>>()?;
+            raster_ids = p_list(p, "rasters")
+                .iter()
+                .map(|id| {
+                    find_raster(id)
+                        .map(|r| r.info.id.clone())
+                        .ok_or(format!("unknown raster '{id}'"))
+                })
+                .collect::<Result<_, _>>()?;
         }
         _ if raster_ids.is_empty() => {
-            let touched: Vec<Arc<crate::raster::RasterHandle>> = sc.rasters.iter().filter_map(|id| sc.engine.raster(id)).collect();
+            let touched: Vec<Arc<crate::raster::RasterHandle>> = sc
+                .rasters
+                .iter()
+                .filter_map(|id| sc.engine.raster(id))
+                .collect();
             if let Some(base) = touched.iter().rev().find(|r| r.info.kind != "hillshade") {
                 // forest loss is drawn over the tree cover it was lost from (its no-loss cells are clear)
                 if base.info.kind == "lossyear" {
@@ -2107,24 +3620,44 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     if ids.is_empty() && raster_ids.is_empty() {
         return Err("nothing to map: list layers: or run an import/analysis step first".into());
     }
-    let handles: Vec<Arc<LayerHandle>> = ids.iter().map(|id| sc.layer(id)).collect::<Result<_, _>>()?;
-    let rhandles: Vec<Arc<crate::raster::RasterHandle>> = raster_ids.iter().filter_map(|id| sc.engine.raster(id)).collect();
+    let handles: Vec<Arc<LayerHandle>> = ids
+        .iter()
+        .map(|id| sc.layer(id))
+        .collect::<Result<_, _>>()?;
+    let rhandles: Vec<Arc<crate::raster::RasterHandle>> = raster_ids
+        .iter()
+        .filter_map(|id| sc.engine.raster(id))
+        .collect();
     let extent = match p.get("extent") {
-        Some(Value::Array(a)) if a.len() == 4 && a.iter().all(Value::is_number) => [a[0].as_f64().unwrap(), a[1].as_f64().unwrap(), a[2].as_f64().unwrap(), a[3].as_f64().unwrap()],
+        Some(Value::Array(a)) if a.len() == 4 && a.iter().all(Value::is_number) => [
+            a[0].as_f64().unwrap(),
+            a[1].as_f64().unwrap(),
+            a[2].as_f64().unwrap(),
+            a[3].as_f64().unwrap(),
+        ],
         Some(Value::String(s)) if s != "auto" => match find_raster(s) {
             Some(r) => r.info.bounds,
             None => sc.layer(s)?.info.bounds,
         },
         _ if !rhandles.is_empty() && sc.aoi.is_some() => sc.aoi.unwrap(),
         _ => {
-            let v = handles.iter().fold(None, |acc, l| features::union_bounds(acc, Some(l.info.bounds)));
-            rhandles.iter().fold(v, |acc, r| features::union_bounds(acc, Some(r.info.bounds))).ok_or("no extent")?
+            let v = handles.iter().fold(None, |acc, l| {
+                features::union_bounds(acc, Some(l.info.bounds))
+            });
+            rhandles
+                .iter()
+                .fold(v, |acc, r| features::union_bounds(acc, Some(r.info.bounds)))
+                .ok_or("no extent")?
         }
     };
     // multi-panel page (patchwork-style panels or a ggplot2-style facet): read the data for every panel
     let panel_defs = panel_params(p)?;
     let extent = if panel_defs.iter().all(|d| d.extent.is_some()) && !panel_defs.is_empty() {
-        panel_defs.iter().filter_map(|d| d.extent).fold(None, |acc, e| features::union_bounds(acc, Some(e))).unwrap_or(extent)
+        panel_defs
+            .iter()
+            .filter_map(|d| d.extent)
+            .fold(None, |acc, e| features::union_bounds(acc, Some(e)))
+            .unwrap_or(extent)
     } else {
         extent
     };
@@ -2132,10 +3665,17 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         Some(f) => vec![f.to_string()],
         None => {
             let f = p_list(p, "format");
-            if f.is_empty() { vec!["png".into(), "svg".into()] } else { f.into_iter().map(|x| x.to_ascii_lowercase()).collect() }
+            if f.is_empty() {
+                vec!["png".into(), "svg".into()]
+            } else {
+                f.into_iter().map(|x| x.to_ascii_lowercase()).collect()
+            }
         }
     };
-    if let Some(bad) = formats.iter().find(|f| !matches!(f.as_str(), "png" | "svg" | "pdf")) {
+    if let Some(bad) = formats
+        .iter()
+        .find(|f| !matches!(f.as_str(), "png" | "svg" | "pdf"))
+    {
         return Err(format!("format '{bad}' is not supported (png, svg, pdf)"));
     }
     let proj = cartography::Proj::parse(p_str(p, "projection"), extent)?;
@@ -2143,12 +3683,20 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     // raster maps fill the frame with data (cover); vector maps keep a margin around the features
     // rasters that cover their extent fill the frame; surfaces masked to the samples' hull
     // (interpolate.auto) are shown whole instead, or their edges would be cut off
-    let masked = rhandles.iter().any(|r| matches!(r.info.kind.as_str(), "surface" | "stderr"));
+    let masked = rhandles
+        .iter()
+        .any(|r| matches!(r.info.kind.as_str(), "surface" | "stderr"));
     // an Equal Earth world is an oval: show it whole rather than crop it to fill the frame
-    let cover = proj == cartography::Proj::Mercator && !rhandles.is_empty() && p.get("extent").is_none_or(|e| e.as_str() == Some("auto")) && p_bool(p, "fill", !masked);
+    let cover = proj == cartography::Proj::Mercator
+        && !rhandles.is_empty()
+        && p.get("extent").is_none_or(|e| e.as_str() == Some("auto"))
+        && p_bool(p, "fill", !masked);
     let mut fur = cartography::Furniture::from_params(p)?;
     // a world or continental Equal Earth map has no single scale: no scale bar unless one is asked for
-    if proj == cartography::Proj::EqualEarth && extent[2] - extent[0] > 90.0 && p_str(p, "scale_bar_at").is_none_or(|v| v == "auto") {
+    if proj == cartography::Proj::EqualEarth
+        && extent[2] - extent[0] > 90.0
+        && p_str(p, "scale_bar_at").is_none_or(|v| v == "auto")
+    {
         fur.scale_at = cartography::Place::Off;
     }
     let fit = if cover {
@@ -2167,9 +3715,16 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     let (srs, fbox) = cartography::frame_box(&lay);
     // native resolution across the frame, between 1× and 2× the page (no point upsampling 30 m cells 2×)
     let frame_m = (fm[2] - fm[0]) * ((extent[1] + extent[3]) / 2.0).to_radians().cos();
-    let finest = rhandles.iter().map(|r| r.info.pixel_m).fold(f64::MAX, f64::min).max(0.01);
+    let finest = rhandles
+        .iter()
+        .map(|r| r.info.pixel_m)
+        .fold(f64::MAX, f64::min)
+        .max(0.01);
     let k = (frame_m / finest / lay.fw).clamp(1.0, 2.0);
-    let (rw, rh) = (((lay.fw * k).round() as usize).min(crate::raster::MAX_OVERLAY * 2), ((lay.fh * k).round() as usize).min(crate::raster::MAX_OVERLAY * 2));
+    let (rw, rh) = (
+        ((lay.fw * k).round() as usize).min(crate::raster::MAX_OVERLAY * 2),
+        ((lay.fh * k).round() as usize).min(crate::raster::MAX_OVERLAY * 2),
+    );
     for r in &rhandles {
         let style = r.style();
         let mut rgba = r.render_rgba_in(&style, srs, fbox, rw, rh)?;
@@ -2187,7 +3742,11 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         }
         map_rasters.push(cartography::MapRaster {
             id: r.info.id.clone(),
-            title: sc.names.get(&r.info.id).cloned().unwrap_or_else(|| r.info.title.clone()),
+            title: sc
+                .names
+                .get(&r.info.id)
+                .cloned()
+                .unwrap_or_else(|| r.info.title.clone()),
             png: crate::raster::encode_png(rgba, rw, rh)?,
             opacity: style["opacity"].as_f64().unwrap_or(1.0),
             blend: style["blend"].as_str().map(str::to_string),
@@ -2200,8 +3759,19 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         let lat = (extent[1] + extent[3]) / 2.0;
         let m_per_px = frame_m / rw as f64;
         let cache = sc.dir.join("..").join(".basemap-cache");
-        let (rgba, credit) = crate::raster::render_basemap(b, srs, fbox, rw, rh, m_per_px, lat, &cache)?;
-        map_rasters.insert(0, cartography::MapRaster { id: format!("basemap:{b}"), title: "Basemap".into(), png: crate::raster::encode_png(rgba, rw, rh)?, opacity: 1.0, blend: None, legend: json!({ "type": "none" }) });
+        let (rgba, credit) =
+            crate::raster::render_basemap(b, srs, fbox, rw, rh, m_per_px, lat, &cache)?;
+        map_rasters.insert(
+            0,
+            cartography::MapRaster {
+                id: format!("basemap:{b}"),
+                title: "Basemap".into(),
+                png: crate::raster::encode_png(rgba, rw, rh)?,
+                opacity: 1.0,
+                blend: None,
+                legend: json!({ "type": "none" }),
+            },
+        );
         basemap_credit = Some(credit);
     }
     let mut layers: Vec<MapLayer> = Vec::new();
@@ -2211,22 +3781,62 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         Some(Value::Bool(false)) => vec![],
         Some(Value::String(s)) if s == "none" => vec![],
         Some(Value::Array(_)) => p_list(p, "context"),
-        _ => sc.engine.layers().iter().filter(|l| is_context_candidate(l) && !ids.contains(&l.info.id) && crate::tile::intersects(l.info.bounds, view)).map(|l| l.info.id.clone()).collect(),
+        _ => sc
+            .engine
+            .layers()
+            .iter()
+            .filter(|l| {
+                is_context_candidate(l)
+                    && !ids.contains(&l.info.id)
+                    && crate::tile::intersects(l.info.bounds, view)
+            })
+            .map(|l| l.info.id.clone())
+            .collect(),
     };
     let mut ctx_layers = Vec::new();
     for cid in &ctx_ids {
         let Ok(l) = sc.layer(cid) else { continue };
         let fs = features::read_layer(sc.engine, &l, Some(view), Some(&[]), 60_000)?;
         if !fs.feats.is_empty() {
-            ctx_layers.push((rank(l.info.geometry), MapLayer { id: cid.clone(), title: humanize(&l.info.name), kind: l.info.geometry, style: json!({}), fs, label_field: None, context: true, legend_note: String::new() }));
+            ctx_layers.push((
+                rank(l.info.geometry),
+                MapLayer {
+                    id: cid.clone(),
+                    title: humanize(&l.info.name),
+                    kind: l.info.geometry,
+                    style: json!({}),
+                    fs,
+                    label_field: None,
+                    context: true,
+                    legend_note: String::new(),
+                },
+            ));
         }
     }
     // nothing loaded to put underneath: the offline world the app shows (Natural Earth land and borders)
-    if ctx_layers.is_empty() && basemap_credit.is_none() && !matches!(p.get("context"), Some(Value::Bool(false)) | Some(Value::String(_)) | Some(Value::Array(_))) {
+    if ctx_layers.is_empty()
+        && basemap_credit.is_none()
+        && !matches!(
+            p.get("context"),
+            Some(Value::Bool(false)) | Some(Value::String(_)) | Some(Value::Array(_))
+        )
+    {
         for (title, l) in bundled_context(sc.engine) {
             let fs = features::read_layer(sc.engine, &l, Some(view), Some(&[]), 60_000)?;
             if !fs.feats.is_empty() {
-                ctx_layers.push((rank(l.info.geometry), MapLayer { id: l.info.id.clone(), title: title.to_string(), kind: l.info.geometry, style: json!({}), fs, label_field: None, context: true, legend_note: String::new() }));
+                ctx_layers.push((
+                    rank(l.info.geometry),
+                    MapLayer {
+                        id: l.info.id.clone(),
+                        title: title.to_string(),
+                        kind: l.info.geometry,
+                        style: json!({}),
+                        fs,
+                        label_field: None,
+                        context: true,
+                        legend_note: String::new(),
+                    },
+                ));
             }
         }
     }
@@ -2248,13 +3858,30 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         };
         // labels set in the app (on or off) replace the automatic label field
         let label = match style.get("labels").filter(|v| v.is_object()) {
-            Some(lb) if lb["on"].as_bool() == Some(true) => lb["field"].as_str().map(str::to_string),
+            Some(lb) if lb["on"].as_bool() == Some(true) => {
+                lb["field"].as_str().map(str::to_string)
+            }
             Some(_) => None,
             None => label,
         };
         let mut want: Vec<usize> = Vec::new();
         // the facet field too: a map split by a field needs it even when the layer is not styled by it
-        for f in [style["symbology"]["field"].as_str().map(str::to_string), style["point"]["sizeBy"]["field"].as_str().map(str::to_string), label.clone(), style["labels"]["field2"].as_str().map(str::to_string), p_str(p, "facet").map(str::to_string), Some("direction".to_string()), Some("length_m".to_string()), Some("area_m2".to_string()), Some("index".to_string())].into_iter().flatten() {
+        for f in [
+            style["symbology"]["field"].as_str().map(str::to_string),
+            style["point"]["sizeBy"]["field"]
+                .as_str()
+                .map(str::to_string),
+            label.clone(),
+            style["labels"]["field2"].as_str().map(str::to_string),
+            p_str(p, "facet").map(str::to_string),
+            Some("direction".to_string()),
+            Some("length_m".to_string()),
+            Some("area_m2".to_string()),
+            Some("index".to_string()),
+        ]
+        .into_iter()
+        .flatten()
+        {
             if let Some(i) = l.field_index(&f) {
                 if !want.contains(&i) {
                     want.push(i);
@@ -2263,54 +3890,127 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         }
         let fs = features::read_layer(sc.engine, l, Some(view), Some(&want), 250_000)?;
         let n = fs.feats.len();
-        let plural = |w: &str| format!("{} {w}{}", cartography::fmt_num(n as f64), if n == 1 { "" } else { "s" });
+        let plural = |w: &str| {
+            format!(
+                "{} {w}{}",
+                cartography::fmt_num(n as f64),
+                if n == 1 { "" } else { "s" }
+            )
+        };
         let note = match automap::device_role(id) {
             Some("photos") => plural("photo"),
             Some("waypoints") => plural("waypoint"),
             Some("tracks") => {
-                let km: f64 = fs.field("length_m").map(|k| fs.numbers(k).iter().sum::<f64>()).unwrap_or(0.0);
+                let km: f64 = fs
+                    .field("length_m")
+                    .map(|k| fs.numbers(k).iter().sum::<f64>())
+                    .unwrap_or(0.0);
                 format!("{} · {}", plural("track"), features::fmt_distance(km))
             }
-            _ if fs.truncated => format!("{} of {} features", cartography::fmt_num(n as f64), cartography::fmt_num(l.info.feature_count as f64)),
+            _ if fs.truncated => format!(
+                "{} of {} features",
+                cartography::fmt_num(n as f64),
+                cartography::fmt_num(l.info.feature_count as f64)
+            ),
             _ if fs.field("area_m2").is_some() => {
-                let m2: f64 = fs.field("area_m2").map(|k| fs.numbers(k).iter().sum::<f64>()).unwrap_or(0.0);
-                let area = if m2 >= 1e6 { format!("{:.2} km²", m2 / 1e6) } else { format!("{:.1} ha", m2 / 1e4) };
-                format!("{} · {area}", if n == 1 { "1 area".to_string() } else { format!("{n} areas") })
+                let m2: f64 = fs
+                    .field("area_m2")
+                    .map(|k| fs.numbers(k).iter().sum::<f64>())
+                    .unwrap_or(0.0);
+                let area = if m2 >= 1e6 {
+                    format!("{:.2} km²", m2 / 1e6)
+                } else {
+                    format!("{:.1} ha", m2 / 1e4)
+                };
+                format!(
+                    "{} · {area}",
+                    if n == 1 {
+                        "1 area".to_string()
+                    } else {
+                        format!("{n} areas")
+                    }
+                )
             }
             _ => plural("feature"),
         };
-        let note = sc.hints.get(id).and_then(|h| h["note"].as_str()).map(str::to_string).unwrap_or(note);
+        let note = sc
+            .hints
+            .get(id)
+            .and_then(|h| h["note"].as_str())
+            .map(str::to_string)
+            .unwrap_or(note);
         sources.push(sc.title_of(l));
-        main.push((rank(l.info.geometry), MapLayer { id: id.clone(), title: sc.title_of(l), kind: l.info.geometry, style, fs, label_field: label, context: false, legend_note: note }));
+        main.push((
+            rank(l.info.geometry),
+            MapLayer {
+                id: id.clone(),
+                title: sc.title_of(l),
+                kind: l.info.geometry,
+                style,
+                fs,
+                label_field: label,
+                context: false,
+                legend_note: note,
+            },
+        ));
     }
     main.sort_by_key(|(r, _)| *r);
     layers.extend(main.into_iter().map(|(_, l)| l));
     let date = now_local();
-    let base_raster = rhandles.iter().find(|r| r.info.kind != "hillshade").or(rhandles.first());
+    let base_raster = rhandles
+        .iter()
+        .find(|r| r.info.kind != "hillshade")
+        .or(rhandles.first());
     for r in rhandles.iter().filter(|r| r.info.kind != "hillshade") {
-        sources.push(sc.names.get(&r.info.id).cloned().unwrap_or_else(|| r.info.title.clone()));
+        sources.push(
+            sc.names
+                .get(&r.info.id)
+                .cloned()
+                .unwrap_or_else(|| r.info.title.clone()),
+        );
     }
-    let title = p_str(p, "title").map(str::to_string).unwrap_or_else(|| match (&sc.device, handles.len(), base_raster) {
-        (Some(d), _, _) => format!("Field map · {d}"),
-        (None, _, Some(r)) => r.info.title.clone(),
-        (None, 1, None) => sc.title_of(&handles[0]),
-        _ => sc.recipe_title.to_string(),
+    let title = p_str(p, "title").map(str::to_string).unwrap_or_else(|| {
+        match (&sc.device, handles.len(), base_raster) {
+            (Some(d), _, _) => format!("Field map · {d}"),
+            (None, _, Some(r)) => r.info.title.clone(),
+            (None, 1, None) => sc.title_of(&handles[0]),
+            _ => sc.recipe_title.to_string(),
+        }
     });
     let subtitle = match p_str(p, "subtitle") {
         Some(s) if s != "auto" => s.to_string(),
         _ => {
-            let what = sc.import_summary.clone().unwrap_or_else(|| sources.join(" · "));
+            let what = sc
+                .import_summary
+                .clone()
+                .unwrap_or_else(|| sources.join(" · "));
             format!("{what} · {}", date.format("%-d %B %Y"))
         }
     };
-    let mut credit_sources: Vec<String> = sources.iter().filter(|s| !rhandles.iter().any(|r| sc.names.get(&r.info.id) == Some(*s) || r.info.title == **s)).cloned().collect();
+    let mut credit_sources: Vec<String> = sources
+        .iter()
+        .filter(|s| {
+            !rhandles
+                .iter()
+                .any(|r| sc.names.get(&r.info.id) == Some(*s) || r.info.title == **s)
+        })
+        .cloned()
+        .collect();
     for r in &rhandles {
         if !r.info.credit.is_empty() && !credit_sources.contains(&r.info.credit) {
             credit_sources.push(r.info.credit.clone());
         }
     }
-    credit_sources.extend(ctx_ids.iter().filter_map(|c| sc.engine.layer(c)).map(|l| humanize(&l.info.name)));
-    if layers.iter().any(|l| l.context && BASEMAP.iter().any(|(_, n, _)| l.id.starts_with(n))) {
+    credit_sources.extend(
+        ctx_ids
+            .iter()
+            .filter_map(|c| sc.engine.layer(c))
+            .map(|l| humanize(&l.info.name)),
+    );
+    if layers
+        .iter()
+        .any(|l| l.context && BASEMAP.iter().any(|(_, n, _)| l.id.starts_with(n)))
+    {
         credit_sources.push("Natural Earth (public domain)".to_string());
     }
     if let Some(c) = &basemap_credit {
@@ -2321,15 +4021,35 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
         cartography::Proj::Mercator => "WGS 84 / Pseudo-Mercator (EPSG:3857)",
         cartography::Proj::EqualEarth => "Equal Earth (EPSG:8857)",
     };
-    let credits = format!("Made with GeoSpaX · recipe {} · {} · CRS {crs_note} · Data: {}", sc.recipe_id, date.format("%Y-%m-%d %H:%M"), credit_sources.join(", "));
+    let credits = format!(
+        "Made with GeoSpaX · recipe {} · {} · CRS {crs_note} · Data: {}",
+        sc.recipe_id,
+        date.format("%Y-%m-%d %H:%M"),
+        credit_sources.join(", ")
+    );
     let n_rasters = map_rasters.len();
-    let spec = MapSpec { rasters: map_rasters, title: title.clone(), subtitle, credits, layers, labels: p_bool(p, "labels", true), grid: p_bool(p, "grid", true), frames: frames_param(p)?, inset: inset_for(sc, &fur, view)?, furniture: fur };
+    let spec = MapSpec {
+        rasters: map_rasters,
+        title: title.clone(),
+        subtitle,
+        credits,
+        layers,
+        labels: p_bool(p, "labels", true),
+        grid: p_bool(p, "grid", true),
+        frames: frames_param(p)?,
+        inset: inset_for(sc, &fur, view)?,
+        furniture: fur,
+    };
     let out = if panel_defs.is_empty() && p.get("facet").is_none() {
         cartography::render_svg(&spec, &lay)
     } else {
         render_multi(sc, p, &spec, panel_defs, extent, &rhandles)?
     };
-    let name = sanitize(p_str(p, "name").unwrap_or(if sc.step_id == "map" { "map" } else { &sc.step_id }));
+    let name = sanitize(p_str(p, "name").unwrap_or(if sc.step_id == "map" {
+        "map"
+    } else {
+        &sc.step_id
+    }));
     let mut files = Vec::new();
     let svg_file = format!("{name}.svg");
     std::fs::write(sc.dir.join(&svg_file), &out.svg).map_err(|e| e.to_string())?;
@@ -2340,7 +4060,9 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     if formats.iter().any(|f| f == "png") {
         // dpi: the PNG at print resolution (the page is laid out at 150 dpi; 300 = 2×, 600 = 4×),
         // with the resolution written into the file so it opens at its print size
-        let dpi = p_f64(p, "dpi").unwrap_or(cartography::DPI * p_f64(p, "scale").unwrap_or(1.0)).clamp(72.0, 1200.0);
+        let dpi = p_f64(p, "dpi")
+            .unwrap_or(cartography::DPI * p_f64(p, "scale").unwrap_or(1.0))
+            .clamp(72.0, 1200.0);
         let scale = (dpi / cartography::DPI) as f32;
         let bytes = super::furniture::png_with_dpi(cartography::svg_to_png(&out.svg, scale)?, dpi);
         let f = format!("{name}.png");
@@ -2350,23 +4072,29 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
     }
     if formats.iter().any(|f| f == "pdf") {
         let f = format!("{name}.pdf");
-        std::fs::write(sc.dir.join(&f), cartography::svg_to_pdf(&out.svg)?).map_err(|e| e.to_string())?;
+        std::fs::write(sc.dir.join(&f), cartography::svg_to_pdf(&out.svg)?)
+            .map_err(|e| e.to_string())?;
         files.push(f);
     }
     let copied = copy_to(sc, p, &files)?;
     sc.artifacts.extend(files.iter().cloned());
     sc.maps.push((sc.dir.join(&svg_file), files.clone()));
-    sc.figures.push((files.iter().find(|f| f.ends_with(".png")).cloned(), title.clone()));
+    sc.figures.push((
+        files.iter().find(|f| f.ends_with(".png")).cloned(),
+        title.clone(),
+    ));
     sc.extent = Some(view);
     let scale = format!("1:{}", cartography::fmt_num(round2(out.scale_denominator)));
-    if sc.maps.len() == 1 { sc.methods.push(format!(
+    if sc.maps.len() == 1 {
+        sc.methods.push(format!(
         "The {:.0}×{:.0} px map page (title, legend, scale bar, north arrow, graticule, credits) was laid out automatically; the extent fits all mapped data with a margin ({}, ≈ {scale} at {} dpi).{}",
         w,
         h,
         lay.proj.name(),
         cartography::DPI,
         if lay.proj == cartography::Proj::EqualEarth { " Equal Earth (Šavrič, Patterson & Jenny 2018) keeps areas true, so regions can be compared by size; the scale holds at the centre of the map only." } else { "" }
-    )); }
+    ));
+    }
     Ok(StepOut {
         outputs: json!({
             "svg": sc.dir.join(&svg_file), "png": png, "files": files, "extent": view, "scale": scale,
@@ -2377,7 +4105,19 @@ fn export_map(sc: &mut StepCtx, p: &Value, force: Option<&str>) -> Result<StepOu
             w,
             h,
             handles.len() + ctx_ids.len(),
-            if n_rasters > 0 { format!(" + {n_rasters} raster{} ({})", if n_rasters == 1 { "" } else { "s" }, rhandles.iter().map(|r| r.info.kind.clone()).collect::<Vec<_>>().join(" under ")) } else { String::new() },
+            if n_rasters > 0 {
+                format!(
+                    " + {n_rasters} raster{} ({})",
+                    if n_rasters == 1 { "" } else { "s" },
+                    rhandles
+                        .iter()
+                        .map(|r| r.info.kind.clone())
+                        .collect::<Vec<_>>()
+                        .join(" under ")
+                )
+            } else {
+                String::new()
+            },
             out.drawn,
             out.labels,
             files.join(", ")
@@ -2395,14 +4135,31 @@ fn round2(v: f64) -> f64 {
 
 fn export_report(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     let date = now_local();
-    let title = p_str(p, "title").map(str::to_string).unwrap_or_else(|| format!("{} · {}", sc.recipe_title, date.format("%-d %B %Y")));
-    let trigger_text = sc.trigger.get("text").and_then(Value::as_str).unwrap_or("run by hand").to_string();
-    let subtitle = p_str(p, "subtitle").map(str::to_string).unwrap_or_else(|| format!("Recipe '{}' · {} · {}", sc.recipe_id, trigger_text, date.format("%Y-%m-%d %H:%M")));
+    let title = p_str(p, "title")
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("{} · {}", sc.recipe_title, date.format("%-d %B %Y")));
+    let trigger_text = sc
+        .trigger
+        .get("text")
+        .and_then(Value::as_str)
+        .unwrap_or("run by hand")
+        .to_string();
+    let subtitle = p_str(p, "subtitle").map(str::to_string).unwrap_or_else(|| {
+        format!(
+            "Recipe '{}' · {} · {}",
+            sc.recipe_id,
+            trigger_text,
+            date.format("%Y-%m-%d %H:%M")
+        )
+    });
     // the first map is the main one; heavy raster maps are shown as their PNG instead of inline SVG
     let (map_svg, map_files) = match sc.maps.first() {
         Some((svg, files)) => {
             let size = std::fs::metadata(svg).map(|m| m.len()).unwrap_or(0);
-            let png = files.iter().find(|f| f.ends_with(".png")).map(|f| sc.dir.join(f));
+            let png = files
+                .iter()
+                .find(|f| f.ends_with(".png"))
+                .map(|f| sc.dir.join(f));
             let body = match png {
                 Some(pngp) if size > 1_500_000 => std::fs::read(&pngp).ok().map(|b| format!("<img alt=\"map\" style=\"width:100%;height:auto;display:block;border-radius:6px\" src=\"data:image/png;base64,{}\">", cartography::base64(&b))),
                 _ => std::fs::read_to_string(svg).ok(),
@@ -2417,21 +4174,52 @@ fn export_report(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     };
     let mut layers = Vec::new();
     for id in &sc.touched {
-        let Some(l) = sc.engine.layer(id) else { continue };
+        let Some(l) = sc.engine.layer(id) else {
+            continue;
+        };
         let b = l.info.bounds;
-        let mut rows = vec![("Extent".to_string(), format!("{:.4}, {:.4} – {:.4}, {:.4}", b[0], b[1], b[2], b[3]))];
-        let names: Vec<&str> = l.info.fields.iter().map(|f| f.name.as_str()).take(10).collect();
+        let mut rows = vec![(
+            "Extent".to_string(),
+            format!("{:.4}, {:.4} – {:.4}, {:.4}", b[0], b[1], b[2], b[3]),
+        )];
+        let names: Vec<&str> = l
+            .info
+            .fields
+            .iter()
+            .map(|f| f.name.as_str())
+            .take(10)
+            .collect();
         if !names.is_empty() {
             rows.push(("Fields".into(), names.join(", ")));
         }
         if let Some((st, _, _)) = sc.styles.get(id) {
-            if let (Some("graduated"), Some(f)) = (st["symbology"]["kind"].as_str(), st["symbology"]["field"].as_str()) {
+            if let (Some("graduated"), Some(f)) = (
+                st["symbology"]["kind"].as_str(),
+                st["symbology"]["field"].as_str(),
+            ) {
                 let lo = st["symbology"]["min"].as_f64().unwrap_or(f64::NAN);
-                let hi = st["symbology"]["breaks"].as_array().and_then(|a| a.last()).and_then(Value::as_f64).unwrap_or(f64::NAN);
-                rows.push((format!("Range of {f}"), format!("{} – {}", cartography::fmt_num(lo), cartography::fmt_num(hi))));
+                let hi = st["symbology"]["breaks"]
+                    .as_array()
+                    .and_then(|a| a.last())
+                    .and_then(Value::as_f64)
+                    .unwrap_or(f64::NAN);
+                rows.push((
+                    format!("Range of {f}"),
+                    format!(
+                        "{} – {}",
+                        cartography::fmt_num(lo),
+                        cartography::fmt_num(hi)
+                    ),
+                ));
             }
         }
-        layers.push(report::LayerSummary { id: id.clone(), title: sc.title_of(&l), kind: format!("{:?}", l.info.geometry).to_lowercase(), features: l.info.feature_count, rows });
+        layers.push(report::LayerSummary {
+            id: id.clone(),
+            title: sc.title_of(&l),
+            kind: format!("{:?}", l.info.geometry).to_lowercase(),
+            features: l.info.feature_count,
+            rows,
+        });
     }
     let mut cards = sc.cards.clone();
     if cards.is_empty() {
@@ -2439,8 +4227,20 @@ fn export_report(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         cards.push((cartography::fmt_num(total as f64), "features mapped".into()));
     }
     cards.push((sc.touched.len().to_string(), "layers".into()));
-    let decisions: Vec<(String, String)> = sc.touched.iter().filter_map(|id| sc.styles.get(id).map(|(_, _, why)| (id.clone(), why.clone()))).collect();
-    let inputs_text = if sc.inputs.is_empty() { "none".into() } else { Value::Object(sc.inputs.clone()).to_string() };
+    let decisions: Vec<(String, String)> = sc
+        .touched
+        .iter()
+        .filter_map(|id| {
+            sc.styles
+                .get(id)
+                .map(|(_, _, why)| (id.clone(), why.clone()))
+        })
+        .collect();
+    let inputs_text = if sc.inputs.is_empty() {
+        "none".into()
+    } else {
+        Value::Object(sc.inputs.clone()).to_string()
+    };
     let provenance = vec![
         ("Recipe".to_string(), sc.recipe_id.to_string()),
         ("Recipe fingerprint (FNV-1a)".into(), fnv64(sc.recipe_text)),
@@ -2485,25 +4285,45 @@ fn export_report(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
             .skip(1)
             .filter_map(|(png, title)| {
                 let f = png.as_ref()?;
-                Some(report::Figure { png: std::fs::read(sc.dir.join(f)).ok()?, title: title.clone(), file: f.clone() })
+                Some(report::Figure {
+                    png: std::fs::read(sc.dir.join(f)).ok()?,
+                    title: title.clone(),
+                    file: f.clone(),
+                })
             })
             .collect(),
-        word: Some(format!("{}.docx", sanitize(p_str(p, "name").unwrap_or("report")))),
+        word: Some(format!(
+            "{}.docx",
+            sanitize(p_str(p, "name").unwrap_or("report"))
+        )),
     };
     let html = report::render(&input);
     let name = sanitize(p_str(p, "name").unwrap_or("report"));
     let file = format!("{name}.html");
     std::fs::write(sc.dir.join(&file), html.as_bytes()).map_err(|e| e.to_string())?;
     // the same report as an editable Word document, with the main map as a picture
-    let map_png = input.map_files.iter().find(|f| f.ends_with(".png")).and_then(|f| std::fs::read(sc.dir.join(f)).ok());
+    let map_png = input
+        .map_files
+        .iter()
+        .find(|f| f.ends_with(".png"))
+        .and_then(|f| std::fs::read(sc.dir.join(f)).ok());
     let docx = format!("{name}.docx");
-    std::fs::write(sc.dir.join(&docx), report_docx::render(&input, map_png.as_deref())?).map_err(|e| e.to_string())?;
+    std::fs::write(
+        sc.dir.join(&docx),
+        report_docx::render(&input, map_png.as_deref())?,
+    )
+    .map_err(|e| e.to_string())?;
     let copied = copy_to(sc, p, &[file.clone(), docx.clone()])?;
     sc.artifacts.push(file.clone());
     sc.artifacts.push(docx.clone());
     Ok(StepOut {
         outputs: json!({ "html": sc.dir.join(&file), "docx": sc.dir.join(&docx), "files": [file, docx], "title": title, "copied_to": copied }),
-        why: vec![format!("{} KB report: map, {} decisions, {} method notes, run log, provenance", html.len() / 1024, sc.styles.len(), sc.methods.len())],
+        why: vec![format!(
+            "{} KB report: map, {} decisions, {} method notes, run log, provenance",
+            html.len() / 1024,
+            sc.styles.len(),
+            sc.methods.len()
+        )],
     })
 }
 
@@ -2514,7 +4334,8 @@ fn export_data(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         ids = sc.touched.clone();
     }
     let fmt = p_str(p, "format").unwrap_or("gpkg");
-    let (driver, ext) = features::driver_for(fmt).ok_or_else(|| format!("unknown format '{fmt}' (gpkg, geojson, csv, fgb, kml, shp)"))?;
+    let (driver, ext) = features::driver_for(fmt)
+        .ok_or_else(|| format!("unknown format '{fmt}' (gpkg, geojson, csv, fgb, kml, shp)"))?;
     let mut files = Vec::new();
     let mut total = 0usize;
     for id in &ids {
@@ -2530,7 +4351,12 @@ fn export_data(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     sc.artifacts.extend(files.iter().cloned());
     Ok(StepOut {
         outputs: json!({ "files": files, "format": ext, "features": total, "copied_to": copied }),
-        why: vec![format!("{} layer(s), {} features → {}", ids.len(), cartography::fmt_num(total as f64), files.join(", "))],
+        why: vec![format!(
+            "{} layer(s), {} features → {}",
+            ids.len(),
+            cartography::fmt_num(total as f64),
+            files.join(", ")
+        )],
     })
 }
 
@@ -2556,7 +4382,21 @@ fn csv_rows(text: &str, max: usize) -> Value {
     let mut lines = text.lines().filter(|l| !l.is_empty());
     let columns = lines.next().map(split).unwrap_or_default();
     let all: Vec<Vec<String>> = lines.map(split).collect();
-    let rows: Vec<Value> = all.iter().take(max).map(|r| Value::from(r.iter().map(|c| c.parse::<f64>().map(|f| json!(f)).unwrap_or_else(|_| if c == "NA" { Value::Null } else { json!(c) })).collect::<Vec<_>>())).collect();
+    let rows: Vec<Value> = all
+        .iter()
+        .take(max)
+        .map(|r| {
+            Value::from(
+                r.iter()
+                    .map(|c| {
+                        c.parse::<f64>()
+                            .map(|f| json!(f))
+                            .unwrap_or_else(|_| if c == "NA" { Value::Null } else { json!(c) })
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
     json!({ "columns": columns, "rows": rows, "total": all.len() })
 }
 
@@ -2571,10 +4411,14 @@ fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut
     let mut inputs = Vec::new();
     if let Some(m) = p.get("inputs").and_then(Value::as_object) {
         for (name, v) in m {
-            let spec = v.as_str().ok_or_else(|| format!("input '{name}' must be a layer id or a file"))?;
+            let spec = v
+                .as_str()
+                .ok_or_else(|| format!("input '{name}' must be a layer id or a file"))?;
             if let Some(l) = sc.engine.layer(spec) {
                 let fs = features::read_layer(sc.engine, &l, None, None, 2_000_000)?;
-                let file = step_dir.join("inputs").join(format!("{}.geojson", sanitize(name)));
+                let file = step_dir
+                    .join("inputs")
+                    .join(format!("{}.geojson", sanitize(name)));
                 features::write_features(&file, "GeoJSON", name, &fs)?;
                 inputs.push((name.clone(), file));
             } else if let Some(r) = sc.engine.raster(spec) {
@@ -2583,18 +4427,25 @@ fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut
             } else if let Some(path) = sc.resolve_path(spec) {
                 inputs.push((name.clone(), path));
             } else {
-                return Err(format!("input '{name}': '{spec}' is neither a layer nor a file"));
+                return Err(format!(
+                    "input '{name}': '{spec}' is neither a layer nor a file"
+                ));
             }
         }
     }
     let params = p.get("params").cloned().unwrap_or_else(|| json!({}));
     let packages = p_list(p, "packages");
-    let timeout = Duration::from_secs_f64(p_f64(p, "timeout_s").unwrap_or(600.0).clamp(1.0, 86_400.0));
-    let r = sidecar::run(lang, &code, &inputs, &params, &packages, &step_dir, timeout, sc.cancel)?;
+    let timeout =
+        Duration::from_secs_f64(p_f64(p, "timeout_s").unwrap_or(600.0).clamp(1.0, 86_400.0));
+    let r = sidecar::run(
+        lang, &code, &inputs, &params, &packages, &step_dir, timeout, sc.cancel,
+    )?;
     let mut layers = Map::new();
     for (name, path) in &r.layers {
         let handles = catalog::load_layers(path)?;
-        let Some(h) = handles.into_iter().next() else { continue };
+        let Some(h) = handles.into_iter().next() else {
+            continue;
+        };
         let fs = features::read_layer(sc.engine, &h, None, None, 2_000_000)?;
         let id = sc.write_output(name, &fs, humanize(name))?;
         layers.insert(name.clone(), Value::from(id));
@@ -2605,7 +4456,10 @@ fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut
     for (name, path) in &r.rasters {
         let dest = out_dir.join(format!("{}.tif", sanitize(name)));
         let ds = crate::raster::open(path)?;
-        let float = ds.rasterband(1).map(|b| b.band_type().name().starts_with("Float")).unwrap_or(false);
+        let float = ds
+            .rasterband(1)
+            .map(|b| b.band_type().name().starts_with("Float"))
+            .unwrap_or(false);
         crate::raster::save_gtiff(&ds, &dest, float)?;
         let id = format!("{}.{}", sc.recipe_id, sanitize(name));
         let h = sc.engine.register_raster(&dest, &id)?;
@@ -2624,7 +4478,12 @@ fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut
         if ext == "png" {
             sc.figures.push((Some(f.clone()), humanize(name)));
         }
-        figures.entry(name.clone()).or_insert_with(|| json!([])).as_array_mut().unwrap().push(Value::from(f));
+        figures
+            .entry(name.clone())
+            .or_insert_with(|| json!([]))
+            .as_array_mut()
+            .unwrap()
+            .push(Value::from(f));
     }
     // tables (data frames) are shown in the run and kept as CSV
     let mut tables = Map::new();
@@ -2632,21 +4491,50 @@ fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut
         let f = format!("{}.csv", sanitize(name));
         std::fs::copy(path, sc.dir.join(&f)).map_err(|e| e.to_string())?;
         sc.artifacts.push(f.clone());
-        tables.insert(name.clone(), csv_rows(&std::fs::read_to_string(path).unwrap_or_default(), 500));
+        tables.insert(
+            name.clone(),
+            csv_rows(&std::fs::read_to_string(path).unwrap_or_default(), 500),
+        );
     }
-    let results: Vec<String> = r.result.iter().map(|(k, v)| format!("{k} = {}", super::recipe::value_text(v))).collect();
-    let returned: Vec<String> = layers.keys().chain(figures.keys()).chain(tables.keys()).map(|k| format!("'{k}'")).collect();
+    let results: Vec<String> = r
+        .result
+        .iter()
+        .map(|(k, v)| format!("{k} = {}", super::recipe::value_text(v)))
+        .collect();
+    let returned: Vec<String> = layers
+        .keys()
+        .chain(figures.keys())
+        .chain(tables.keys())
+        .map(|k| format!("'{k}'"))
+        .collect();
     sc.methods.push(format!(
         "A {} step ({}) ran custom analysis{}{}.",
         lang.name(),
         r.version,
-        if returned.is_empty() { String::new() } else { format!(" and returned {}", returned.join(", ")) },
-        if results.is_empty() { String::new() } else { format!("; results: {}", results.join(", ")) }
+        if returned.is_empty() {
+            String::new()
+        } else {
+            format!(" and returned {}", returned.join(", "))
+        },
+        if results.is_empty() {
+            String::new()
+        } else {
+            format!("; results: {}", results.join(", "))
+        }
     ));
     for (k, v) in r.result.iter().take(2) {
-        sc.cards.push((super::recipe::value_text(v), k.replace('_', " ")));
+        sc.cards
+            .push((super::recipe::value_text(v), k.replace('_', " ")));
     }
-    let stdout_tail: Vec<&str> = r.stdout.lines().rev().take(20).collect::<Vec<_>>().into_iter().rev().collect();
+    let stdout_tail: Vec<&str> = r
+        .stdout
+        .lines()
+        .rev()
+        .take(20)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
     Ok(StepOut {
         outputs: json!({ "layers": layers, "figures": figures, "tables": tables, "result": r.result, "interpreter": r.version, "ms": r.ms, "stdout": stdout_tail.join("\n") }),
         why: vec![format!(
@@ -2657,7 +4545,11 @@ fn code_step(sc: &mut StepCtx, p: &Value, lang: sidecar::Lang) -> Result<StepOut
             layers.len(),
             r.figures.len(),
             tables.len(),
-            if results.is_empty() { String::new() } else { format!("; {}", results.join(", ")) }
+            if results.is_empty() {
+                String::new()
+            } else {
+                format!("; {}", results.join(", "))
+            }
         )],
     })
 }
@@ -2683,19 +4575,30 @@ mod tests {
     #[test]
     fn idw_cross_validation_prefers_the_right_power() {
         // a smooth linear trend: higher powers do worse than ~1-2
-        let samples: Vec<([f64; 2], f64)> = (0..100).map(|i| {
-            let (x, y) = ((i % 10) as f64 * 100.0, (i / 10) as f64 * 100.0);
-            ([x, y], x * 0.01 + y * 0.02)
-        }).collect();
+        let samples: Vec<([f64; 2], f64)> = (0..100)
+            .map(|i| {
+                let (x, y) = ((i % 10) as f64 * 100.0, (i / 10) as f64 * 100.0);
+                ([x, y], x * 0.01 + y * 0.02)
+            })
+            .collect();
         let (r1, _) = idw_cv(&samples, 1.0);
         let (r3, _) = idw_cv(&samples, 3.0);
         assert!(r1.is_finite() && r3.is_finite());
-        assert!(idw_at([0.0, 0.0], &samples, 2.0, None) == 0.0, "exact at a sample");
+        assert!(
+            idw_at([0.0, 0.0], &samples, 2.0, None) == 0.0,
+            "exact at a sample"
+        );
     }
 
     #[test]
     fn hull_and_point_in_polygon() {
-        let hull = convex_hull(vec![[0.0, 0.0], [2.0, 0.0], [2.0, 2.0], [0.0, 2.0], [1.0, 1.0]]);
+        let hull = convex_hull(vec![
+            [0.0, 0.0],
+            [2.0, 0.0],
+            [2.0, 2.0],
+            [0.0, 2.0],
+            [1.0, 1.0],
+        ]);
         assert_eq!(hull.len(), 4);
         assert!(point_in_ring([1.0, 1.0], &hull) && !point_in_ring([3.0, 1.0], &hull));
     }
@@ -2705,7 +4608,9 @@ mod tests {
         let (e, _) = check("export.mapp", &json!({}));
         assert!(e[0].contains("export.map"), "{e:?}");
         let (e, w) = check("vector.buffer", &json!({ "layer": "x", "distnce": 5 }));
-        assert!(e.iter().any(|x| x.contains("distance")) && w.iter().any(|x| x.contains("distnce")));
+        assert!(
+            e.iter().any(|x| x.contains("distance")) && w.iter().any(|x| x.contains("distnce"))
+        );
         let (e, _) = check("python", &json!({}));
         assert!(e.iter().any(|x| x.contains("code")));
         assert!(spec("script.r").is_some());

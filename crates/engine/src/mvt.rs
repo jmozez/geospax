@@ -79,7 +79,12 @@ pub struct Density {
 impl Density {
     fn new(cell: f64) -> Density {
         let n = (EXTENT as f64 / cell).ceil().max(1.0) as usize;
-        Density { cell, n, counts: vec![0; n * n], total: 0 }
+        Density {
+            cell,
+            n,
+            counts: vec![0; n * n],
+            total: 0,
+        }
     }
 
     /// Count a feature at tile-space position `c`. Only the tile proper (no
@@ -218,7 +223,14 @@ impl LayerEncoder {
 
     /// Process + encode one feature. Returns false if nothing survived
     /// clipping/generalisation (the feature is then omitted).
-    pub fn add(&mut self, id: Option<u64>, attrs: Vec<(u32, Val)>, geom: &Geom, proj: &TileProjector, p: Params) -> bool {
+    pub fn add(
+        &mut self,
+        id: Option<u64>,
+        attrs: Vec<(u32, Val)>,
+        geom: &Geom,
+        proj: &TileProjector,
+        p: Params,
+    ) -> bool {
         self.cmds.clear();
         if p.density_cell > 0.0 && self.density.is_none() {
             self.density = Some(Density::new(p.density_cell));
@@ -234,8 +246,16 @@ impl LayerEncoder {
         let mut tiny = None;
         let gtype = match geom {
             Geom::Points(pts) if encode_points(pts, proj, &mut self.s, &mut self.cmds) => 1,
-            Geom::Lines(ls) if encode_lines(ls, proj, p, &mut self.s, &mut self.cmds, &mut tiny) => 2,
-            Geom::Polygons(ps) if encode_polygons(ps, proj, p, &mut self.s, &mut self.cmds, &mut tiny) => 3,
+            Geom::Lines(ls)
+                if encode_lines(ls, proj, p, &mut self.s, &mut self.cmds, &mut tiny) =>
+            {
+                2
+            }
+            Geom::Polygons(ps)
+                if encode_polygons(ps, proj, p, &mut self.s, &mut self.cmds, &mut tiny) =>
+            {
+                3
+            }
             _ => {
                 if let (Some(c), Some(d)) = (tiny, self.density.as_mut()) {
                     d.add(c);
@@ -318,7 +338,12 @@ struct BBox {
 
 impl BBox {
     fn of(pts: &[[f64; 2]]) -> BBox {
-        let mut b = BBox { x0: f64::INFINITY, y0: f64::INFINITY, x1: f64::NEG_INFINITY, y1: f64::NEG_INFINITY };
+        let mut b = BBox {
+            x0: f64::INFINITY,
+            y0: f64::INFINITY,
+            x1: f64::NEG_INFINITY,
+            y1: f64::NEG_INFINITY,
+        };
         for &[x, y] in pts {
             b.x0 = b.x0.min(x);
             b.y0 = b.y0.min(y);
@@ -348,7 +373,12 @@ fn push_delta(cmds: &mut Vec<u32>, cur: &mut (i32, i32), q: [i32; 2]) {
     *cur = (q[0], q[1]);
 }
 
-fn encode_points(pts: &[[f64; 2]], proj: &TileProjector, s: &mut Scratch, cmds: &mut Vec<u32>) -> bool {
+fn encode_points(
+    pts: &[[f64; 2]],
+    proj: &TileProjector,
+    s: &mut Scratch,
+    cmds: &mut Vec<u32>,
+) -> bool {
     s.ints.clear();
     for &[lon, lat] in pts {
         let [x, y] = proj.project(lon, lat);
@@ -367,7 +397,12 @@ fn encode_points(pts: &[[f64; 2]], proj: &TileProjector, s: &mut Scratch, cmds: 
     true
 }
 
-fn emit_line(pts: &[[f64; 2]], ints: &mut Vec<[i32; 2]>, cmds: &mut Vec<u32>, cur: &mut (i32, i32)) -> bool {
+fn emit_line(
+    pts: &[[f64; 2]],
+    ints: &mut Vec<[i32; 2]>,
+    cmds: &mut Vec<u32>,
+    cur: &mut (i32, i32),
+) -> bool {
     ints.clear();
     for &[x, y] in pts {
         let q = [x.round() as i32, y.round() as i32];
@@ -530,7 +565,13 @@ fn seg_dist2(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
 }
 
 /// Iterative Douglas-Peucker.
-fn simplify(pts: &[[f64; 2]], tol: f64, out: &mut Vec<[f64; 2]>, keep: &mut Vec<bool>, stack: &mut Vec<(usize, usize)>) {
+fn simplify(
+    pts: &[[f64; 2]],
+    tol: f64,
+    out: &mut Vec<[f64; 2]>,
+    keep: &mut Vec<bool>,
+    stack: &mut Vec<(usize, usize)>,
+) {
     out.clear();
     let n = pts.len();
     if n <= 2 || tol <= 0.0 {
@@ -559,7 +600,12 @@ fn simplify(pts: &[[f64; 2]], tol: f64, out: &mut Vec<[f64; 2]>, keep: &mut Vec<
             stack.push((idx, e));
         }
     }
-    out.extend(pts.iter().zip(keep.iter()).filter(|(_, k)| **k).map(|(p, _)| *p));
+    out.extend(
+        pts.iter()
+            .zip(keep.iter())
+            .filter(|(_, k)| **k)
+            .map(|(p, _)| *p),
+    );
 }
 
 /// Sutherland-Hodgman clip of an open ring against the buffered tile square.
@@ -619,7 +665,12 @@ fn intersect(edge: u8, a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
 fn clip_segment(a: [f64; 2], b: [f64; 2]) -> Option<([f64; 2], [f64; 2])> {
     let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
     let (mut t0, mut t1) = (0.0f64, 1.0f64);
-    for (p, q) in [(-dx, a[0] - LO), (dx, HI - a[0]), (-dy, a[1] - LO), (dy, HI - a[1])] {
+    for (p, q) in [
+        (-dx, a[0] - LO),
+        (dx, HI - a[0]),
+        (-dy, a[1] - LO),
+        (dy, HI - a[1]),
+    ] {
         if p == 0.0 {
             if q < 0.0 {
                 return None;
@@ -639,8 +690,16 @@ fn clip_segment(a: [f64; 2], b: [f64; 2]) -> Option<([f64; 2], [f64; 2])> {
             }
         }
     }
-    let pa = if t0 == 0.0 { a } else { [a[0] + t0 * dx, a[1] + t0 * dy] };
-    let pb = if t1 == 1.0 { b } else { [a[0] + t1 * dx, a[1] + t1 * dy] };
+    let pa = if t0 == 0.0 {
+        a
+    } else {
+        [a[0] + t0 * dx, a[1] + t0 * dy]
+    };
+    let pb = if t1 == 1.0 {
+        b
+    } else {
+        [a[0] + t1 * dx, a[1] + t1 * dy]
+    };
     Some((pa, pb))
 }
 
@@ -695,7 +754,12 @@ mod tests {
 
     #[test]
     fn ring_clip_keeps_inside_part() {
-        let ring = [[-100.0, -100.0], [5000.0, -100.0], [5000.0, 5000.0], [-100.0, 5000.0]];
+        let ring = [
+            [-100.0, -100.0],
+            [5000.0, -100.0],
+            [5000.0, 5000.0],
+            [-100.0, 5000.0],
+        ];
         let (mut out, mut tmp) = (Vec::new(), Vec::new());
         clip_ring(&ring, &mut out, &mut tmp);
         let bb = BBox::of(&out);
@@ -705,7 +769,13 @@ mod tests {
 
     #[test]
     fn line_clip_splits_parts() {
-        let line = [[-500.0, 100.0], [100.0, 100.0], [100.0, 9000.0], [200.0, 9000.0], [200.0, 200.0]];
+        let line = [
+            [-500.0, 100.0],
+            [100.0, 100.0],
+            [100.0, 9000.0],
+            [200.0, 9000.0],
+            [200.0, 200.0],
+        ];
         let mut parts = Vec::new();
         clip_line(&line, &mut parts);
         assert_eq!(parts.len(), 2, "{parts:?}");
@@ -723,28 +793,61 @@ mod tests {
     fn polygon_orientation_is_positive() {
         let proj = TileProjector::new(0, 0, 0, EXTENT);
         // counter-clockwise lon/lat square (would be negative on screen)
-        let sq = vec![vec![[-10.0, -10.0], [10.0, -10.0], [10.0, 10.0], [-10.0, 10.0], [-10.0, -10.0]]];
+        let sq = vec![vec![
+            [-10.0, -10.0],
+            [10.0, -10.0],
+            [10.0, 10.0],
+            [-10.0, 10.0],
+            [-10.0, -10.0],
+        ]];
         let mut enc = LayerEncoder::new("t", vec![]);
-        assert!(enc.add(Some(1), vec![], &Geom::Polygons(vec![sq]), &proj, Params { tolerance: 0.0, min_size: 0.0, ..Default::default() }));
+        assert!(enc.add(
+            Some(1),
+            vec![],
+            &Geom::Polygons(vec![sq]),
+            &proj,
+            Params {
+                tolerance: 0.0,
+                min_size: 0.0,
+                ..Default::default()
+            }
+        ));
         assert!(!enc.finish().is_empty());
     }
 
     #[test]
     fn tiny_polygons_become_density_points() {
-        use crate::tile::{tile_bounds, TileProjector};
+        use crate::tile::{TileProjector, tile_bounds};
         let (z, x, y) = (8u8, 233u32, 135u32);
         let b = tile_bounds(z, x, y);
         let proj = TileProjector::new(z, x, y, EXTENT);
-        let p = Params { tolerance: 2.0, min_size: 16.0, density_cell: 32.0, points_density: false };
+        let p = Params {
+            tolerance: 2.0,
+            min_size: 16.0,
+            density_cell: 32.0,
+            points_density: false,
+        };
         let mut enc = LayerEncoder::new("t", vec![]);
         // 200 tiny squares (~1e-5 deg) in the same corner cell + one big polygon.
         let (lon, lat) = (b[0] + 1e-4, b[3] - 1e-4);
         for i in 0..200 {
             let d = 1e-6 * i as f64;
-            let sq = vec![vec![[lon + d, lat], [lon + d + 1e-5, lat], [lon + d + 1e-5, lat - 1e-5], [lon + d, lat - 1e-5], [lon + d, lat]]];
+            let sq = vec![vec![
+                [lon + d, lat],
+                [lon + d + 1e-5, lat],
+                [lon + d + 1e-5, lat - 1e-5],
+                [lon + d, lat - 1e-5],
+                [lon + d, lat],
+            ]];
             assert!(!enc.add(Some(i), vec![], &Geom::Polygons(vec![sq]), &proj, p));
         }
-        let big = vec![vec![[b[0], b[3]], [b[2], b[3]], [b[2], b[1]], [b[0], b[1]], [b[0], b[3]]]];
+        let big = vec![vec![
+            [b[0], b[3]],
+            [b[2], b[3]],
+            [b[2], b[1]],
+            [b[0], b[1]],
+            [b[0], b[3]],
+        ]];
         assert!(enc.add(Some(999), vec![], &Geom::Polygons(vec![big]), &proj, p));
         let d = enc.density.as_ref().expect("density grid");
         assert_eq!(d.total, 200);

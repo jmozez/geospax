@@ -3,13 +3,13 @@
 //! GDAL datasets are not thread-safe, so every worker checks a private
 //! handle (dataset + coordinate transforms) out of the pool and returns it.
 
+use crate::overview::Overview;
 use crate::tile;
 use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
 use gdal::vector::{LayerAccess, OGRFieldType};
 use gdal::{Dataset, DatasetOptions, GdalOpenFlags};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use crate::overview::Overview;
 use std::sync::{Arc, Mutex, RwLock};
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -77,10 +77,22 @@ pub const MAX_ZOOM: u8 = 14;
 /// (sets the layer's minzoom). Dense layers need pre-built overviews instead.
 const TARGET_FEATURES_PER_TILE: f64 = 10_000.0;
 const PREFERRED_FIELDS: &[&str] = &[
-    "name", "type", "kind", "class", "height", "pop_max", "pop_est", "iso_a3", "continent", "scalerank", "featurecla",
+    "name",
+    "type",
+    "kind",
+    "class",
+    "height",
+    "pop_max",
+    "pop_est",
+    "iso_a3",
+    "continent",
+    "scalerank",
+    "featurecla",
 ];
 const MAX_TILE_FIELDS: usize = 6;
-const EXTENSIONS: &[&str] = &["gpkg", "fgb", "shp", "geojson", "json", "gdb", "sqlite", "gml", "kml", "gspx"];
+const EXTENSIONS: &[&str] = &[
+    "gpkg", "fgb", "shp", "geojson", "json", "gdb", "sqlite", "gml", "kml", "gspx",
+];
 
 impl LayerHandle {
     pub(crate) fn checkout(&self) -> Result<Handle, String> {
@@ -91,7 +103,9 @@ impl LayerHandle {
         // pooled handles keep their OGR layer state: set (or clear) the definition query each time
         if let Ok(mut lyr) = h.ds.layer_by_name(&self.layer_name) {
             match self.filter().as_deref() {
-                Some(w) => lyr.set_attribute_filter(w).map_err(|e| format!("definition query: {e}"))?,
+                Some(w) => lyr
+                    .set_attribute_filter(w)
+                    .map_err(|e| format!("definition query: {e}"))?,
                 None => lyr.clear_attribute_filter(),
             }
         }
@@ -106,11 +120,20 @@ impl LayerHandle {
     /// Set or clear the definition query. Checked against the data first, so a typo is an
     /// error here rather than an empty map.
     pub fn set_filter(&self, filter: Option<String>) -> Result<(), String> {
-        let filter = filter.map(|f| f.trim().to_string()).filter(|f| !f.is_empty());
+        let filter = filter
+            .map(|f| f.trim().to_string())
+            .filter(|f| !f.is_empty());
         if let Some(w) = &filter {
             let ds = open_vector(&self.path)?;
-            let mut lyr = ds.layer_by_name(&self.layer_name).map_err(|e| e.to_string())?;
-            lyr.set_attribute_filter(w).map_err(|e| format!("'{w}' is not a valid query: {}", crate::edit::tidy(&e.to_string())))?;
+            let mut lyr = ds
+                .layer_by_name(&self.layer_name)
+                .map_err(|e| e.to_string())?;
+            lyr.set_attribute_filter(w).map_err(|e| {
+                format!(
+                    "'{w}' is not a valid query: {}",
+                    crate::edit::tidy(&e.to_string())
+                )
+            })?;
         }
         *self.filter.write().unwrap() = filter;
         Ok(())
@@ -121,7 +144,9 @@ impl LayerHandle {
         if self.filter().is_none() {
             return self.info.feature_count;
         }
-        let Ok(h) = self.checkout() else { return self.info.feature_count };
+        let Ok(h) = self.checkout() else {
+            return self.info.feature_count;
+        };
         let n = h.ds.layer_by_name(&self.layer_name).map(|mut l| {
             l.clear_spatial_filter();
             l.feature_count()
@@ -165,7 +190,9 @@ impl LayerHandle {
         let h = self.checkout()?;
         let mut out = Vec::with_capacity(n);
         {
-            let lyr = h.ds.layer_by_name(&self.layer_name).map_err(|e| e.to_string())?;
+            let lyr =
+                h.ds.layer_by_name(&self.layer_name)
+                    .map_err(|e| e.to_string())?;
             let count = self.info.feature_count.max(1);
             let mut rng = Rng(seed | 1);
             let mut attempts = 0;
@@ -237,13 +264,21 @@ fn open_handle(path: &Path, layer: &str, needs_transform: bool) -> Result<Handle
     } else {
         (None, None)
     };
-    Ok(Handle { ds, to_wgs84, from_wgs84 })
+    Ok(Handle {
+        ds,
+        to_wgs84,
+        from_wgs84,
+    })
 }
 
 /// Expand files/directories into candidate vector datasets.
 pub fn discover(paths: &[PathBuf]) -> Vec<PathBuf> {
     fn walk(p: &Path, depth: usize, out: &mut Vec<PathBuf>) {
-        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+        let ext = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
         if p.is_dir() && ext != "gdb" {
             if depth == 0 {
                 return;
@@ -270,7 +305,13 @@ pub fn discover(paths: &[PathBuf]) -> Vec<PathBuf> {
 
 pub(crate) fn sanitize(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-' { c.to_ascii_lowercase() } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-' {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -297,7 +338,10 @@ pub(crate) fn is_wgs84(srs: &SpatialRef) -> bool {
     let code = srs.auth_code().ok();
     match srs.auth_name().as_deref() {
         Some("EPSG") => code == Some(4326),
-        Some("OGC") => srs.name().map(|n| n.contains("CRS84") || n.contains("WGS 84")).unwrap_or(false),
+        Some("OGC") => srs
+            .name()
+            .map(|n| n.contains("CRS84") || n.contains("WGS 84"))
+            .unwrap_or(false),
         _ => false,
     }
 }
@@ -330,7 +374,10 @@ pub(crate) fn load_layers_plain(path: &Path) -> Result<Vec<LayerHandle>, String>
         let name = lyr.name();
         // Single-layer formats are identified by file + extension
         // (synthetic_buildings.fgb); containers by file + layer (synthetic.buildings).
-        let single_layer_format = matches!(ext.as_str(), "fgb" | "shp" | "geojson" | "json" | "gml" | "kml");
+        let single_layer_format = matches!(
+            ext.as_str(),
+            "fgb" | "shp" | "geojson" | "json" | "gml" | "kml"
+        );
         let id = if n_layers == 1 && single_layer_format {
             format!("{stem}.{ext}")
         } else {
@@ -348,7 +395,10 @@ pub(crate) fn load_layers_plain(path: &Path) -> Result<Vec<LayerHandle>, String>
             }
         };
         let feature_count = lyr.feature_count();
-        let native_bounds = lyr.get_extent().ok().map(|e| [e.MinX, e.MinY, e.MaxX, e.MaxY]);
+        let native_bounds = lyr
+            .get_extent()
+            .ok()
+            .map(|e| [e.MinX, e.MinY, e.MaxX, e.MaxY]);
         let bounds = match lyr.get_extent() {
             Ok(e) => {
                 let b = [e.MinX, e.MinY, e.MaxX, e.MaxY];
@@ -370,11 +420,18 @@ pub(crate) fn load_layers_plain(path: &Path) -> Result<Vec<LayerHandle>, String>
                 }
             }
         }
-        let fields: Vec<FieldInfo> =
-            lyr.defn().fields().map(|f| FieldInfo { name: f.name(), kind: field_kind(f.field_type()) }).collect();
+        let fields: Vec<FieldInfo> = lyr
+            .defn()
+            .fields()
+            .map(|f| FieldInfo {
+                name: f.name(),
+                kind: field_kind(f.field_type()),
+            })
+            .collect();
         // Tile attributes: preferred names first, then others, max MAX_TILE_FIELDS.
-        let usable: Vec<usize> =
-            (0..fields.len()).filter(|&i| matches!(fields[i].kind, "integer" | "real" | "string")).collect();
+        let usable: Vec<usize> = (0..fields.len())
+            .filter(|&i| matches!(fields[i].kind, "integer" | "real" | "string"))
+            .collect();
         let mut field_idx: Vec<usize> = usable
             .iter()
             .copied()

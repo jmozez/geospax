@@ -12,9 +12,9 @@
 //! Every tool is a call to the engine's own API, so the assistant can do nothing a user could not do
 //! from the app, and recipes that run Python or R code are refused.
 
-use crate::router::ApiRequest;
 use crate::Engine;
-use serde_json::{json, Value};
+use crate::router::ApiRequest;
+use serde_json::{Value, json};
 use std::io::{BufRead, Write};
 use std::path::Path;
 use std::sync::Arc;
@@ -25,7 +25,12 @@ const MAX_RESULT: usize = 12_000;
 const MAX_ROUNDS: usize = 8;
 const ANTHROPIC_VERSION: &str = "2026-10-21";
 /// Claude models that take `fallbacks: "default"` (a declined request is retried on another model).
-const FALLBACK_MODELS: &[&str] = &["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"];
+const FALLBACK_MODELS: &[&str] = &[
+    "claude-opus-5-5",
+    "claude-opus-5",
+    "claude-fable-5-1",
+    "claude-sonnet-5-5",
+];
 
 const SYSTEM: &str = "You are the assistant inside GeoSpaX, a desktop GIS. Answer questions about the user's \
 map data by calling the tools: list_layers first when you do not know the layer ids or fields. Never invent \
@@ -40,30 +45,62 @@ fn defs() -> Vec<(&'static str, &'static str, Value, bool)> {
     let layer = json!({ "type": "string", "description": "layer id, as list_layers gives it" });
     let where_ = json!({ "type": "string", "description": "SQL WHERE clause on the layer's fields, e.g. \"area_ha > 10\"" });
     vec![
-        ("list_layers", "The vector layers (id, name, geometry, feature count, fields and their types, any filter) and rasters on the map.",
-            json!({ "type": "object", "properties": {}, "additionalProperties": false }), true),
-        ("describe_field", "Statistics of one field: min, max, mean, quantiles for numbers; the most frequent values and their counts for text.",
-            json!({ "type": "object", "properties": { "layer": layer, "field": { "type": "string" } }, "required": ["layer", "field"], "additionalProperties": false }), true),
-        ("query_features", "Attribute rows of a layer, optionally filtered and sorted, with the total number of matching features. At most 50 rows.",
+        (
+            "list_layers",
+            "The vector layers (id, name, geometry, feature count, fields and their types, any filter) and rasters on the map.",
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+            true,
+        ),
+        (
+            "describe_field",
+            "Statistics of one field: min, max, mean, quantiles for numbers; the most frequent values and their counts for text.",
+            json!({ "type": "object", "properties": { "layer": layer, "field": { "type": "string" } }, "required": ["layer", "field"], "additionalProperties": false }),
+            true,
+        ),
+        (
+            "query_features",
+            "Attribute rows of a layer, optionally filtered and sorted, with the total number of matching features. At most 50 rows.",
             json!({ "type": "object", "properties": {
                 "layer": layer, "where": where_,
                 "sort": { "type": "string", "description": "field to sort by" },
                 "descending": { "type": "boolean" },
                 "limit": { "type": "integer", "minimum": 1, "maximum": 50 }
-            }, "required": ["layer"], "additionalProperties": false }), true),
-        ("select_features", "Select the features matching a WHERE clause; they are highlighted on the map and listed in the attribute table. Returns how many.",
-            json!({ "type": "object", "properties": { "layer": layer, "where": where_ }, "required": ["layer", "where"], "additionalProperties": false }), true),
-        ("zoom_to_layer", "Zoom the map to a layer.",
-            json!({ "type": "object", "properties": { "layer": layer }, "required": ["layer"], "additionalProperties": false }), false),
-        ("list_recipes", "The workflows GeoSpaX can run (finished maps, hot spots, interpolation, reports…) with their inputs.",
-            json!({ "type": "object", "properties": {}, "additionalProperties": false }), true),
-        ("run_recipe", "Start a recipe. Returns the run id; the run continues in the background (see get_run).",
+            }, "required": ["layer"], "additionalProperties": false }),
+            true,
+        ),
+        (
+            "select_features",
+            "Select the features matching a WHERE clause; they are highlighted on the map and listed in the attribute table. Returns how many.",
+            json!({ "type": "object", "properties": { "layer": layer, "where": where_ }, "required": ["layer", "where"], "additionalProperties": false }),
+            true,
+        ),
+        (
+            "zoom_to_layer",
+            "Zoom the map to a layer.",
+            json!({ "type": "object", "properties": { "layer": layer }, "required": ["layer"], "additionalProperties": false }),
+            false,
+        ),
+        (
+            "list_recipes",
+            "The workflows GeoSpaX can run (finished maps, hot spots, interpolation, reports…) with their inputs.",
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+            true,
+        ),
+        (
+            "run_recipe",
+            "Start a recipe. Returns the run id; the run continues in the background (see get_run).",
             json!({ "type": "object", "properties": {
                 "recipe": { "type": "string", "description": "recipe id from list_recipes" },
                 "inputs": { "type": "object", "description": "recipe inputs by name, e.g. {\"layer\": \"survey\"}" }
-            }, "required": ["recipe"], "additionalProperties": false }), true),
-        ("get_run", "Status, message and output files of a recipe run.",
-            json!({ "type": "object", "properties": { "run": { "type": "string" } }, "required": ["run"], "additionalProperties": false }), true),
+            }, "required": ["recipe"], "additionalProperties": false }),
+            true,
+        ),
+        (
+            "get_run",
+            "Status, message and output files of a recipe run.",
+            json!({ "type": "object", "properties": { "run": { "type": "string" } }, "required": ["run"], "additionalProperties": false }),
+            true,
+        ),
     ]
 }
 
@@ -74,7 +111,13 @@ pub fn tool_names() -> Vec<&'static str> {
 
 fn enc(s: &str) -> String {
     s.bytes()
-        .map(|b| if b.is_ascii_alphanumeric() || b"-._~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
         .collect()
 }
 
@@ -87,7 +130,12 @@ fn cut(v: &Value) -> String {
     while !s.is_char_boundary(end) {
         end -= 1;
     }
-    format!("{}… [cut: {} of {} characters shown]", &s[..end], end, s.len())
+    format!(
+        "{}… [cut: {} of {} characters shown]",
+        &s[..end],
+        end,
+        s.len()
+    )
 }
 
 // ------------------------------------------------------------------ settings
@@ -104,7 +152,12 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { provider: "ollama".into(), url: "http://127.0.0.1:11434".into(), model: "llama3.2".into(), key: String::new() }
+        Settings {
+            provider: "ollama".into(),
+            url: "http://127.0.0.1:11434".into(),
+            model: "llama3.2".into(),
+            key: String::new(),
+        }
     }
 }
 
@@ -133,7 +186,10 @@ fn settings_path(state: &Path) -> std::path::PathBuf {
 }
 
 pub fn load_settings(state: &Path) -> Settings {
-    std::fs::read(settings_path(state)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+    std::fs::read(settings_path(state))
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
 }
 
 /// Save settings; `key: null` (absent) keeps the stored key, `""` removes it.
@@ -141,7 +197,9 @@ pub fn save_settings(state: &Path, body: &Value) -> Result<Settings, String> {
     let mut s = load_settings(state);
     if let Some(p) = body["provider"].as_str() {
         if !matches!(p, "ollama" | "openai" | "anthropic") {
-            return Err(format!("unknown provider '{p}' (ollama, openai or anthropic)"));
+            return Err(format!(
+                "unknown provider '{p}' (ollama, openai or anthropic)"
+            ));
         }
         s.provider = p.into();
     }
@@ -160,7 +218,8 @@ pub fn save_settings(state: &Path, body: &Value) -> Result<Settings, String> {
     }
     std::fs::create_dir_all(state).map_err(|e| e.to_string())?;
     let path = settings_path(state);
-    std::fs::write(&path, serde_json::to_vec_pretty(&s).unwrap_or_default()).map_err(|e| format!("{}: {e}", path.display()))?;
+    std::fs::write(&path, serde_json::to_vec_pretty(&s).unwrap_or_default())
+        .map_err(|e| format!("{}: {e}", path.display()))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -172,7 +231,13 @@ pub fn save_settings(state: &Path, body: &Value) -> Result<Settings, String> {
 // ------------------------------------------------------------------ tools
 
 impl Engine {
-    fn api(self: &Arc<Self>, method: &str, path: &str, query: &str, body: Option<Value>) -> Result<Value, String> {
+    fn api(
+        self: &Arc<Self>,
+        method: &str,
+        path: &str,
+        query: &str,
+        body: Option<Value>,
+    ) -> Result<Value, String> {
         let r = self.handle(ApiRequest {
             method: method.into(),
             path: path.into(),
@@ -182,7 +247,10 @@ impl Engine {
         });
         let v: Value = serde_json::from_slice(&r.body).unwrap_or(Value::Null);
         if r.status >= 400 {
-            return Err(v["error"].as_str().map(String::from).unwrap_or_else(|| format!("HTTP {}", r.status)));
+            return Err(v["error"]
+                .as_str()
+                .map(String::from)
+                .unwrap_or_else(|| format!("HTTP {}", r.status)));
         }
         Ok(v)
     }
@@ -202,7 +270,11 @@ impl Engine {
     }
 
     /// Run one tool: (result for the model, an action for the app to carry out).
-    pub fn ai_tool(self: &Arc<Self>, name: &str, args: &Value) -> Result<(Value, Option<Value>), String> {
+    pub fn ai_tool(
+        self: &Arc<Self>,
+        name: &str,
+        args: &Value,
+    ) -> Result<(Value, Option<Value>), String> {
         match name {
             "list_layers" => {
                 let l = self.api("GET", "/api/layers", "", None)?;
@@ -230,19 +302,34 @@ impl Engine {
                 let id = self.layer_arg(args)?;
                 let field = args["field"].as_str().ok_or("'field' is missing")?;
                 let l = self.layer(&id).ok_or("layer vanished")?;
-                let fi = l.field_index(field).ok_or_else(|| format!("layer '{id}' has no field '{field}'"))?;
+                let fi = l
+                    .field_index(field)
+                    .ok_or_else(|| format!("layer '{id}' has no field '{field}'"))?;
                 let base = format!("/api/layers/{}", enc(&id));
                 let numeric = matches!(l.info.fields[fi].kind, "integer" | "real");
                 let mut v = if numeric {
-                    self.api("GET", &format!("{base}/classify"), &format!("field={}&method=quantile&classes=4", enc(field)), None)?
+                    self.api(
+                        "GET",
+                        &format!("{base}/classify"),
+                        &format!("field={}&method=quantile&classes=4", enc(field)),
+                        None,
+                    )?
                 } else {
-                    self.api("GET", &format!("{base}/unique"), &format!("field={}&limit=20", enc(field)), None)?
+                    self.api(
+                        "GET",
+                        &format!("{base}/unique"),
+                        &format!("field={}&limit=20", enc(field)),
+                        None,
+                    )?
                 };
                 // timings and colours mean nothing to the model
                 if let Some(o) = v.as_object_mut() {
                     o.retain(|k, _| !k.ends_with("_ms") && k != "colors");
                 }
-                Ok((json!({ "layer": id, "field": field, "kind": l.info.fields[fi].kind, "summary": v }), None))
+                Ok((
+                    json!({ "layer": id, "field": field, "kind": l.info.fields[fi].kind, "summary": v }),
+                    None,
+                ))
             }
             "query_features" => {
                 let id = self.layer_arg(args)?;
@@ -250,7 +337,14 @@ impl Engine {
                 let t = self.api("POST", &format!("/api/layers/{}/table", enc(&id)), "", Some(json!({
                     "where": args["where"], "sort": args["sort"], "desc": args["descending"].as_bool().unwrap_or(false), "limit": limit,
                 })))?;
-                let fields: Vec<String> = t["fields"].as_array().map(|a| a.iter().filter_map(|f| f.as_str().map(String::from)).collect()).unwrap_or_default();
+                let fields: Vec<String> = t["fields"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|f| f.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
                 let rows: Vec<Value> = t["rows"]
                     .as_array()
                     .map(|rs| {
@@ -268,17 +362,31 @@ impl Engine {
                             .collect()
                     })
                     .unwrap_or_default();
-                Ok((json!({ "layer": id, "total": t["total"], "rows": rows }), None))
+                Ok((
+                    json!({ "layer": id, "total": t["total"], "rows": rows }),
+                    None,
+                ))
             }
             "select_features" => {
                 let id = self.layer_arg(args)?;
-                let r = self.api("POST", &format!("/api/layers/{}/select", enc(&id)), "", Some(json!({ "where": args["where"] })))?;
+                let r = self.api(
+                    "POST",
+                    &format!("/api/layers/{}/select", enc(&id)),
+                    "",
+                    Some(json!({ "where": args["where"] })),
+                )?;
                 let action = json!({ "kind": "select", "layer": id, "fids": r["fids"] });
-                Ok((json!({ "layer": id, "selected": r["count"], "capped": r["capped"] }), Some(action)))
+                Ok((
+                    json!({ "layer": id, "selected": r["count"], "capped": r["capped"] }),
+                    Some(action),
+                ))
             }
             "zoom_to_layer" => {
                 let id = self.layer_arg(args)?;
-                Ok((json!({ "zoomed_to": id }), Some(json!({ "kind": "zoom", "layer": id }))))
+                Ok((
+                    json!({ "zoomed_to": id }),
+                    Some(json!({ "kind": "zoom", "layer": id })),
+                ))
             }
             "list_recipes" => {
                 let r = self.automation.recipes();
@@ -293,24 +401,46 @@ impl Engine {
             }
             "run_recipe" => {
                 let id = args["recipe"].as_str().ok_or("'recipe' is missing")?;
-                let r = self.automation.recipe(id).ok_or_else(|| format!("there is no recipe '{id}' (call list_recipes)"))?;
+                let r = self
+                    .automation
+                    .recipe(id)
+                    .ok_or_else(|| format!("there is no recipe '{id}' (call list_recipes)"))?;
                 if r.has_code_steps() {
-                    return Err(format!("'{id}' runs Python or R code on this computer; start it yourself from the Automate pane"));
+                    return Err(format!(
+                        "'{id}' runs Python or R code on this computer; start it yourself from the Automate pane"
+                    ));
                 }
-                let run = self.api("POST", &format!("/api/recipes/{}/run", enc(id)), "", Some(json!({ "inputs": args["inputs"] })))?;
+                let run = self.api(
+                    "POST",
+                    &format!("/api/recipes/{}/run", enc(id)),
+                    "",
+                    Some(json!({ "inputs": args["inputs"] })),
+                )?;
                 let rid = run["id"].clone();
-                Ok((json!({ "run": rid, "status": run["status"] }), Some(json!({ "kind": "run", "run": rid }))))
+                Ok((
+                    json!({ "run": rid, "status": run["status"] }),
+                    Some(json!({ "kind": "run", "run": rid })),
+                ))
             }
             "get_run" => {
                 let id = args["run"].as_str().ok_or("'run' is missing")?;
                 let r = self.api("GET", &format!("/api/runs/{}", enc(id)), "", None)?;
-                Ok((json!({ "run": id, "status": r["status"], "message": r["message"].clone(), "error": r["error"], "files": r["artifacts"] }), None))
+                Ok((
+                    json!({ "run": id, "status": r["status"], "message": r["message"].clone(), "error": r["error"], "files": r["artifacts"] }),
+                    None,
+                ))
             }
             other => Err(format!("unknown tool '{other}'")),
         }
     }
 
-    fn run_tool(self: &Arc<Self>, name: &str, args: &Value, steps: &mut Vec<Value>, actions: &mut Vec<Value>) -> (String, bool) {
+    fn run_tool(
+        self: &Arc<Self>,
+        name: &str,
+        args: &Value,
+        steps: &mut Vec<Value>,
+        actions: &mut Vec<Value>,
+    ) -> (String, bool) {
         match self.ai_tool(name, args) {
             Ok((v, a)) => {
                 if let Some(a) = a {
@@ -346,7 +476,12 @@ impl Engine {
             .rev()
             .take(12)
             .rev()
-            .filter_map(|m| Some((m["role"].as_str()?.to_string(), m["text"].as_str()?.to_string())))
+            .filter_map(|m| {
+                Some((
+                    m["role"].as_str()?.to_string(),
+                    m["text"].as_str()?.to_string(),
+                ))
+            })
             .filter(|(r, t)| matches!(r.as_str(), "user" | "assistant") && !t.is_empty())
             .collect();
         let (mut steps, mut actions) = (Vec::new(), Vec::new());
@@ -355,11 +490,21 @@ impl Engine {
             "openai" => self.ask_chat(&s, true, &past, question, &mut steps, &mut actions)?,
             _ => self.ask_chat(&s, false, &past, question, &mut steps, &mut actions)?,
         };
-        Ok(json!({ "answer": answer, "steps": steps, "actions": actions, "provider": s.provider, "model": s.model }))
+        Ok(
+            json!({ "answer": answer, "steps": steps, "actions": actions, "provider": s.provider, "model": s.model }),
+        )
     }
 
     /// Ollama (`/api/chat`) and OpenAI-compatible servers (`/v1/chat/completions`).
-    fn ask_chat(self: &Arc<Self>, s: &Settings, openai: bool, past: &[(String, String)], q: &str, steps: &mut Vec<Value>, actions: &mut Vec<Value>) -> Result<String, String> {
+    fn ask_chat(
+        self: &Arc<Self>,
+        s: &Settings,
+        openai: bool,
+        past: &[(String, String)],
+        q: &str,
+        steps: &mut Vec<Value>,
+        actions: &mut Vec<Value>,
+    ) -> Result<String, String> {
         let tools: Vec<Value> = defs()
             .into_iter()
             .map(|(n, d, schema, _)| json!({ "type": "function", "function": { "name": n, "description": d, "parameters": schema } }))
@@ -367,20 +512,34 @@ impl Engine {
         let mut msgs = vec![json!({ "role": "system", "content": SYSTEM })];
         msgs.extend(past.iter().map(|(r, t)| json!({ "role": r, "content": t })));
         msgs.push(json!({ "role": "user", "content": q }));
-        let url = if openai { format!("{}/v1/chat/completions", s.base_url()) } else { format!("{}/api/chat", s.base_url()) };
+        let url = if openai {
+            format!("{}/v1/chat/completions", s.base_url())
+        } else {
+            format!("{}/api/chat", s.base_url())
+        };
         let auth = format!("Bearer {}", s.key);
-        let headers: Vec<(&str, &str)> = if openai && !s.key.is_empty() { vec![("Authorization", auth.as_str())] } else { vec![] };
+        let headers: Vec<(&str, &str)> = if openai && !s.key.is_empty() {
+            vec![("Authorization", auth.as_str())]
+        } else {
+            vec![]
+        };
         for _ in 0..MAX_ROUNDS {
             let mut body = json!({ "model": s.model, "messages": msgs, "tools": tools });
             if !openai {
                 body["stream"] = false.into();
             }
-            let raw = crate::raster::http_with(&url, Some(&body.to_string()), &headers, 300).map_err(|e| provider_error(&s.provider, &e))?;
-            let r: Value = serde_json::from_slice(&raw).map_err(|e| format!("the model server sent something that is not JSON: {e}"))?;
+            let raw = crate::raster::http_with(&url, Some(&body.to_string()), &headers, 300)
+                .map_err(|e| provider_error(&s.provider, &e))?;
+            let r: Value = serde_json::from_slice(&raw)
+                .map_err(|e| format!("the model server sent something that is not JSON: {e}"))?;
             if let Some(e) = r["error"].as_str().or(r["error"]["message"].as_str()) {
                 return Err(format!("{}: {e}", s.provider));
             }
-            let msg = if openai { r["choices"][0]["message"].clone() } else { r["message"].clone() };
+            let msg = if openai {
+                r["choices"][0]["message"].clone()
+            } else {
+                r["message"].clone()
+            };
             let calls = msg["tool_calls"].as_array().cloned().unwrap_or_default();
             if calls.is_empty() {
                 return Ok(msg["content"].as_str().unwrap_or("").trim().to_string());
@@ -402,16 +561,34 @@ impl Engine {
                 }
             }
         }
-        Err(format!("no answer after {MAX_ROUNDS} rounds of tool calls; try a narrower question"))
+        Err(format!(
+            "no answer after {MAX_ROUNDS} rounds of tool calls; try a narrower question"
+        ))
     }
 
     /// Claude Messages API: the assistant's content goes back unchanged (thinking blocks included).
-    fn ask_anthropic(self: &Arc<Self>, s: &Settings, past: &[(String, String)], q: &str, steps: &mut Vec<Value>, actions: &mut Vec<Value>) -> Result<String, String> {
-        let tools: Vec<Value> = defs().into_iter().map(|(n, d, schema, _)| json!({ "name": n, "description": d, "input_schema": schema })).collect();
-        let mut msgs: Vec<Value> = past.iter().map(|(r, t)| json!({ "role": r, "content": t })).collect();
+    fn ask_anthropic(
+        self: &Arc<Self>,
+        s: &Settings,
+        past: &[(String, String)],
+        q: &str,
+        steps: &mut Vec<Value>,
+        actions: &mut Vec<Value>,
+    ) -> Result<String, String> {
+        let tools: Vec<Value> = defs()
+            .into_iter()
+            .map(|(n, d, schema, _)| json!({ "name": n, "description": d, "input_schema": schema }))
+            .collect();
+        let mut msgs: Vec<Value> = past
+            .iter()
+            .map(|(r, t)| json!({ "role": r, "content": t }))
+            .collect();
         msgs.push(json!({ "role": "user", "content": q }));
         let fallback = FALLBACK_MODELS.contains(&s.model.as_str());
-        let mut headers = vec![("x-api-key", s.key.as_str()), ("anthropic-version", ANTHROPIC_VERSION)];
+        let mut headers = vec![
+            ("x-api-key", s.key.as_str()),
+            ("anthropic-version", ANTHROPIC_VERSION),
+        ];
         if fallback {
             headers.push(("anthropic-beta", "server-side-fallback-2026-07-01"));
         }
@@ -421,10 +598,15 @@ impl Engine {
             if fallback {
                 body["fallbacks"] = "default".into();
             }
-            let raw = crate::raster::http_with(&url, Some(&body.to_string()), &headers, 600).map_err(|e| provider_error("anthropic", &e))?;
-            let r: Value = serde_json::from_slice(&raw).map_err(|e| format!("Claude sent something that is not JSON: {e}"))?;
+            let raw = crate::raster::http_with(&url, Some(&body.to_string()), &headers, 600)
+                .map_err(|e| provider_error("anthropic", &e))?;
+            let r: Value = serde_json::from_slice(&raw)
+                .map_err(|e| format!("Claude sent something that is not JSON: {e}"))?;
             if r["type"] == "error" {
-                return Err(format!("Claude: {}", r["error"]["message"].as_str().unwrap_or("error")));
+                return Err(format!(
+                    "Claude: {}",
+                    r["error"]["message"].as_str().unwrap_or("error")
+                ));
             }
             let content = r["content"].as_array().cloned().unwrap_or_default();
             let text = || {
@@ -442,7 +624,12 @@ impl Engine {
                     msgs.push(json!({ "role": "assistant", "content": content }));
                     let mut results = Vec::new();
                     for b in content.iter().filter(|b| b["type"] == "tool_use") {
-                        let (out, is_error) = self.run_tool(b["name"].as_str().unwrap_or(""), &b["input"], steps, actions);
+                        let (out, is_error) = self.run_tool(
+                            b["name"].as_str().unwrap_or(""),
+                            &b["input"],
+                            steps,
+                            actions,
+                        );
                         results.push(json!({ "type": "tool_result", "tool_use_id": b["id"], "content": out, "is_error": is_error }));
                     }
                     // all results of one turn go back in one message
@@ -450,14 +637,23 @@ impl Engine {
                 }
                 "refusal" => {
                     let why = r["stop_details"]["explanation"].as_str().unwrap_or("");
-                    return Err(format!("Claude declined to answer this. {why}").trim().to_string());
+                    return Err(format!("Claude declined to answer this. {why}")
+                        .trim()
+                        .to_string());
                 }
                 "pause_turn" => msgs.push(json!({ "role": "assistant", "content": content })),
-                "max_tokens" => return Ok(format!("{}\n\n(The answer was cut at the length limit.)", text())),
+                "max_tokens" => {
+                    return Ok(format!(
+                        "{}\n\n(The answer was cut at the length limit.)",
+                        text()
+                    ));
+                }
                 _ => return Ok(text()),
             }
         }
-        Err(format!("no answer after {MAX_ROUNDS} rounds of tool calls; try a narrower question"))
+        Err(format!(
+            "no answer after {MAX_ROUNDS} rounds of tool calls; try a narrower question"
+        ))
     }
 
     /// Models the configured provider offers (for the settings dialog).
@@ -465,17 +661,44 @@ impl Engine {
         let s = load_settings(&self.state_dir);
         let (models, error): (Vec<String>, Option<String>) = match s.provider.as_str() {
             // the current Claude models (docs/AI.md); the user may type another id
-            "anthropic" => (vec!["claude-opus-5-5".into(), "claude-sonnet-5-5".into(), "claude-haiku-5-5".into()], None),
+            "anthropic" => (
+                vec![
+                    "claude-opus-5-5".into(),
+                    "claude-sonnet-5-5".into(),
+                    "claude-haiku-5-5".into(),
+                ],
+                None,
+            ),
             p => {
                 let openai = p == "openai";
-                let url = if openai { format!("{}/v1/models", s.base_url()) } else { format!("{}/api/tags", s.base_url()) };
+                let url = if openai {
+                    format!("{}/v1/models", s.base_url())
+                } else {
+                    format!("{}/api/tags", s.base_url())
+                };
                 let auth = format!("Bearer {}", s.key);
-                let h: Vec<(&str, &str)> = if openai && !s.key.is_empty() { vec![("Authorization", auth.as_str())] } else { vec![] };
-                match crate::raster::http_with(&url, None, &h, 8).and_then(|b| serde_json::from_slice::<Value>(&b).map_err(|e| e.to_string())) {
+                let h: Vec<(&str, &str)> = if openai && !s.key.is_empty() {
+                    vec![("Authorization", auth.as_str())]
+                } else {
+                    vec![]
+                };
+                match crate::raster::http_with(&url, None, &h, 8)
+                    .and_then(|b| serde_json::from_slice::<Value>(&b).map_err(|e| e.to_string()))
+                {
                     Ok(v) => {
-                        let list = if openai { v["data"].as_array().cloned() } else { v["models"].as_array().cloned() }.unwrap_or_default();
+                        let list = if openai {
+                            v["data"].as_array().cloned()
+                        } else {
+                            v["models"].as_array().cloned()
+                        }
+                        .unwrap_or_default();
                         let key = if openai { "id" } else { "name" };
-                        (list.iter().filter_map(|m| m[key].as_str().map(String::from)).collect(), None)
+                        (
+                            list.iter()
+                                .filter_map(|m| m[key].as_str().map(String::from))
+                                .collect(),
+                            None,
+                        )
                     }
                     Err(e) => (vec![], Some(provider_error(p, &e))),
                 }
@@ -487,10 +710,17 @@ impl Engine {
 
 fn provider_error(provider: &str, e: &str) -> String {
     let lower = e.to_lowercase();
-    if provider == "ollama" && (lower.contains("connect") || lower.contains("refused") || lower.contains("resolve")) {
-        return format!("Ollama is not running on this computer (start it, or install it from ollama.com): {e}");
+    if provider == "ollama"
+        && (lower.contains("connect") || lower.contains("refused") || lower.contains("resolve"))
+    {
+        return format!(
+            "Ollama is not running on this computer (start it, or install it from ollama.com): {e}"
+        );
     }
-    if lower.contains("401") || lower.contains("authentication") || lower.contains("invalid x-api-key") {
+    if lower.contains("401")
+        || lower.contains("authentication")
+        || lower.contains("invalid x-api-key")
+    {
         return format!("{provider}: the API key was not accepted: {e}");
     }
     format!("{provider}: {e}")
@@ -499,7 +729,11 @@ fn provider_error(provider: &str, e: &str) -> String {
 // ------------------------------------------------------------------ MCP
 
 /// Serve the tools over MCP (JSON-RPC 2.0, one message per line) until `input` ends.
-pub fn mcp_serve(engine: &Arc<Engine>, input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
+pub fn mcp_serve(
+    engine: &Arc<Engine>,
+    input: impl BufRead,
+    mut output: impl Write,
+) -> std::io::Result<()> {
     for line in input.lines() {
         let line = line?;
         if line.trim().is_empty() {
@@ -507,7 +741,9 @@ pub fn mcp_serve(engine: &Arc<Engine>, input: impl BufRead, mut output: impl Wri
         }
         let reply = match serde_json::from_str::<Value>(&line) {
             Ok(msg) => mcp_handle(engine, &msg),
-            Err(e) => Some(json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": format!("parse error: {e}") } })),
+            Err(e) => Some(
+                json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": format!("parse error: {e}") } }),
+            ),
         };
         if let Some(r) = reply {
             writeln!(output, "{r}")?;
@@ -530,19 +766,33 @@ pub fn mcp_handle(engine: &Arc<Engine>, msg: &Value) -> Option<Value> {
             "instructions": "GeoSpaX's map data: list_layers first, then describe_field, query_features or select_features with SQL WHERE clauses on the layer's fields; list_recipes / run_recipe for whole workflows.",
         })),
         "ping" => ok(json!({})),
-        "tools/list" => ok(json!({ "tools": defs().into_iter().filter(|d| d.3).map(|(n, d, s, _)| json!({ "name": n, "description": d, "inputSchema": s })).collect::<Vec<_>>() })),
+        "tools/list" => ok(
+            json!({ "tools": defs().into_iter().filter(|d| d.3).map(|(n, d, s, _)| json!({ "name": n, "description": d, "inputSchema": s })).collect::<Vec<_>>() }),
+        ),
         "tools/call" => {
             let name = params["name"].as_str().unwrap_or("");
             if !defs().iter().any(|d| d.0 == name && d.3) {
-                return Some(json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32602, "message": format!("unknown tool '{name}'") } }));
+                return Some(
+                    json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32602, "message": format!("unknown tool '{name}'") } }),
+                );
             }
-            let args = if params["arguments"].is_object() { params["arguments"].clone() } else { json!({}) };
+            let args = if params["arguments"].is_object() {
+                params["arguments"].clone()
+            } else {
+                json!({})
+            };
             match engine.ai_tool(name, &args) {
-                Ok((v, _)) => ok(json!({ "content": [{ "type": "text", "text": cut(&v) }], "structuredContent": v, "isError": false })),
-                Err(e) => ok(json!({ "content": [{ "type": "text", "text": e }], "isError": true })),
+                Ok((v, _)) => ok(
+                    json!({ "content": [{ "type": "text", "text": cut(&v) }], "structuredContent": v, "isError": false }),
+                ),
+                Err(e) => {
+                    ok(json!({ "content": [{ "type": "text", "text": e }], "isError": true }))
+                }
             }
         }
-        m => Some(json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": format!("method '{m}' not found") } })),
+        m => Some(
+            json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": format!("method '{m}' not found") } }),
+        ),
     }
 }
 
@@ -569,7 +819,11 @@ mod tests {
     #[test]
     fn settings_keep_the_key_unless_told() {
         let dir = std::env::temp_dir().join(format!("gx-ai-{}", std::process::id()));
-        let s = save_settings(&dir, &json!({ "provider": "anthropic", "model": "claude-opus-5-5", "key": "sk-test" })).unwrap();
+        let s = save_settings(
+            &dir,
+            &json!({ "provider": "anthropic", "model": "claude-opus-5-5", "key": "sk-test" }),
+        )
+        .unwrap();
         assert_eq!(s.key, "sk-test");
         let s = save_settings(&dir, &json!({ "model": "claude-sonnet-5-5" })).unwrap();
         assert_eq!(s.key, "sk-test");

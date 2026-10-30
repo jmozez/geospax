@@ -4,7 +4,7 @@
 //! `GET /api/samples` lists the sets, `POST /api/samples/<set>` opens one.
 
 use crate::Engine;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -16,25 +16,44 @@ pub fn bundled_dir() -> Option<PathBuf> {
         return Some(PathBuf::from(v)).filter(|p| p.is_dir());
     }
     let mut c = vec![PathBuf::from("samples")];
-    if let Some(d) = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf)) {
+    if let Some(d) = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(Path::to_path_buf))
+    {
         c.push(d.join("samples"));
         c.push(d.parent().unwrap_or(&d).join("share/geospax/samples"));
     }
-    c.into_iter().find(|p| p.join("png/sample.json").is_file()).and_then(|p| p.canonicalize().ok())
+    c.into_iter()
+        .find(|p| p.join("png/sample.json").is_file())
+        .and_then(|p| p.canonicalize().ok())
 }
 
 /// Every sample set: its sample.json plus the files it holds.
 pub fn list() -> Vec<Value> {
-    let Some(root) = bundled_dir() else { return Vec::new() };
+    let Some(root) = bundled_dir() else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
-    let Ok(rd) = fs::read_dir(&root) else { return out };
-    let mut dirs: Vec<PathBuf> = rd.flatten().map(|e| e.path()).filter(|p| p.join("sample.json").is_file()).collect();
+    let Ok(rd) = fs::read_dir(&root) else {
+        return out;
+    };
+    let mut dirs: Vec<PathBuf> = rd
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.join("sample.json").is_file())
+        .collect();
     dirs.sort();
     for d in dirs {
-        let Ok(mut meta) = fs::read(d.join("sample.json")).map_err(|e| e.to_string()).and_then(|b| serde_json::from_slice::<Value>(&b).map_err(|e| e.to_string())) else {
+        let Ok(mut meta) = fs::read(d.join("sample.json"))
+            .map_err(|e| e.to_string())
+            .and_then(|b| serde_json::from_slice::<Value>(&b).map_err(|e| e.to_string()))
+        else {
             continue;
         };
-        let mut files: Vec<String> = data_files(&d).iter().filter_map(|f| f.file_name().map(|n| n.to_string_lossy().to_string())).collect();
+        let mut files: Vec<String> = data_files(&d)
+            .iter()
+            .filter_map(|f| f.file_name().map(|n| n.to_string_lossy().to_string()))
+            .collect();
         files.sort();
         meta["files"] = json!(files);
         out.push(meta);
@@ -47,7 +66,14 @@ fn data_files(dir: &Path) -> Vec<PathBuf> {
         .map(|rd| {
             rd.flatten()
                 .map(|e| e.path())
-                .filter(|p| p.extension().is_some_and(|e| matches!(e.to_string_lossy().to_lowercase().as_str(), "geojson" | "gpkg" | "tif" | "tiff" | "fgb" | "csv" | "md")))
+                .filter(|p| {
+                    p.extension().is_some_and(|e| {
+                        matches!(
+                            e.to_string_lossy().to_lowercase().as_str(),
+                            "geojson" | "gpkg" | "tif" | "tiff" | "fgb" | "csv" | "md"
+                        )
+                    })
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -56,7 +82,11 @@ fn data_files(dir: &Path) -> Vec<PathBuf> {
 /// Copy a set into the state folder (once; later calls reuse the copy) and add it to the map for
 /// this session.
 pub fn open(engine: &Arc<Engine>, set: &str) -> Result<Value, String> {
-    if set.is_empty() || !set.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if set.is_empty()
+        || !set
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return Err(format!("there is no sample set '{set}'"));
     }
     let root = bundled_dir().ok_or("this installation has no sample data")?;
@@ -81,9 +111,17 @@ pub fn open(engine: &Arc<Engine>, set: &str) -> Result<Value, String> {
         .into_iter()
         .filter(|f| {
             let p = f.to_string_lossy();
-            !engine.layers().iter().any(|l| l.info.source == p) && !engine.rasters.read().unwrap().iter().any(|r| r.info.path == *f)
+            !engine.layers().iter().any(|l| l.info.source == p)
+                && !engine
+                    .rasters
+                    .read()
+                    .unwrap()
+                    .iter()
+                    .any(|r| r.info.path == *f)
         })
         .collect();
     let (layers, rasters, _, skipped) = crate::upload::register_files(engine, &fresh);
-    Ok(json!({ "set": set, "folder": dest.display().to_string(), "layers": layers, "rasters": rasters, "skipped": skipped }))
+    Ok(
+        json!({ "set": set, "folder": dest.display().to_string(), "layers": layers, "rasters": rasters, "skipped": skipped }),
+    )
 }

@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use serde_json::{Map, Value};
 
-use crate::sensors::{clean_field, LivePush};
 use crate::Engine;
+use crate::sensors::{LivePush, clean_field};
 
 const PAGE: usize = 100;
 
@@ -45,7 +45,13 @@ pub struct StaSource {
 
 /// `airquality-frost.k8s.example.de` → `airquality-frost`, `iot.hamburg.de` → `hamburg`, an IP address → `local`.
 pub fn source_key(root: &str) -> String {
-    let host = root.split("://").nth(1).unwrap_or(root).split('/').next().unwrap_or("");
+    let host = root
+        .split("://")
+        .nth(1)
+        .unwrap_or(root)
+        .split('/')
+        .next()
+        .unwrap_or("");
     if host.starts_with('[') {
         return "local".into();
     }
@@ -53,10 +59,25 @@ pub fn source_key(root: &str) -> String {
     if host.is_empty() || host.parse::<std::net::Ipv4Addr>().is_ok() {
         return "local".into();
     }
-    const GENERIC: [&str; 11] = ["www", "api", "iot", "sta", "sensorthings", "frost", "data", "k8s", "server", "services", "gateway"];
+    const GENERIC: [&str; 11] = [
+        "www",
+        "api",
+        "iot",
+        "sta",
+        "sensorthings",
+        "frost",
+        "data",
+        "k8s",
+        "server",
+        "services",
+        "gateway",
+    ];
     let labels: Vec<&str> = host.split('.').collect();
     let n = labels.len().saturating_sub(1).max(1); // without the top-level domain
-    let pick = labels[..n].iter().find(|l| !GENERIC.contains(l)).unwrap_or(&labels[0]);
+    let pick = labels[..n]
+        .iter()
+        .find(|l| !GENERIC.contains(l))
+        .unwrap_or(&labels[0]);
     crate::devices::slug(pick)
 }
 
@@ -74,17 +95,35 @@ pub fn parse_sta_url(s: &str) -> Result<StaSource, String> {
     let s = s.trim();
     let (root, query) = s.split_once('?').unwrap_or((s, ""));
     if !(root.starts_with("http://") || root.starts_with("https://")) {
-        return Err(format!("'{s}': SensorThings sources look like https://host/v1.1"));
+        return Err(format!(
+            "'{s}': SensorThings sources look like https://host/v1.1"
+        ));
     }
-    let opt = |key: &str| query.split('&').find_map(|kv| kv.split_once('=').filter(|(k, _)| *k == key).map(|(_, v)| crate::router::pct_decode(v)));
-    let every = opt("every").and_then(|v| v.parse::<u64>().ok()).unwrap_or(60).clamp(10, 86_400);
-    let max = opt("max").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1000).clamp(PAGE, 10_000);
+    let opt = |key: &str| {
+        query.split('&').find_map(|kv| {
+            kv.split_once('=')
+                .filter(|(k, _)| *k == key)
+                .map(|(_, v)| crate::router::pct_decode(v))
+        })
+    };
+    let every = opt("every")
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(60)
+        .clamp(10, 86_400);
+    let max = opt("max")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(1000)
+        .clamp(PAGE, 10_000);
     let mut filters = Vec::new();
     if let Some(b) = opt("bbox") {
         let v: Vec<f64> = b.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-        let [x1, y1, x2, y2] = v[..] else { return Err(format!("'{s}': bbox=minlon,minlat,maxlon,maxlat")) };
+        let [x1, y1, x2, y2] = v[..] else {
+            return Err(format!("'{s}': bbox=minlon,minlat,maxlon,maxlat"));
+        };
         if !(x1 < x2 && y1 < y2 && x1 >= -180.0 && x2 <= 180.0 && y1 >= -90.0 && y2 <= 90.0) {
-            return Err(format!("'{s}': bbox=minlon,minlat,maxlon,maxlat in degrees"));
+            return Err(format!(
+                "'{s}': bbox=minlon,minlat,maxlon,maxlat in degrees"
+            ));
         }
         filters.push(format!("st_intersects(Locations/location, geography'POLYGON(({x1} {y1}, {x2} {y1}, {x2} {y2}, {x1} {y2}, {x1} {y1}))')"));
     }
@@ -94,11 +133,26 @@ pub fn parse_sta_url(s: &str) -> Result<StaSource, String> {
     let filter = match filters.len() {
         0 => None,
         1 => filters.pop(),
-        _ => Some(filters.iter().map(|f| format!("({f})")).collect::<Vec<_>>().join(" and ")),
+        _ => Some(
+            filters
+                .iter()
+                .map(|f| format!("({f})"))
+                .collect::<Vec<_>>()
+                .join(" and "),
+        ),
     };
     let root = root.trim_end_matches('/').to_string();
-    let key = opt("name").map(|n| crate::devices::slug(&n)).filter(|k| !k.is_empty()).unwrap_or_else(|| source_key(&root));
-    Ok(StaSource { root, every, filter, max, key })
+    let key = opt("name")
+        .map(|n| crate::devices::slug(&n))
+        .filter(|k| !k.is_empty())
+        .unwrap_or_else(|| source_key(&root));
+    Ok(StaSource {
+        root,
+        every,
+        filter,
+        max,
+        key,
+    })
 }
 
 /// Percent-encode an OData expression for a query string (keeps the characters OData itself uses).
@@ -106,7 +160,21 @@ fn encode_query(v: &str) -> String {
     let mut out = String::new();
     for b in v.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'(' | b')' | b'\'' | b',' | b'/' | b':' | b'*' | b'@' => out.push(b as char),
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'.'
+            | b'_'
+            | b'~'
+            | b'('
+            | b')'
+            | b'\''
+            | b','
+            | b'/'
+            | b':'
+            | b'*'
+            | b'@' => out.push(b as char),
             _ => out.push_str(&format!("%{b:02X}")),
         }
     }
@@ -115,7 +183,11 @@ fn encode_query(v: &str) -> String {
 
 /// First page of Things with locations and the newest observation of every datastream.
 pub fn things_url(src: &StaSource) -> String {
-    let filter = src.filter.as_deref().map(|f| format!("&$filter={}", encode_query(f))).unwrap_or_default();
+    let filter = src
+        .filter
+        .as_deref()
+        .map(|f| format!("&$filter={}", encode_query(f)))
+        .unwrap_or_default();
     format!(
         "{}/Things?$top={PAGE}{filter}&$expand=Locations($select=location),Datastreams($select=name,unitOfMeasurement;\
          $expand=ObservedProperty($select=name),Observations($orderby=phenomenonTime%20desc;$top=1;$select=result,phenomenonTime))",
@@ -125,7 +197,11 @@ pub fn things_url(src: &StaSource) -> String {
 
 /// Point position of a SensorThings location (GeoJSON geometry, or a Feature).
 fn point(loc: &Value) -> Option<(f64, f64)> {
-    let g = if loc.get("type").and_then(Value::as_str) == Some("Feature") { loc.get("geometry")? } else { loc };
+    let g = if loc.get("type").and_then(Value::as_str) == Some("Feature") {
+        loc.get("geometry")?
+    } else {
+        loc
+    };
     if g.get("type").and_then(Value::as_str) != Some("Point") {
         return None;
     }
@@ -138,16 +214,29 @@ fn point(loc: &Value) -> Option<(f64, f64)> {
 fn phenomenon_time(v: &Value) -> Option<f64> {
     let s = v.as_str()?;
     let s = s.rsplit('/').next().unwrap_or(s);
-    chrono::DateTime::parse_from_rfc3339(s).ok().map(|d| d.timestamp_millis() as f64 / 1000.0)
+    chrono::DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|d| d.timestamp_millis() as f64 / 1000.0)
 }
 
 /// One page of Things → live sensors (those with a point location and at least one numeric observation),
 /// plus the next page's URL.
 pub fn parse_things(page: &Value, key: &str) -> (Vec<LivePush>, Option<String>) {
     let mut out = Vec::new();
-    for thing in page.get("value").and_then(Value::as_array).into_iter().flatten() {
+    for thing in page
+        .get("value")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
         let Some(t) = thing.as_object() else { continue };
-        let Some(pos) = t.get("Locations").and_then(Value::as_array).and_then(|ls| ls.iter().find_map(|l| l.get("location").and_then(point))) else { continue };
+        let Some(pos) = t
+            .get("Locations")
+            .and_then(Value::as_array)
+            .and_then(|ls| ls.iter().find_map(|l| l.get("location").and_then(point)))
+        else {
+            continue;
+        };
         let id = match t.get("@iot.id") {
             Some(Value::String(s)) => s.clone(),
             Some(v) => v.to_string(),
@@ -155,17 +244,44 @@ pub fn parse_things(page: &Value, key: &str) -> (Vec<LivePush>, Option<String>) 
         };
         let mut values: Vec<(String, f64)> = Vec::new();
         let mut newest: Option<f64> = None;
-        for ds in t.get("Datastreams").and_then(Value::as_array).into_iter().flatten() {
+        for ds in t
+            .get("Datastreams")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
             let ds: &Map<String, Value> = match ds.as_object() {
                 Some(d) => d,
                 None => continue,
             };
-            let Some(obs) = ds.get("Observations").and_then(Value::as_array).and_then(|o| o.first()) else { continue };
-            let Some(x) = obs.get("result").and_then(|r| r.as_f64().or_else(|| r.as_str().and_then(|s| s.trim().parse().ok()))).filter(|x: &f64| x.is_finite()) else {
+            let Some(obs) = ds
+                .get("Observations")
+                .and_then(Value::as_array)
+                .and_then(|o| o.first())
+            else {
                 continue;
             };
-            let label = ds.get("ObservedProperty").and_then(|p| p.get("name")).and_then(Value::as_str).or_else(|| ds.get("name").and_then(Value::as_str)).unwrap_or("value");
-            let unit = ds.get("unitOfMeasurement").and_then(|u| u.get("symbol")).and_then(Value::as_str).filter(|u| !u.is_empty());
+            let Some(x) = obs
+                .get("result")
+                .and_then(|r| {
+                    r.as_f64()
+                        .or_else(|| r.as_str().and_then(|s| s.trim().parse().ok()))
+                })
+                .filter(|x: &f64| x.is_finite())
+            else {
+                continue;
+            };
+            let label = ds
+                .get("ObservedProperty")
+                .and_then(|p| p.get("name"))
+                .and_then(Value::as_str)
+                .or_else(|| ds.get("name").and_then(Value::as_str))
+                .unwrap_or("value");
+            let unit = ds
+                .get("unitOfMeasurement")
+                .and_then(|u| u.get("symbol"))
+                .and_then(Value::as_str)
+                .filter(|u| !u.is_empty());
             let (name, _) = clean_field(&match unit {
                 Some(u) => format!("{label} ({u})"),
                 None => label.to_string(),
@@ -201,7 +317,10 @@ pub fn parse_things(page: &Value, key: &str) -> (Vec<LivePush>, Option<String>) 
             network: Some("SensorThings"),
         });
     }
-    let next = page.get("@iot.nextLink").and_then(Value::as_str).map(str::to_string);
+    let next = page
+        .get("@iot.nextLink")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     (out, next)
 }
 
@@ -223,10 +342,17 @@ pub fn run_sta(engine: &Arc<Engine>, url: &str, status: &dyn Fn(&mut dyn FnMut(&
         let (mut things, mut pushed, mut error) = (0usize, 0u64, None);
         for _ in 0..src.max.div_ceil(PAGE) {
             let Some(u) = next.take() else { break };
-            let page = crate::raster::http(&u, None, 30).and_then(|b| serde_json::from_slice::<Value>(&b).map_err(|e| format!("not SensorThings JSON: {e}")));
+            let page = crate::raster::http(&u, None, 30).and_then(|b| {
+                serde_json::from_slice::<Value>(&b)
+                    .map_err(|e| format!("not SensorThings JSON: {e}"))
+            });
             match page {
                 Ok(v) => {
-                    if let Some(msg) = v.get("message").and_then(Value::as_str).filter(|_| v.get("value").is_none()) {
+                    if let Some(msg) = v
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .filter(|_| v.get("value").is_none())
+                    {
                         error = Some(format!("service says: {msg}"));
                         break;
                     }
@@ -275,29 +401,65 @@ mod tests {
     #[test]
     fn urls() {
         let s = parse_sta_url("https://h/FROST/v1.1/?every=30").unwrap();
-        assert_eq!((s.root.as_str(), s.every, s.max, s.filter.as_deref()), ("https://h/FROST/v1.1", 30, 1000, None));
+        assert_eq!(
+            (s.root.as_str(), s.every, s.max, s.filter.as_deref()),
+            ("https://h/FROST/v1.1", 30, 1000, None)
+        );
         assert_eq!(parse_sta_url("http://h/v1.0").unwrap().every, 60);
-        assert_eq!(parse_sta_url("https://h/v1.1?every=1&max=50000").unwrap().every, 10);
-        assert_eq!(parse_sta_url("https://h/v1.1?max=50000").unwrap().max, 10_000);
+        assert_eq!(
+            parse_sta_url("https://h/v1.1?every=1&max=50000")
+                .unwrap()
+                .every,
+            10
+        );
+        assert_eq!(
+            parse_sta_url("https://h/v1.1?max=50000").unwrap().max,
+            10_000
+        );
         assert!(parse_sta_url("mqtt://h").is_err());
         assert!(parse_sta_url("https://h/v1.1?bbox=1,2,3").is_err());
-        assert!(parse_sta_url("https://h/v1.1?bbox=10,2,3,4").is_err(), "min > max");
+        assert!(
+            parse_sta_url("https://h/v1.1?bbox=10,2,3,4").is_err(),
+            "min > max"
+        );
         assert!(things_url(&s).starts_with("https://h/FROST/v1.1/Things?$top=100&$expand="));
-        let b = parse_sta_url("https://h/v1.1?bbox=147.1,-9.5,147.3,-9.3&filter=substringof(%27PM%27,name)").unwrap();
+        let b = parse_sta_url(
+            "https://h/v1.1?bbox=147.1,-9.5,147.3,-9.3&filter=substringof(%27PM%27,name)",
+        )
+        .unwrap();
         assert_eq!(
             b.filter.as_deref(),
-            Some("(st_intersects(Locations/location, geography'POLYGON((147.1 -9.5, 147.3 -9.5, 147.3 -9.3, 147.1 -9.3, 147.1 -9.5))')) and (substringof('PM',name))")
+            Some(
+                "(st_intersects(Locations/location, geography'POLYGON((147.1 -9.5, 147.3 -9.5, 147.3 -9.3, 147.1 -9.3, 147.1 -9.5))')) and (substringof('PM',name))"
+            )
         );
         let u = things_url(&b);
         assert!(u.contains("&$filter=(st_intersects(Locations/location,%20geography'POLYGON((147.1%20-9.5,%20147.3%20-9.5,"), "{u}");
         assert!(!u.contains(' '));
         assert!(b.display().starts_with("https://h/v1.1 (("));
-        assert_eq!(parse_sta_url("https://iot.hamburg.de/v1.1").unwrap().key, "hamburg");
-        assert_eq!(parse_sta_url("https://iot.hamburg.de/v1.1?name=HH%20Verkehr").unwrap().key, "hh-verkehr");
-        assert_eq!(source_key("https://airquality-frost.k8s.ilt-dmz.iosb.fraunhofer.de/v1.1"), "airquality-frost");
+        assert_eq!(
+            parse_sta_url("https://iot.hamburg.de/v1.1").unwrap().key,
+            "hamburg"
+        );
+        assert_eq!(
+            parse_sta_url("https://iot.hamburg.de/v1.1?name=HH%20Verkehr")
+                .unwrap()
+                .key,
+            "hh-verkehr"
+        );
+        assert_eq!(
+            source_key("https://airquality-frost.k8s.ilt-dmz.iosb.fraunhofer.de/v1.1"),
+            "airquality-frost"
+        );
         assert_eq!(source_key("http://127.0.0.1:8133/v1.1"), "local");
-        assert_eq!(source_key("http://localhost:8080/FROST-Server/v1.1"), "localhost");
-        assert_eq!(source_key("https://sensorthings.example.org/v1.0"), "example");
+        assert_eq!(
+            source_key("http://localhost:8080/FROST-Server/v1.1"),
+            "localhost"
+        );
+        assert_eq!(
+            source_key("https://sensorthings.example.org/v1.0"),
+            "example"
+        );
     }
 
     #[test]
@@ -324,9 +486,23 @@ mod tests {
         assert_eq!(next.as_deref(), Some("https://h/v1.1/Things?$skip=100"));
         assert_eq!(sensors.len(), 2, "the Thing without a location is skipped");
         let s = &sensors[0];
-        assert_eq!((s.id.as_str(), s.name.as_deref(), s.pos), ("sta-pom-7", Some("Station Waigani"), Some((147.18, -9.43))));
-        assert_eq!(s.values, vec![("pm2_5".to_string(), 38.5), ("air_temperature".to_string(), 29.1), ("pm2_5_2".to_string(), 40.1)]);
-        assert_eq!(s.t, Some(1_792_026_600.0), "newest observation (interval end 01:10)");
+        assert_eq!(
+            (s.id.as_str(), s.name.as_deref(), s.pos),
+            ("sta-pom-7", Some("Station Waigani"), Some((147.18, -9.43)))
+        );
+        assert_eq!(
+            s.values,
+            vec![
+                ("pm2_5".to_string(), 38.5),
+                ("air_temperature".to_string(), 29.1),
+                ("pm2_5_2".to_string(), 40.1)
+            ]
+        );
+        assert_eq!(
+            s.t,
+            Some(1_792_026_600.0),
+            "newest observation (interval end 01:10)"
+        );
         assert_eq!(s.network, Some("SensorThings"));
         assert_eq!(sensors[1].pos, Some((147.2, -9.4)));
         assert_eq!(sensors[1].values[0].1, 112.0);

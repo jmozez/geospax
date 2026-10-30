@@ -9,10 +9,10 @@
 //! not throughput. `--overview` builds a pyramid (all cores) and then measures
 //! serving latency from the archive.
 
-use geospax_engine::{overview, tile, Engine, EngineConfig, ReadMode, RenderOpts};
-use std::sync::atomic::AtomicBool;
+use geospax_engine::{Engine, EngineConfig, ReadMode, RenderOpts, overview, tile};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
 struct Args {
@@ -45,7 +45,12 @@ fn parse_args() -> Args {
         match k.as_str() {
             "--data" => a.data.push(v().into()),
             "--layer" => a.layers.push(v()),
-            "--zooms" => a.zooms = v().split(',').map(|z| z.trim().parse().expect("zoom")).collect(),
+            "--zooms" => {
+                a.zooms = v()
+                    .split(',')
+                    .map(|z| z.trim().parse().expect("zoom"))
+                    .collect()
+            }
             "--samples" => a.samples = v().parse().expect("samples"),
             "--arrow" => a.arrow.push(v()),
             "--json" => a.json = Some(v().into()),
@@ -109,7 +114,9 @@ fn main() {
     };
 
     let mut report = Vec::new();
-    println!("\n| layer | z | tiles | p50 ms | p95 ms | max ms | mean ms | feats/tile | KB/tile | setup % | read % | proc % | enc % | teardown % |");
+    println!(
+        "\n| layer | z | tiles | p50 ms | p95 ms | max ms | mean ms | feats/tile | KB/tile | setup % | read % | proc % | enc % | teardown % |"
+    );
     println!("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
     for id in &layer_ids {
         let Some(layer) = engine.layer(id) else {
@@ -117,19 +124,30 @@ fn main() {
             continue;
         };
         let info = &layer.info;
-        let pts = layer.sample_lonlat(args.samples * 4, 0x5EED).expect("sample");
+        let pts = layer
+            .sample_lonlat(args.samples * 4, 0x5EED)
+            .expect("sample");
         for &z in &args.zooms {
             if z < info.minzoom {
-                println!("| {id} | {z} | below minzoom {} | | | | | | | | | |", info.minzoom);
+                println!(
+                    "| {id} | {z} | below minzoom {} | | | | | | | | | |",
+                    info.minzoom
+                );
                 continue;
             }
-            let tiles: BTreeSet<(u32, u32)> =
-                pts.iter().map(|p| tile::lonlat_to_tile(p[0], p[1], z)).take(args.samples * 4).collect();
+            let tiles: BTreeSet<(u32, u32)> = pts
+                .iter()
+                .map(|p| tile::lonlat_to_tile(p[0], p[1], z))
+                .take(args.samples * 4)
+                .collect();
             let tiles: Vec<_> = tiles.into_iter().take(args.samples).collect();
-            let (mut lat, mut feats, mut bytes, mut scanned, mut read, mut trunc) = (vec![], 0u64, 0u64, 0u64, 0.0, 0);
+            let (mut lat, mut feats, mut bytes, mut scanned, mut read, mut trunc) =
+                (vec![], 0u64, 0u64, 0u64, 0.0, 0);
             let (mut setup, mut procm, mut encm, mut tear) = (0.0, 0.0, 0.0, 0.0);
             for &(x, y) in &tiles {
-                let r = engine.render_tile(&layer, z, x, y, &RenderOpts::default()).expect("render");
+                let r = engine
+                    .render_tile(&layer, z, x, y, &RenderOpts::default())
+                    .expect("render");
                 lat.push(r.total_ms);
                 feats += r.features as u64;
                 bytes += r.bytes.len() as u64;
@@ -174,7 +192,9 @@ fn main() {
 
     #[cfg(feature = "arrow")]
     for id in &args.arrow {
-        let Some(layer) = engine.layer(id) else { continue };
+        let Some(layer) = engine.layer(id) else {
+            continue;
+        };
         let t = Instant::now();
         match geospax_engine::arrow_export::export_points(&layer, None, usize::MAX, args.reader) {
             Ok(x) => {
@@ -243,12 +263,18 @@ fn main() {
             );
         }
         // serving latency straight from the archive (what /tiles does for z <= mz)
-        let ov = overview::Overview::open(&out, &overview::Fingerprint::of(&layer)).expect("open overview");
-        let pts = layer.sample_lonlat(args.samples * 4, 0xBEEF).expect("sample");
+        let ov = overview::Overview::open(&out, &overview::Fingerprint::of(&layer))
+            .expect("open overview");
+        let pts = layer
+            .sample_lonlat(args.samples * 4, 0xBEEF)
+            .expect("sample");
         let mut lat = Vec::new();
         let mut sizes = Vec::new();
         for z in (mz.saturating_sub(3))..=mz {
-            let tiles: BTreeSet<(u32, u32)> = pts.iter().map(|p| tile::lonlat_to_tile(p[0], p[1], z)).collect();
+            let tiles: BTreeSet<(u32, u32)> = pts
+                .iter()
+                .map(|p| tile::lonlat_to_tile(p[0], p[1], z))
+                .collect();
             for (x, y) in tiles.into_iter().take(args.samples) {
                 let t = Instant::now();
                 let b = ov.reader.get(z, x, y).expect("read").unwrap_or_default();

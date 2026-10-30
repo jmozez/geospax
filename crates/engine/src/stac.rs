@@ -5,23 +5,39 @@
 //! GDAL's /vsicurl/ a window at a time) or **downloaded** cut to an area, as a background job with the
 //! download gauge (bytes, total, speed, time left). Planetary Computer assets are signed first.
 
-use crate::jobs::Status;
 use crate::Engine;
-use serde_json::{json, Value};
+use crate::jobs::Status;
+use serde_json::{Value, json};
 use std::path::Path;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 /// Public STAC APIs that need no account, offered when adding a connection.
 pub const KNOWN: &[(&str, &str)] = &[
-    ("Earth Search (Element 84, AWS)", "https://earth-search.aws.element84.com/v1"),
-    ("Microsoft Planetary Computer", "https://planetarycomputer.microsoft.com/api/stac/v1"),
-    ("Copernicus Data Space", "https://stac.dataspace.copernicus.eu/v1"),
+    (
+        "Earth Search (Element 84, AWS)",
+        "https://earth-search.aws.element84.com/v1",
+    ),
+    (
+        "Microsoft Planetary Computer",
+        "https://planetarycomputer.microsoft.com/api/stac/v1",
+    ),
+    (
+        "Copernicus Data Space",
+        "https://stac.dataspace.copernicus.eu/v1",
+    ),
 ];
 
 pub fn collections(url: &str) -> Result<Vec<Value>, String> {
-    let v: Value = serde_json::from_slice(&crate::raster::http(&format!("{}/collections", url.trim_end_matches('/')), None, 30)?).map_err(|e| format!("not a STAC API ({e})"))?;
-    let list = v["collections"].as_array().ok_or("not a STAC API: no collections")?;
+    let v: Value = serde_json::from_slice(&crate::raster::http(
+        &format!("{}/collections", url.trim_end_matches('/')),
+        None,
+        30,
+    )?)
+    .map_err(|e| format!("not a STAC API ({e})"))?;
+    let list = v["collections"]
+        .as_array()
+        .ok_or("not a STAC API: no collections")?;
     Ok(list
         .iter()
         .map(|c| json!({ "id": c["id"], "title": c["title"].as_str().or(c["id"].as_str()).unwrap_or(""), "type": "collection", "description": c["description"].as_str().unwrap_or("").chars().take(200).collect::<String>() }))
@@ -30,10 +46,26 @@ pub fn collections(url: &str) -> Result<Vec<Value>, String> {
 
 /// Search one collection: newest first, with footprint, cloud cover, and the assets that GeoSpaX can
 /// open (GeoTIFF/COG, plus a preview image when there is one).
-pub fn search(engine: &Engine, sid: &str, collection: &str, bbox: [f64; 4], datetime: Option<&str>, max_cloud: Option<f64>, limit: usize) -> Result<Value, String> {
-    let svc = crate::services::load(&engine.state_dir).into_iter().find(|s| s["id"] == sid).ok_or("no such STAC connection")?;
-    let url = svc["url"].as_str().unwrap_or("").trim_end_matches('/').to_string();
-    let mut body = json!({ "collections": [collection], "bbox": bbox, "limit": limit.clamp(1, 100) });
+pub fn search(
+    engine: &Engine,
+    sid: &str,
+    collection: &str,
+    bbox: [f64; 4],
+    datetime: Option<&str>,
+    max_cloud: Option<f64>,
+    limit: usize,
+) -> Result<Value, String> {
+    let svc = crate::services::load(&engine.state_dir)
+        .into_iter()
+        .find(|s| s["id"] == sid)
+        .ok_or("no such STAC connection")?;
+    let url = svc["url"]
+        .as_str()
+        .unwrap_or("")
+        .trim_end_matches('/')
+        .to_string();
+    let mut body =
+        json!({ "collections": [collection], "bbox": bbox, "limit": limit.clamp(1, 100) });
     if let Some(d) = datetime.filter(|d| !d.is_empty()) {
         body["datetime"] = json!(d);
     }
@@ -73,27 +105,51 @@ pub fn search(engine: &Engine, sid: &str, collection: &str, bbox: [f64; 4], date
         })
         .collect();
     items.sort_by(|a, b| b["datetime"].as_str().cmp(&a["datetime"].as_str()));
-    let matched = v["numberMatched"].as_u64().or(v["context"]["matched"].as_u64());
+    let matched = v["numberMatched"]
+        .as_u64()
+        .or(v["context"]["matched"].as_u64());
     Ok(json!({ "items": items, "matched": matched, "service": sid, "collection": collection }))
 }
 
 /// Planetary Computer assets need a short-lived signature; everything else is used as it is.
 fn signed(href: &str) -> Result<String, String> {
     if href.contains(".blob.core.windows.net") && !href.contains("sig=") {
-        let api = format!("https://planetarycomputer.microsoft.com/api/sas/v1/sign?href={}", enc(href));
-        let v: Value = serde_json::from_slice(&crate::raster::http(&api, None, 30)?).map_err(|e| format!("signing: {e}"))?;
-        return v["href"].as_str().map(str::to_string).ok_or_else(|| "the asset could not be signed".to_string());
+        let api = format!(
+            "https://planetarycomputer.microsoft.com/api/sas/v1/sign?href={}",
+            enc(href)
+        );
+        let v: Value = serde_json::from_slice(&crate::raster::http(&api, None, 30)?)
+            .map_err(|e| format!("signing: {e}"))?;
+        return v["href"]
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| "the asset could not be signed".to_string());
     }
     Ok(href.to_string())
 }
 
 fn enc(s: &str) -> String {
-    s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
+    s.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
 }
 
 /// Put an asset on the map. `stream`: read in place (/vsicurl/), nothing is copied. Otherwise it is
 /// downloaded cut to `bbox` (lon/lat) into `<state>/stac/` as a job with the download gauge.
-pub fn add_asset(engine: &Arc<Engine>, href: &str, id: &str, title: &str, stream: bool, bbox: Option<[f64; 4]>) -> Result<Value, String> {
+pub fn add_asset(
+    engine: &Arc<Engine>,
+    href: &str,
+    id: &str,
+    title: &str,
+    stream: bool,
+    bbox: Option<[f64; 4]>,
+) -> Result<Value, String> {
     if !(href.starts_with("https://") || href.starts_with("http://")) {
         return Err("the asset is not a web address".into());
     }
@@ -103,7 +159,12 @@ pub fn add_asset(engine: &Arc<Engine>, href: &str, id: &str, title: &str, stream
         return Ok(json!({ "rasters": [h.info.id.clone()], "streamed": true }));
     }
     let job = engine.jobs.create("stac-download", &rid);
-    let (e, j, href, title) = (engine.clone(), job.clone(), href.to_string(), title.to_string());
+    let (e, j, href, title) = (
+        engine.clone(),
+        job.clone(),
+        href.to_string(),
+        title.to_string(),
+    );
     engine.job_pool.spawn(move || {
         j.update(|s| {
             s.status = Status::Running;

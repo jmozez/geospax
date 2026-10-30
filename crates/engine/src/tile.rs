@@ -9,7 +9,12 @@ pub fn tile_bounds(z: u8, x: u32, y: u32) -> [f64; 4] {
     let n = (1u64 << z) as f64;
     let lon = |x: f64| x / n * 360.0 - 180.0;
     let lat = |y: f64| (PI * (1.0 - 2.0 * y / n)).sinh().atan().to_degrees();
-    [lon(x as f64), lat(y as f64 + 1.0), lon(x as f64 + 1.0), lat(y as f64)]
+    [
+        lon(x as f64),
+        lat(y as f64 + 1.0),
+        lon(x as f64 + 1.0),
+        lat(y as f64),
+    ]
 }
 
 /// Tile containing lon/lat at zoom z.
@@ -43,7 +48,11 @@ pub struct TileProjector {
 impl TileProjector {
     pub fn new(z: u8, x: u32, y: u32, extent: u32) -> Self {
         let scale = (1u64 << z) as f64 * extent as f64;
-        TileProjector { scale, ox: x as f64 * extent as f64, oy: y as f64 * extent as f64 }
+        TileProjector {
+            scale,
+            ox: x as f64 * extent as f64,
+            oy: y as f64 * extent as f64,
+        }
     }
 
     #[inline]
@@ -76,6 +85,9 @@ mod tests {
         let nw = p.project(b[0], b[3]);
         let se = p.project(b[2], b[1]);
         assert!(nw[0].abs() < 1e-6 && nw[1].abs() < 1e-6, "{nw:?}");
-        assert!((se[0] - 4096.0).abs() < 1e-6 && (se[1] - 4096.0).abs() < 1e-6, "{se:?}");
+        assert!(
+            (se[0] - 4096.0).abs() < 1e-6 && (se[1] - 4096.0).abs() < 1e-6,
+            "{se:?}"
+        );
     }
 }

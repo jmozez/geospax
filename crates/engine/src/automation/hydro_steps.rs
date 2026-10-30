@@ -13,14 +13,14 @@
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, VecDeque};
 
+use gdal::DriverManager;
 use gdal::spatial_ref::CoordTransform;
 use gdal::vector::{LayerAccess, LayerOptions};
-use gdal::DriverManager;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::features::{self, Feat, FeatureSet, Val};
 use super::raster_steps::{fmt0, out_path, pick_raster, register};
-use super::steps::{p_f64, p_str, sanitize, StepCtx, StepOut};
+use super::steps::{StepCtx, StepOut, p_f64, p_str, sanitize};
 use crate::catalog::GeomKind;
 use crate::raster;
 use crate::wkb::Geom;
@@ -80,7 +80,9 @@ pub fn route(z: &[f64], w: usize, h: usize) -> Flow {
     while let Some(c) = pit.pop_front().or_else(|| heap.pop().map(|Cell(_, i)| i)) {
         let c = c as usize;
         for k in 0..8 {
-            let Some(j) = neighbour(c, k, w, h) else { continue };
+            let Some(j) = neighbour(c, k, w, h) else {
+                continue;
+            };
             if done[j] {
                 continue;
             }
@@ -107,7 +109,12 @@ pub fn route(z: &[f64], w: usize, h: usize) -> Flow {
         for k in 0..8 {
             match neighbour(i, k, w, h) {
                 Some(j) if !f[j].is_nan() => {
-                    let drop = (f[i] - f[j]) / if k % 2 == 1 { std::f64::consts::SQRT_2 } else { 1.0 };
+                    let drop = (f[i] - f[j])
+                        / if k % 2 == 1 {
+                            std::f64::consts::SQRT_2
+                        } else {
+                            1.0
+                        };
                     if drop > best.0 {
                         best = (drop, j as u32);
                     }
@@ -115,7 +122,13 @@ pub fn route(z: &[f64], w: usize, h: usize) -> Flow {
                 _ => leaves = true,
             }
         }
-        down[i] = if best.1 != NONE { best.1 } else if leaves { NONE } else { parent[i] };
+        down[i] = if best.1 != NONE {
+            best.1
+        } else if leaves {
+            NONE
+        } else {
+            parent[i]
+        };
     }
     // upstream-first order (Kahn): cells with nothing flowing in go first
     let mut indeg = vec![0u32; n];
@@ -124,7 +137,9 @@ pub fn route(z: &[f64], w: usize, h: usize) -> Flow {
             indeg[d as usize] += 1;
         }
     }
-    let mut q: VecDeque<u32> = (0..n as u32).filter(|&i| !f[i as usize].is_nan() && indeg[i as usize] == 0).collect();
+    let mut q: VecDeque<u32> = (0..n as u32)
+        .filter(|&i| !f[i as usize].is_nan() && indeg[i as usize] == 0)
+        .collect();
     let mut order = Vec::with_capacity(n);
     while let Some(i) = q.pop_front() {
         order.push(i);
@@ -162,7 +177,13 @@ pub fn strahler(fl: &Flow, stream: &[bool]) -> Vec<u8> {
         if !stream[i] {
             continue;
         }
-        ord[i] = if best[i] == 0 { 1 } else if count[i] >= 2 { best[i] + 1 } else { best[i] };
+        ord[i] = if best[i] == 0 {
+            1
+        } else if count[i] >= 2 {
+            best[i] + 1
+        } else {
+            best[i]
+        };
         let d = fl.down[i];
         if d != NONE && stream[d as usize] {
             let d = d as usize;
@@ -194,7 +215,13 @@ pub(super) fn hydro_network(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
         let b = dem.info.bounds;
         let epsg = features::utm_epsg((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0);
         let mut a = raster::strings(&["-of", "MEM", "-r", "bilinear", "-dstnodata", "-9999"]);
-        a.extend(["-t_srs".into(), format!("EPSG:{epsg}"), "-tr".into(), dem.info.pixel_m.to_string(), dem.info.pixel_m.to_string()]);
+        a.extend([
+            "-t_srs".into(),
+            format!("EPSG:{epsg}"),
+            "-tr".into(),
+            dem.info.pixel_m.to_string(),
+            dem.info.pixel_m.to_string(),
+        ]);
         raster::warp(&[&src0], "", &a)?
     } else {
         src0
@@ -205,12 +232,23 @@ pub(super) fn hydro_network(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
     let (v, w, h) = raster::read_full(&ds, 1)?;
     let n = w * h;
     // the sea at 0 m (Copernicus, SRTM) is no data for rivers, unless asked otherwise
-    let sea = p.get("sea_is_nodata").and_then(Value::as_bool).unwrap_or(true);
+    let sea = p
+        .get("sea_is_nodata")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
     let z: Vec<f64> = v
         .iter()
         .map(|&x| {
             let x = x as f64;
-            if !x.is_finite() || nodata.is_some_and(|nd| x == nd) || x <= -1000.0 || (sea && x <= 0.0) { f64::NAN } else { x }
+            if !x.is_finite()
+                || nodata.is_some_and(|nd| x == nd)
+                || x <= -1000.0
+                || (sea && x <= 0.0)
+            {
+                f64::NAN
+            } else {
+                x
+            }
         })
         .collect();
     let valid = z.iter().filter(|x| !x.is_nan()).count();
@@ -222,7 +260,9 @@ pub(super) fn hydro_network(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
     let fl = route(&z, w, h);
     let acc = accumulate(&fl, n);
     // streams start where about 1 km² drains (a common first choice); `threshold_km2` changes it
-    let thr_km2 = p_f64(p, "threshold_km2").filter(|t| *t > 0.0).unwrap_or(1.0);
+    let thr_km2 = p_f64(p, "threshold_km2")
+        .filter(|t| *t > 0.0)
+        .unwrap_or(1.0);
     let thr = ((thr_km2 / cell_km2).ceil() as u32).max(2);
     let stream: Vec<bool> = acc.iter().map(|&a| a >= thr).collect();
     let ord = strahler(&fl, &stream);
@@ -230,7 +270,12 @@ pub(super) fn hydro_network(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
     let secs = t0.elapsed().as_secs_f64();
 
     let ct = CoordTransform::new(&srs, &raster::wgs84()).map_err(|e| e.to_string())?;
-    let centre = |i: usize| [gt[0] + ((i % w) as f64 + 0.5) * gt[1], gt[3] + ((i / w) as f64 + 0.5) * gt[5]];
+    let centre = |i: usize| {
+        [
+            gt[0] + ((i % w) as f64 + 0.5) * gt[1],
+            gt[3] + ((i / w) as f64 + 0.5) * gt[5],
+        ]
+    };
     let to_ll = |pts: &[[f64; 2]]| -> Option<Vec<[f64; 2]>> {
         let (mut xs, mut ys): (Vec<f64>, Vec<f64>) = pts.iter().map(|p| (p[0], p[1])).unzip();
         let mut zs = vec![0.0; xs.len()];
@@ -247,7 +292,14 @@ pub(super) fn hydro_network(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
         }
     }
     let starts = (0..n).filter(|&i| stream[i] && (inflows[i] == 0 || inflows[i] >= 2));
-    let mut fs = FeatureSet::new(GeomKind::Line, vec![("strahler".into(), "integer"), ("length_km".into(), "real"), ("upstream_km2".into(), "real")]);
+    let mut fs = FeatureSet::new(
+        GeomKind::Line,
+        vec![
+            ("strahler".into(), "integer"),
+            ("length_km".into(), "real"),
+            ("upstream_km2".into(), "real"),
+        ],
+    );
     let mut max_order = 0u8;
     for s in starts {
         let mut pts = vec![centre(s)];
@@ -274,16 +326,26 @@ pub(super) fn hydro_network(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
         max_order = max_order.max(ord[s]);
         fs.feats.push(Feat {
             geom: Geom::Lines(vec![line]),
-            props: vec![Val::Int(ord[s] as i64), Val::Num((len / 10.0).round() / 100.0), Val::Num((acc[c] as f64 * cell_km2 * 10.0).round() / 10.0)],
+            props: vec![
+                Val::Int(ord[s] as i64),
+                Val::Num((len / 10.0).round() / 100.0),
+                Val::Num((acc[c] as f64 * cell_km2 * 10.0).round() / 10.0),
+            ],
         });
     }
     if fs.feats.is_empty() {
-        return Err(format!("no streams: nowhere drains {thr_km2} km² (lower threshold_km2)"));
+        return Err(format!(
+            "no streams: nowhere drains {thr_km2} km² (lower threshold_km2)"
+        ));
     }
     fs.total = fs.feats.len() as u64;
     let base = sanitize(p_str(p, "name").unwrap_or("hydro"));
     let n_links = fs.feats.len();
-    let streams_id = sc.write_output(&format!("{base}_streams"), &fs, format!("Streams (Strahler, ≥ {} km²)", fmt0(thr_km2)))?;
+    let streams_id = sc.write_output(
+        &format!("{base}_streams"),
+        &fs,
+        format!("Streams (Strahler, ≥ {} km²)", fmt0(thr_km2)),
+    )?;
     sc.hints.insert(streams_id.clone(), json!({ "field": "strahler", "why": "streams coloured and widened by Strahler order: headwaters thin, main rivers bold" }));
 
     // drainage basins larger than min_basin_km2 (default 1 % of the area, at least 1 km²)
@@ -295,23 +357,61 @@ pub(super) fn hydro_network(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
         }
     }
     let keep: std::collections::HashMap<u32, i32> = {
-        let mut big: Vec<(u32, u32)> = size.iter().filter(|(_, c)| **c as f64 * cell_km2 >= min_km2).map(|(b, c)| (*b, *c)).collect();
+        let mut big: Vec<(u32, u32)> = size
+            .iter()
+            .filter(|(_, c)| **c as f64 * cell_km2 >= min_km2)
+            .map(|(b, c)| (*b, *c))
+            .collect();
         big.sort_by_key(|x| std::cmp::Reverse(x.1));
-        big.into_iter().enumerate().map(|(k, (b, _))| (b, k as i32 + 1)).collect()
+        big.into_iter()
+            .enumerate()
+            .map(|(k, (b, _))| (b, k as i32 + 1))
+            .collect()
     };
-    let labels: Vec<i32> = bas.iter().map(|b| keep.get(b).copied().unwrap_or(0)).collect();
+    let labels: Vec<i32> = bas
+        .iter()
+        .map(|b| keep.get(b).copied().unwrap_or(0))
+        .collect();
     let basins_id = polygonize_basins(sc, &labels, w, h, gt, &srs, &ct, cell_km2, &base)?;
 
     // flow accumulation (upstream area, km²) as a raster, for maps and further steps
-    let acc_km2: Vec<f32> = (0..n).map(|i| if z[i].is_nan() { raster::NODATA as f32 } else { (acc[i] as f64 * cell_km2) as f32 }).collect();
+    let acc_km2: Vec<f32> = (0..n)
+        .map(|i| {
+            if z[i].is_nan() {
+                raster::NODATA as f32
+            } else {
+                (acc[i] as f64 * cell_km2) as f32
+            }
+        })
+        .collect();
     let out = out_path(sc, &format!("{base}_flow_accumulation"))?;
-    raster::write_tif_f32(&out, w, h, gt, &srs.to_wkt().map_err(|e| e.to_string())?, acc_km2, Some(raster::NODATA))?;
-    let acc_h = register(sc, &out, &format!("{base}_flow_accumulation"), json!({ "kind": "flow", "title": "Flow accumulation", "units": "km²", "description": format!("upstream area, from {}", dem.info.title), "credit": dem.info.credit }))?;
+    raster::write_tif_f32(
+        &out,
+        w,
+        h,
+        gt,
+        &srs.to_wkt().map_err(|e| e.to_string())?,
+        acc_km2,
+        Some(raster::NODATA),
+    )?;
+    let acc_h = register(
+        sc,
+        &out,
+        &format!("{base}_flow_accumulation"),
+        json!({ "kind": "flow", "title": "Flow accumulation", "units": "km²", "description": format!("upstream area, from {}", dem.info.title), "credit": dem.info.credit }),
+    )?;
 
     let largest = acc.iter().max().copied().unwrap_or(0) as f64 * cell_km2;
-    sc.cards.push(("Stream links".into(), format!("{n_links} (Strahler 1–{max_order})")));
-    sc.cards.push(("Drainage basins".into(), format!("{} ≥ {} km²", keep.len(), fmt0(min_km2))));
-    sc.cards.push(("Largest catchment".into(), format!("{} km²", fmt0(largest))));
+    sc.cards.push((
+        "Stream links".into(),
+        format!("{n_links} (Strahler 1–{max_order})"),
+    ));
+    sc.cards.push((
+        "Drainage basins".into(),
+        format!("{} ≥ {} km²", keep.len(), fmt0(min_km2)),
+    ));
+    sc.cards
+        .push(("Largest catchment".into(), format!("{} km²", fmt0(largest))));
     sc.methods.push(format!(
         "Streams and basins were derived from {} ({}×{} cells, {} m) natively in GeoSpaX: priority-flood depression filling with an epsilon gradient (Barnes et al. 2014), D8 flow directions, flow accumulation, streams where at least {} km² drains, Strahler stream order, and basins by outlet ({:.1} s).",
         dem.info.title, w, h, fmt0(gt[1].abs()), fmt0(thr_km2), secs
@@ -319,18 +419,38 @@ pub(super) fn hydro_network(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
     Ok(StepOut {
         outputs: json!({ "layers": [streams_id, basins_id], "rasters": [acc_h.info.id], "streams": streams_id, "basins": basins_id, "flow_accumulation": acc_h.info.id, "max_order": max_order }),
         why: vec![
-            format!("{n_links} stream links up to Strahler order {max_order}, starting where {} km² drains", fmt0(thr_km2)),
-            format!("{} drainage basins of at least {} km²; the largest catchment drains {} km²", keep.len(), fmt0(min_km2), fmt0(largest)),
+            format!(
+                "{n_links} stream links up to Strahler order {max_order}, starting where {} km² drains",
+                fmt0(thr_km2)
+            ),
+            format!(
+                "{} drainage basins of at least {} km²; the largest catchment drains {} km²",
+                keep.len(),
+                fmt0(min_km2),
+                fmt0(largest)
+            ),
         ],
     })
 }
 
 /// Basin labels (0 = none) → polygons in WGS 84 with their area.
 #[allow(clippy::too_many_arguments)]
-fn polygonize_basins(sc: &mut StepCtx, labels: &[i32], w: usize, h: usize, gt: [f64; 6], srs: &gdal::spatial_ref::SpatialRef, ct: &CoordTransform, cell_km2: f64, base: &str) -> Result<String, String> {
+fn polygonize_basins(
+    sc: &mut StepCtx,
+    labels: &[i32],
+    w: usize,
+    h: usize,
+    gt: [f64; 6],
+    srs: &gdal::spatial_ref::SpatialRef,
+    ct: &CoordTransform,
+    cell_km2: f64,
+    base: &str,
+) -> Result<String, String> {
     let e = |x: gdal::errors::GdalError| x.to_string();
     let mem = DriverManager::get_driver_by_name("MEM").map_err(e)?;
-    let mut rds = mem.create_with_band_type::<i32, _>("", w, h, 1).map_err(e)?;
+    let mut rds = mem
+        .create_with_band_type::<i32, _>("", w, h, 1)
+        .map_err(e)?;
     rds.set_geo_transform(&gt).map_err(e)?;
     rds.set_spatial_ref(srs).map_err(e)?;
     {
@@ -341,12 +461,28 @@ fn polygonize_basins(sc: &mut StepCtx, labels: &[i32], w: usize, h: usize, gt: [
     }
     let drv = DriverManager::get_driver_by_name("Memory").map_err(e)?;
     let mut vds = drv.create_vector_only("").map_err(e)?;
-    let lyr = vds.create_layer(LayerOptions { name: "basins", srs: Some(srs), ty: gdal_sys::OGRwkbGeometryType::wkbPolygon, options: None }).map_err(e)?;
-    lyr.create_defn_fields(&[("basin", gdal_sys::OGRFieldType::OFTInteger)]).map_err(e)?;
+    let lyr = vds
+        .create_layer(LayerOptions {
+            name: "basins",
+            srs: Some(srs),
+            ty: gdal_sys::OGRwkbGeometryType::wkbPolygon,
+            options: None,
+        })
+        .map_err(e)?;
+    lyr.create_defn_fields(&[("basin", gdal_sys::OGRFieldType::OFTInteger)])
+        .map_err(e)?;
     let band = rds.rasterband(1).map_err(e)?;
     let err = unsafe {
         let mask = gdal_sys::GDALGetMaskBand(band.c_rasterband());
-        gdal_sys::GDALPolygonize(band.c_rasterband(), mask, lyr.c_layer(), 0, std::ptr::null_mut(), None, std::ptr::null_mut())
+        gdal_sys::GDALPolygonize(
+            band.c_rasterband(),
+            mask,
+            lyr.c_layer(),
+            0,
+            std::ptr::null_mut(),
+            None,
+            std::ptr::null_mut(),
+        )
     };
     if err != gdal_sys::CPLErr::CE_None {
         return Err(format!("basins: {}", raster::last_error()));
@@ -357,14 +493,18 @@ fn polygonize_basins(sc: &mut StepCtx, labels: &[i32], w: usize, h: usize, gt: [
     for f in lyr.features() {
         let id = f.field_as_integer(0).ok().flatten().unwrap_or(0) as i64;
         let Some(g) = f.geometry() else { continue };
-        let g = g.simplify_preserve_topology(tol).unwrap_or_else(|_| g.clone());
+        let g = g
+            .simplify_preserve_topology(tol)
+            .unwrap_or_else(|_| g.clone());
         let mut poly = Vec::new();
         for r in 0..g.geometry_count() {
             let ring = g.get_geometry(r);
-            let (mut xs, mut ys): (Vec<f64>, Vec<f64>) = (0..ring.point_count()).map(|i| {
-                let (x, y, _) = ring.get_point(i as i32);
-                (x, y)
-            }).unzip();
+            let (mut xs, mut ys): (Vec<f64>, Vec<f64>) = (0..ring.point_count())
+                .map(|i| {
+                    let (x, y, _) = ring.get_point(i as i32);
+                    (x, y)
+                })
+                .unzip();
             let mut zs = vec![0.0; xs.len()];
             if xs.len() >= 4 && ct.transform_coords(&mut xs, &mut ys, &mut zs).is_ok() {
                 poly.push(xs.into_iter().zip(ys).map(|(x, y)| [x, y]).collect());
@@ -378,10 +518,16 @@ fn polygonize_basins(sc: &mut StepCtx, labels: &[i32], w: usize, h: usize, gt: [
     for &l in labels {
         *count.entry(l).or_default() += 1;
     }
-    let mut fs = FeatureSet::new(GeomKind::Polygon, vec![("basin".into(), "integer"), ("area_km2".into(), "real")]);
+    let mut fs = FeatureSet::new(
+        GeomKind::Polygon,
+        vec![("basin".into(), "integer"), ("area_km2".into(), "real")],
+    );
     for (id, polys) in parts {
         let area = count.get(&(id as i32)).copied().unwrap_or(0) as f64 * cell_km2;
-        fs.feats.push(Feat { geom: Geom::Polygons(polys), props: vec![Val::Int(id), Val::Num((area * 10.0).round() / 10.0)] });
+        fs.feats.push(Feat {
+            geom: Geom::Polygons(polys),
+            props: vec![Val::Int(id), Val::Num((area * 10.0).round() / 10.0)],
+        });
     }
     fs.total = fs.feats.len() as u64;
     let id = sc.write_output(&format!("{base}_basins"), &fs, "Drainage basins".into())?;
@@ -407,7 +553,10 @@ mod tests {
         let fl = route(&z, w, h);
         assert_eq!(fl.order.len(), w * h, "every cell is ordered (no cycles)");
         let acc = accumulate(&fl, w * h);
-        let total: u32 = (0..w * h).filter(|&i| fl.down[i] == NONE).map(|i| acc[i]).sum();
+        let total: u32 = (0..w * h)
+            .filter(|&i| fl.down[i] == NONE)
+            .map(|i| acc[i])
+            .sum();
         assert_eq!(total as usize, w * h, "all water leaves the grid");
         let b = basins(&fl, w * h);
         assert!(b.iter().all(|&x| x > 0));
@@ -417,7 +566,10 @@ mod tests {
     #[test]
     fn strahler_orders() {
         // cells 0,1 → 2; 3 → 4; 2,4 → 5; 6 → 5; 5 → out
-        let fl = Flow { down: vec![2, 2, 5, 4, 5, NONE, 5], order: vec![0, 1, 3, 6, 2, 4, 5] };
+        let fl = Flow {
+            down: vec![2, 2, 5, 4, 5, NONE, 5],
+            order: vec![0, 1, 3, 6, 2, 4, 5],
+        };
         let o = strahler(&fl, &[true; 7]);
         assert_eq!(o[2], 2);
         assert_eq!(o[4], 1);
