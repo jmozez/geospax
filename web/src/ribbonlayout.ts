@@ -87,7 +87,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
     { group: 'AI models', big: ['imagery.detect'], small: ['imagery.models'] },
   ],
   analyze: [
-    { group: 'Geoprocessing', big: ['analyze.toolbox', 'analyze.gallery'], small: ['automate.history'] },
+    { group: 'Geoprocessing', big: ['analyze.toolbox', 'analyze.gallery'], small: ['automate.history', 'analyze.sql'] },
     {
       group: 'Tools',
       big: ['analyze.tool.buffer', { split: 'analyze-overlay', label: 'Overlay', icon: 'tIntersect', hint: 'Clip, intersect, union or erase one layer with another', items: ['analyze.tool.clip', 'analyze.tool.intersect', 'analyze.tool.union', 'analyze.tool.erase'] }],
