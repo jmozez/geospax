@@ -114,6 +114,7 @@ export const RAMPS: Ramp[] = [
   { id: 'magma', name: 'Magma', type: 'sequential', colors: ['#000004', '#51127c', '#b73779', '#fc8961', '#fcfdbf'] },
   { id: 'ylorrd', name: 'Yellow-Orange-Red', type: 'sequential', colors: ['#ffffb2', '#fecc5c', '#fd8d3c', '#f03b20', '#bd0026'] },
   { id: 'blues', name: 'Blues', type: 'sequential', colors: ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'] },
+  { id: 'terrain', name: 'Terrain (elevation)', type: 'sequential', colors: ['#1a9850', '#a6d96a', '#fee08b', '#fdae61', '#8c510a'] },
   { id: 'greens', name: 'Greens', type: 'sequential', colors: ['#edf8e9', '#bae4b3', '#74c476', '#31a354', '#006d2c'] },
   { id: 'rdylbu', name: 'Red-Yellow-Blue', type: 'diverging', colors: ['#d7191c', '#fdae61', '#ffffbf', '#abd9e9', '#2c7bb6'] },
   { id: 'tableau', name: 'Tableau 10', type: 'categorical', colors: ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac'] },
