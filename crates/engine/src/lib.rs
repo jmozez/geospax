@@ -612,12 +612,11 @@ impl Engine {
             h.finish() | 1
         });
         let key = (idx as u32, z, x, y, fkey);
-        if let Some(c) = &self.cache {
-            if let Some(hit) = c.lock().unwrap().get(&key).cloned() {
+        if let Some(c) = &self.cache
+            && let Some(hit) = c.lock().unwrap().get(&key).cloned() {
                 self.record(&hit, true);
                 return Ok((hit, true));
             }
-        }
         let r = Arc::new(self.render_tile(layer, z, x, y, &RenderOpts { overview: false, fields })?);
         if let Some(c) = &self.cache {
             c.lock().unwrap().put(key, r.clone());
@@ -790,11 +789,10 @@ impl Engine {
             read_ms += ms(tr); // time since the previous row returned = GDAL read cost
             let tp = Instant::now();
             let mut more = true;
-            if let Ok(mut geom) = wkb::parse(wkb_bytes) {
-                if to_wgs84.is_none_or(|ct| transform_geom(&mut geom, &ct.0)) {
+            if let Ok(mut geom) = wkb::parse(wkb_bytes)
+                && to_wgs84.is_none_or(|ct| transform_geom(&mut geom, &ct.0)) {
                     more = sink(fid, &geom, attrs);
                 }
-            }
             proc_ms += ms(tp);
             truncated |= !more;
             tr = Instant::now();
