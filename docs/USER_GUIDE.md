@@ -338,7 +338,10 @@ it back, so the map can take the whole window when you need it.
   so thin and small polygons get correct values. **Network** finds service areas, the closest facility and
   the shortest path over a road layer.
 - **Share**: **Export map** saves PDF, SVG, PNG or a Word report. **Export data** saves GeoPackage,
-  Shapefile, KML, CSV, GeoJSON or GeoParquet. **Web map** writes an interactive map in a single HTML file
+  Shapefile, KML, CSV, GeoJSON, GeoParquet or PMTiles. GeoParquet files carry a per-row `bbox` covering
+  column (GeoParquet 1.1) in 65,536-row groups, so DuckDB, GDAL and GeoSpaX read only the parts of a big
+  file that cover the area asked for. PMTiles writes the layer as one vector tile archive (zoom 0 to 14,
+  lowered for very large areas) that MapLibre or any static web host can serve with no tile server. **Web map** writes an interactive map in a single HTML file
   (layer switches, legend and pop-ups) that opens in any browser or web host. **Package project** saves a
   `.gspx` file that **Open…** reads back. **Print** prints the map.
 - **Help**: **Tutorials** are guided lessons on the real window. **Search commands** finds any command by
