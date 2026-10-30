@@ -80,9 +80,9 @@ tank and dimensions, all typed into the command line. *Export DXF* hands it to A
 
 <p align="center"><img src="docs/assets/tour-hydrology.png" alt="GeoSpaX: Strahler-ordered streams and drainage basins of the Markham valley over Esri World Imagery" width="900" /></p>
 
-**Land cover.** ESA WorldCover 10 m (2021) for Lae and the Markham delta, downloaded for the area with *Explorer › Online data* and drawn in ESA's class colours; the legend gives each class's share of the area, so you see at a glance how much is tree cover, built-up land or water.
+**Land cover snapshot, Lae (ESA WorldCover 2021, 10 m).** What covers the ground around Lae and the Markham delta in a single year, 2021: tree cover 57.6 %, open water 28.7 %, grassland 7.8 %, built-up land 3.0 % and mangroves 1.7 %. It is one moment in time, drawn in ESA's class colours and downloaded for the area with *Explorer › Online data*. For how the forest has changed over the years, see *Forest change 2001 to 2025* below.
 
-<p align="center"><img src="docs/assets/tour-landcover.png" alt="GeoSpaX: ESA WorldCover land cover of Lae over Esri World Imagery" width="900" /></p>
+<p align="center"><img src="docs/assets/tour-landcover.png" alt="GeoSpaX land cover snapshot of Lae: ESA WorldCover 2021, 10 m, with class shares" width="900" /></p>
 
 **Supervised classification.** Nine land-cover classes from Google DeepMind's AlphaEarth satellite embeddings (64 values per pixel, 1.1 million pixels at 20 m), k-nearest neighbours trained on 360 points labelled from WorldCover (white dots); leave-one-out accuracy 80.3 %.
 
@@ -149,9 +149,9 @@ World Imagery. The plugins share one tested toolkit (GSX), so a tool behaves the
 
 **Hydrology · wet ground.** The land cells scored by low ground (weight 2), gentle slope (1) and little tree cover (1) to show where water gathers and lingers on the Markham floodplain (see the Rivers and catchments tour above for the stream network).
 
-**Land use and land cover · forest loss by year.** Hansen Global Forest Change along the Markham valley: 18,021 ha of tree cover lost from 2001 to 2025, coloured by the year it went, with the worst year 2022 (2,745 ha).
+**Forest change 2001 to 2025.** Not a snapshot but change over time: each coloured patch is forest that was cleared, shaded by the year it was lost (Hansen Global Forest Change, from pink in 2001 to dark purple in 2025). Along the Markham valley 18,021 ha of tree cover went in that time, the worst year being 2022 (2,745 ha). Made with the Land use and land cover plugin.
 
-<p align="center"><img src="docs/assets/plugin-lulc.png" alt="GeoSpaX Land use and land cover plugin: forest loss and persistence from 2000 to 2023" width="900" /></p>
+<p align="center"><img src="docs/assets/plugin-lulc.png" alt="GeoSpaX forest change 2001 to 2025: year of forest loss in the Markham valley from Hansen Global Forest Change" width="900" /></p>
 
 **Marine · DBSCAN clusters.** 1,197 OBIS fish records grouped into 28 clusters by DBSCAN (111 records left as noise, in grey) over GEBCO 2026 bathymetry of the Huon Gulf.
 
