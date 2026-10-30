@@ -3,10 +3,7 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] (planned 3.0.9)
-
-### Changed
-- Code health: clippy warnings in the engine and server cut from 137 to 51 (collapsed `if`s, `is_multiple_of`, `chunks_exact` and similar); no behaviour change.
+## [3.0.9] - 2026-10-31
 
 ### Added
 - Automation: `lidar.3dtiles` writes LAS/LAZ point clouds as an OGC 3D Tiles 1.1 tileset (glTF points with colour) to open in CesiumJS, deck.gl, QGIS or ArcGIS. Two levels of detail and up to 20 million points for now; heights are the file's own unless `height_offset` is set.
@@ -25,6 +22,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Analysis › Profile chart: a distance-against-elevation panel for profile point layers, with min, max, relief, total climb and descent, an elevation legend, A/B ends, km ticks on the map and a hover marker linking chart and map.
 
 ### Changed
+- Code health: clippy warnings in the engine and server cut from 137 to 51 (collapsed `if`s, `is_multiple_of`, `chunks_exact` and similar); no behaviour change.
 - The Environment plugin screenshot now shows the profile chart beside the map.
 - The web app now loads as separate, long-cached chunks for MapLibre, deck.gl, Arrow, drawing and projections. The main app chunk drops from 1.75 MB to 0.68 MB (504 KB to 221 KB gzipped).
 
