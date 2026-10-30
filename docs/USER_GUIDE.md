@@ -766,8 +766,10 @@ its ribbon tab. On open data around Lae they made these:
 | **Geoscience** | Horn slope in three zones: 41 % under 8°, 23 % from 8° to 20°, 36 % at 20° and over | `geoscience` › slope zones |
 | **Hydrology** | Wet ground: low, gentle, open cells where water gathers | `hydrology` › suitability |
 | **LULC** | Forest change 2001 to 2025: the year each patch of forest was lost (Hansen Global Forest Change), 18,021 ha in total, worst in 2022 | **Online data › Hansen** (loss year) |
-| **Marine** | 1,197 OBIS fish records in 28 DBSCAN clusters over GEBCO bathymetry | `marine` › clusters |
+| **Marine** | 242 of 1,197 OBIS fish records flagged on land and dropped; the 955 marine records in 20 DBSCAN clusters over GEBCO bathymetry | `marine` › records on land, clusters |
 | **Soil** | Erosion potential: steep slope (3) and open ground (2) on the land cells | `soil` › erosion potential |
+
+**Marine records on land.** OBIS and GBIF hold many old museum specimens georeferenced to a town, an island or a 0.1° grid point, so some "marine" records fall inland. `marine` › *Records on land (marine QC)* flags each record whose surroundings, within a coastal tolerance (1 km by default), hold no sea cell of an elevation or bathymetry raster such as GEBCO, or that lies inside a land polygon layer (OSM land polygons, Natural Earth 10 m land); it adds `on_land` and `min_elev_near_m` and can drop the flagged records. *DBSCAN clusters* takes the same land mask and drops records on land before clustering by default.
 
 To run one: **Explorer › Plugins**, open the domain card, pick the analysis, fill the form, **Run**.
 Every one writes a styled layer, a report, and (where relevant) intermediate layers you can restyle.
