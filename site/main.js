@@ -11,7 +11,7 @@ const PLUGINS = [
   ['climate', 'Climate', "Coastal flood exposure of Lae's low-lying coast (10 m and below) from elevation and built-up land."],
   ['conservation', 'Conservation', 'Weighted hotspot grid of marine records on 10 km hexagons.'],
   ['disaster', 'Disaster', 'Landslide susceptibility from slope, local relief and tree cover.'],
-  ['environment', 'Environment', 'Elevation profile of a 38.9 km transect to the Huon Gulf: 20 m to 1,175 m.'],
+  ['environment', 'Environment', 'Elevation profile from the Lae coast to the Saruwaged Range: 39.1 km, 0 to 1,726 m, 4,684 m total climb.'],
   ['forestry', 'Forestry', '136 forest patches, 28,797 ha of core forest and the links joining them within 500 m.'],
   ['geoscience', 'Geoscience', 'Slope zones of the Markham valley from the Copernicus 30 m DEM.'],
   ['lulc', 'Land use and land cover', 'Forest change 2000–2023 east of Lae: 3,800 ha lost.'],
@@ -22,8 +22,8 @@ const PLUGINS = [
 const box = document.querySelector('[data-plugins]');
 if (box) {
   box.innerHTML = PLUGINS.map(([id, name, text]) => `
-    <figure class="shot plugin" tabindex="0" data-full="/img/plugin-${id}.webp?v=3.0.6">
-      <img loading="lazy" src="/img/plugin-${id}.webp?v=3.0.6" alt="GeoSpaX ${name} plugin" />
+    <figure class="shot plugin" tabindex="0" data-full="/img/plugin-${id}.webp?v=20261030b">
+      <img loading="lazy" src="/img/plugin-${id}.webp?v=20261030b" alt="GeoSpaX ${name} plugin" />
       <figcaption><b>${name}.</b> ${text}</figcaption>
     </figure>`).join('') + `
     <figure class="shot plugin" tabindex="0" data-full="/img/tour-landcover.webp">
