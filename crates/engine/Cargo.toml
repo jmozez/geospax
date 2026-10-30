@@ -45,7 +45,7 @@ jpeg-encoder = "0.7.1"
 # native spatial statistics (geostats.rs): erfc for p-values
 libm = "0.2"
 # plugins (docs/PLUGINS.md): read and unpack .rgplugin / .esriAddInX packages
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 # your own ONNX models (docs/AI.md §4): pure Rust inference, no native runtime to ship
 tract-onnx = "0.23"
 

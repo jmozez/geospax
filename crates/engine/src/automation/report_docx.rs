@@ -268,6 +268,6 @@ mod tests {
     fn without_a_map_there_is_no_picture() {
         let bytes = render(&input(), None).unwrap();
         let z = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
-        assert!(z.file_names().all(|n| !n.starts_with("word/media/")));
+        assert!(z.file_names().all(|n| !n.unwrap().starts_with("word/media/")));
     }
 }

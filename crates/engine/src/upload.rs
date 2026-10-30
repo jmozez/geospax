@@ -66,19 +66,20 @@ fn unzip(zip_path: &Path, dest: &Path, max_total: u64) -> Result<Vec<PathBuf>, S
         if f.is_dir() || f.is_symlink() {
             continue;
         }
+        let name = f.name().map_err(|e| e.to_string())?.to_string();
         if f.size() > MAX_ZIP_MEMBER {
-            return Err(format!("{} is larger than 1 GB", f.name()));
+            return Err(format!("{} is larger than 1 GB", name));
         }
         // no ../ and no absolute paths; macOS resource forks are skipped
         let mut out = dest.to_path_buf();
-        for part in Path::new(f.name()).components() {
+        for part in Path::new(&name).components() {
             match part {
                 Component::Normal(p) => out.push(p),
                 Component::CurDir => {}
-                _ => return Err(format!("zip member '{}' points outside the folder", f.name())),
+                _ => return Err(format!("zip member '{}' points outside the folder", name)),
             }
         }
-        if f.name().starts_with("__MACOSX") {
+        if name.starts_with("__MACOSX") {
             continue;
         }
         if let Some(parent) = out.parent() {
