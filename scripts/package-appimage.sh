@@ -88,6 +88,9 @@ if [ ! -x "$TOOL" ]; then
   curl -sSfL -o "$TOOL" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
   chmod +x "$TOOL"
 fi
+# the extracted tree keeps the build container's umask (0700 folders); appimagetool refuses those
+chmod -R a+rX "$WORK/squashfs-root"
+chmod a+rx "$WORK/squashfs-root/AppRun" "$WORK/squashfs-root/apprun-hooks/geospax-env.sh"
 rm -f "$DEST" "$DEST.sig"
 ARCH=x86_64 "$TOOL" --no-appstream "$WORK/squashfs-root" "$DEST" > /dev/null
 chmod 755 "$DEST"

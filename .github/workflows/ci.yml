@@ -143,7 +143,7 @@ jobs:
 
   appimage:
     # the check name stays as branch protection knows it; the build now runs on Ubuntu 22.04 (glibc 2.35)
-    name: AppImage (all Linux distributions; built on Ubuntu 24.04)
+    name: AppImage (all Linux distributions; built on Ubuntu 22.04)
     runs-on: ubuntu-latest
     container: ubuntu:22.04
     env:
