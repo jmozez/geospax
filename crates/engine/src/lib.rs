@@ -28,6 +28,7 @@ pub mod edit;
 pub mod geostats;
 pub mod guest;
 pub mod sensors;
+pub mod sql;
 pub mod sta;
 pub mod sync;
 pub mod jobs;

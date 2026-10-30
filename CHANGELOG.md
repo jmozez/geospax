@@ -10,6 +10,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ### Added
 - Edit › Field sync (offline first): package a layer as a GeoPackage for a USB stick, laptop or phone, then merge the returned copy with a three way, per feature comparison. One-sided and different-field edits merge on their own; conflicts are listed for a decision and nothing is written until Apply. API: `POST /api/layers/{id}/field-package`, `GET /api/sync`, `POST /api/sync/review` and `/api/sync/apply` (refused in the guest demo).
+- Analyze › SQL: one read-only SQL query across every layer on the map (GDAL SQLite dialect with SpatiaLite functions), joining layers from different files. Results with geometry become a layer (`sql.<name>`); tables show in the window. Also `POST /api/sql`. Writes, ATTACH, PRAGMA and file paths are refused.
+- Ask pane: when the assistant proposes a recipe, it now shows a plan card (recipe, inputs with defaults marked, and steps in order) and nothing runs until you press Run. Dismiss discards it. MCP clients are unchanged.
 - View › Coordinate system: a Pacific pack of 17 checked systems (PNG94 and PNGMG94 zones 54 to 56, AGD66, Fiji Map Grid, UTM zones for the Solomons, Vanuatu, Samoa and Tonga, NZTM, MGA 55 and Pacific-centred PDC Mercator) shown first, also at `GET /api/crs/pacific`.
 - Supply chain: a CI gate runs `cargo audit` and `npm audit` on every push and before any release, and each release now carries CycloneDX SBOMs (`scripts/sbom.sh`). See SECURITY.md.
 - Share › Export data › PMTiles: a layer as one vector tile archive that any static web host or MapLibre map can serve, no tile server needed.
