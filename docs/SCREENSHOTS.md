@@ -20,7 +20,7 @@ Retaken 30 October 2026 (PGT) from main, 1600x960 at 2x, dark theme, all in Pro 
 | ribbon-time.webp | Time slider on survey points | Time slider adding up 2,000 GBIF bird records (1993 to 2026), shown at 2019 | README, USER_GUIDE, site |
 | ribbon-view.webp | View tab (old tab layout) | View tab of the current Pro ribbon | README, USER_GUIDE, site |
 | tour-hydrology.png | 834 links, 11 basins, Huon coast at 60 m | 1,674 Strahler links, 7 basins, Markham valley at 30 m, hillshade | README, USER_GUIDE, site |
-| tour-landcover.png | WorldCover 2021, Lae | WorldCover 2021, Lae, class legend (tree 57.6 %, water 28.7 %) | README, USER_GUIDE, site |
+| tour-landcover.png | WorldCover 2021, Lae | Land cover snapshot, Lae (ESA WorldCover 2021, 10 m), class legend (tree 57.6 %, water 28.7 %) | README, USER_GUIDE, site |
 | tour-classification.png | 6 classes, 81 % | 9 classes, 80.3 %, 360 white sample points | README, USER_GUIDE, site |
 | tour-clustering.png | k-means 8 groups | k-means 8 groups, 1.1 million pixels at 20 m | README, USER_GUIDE, site |
 | tour-network.png | Distance to 12 clinics, 2,646 segments | 500 m / 1 km / 2 km service area to 16 facilities over 2,456 roads | README, USER_GUIDE, site |
@@ -35,7 +35,7 @@ Retaken 30 October 2026 (PGT) from main, 1600x960 at 2x, dark theme, all in Pro 
 | plugin-forestry.png | 136 patches, 33 links | 69 patches ≥ 20 ha, core 300 m (83.7 %) | README, USER_GUIDE, site |
 | plugin-geoscience.png | Slope zones | Slope zones 41 / 23 / 36 % | README, USER_GUIDE, site |
 | plugin-hydrology.png | Streams and basins | Wet ground suitability on land cells | README, USER_GUIDE, site |
-| plugin-lulc.png | Two-date change, 3,800 ha lost | Hansen loss year, 18,021 ha 2001 to 2025 | README, USER_GUIDE, site |
+| plugin-lulc.png | Two-date change, 3,800 ha lost | Forest change 2001 to 2025: Hansen year of forest loss, 18,021 ha | README, USER_GUIDE, site |
 | plugin-marine.png | 409 records, 9 clusters | 1,197 records, 242 on land dropped by the land check, 955 in 20 clusters, 47 noise | README, USER_GUIDE, site |
 | plugin-soil.png | RUSLE-style index | Slope and open-ground erosion score | README, USER_GUIDE, site |
 

@@ -630,19 +630,21 @@ routing, 1,674 stream links coloured by Strahler order 1 to 5, and the 7 basins 
    contours and slope classes in one run: **Analysis › Recipe gallery › Terrain report**, or
    `geospax run terrain-report --input area=your-layer` — it fetches the DEM itself.
 
-### Land cover: ESA WorldCover for your area
+### Land cover snapshot, Lae (ESA WorldCover 2021, 10 m)
 
-![ESA WorldCover 10 m land cover of Lae over Esri World Imagery](assets/tour-landcover.png)
+![Land cover snapshot of Lae: ESA WorldCover 2021, 10 m, with class shares](assets/tour-landcover.png)
 
-**What it is:** ESA WorldCover 2021 at 10 m for the map area, drawn in ESA's class colours; the
-legend shows each class's share of the area.
+**What it is:** a snapshot of what covers the ground in one year, 2021, at 10 m, drawn in ESA's
+class colours. Around Lae the legend shows tree cover 57.6 %, open water 28.7 %, grassland 7.8 %,
+built-up land 3.0 % and mangroves 1.7 %. It does not show change; for that, see the forest change
+map (LULC plugin, year of forest loss 2001 to 2025).
 
 **Make it:**
 
 1. Pan/zoom to the area you care about.
 2. **Explorer › Online data › Land cover** (ESA WorldCover). GeoSpaX clips it to the map window and
    cites the source on the map.
-3. It arrives styled in the official class colours — forest green, crop yellow, built-up red —
+3. It arrives styled in the official class colours (forest green, crop yellow, built-up red),
    with the area-share legend automatically.
 4. Change a class colour or label: **right › Layer tab** while the raster is selected.
 
@@ -763,7 +765,7 @@ its ribbon tab. On open data around Lae they made these:
 | **Forestry** | 69 Hansen forest patches of 20 ha or more: patch metrics and core forest 300 m from any edge (83.7 % core) | `forestry` › fragmentation |
 | **Geoscience** | Horn slope in three zones: 41 % under 8°, 23 % from 8° to 20°, 36 % at 20° and over | `geoscience` › slope zones |
 | **Hydrology** | Wet ground: low, gentle, open cells where water gathers | `hydrology` › suitability |
-| **LULC** | Hansen forest loss by year: 18,021 ha lost 2001 to 2025, worst in 2022 | **Online data › Hansen** (loss year) |
+| **LULC** | Forest change 2001 to 2025: the year each patch of forest was lost (Hansen Global Forest Change), 18,021 ha in total, worst in 2022 | **Online data › Hansen** (loss year) |
 | **Marine** | 242 of 1,197 OBIS fish records flagged on land and dropped; the 955 marine records in 20 DBSCAN clusters over GEBCO bathymetry | `marine` › records on land, clusters |
 | **Soil** | Erosion potential: steep slope (3) and open ground (2) on the land cells | `soil` › erosion potential |
 
