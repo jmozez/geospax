@@ -223,14 +223,13 @@ impl LayerEncoder {
         if p.density_cell > 0.0 && self.density.is_none() {
             self.density = Some(Density::new(p.density_cell));
         }
-        if p.points_density {
-            if let (Geom::Points(pts), Some(d)) = (geom, self.density.as_mut()) {
+        if p.points_density
+            && let (Geom::Points(pts), Some(d)) = (geom, self.density.as_mut()) {
                 for &[lon, lat] in pts {
                     d.add(proj.project(lon, lat));
                 }
                 return false;
             }
-        }
         let mut tiny = None;
         let gtype = match geom {
             Geom::Points(pts) if encode_points(pts, proj, &mut self.s, &mut self.cmds) => 1,
