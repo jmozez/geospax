@@ -6,6 +6,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased] (planned 3.0.9)
 
 ### Added
+- Home › Review: comments pinned to the map (with replies and resolve) and version history with restore (the last 50 saves) for named projects on a shared, self-hosted web edition. Sign-in and roles are not included yet.
 - View › Coordinate system: a Pacific pack of 17 checked systems (PNG94 and PNGMG94 zones 54 to 56, AGD66, Fiji Map Grid, UTM zones for the Solomons, Vanuatu, Samoa and Tonga, NZTM, MGA 55 and Pacific-centred PDC Mercator) shown first, also at `GET /api/crs/pacific`.
 - Supply chain: a CI gate runs `cargo audit` and `npm audit` on every push and before any release, and each release now carries CycloneDX SBOMs (`scripts/sbom.sh`). See SECURITY.md.
 - Share › Export data › PMTiles: a layer as one vector tile archive that any static web host or MapLibre map can serve, no tile server needed.
