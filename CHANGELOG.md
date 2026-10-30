@@ -5,6 +5,12 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Added
+- Analysis › Profile chart: a distance-against-elevation panel for profile point layers, with min, max, relief, total climb and descent, an elevation legend, A/B ends, km ticks on the map and a hover marker linking chart and map.
+
+### Changed
+- The Environment plugin screenshot now shows the profile chart beside the map.
+
 ## [3.0.8] — 2026-10-30
 
 ### Added

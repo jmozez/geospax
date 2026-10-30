@@ -53,6 +53,8 @@ jobs:
         run: sha256sum run.mjs plugin.yaml ../geospax-*/plugin.yaml > /tmp/gsx.sha && npm ci --no-audit --no-fund && npx tsc -p . && npm test && npm run build && node gen-manifest.mjs && sha256sum -c /tmp/gsx.sha
       - name: Tool dialogs pre-select fitting inputs (every GSX tool)
         run: node --experimental-strip-types --no-warnings scripts/test-prefill.mjs
+      - name: Profile chart (distance, min, max, climb, A and B, km ticks)
+        run: node --experimental-strip-types --no-warnings scripts/test-profile.mjs
       - name: Engine unit tests
         run: . /opt/rust-env.sh && cargo test --release -p geospax-engine
       - name: Release build (server + desktop)
