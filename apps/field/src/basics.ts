@@ -2,6 +2,7 @@
 // the offline maps manager, GPS status, and backup and export. Nothing here leaves the phone unless you
 // choose to (feedback opens your own mail app; export hands a file to the share sheet).
 import { allRecords, clearTilesFrom, putRecord, tileStats, type Photo, type Rec } from './db';
+import { fmtHeight, SOURCE_LABEL, type Height } from './elevation';
 import type { Fix } from './geo';
 import { BASEMAPS, type Basemap } from './tiles';
 
@@ -13,7 +14,10 @@ export interface Ctx {
   fix(): Fix | null;
   raw(): { fix: Fix | null; count: number; error: string | null; since: number };
   setBasemap(b: Basemap): void;
+  heights(): Heights;
+  setDem(on: boolean): void;
 }
+export interface Heights { gnss: Height | null; baro: Height | null; dem: Height | null; best: Height | null }
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -30,10 +34,12 @@ export interface Settings {
   keepAwake: boolean;
   /** show the tour again at the next start */
   tourDone: boolean;
+  /** ask the terrain model (Open-Meteo, online) for heights: sends the position */
+  dem: boolean;
 }
 const SKEY = 'geospax-field.settings';
 export function settings(): Settings {
-  const d: Settings = { basemap: (localStorage.getItem('geospax-field.basemap') as Basemap) || 'imagery', warnAcc: 30, keepAwake: false, tourDone: false };
+  const d: Settings = { basemap: (localStorage.getItem('geospax-field.basemap') as Basemap) || 'imagery', warnAcc: 30, keepAwake: false, tourDone: false, dem: false };
   try { return { ...d, ...JSON.parse(localStorage.getItem(SKEY) ?? '{}') }; } catch { return d; }
 }
 export function saveSettings(s: Partial<Settings>) {
@@ -61,6 +67,9 @@ export const WHATS_NEW: { version: string; items: string[] }[] = [
       'Offline maps: see how much map is kept on the phone and clear it per basemap.',
       'GPS status: accuracy, height, speed, heading and the age of the last fix.',
       'Backup and export: a full backup with photos, restore, and GeoJSON export.',
+      'Heights above sea level (EGM2008), not above the ellipsoid, each with its source: GPS, barometer or terrain model.',
+      'The barometer, on phones that have one, keeps heights steady when the GPS height is poor.',
+      'Optional terrain model heights (Copernicus GLO-90, online) when GPS is poor: switch on in Settings.',
     ],
   },
   { version: '3.0.9', items: ['Field sync with GeoSpaX on your computer, and steadier positions from averaged fixes.'] },
@@ -161,17 +170,19 @@ function settingsSheet(ctx: Ctx) {
     <label class="field">Basemap at start<select id="sBase">${(Object.keys(BASEMAPS) as Basemap[]).map((b) => `<option value="${b}" ${b === s.basemap ? 'selected' : ''}>${BASEMAPS[b].label}</option>`).join('')}</select></label>
     <label class="field">Ask before saving a point worse than<select id="sAcc">${[10, 20, 30, 50, 100, 0].map((m) => `<option value="${m}" ${m === s.warnAcc ? 'selected' : ''}>${m ? `±${m} m` : 'never ask'}</option>`).join('')}</select></label>
     <label class="check"><input type="checkbox" id="sAwake" ${s.keepAwake ? 'checked' : ''} /> Keep the screen on (uses more battery)</label>
+    <label class="check"><input type="checkbox" id="sDem" ${s.dem ? 'checked' : ''} /> Heights from the terrain model when GPS is poor (online: sends your position to Open-Meteo)</label>
     <label class="check"><input type="checkbox" id="sTour" ${s.tourDone ? '' : 'checked'} /> Show the tour at the next start</label>
     ${backRow}`);
   back(ctx);
   $('#sBase').addEventListener('change', (e) => { const b = (e.target as HTMLSelectElement).value as Basemap; saveSettings({ basemap: b }); ctx.setBasemap(b); });
   $('#sAcc').addEventListener('change', (e) => saveSettings({ warnAcc: Number((e.target as HTMLSelectElement).value) }));
   $('#sAwake').addEventListener('change', (e) => { const on = (e.target as HTMLInputElement).checked; saveSettings({ keepAwake: on }); void applyKeepAwake(on); });
+  $('#sDem').addEventListener('change', (e) => { const on = (e.target as HTMLInputElement).checked; saveSettings({ dem: on }); ctx.setDem(on); });
   $('#sTour').addEventListener('change', (e) => saveSettings({ tourDone: !(e.target as HTMLInputElement).checked }));
 }
 
 // ------------------------------------------------------------------ GPS status
-export function gpsRows(f: Fix | null, raw: ReturnType<Ctx['raw']>, now = Date.now()): [string, string][] {
+export function gpsRows(f: Fix | null, raw: ReturnType<Ctx['raw']>, now = Date.now(), hs: Heights | null = null): [string, string][] {
   const r = raw.fix;
   const age = r ? Math.max(0, Math.round((now - r.t) / 1000)) : null;
   const quality = !f ? 'No usable fix yet' : f.acc <= 10 ? 'Good (±10 m or better)' : f.acc <= 30 ? 'Fair (±30 m or better)' : 'Poor';
@@ -180,7 +191,11 @@ export function gpsRows(f: Fix | null, raw: ReturnType<Ctx['raw']>, now = Date.n
     ['Accuracy', f ? `±${f.acc.toFixed(1)} m` : '-'],
     ['Latitude', f ? f.lat.toFixed(7) : '-'],
     ['Longitude', f ? f.lon.toFixed(7) : '-'],
-    ['Height (from GPS)', r?.ele != null ? `${r.ele.toFixed(1)} m above the ellipsoid` : 'not reported'],
+    ['Height above sea level', fmtHeight(hs?.best ?? null)],
+    ['GPS height', r?.ele != null ? `${r.ele.toFixed(1)} m above the ellipsoid${r.altAcc != null ? ` (±${Math.round(r.altAcc)} m)` : ''}` : 'not reported'],
+    [`From ${SOURCE_LABEL.gnss}`, hs?.gnss ? fmtHeight(hs.gnss) : '-'],
+    ['From the barometer', hs?.baro ? fmtHeight(hs.baro) : 'no barometer'],
+    ['From the terrain model', hs?.dem ? fmtHeight(hs.dem) : 'off (see Settings)'],
     ['Speed', r?.speed != null ? `${(r.speed * 3.6).toFixed(1)} km/h` : 'not reported'],
     ['Heading', r?.heading != null && !Number.isNaN(r.heading) ? `${Math.round(r.heading)}°` : 'not reported'],
     ['Last fix', age == null ? 'none yet' : `${age} s ago`],
@@ -192,10 +207,10 @@ function gpsSheet(ctx: Ctx) {
   const draw = () => {
     const body = document.getElementById('gpsRows');
     if (!body) return clearInterval(timer);
-    body.innerHTML = gpsRows(ctx.fix(), ctx.raw()).map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join('');
+    body.innerHTML = gpsRows(ctx.fix(), ctx.raw(), Date.now(), ctx.heights()).map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join('');
   };
   ctx.openSheet(`<h2>GPS status</h2><table class="kv"><tbody id="gpsRows"></tbody></table>
-    <p class="muted">Phones do not give apps the satellite count. Accuracy is the phone's own estimate; under trees and near buildings it can be worse than shown.</p>${backRow}`);
+    <p class="muted">Phones do not give apps the satellite count. Accuracy is the phone's own estimate; under trees and near buildings it can be worse than shown. Heights are above mean sea level (EGM2008); the best source is used for saved points.</p>${backRow}`);
   back(ctx);
   const timer = window.setInterval(draw, 1000);
   draw();
@@ -243,7 +258,7 @@ export function toGeoJson(recs: Rec[]): GeoJSON.FeatureCollection {
     features: recs.map((r) => {
       const xy = r.coords.map((v) => (v[2] != null ? [v[0], v[1], v[2]] : [v[0], v[1]]));
       const geometry: GeoJSON.Geometry = r.kind === 'point' || xy.length === 1 ? { type: 'Point', coordinates: xy[0] } : r.kind === 'area' && xy.length > 2 ? { type: 'Polygon', coordinates: [[...xy, xy[0]]] } : { type: 'LineString', coordinates: xy };
-      return { type: 'Feature', id: r.id, geometry, properties: { kind: r.kind, note: r.note, created: new Date(r.created).toISOString(), accuracy_m: r.coords[0]?.[4] ?? null, photos: r.photos.map((p) => p.name).join(';') || null, sent: r.sent } };
+      return { type: 'Feature', id: r.id, geometry, properties: { kind: r.kind, note: r.note, created: new Date(r.created).toISOString(), accuracy_m: r.coords[0]?.[4] ?? null, height_m: r.height?.value ?? null, height_source: r.height?.source ?? null, height_acc_m: r.height?.acc ?? null, photos: r.photos.map((p) => p.name).join(';') || null, sent: r.sent } };
     }),
   };
 }

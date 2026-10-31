@@ -1,8 +1,10 @@
 // Everything recorded stays on the phone (IndexedDB) until it has been sent: no signal needed.
 // Map tiles that were on screen are kept too, so the map works offline where you have looked before.
 
+import type { Height } from './elevation';
+
 export type Kind = 'point' | 'line' | 'area' | 'track';
-/** [lon, lat, elevation m or null, time ms, accuracy m or null] */
+/** [lon, lat, height above sea level m (EGM2008) or null, time ms, accuracy m or null] */
 export type Vertex = [number, number, number | null, number, number | null];
 
 export interface Photo {
@@ -23,6 +25,8 @@ export interface Rec {
   created: number;
   sent: boolean;
   photos: Photo[];
+  /** the height of a point and where it came from (GPS and geoid, barometer or terrain model) */
+  height?: Height | null;
 }
 
 let dbp: Promise<IDBDatabase> | null = null;
