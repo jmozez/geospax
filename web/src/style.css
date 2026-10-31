@@ -978,8 +978,6 @@ body[data-mode='lazy']:not(:has(#inspector .ins-empty)) #map-props, body[data-mo
 @media (prefers-reduced-motion: reduce) { #rconsole .rc-bar.running i { animation: none; } }
 
 /* Plugins › Manage plugins */
-#plugin-manager .sheet { width: min(980px, 100%); }
-#plugin-manager .body { display: block; }
 
 /* Toolbox: a toolset heading inside an open toolbox */
 .tb-set { padding: 6px 10px 2px 22px; font-size: 11px; font-weight: 600; color: var(--text2); text-transform: none; }
@@ -1732,3 +1730,44 @@ body[data-tools-off~="export"] #ribbon-tabs [data-tab="share"],
 body[data-tools-off~="export"] [data-cmd="edit.export"],
 body[data-tools-off~="delete"] [data-cmd*="remove"],
 body[data-tools-off~="delete"] [data-cmd*="delete"] { display: none !important; }
+
+/* Plugin manager (plugins.ts, pluginmanager.ts): tabs down the left, the list, the details, as in QGIS */
+#plugin-manager .sheet { width: min(1100px, 100%); height: min(720px, calc(100vh - 40px)); }
+#plugin-manager .body { display: flex; flex-direction: column; padding: 0; overflow: hidden; flex: 1; }
+#plugin-manager #plugins { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.pm { display: grid; grid-template-columns: 170px minmax(0, 1fr); min-height: 0; flex: 1; }
+.pm-rail { display: flex; flex-direction: column; gap: 2px; padding: 10px 8px; border-right: 1px solid var(--line); background: var(--sunken); }
+.pm-tab { display: flex; justify-content: space-between; align-items: center; gap: 6px; text-align: left; background: none; border: 0; border-radius: 4px; padding: 7px 10px; color: var(--text2); font-size: 13px; cursor: pointer; }
+.pm-tab:hover { background: var(--raised); }
+.pm-tab.on { background: var(--accent); color: var(--on-accent, #fff); }
+.pm-count { font-size: 11px; opacity: 0.8; }
+.pm-main { display: flex; flex-direction: column; min-height: 0; padding: 10px 12px; gap: 8px; }
+#pm-search { width: 100%; padding: 6px 9px; }
+.pm-split { display: grid; grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.4fr); gap: 10px; min-height: 0; flex: 1; }
+.plugin-list.pm-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; border: 1px solid var(--line); border-radius: 4px; padding: 4px; background: var(--panel); }
+.plugin.pm-row { display: flex; align-items: center; gap: 7px; padding: 5px 7px; border: 0; border-radius: 3px; background: none; cursor: pointer; }
+.plugin.pm-row:hover { background: var(--raised); }
+.plugin.pm-row.on { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.plugin.pm-row.off .p-name { color: var(--muted); }
+.plugin.pm-row.avail .p-name { font-style: italic; }
+.plugin.pm-row .p-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin.pm-row .p-ver { color: var(--muted); font-size: 11px; }
+.pm-nocheck { width: 13px; }
+.badge.up { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.pm-detail { overflow-y: auto; border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; background: var(--raised); display: flex; flex-direction: column; gap: 8px; }
+.pm-dhead { display: flex; gap: 10px; align-items: flex-start; }
+.pm-dhead h3 { margin: 0 0 4px; font-size: 15px; }
+.pm-meta { border-collapse: collapse; font-size: 12px; }
+.pm-meta th { text-align: left; font-weight: 600; color: var(--muted); padding: 2px 12px 2px 0; white-space: nowrap; vertical-align: top; }
+.pm-meta td { padding: 2px 0; word-break: break-all; }
+.pm-actions { display: flex; justify-content: flex-end; gap: 8px; align-items: center; margin-top: auto; }
+.pm-actions .p-keep { margin-right: auto; }
+.pm-pad { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
+.pm-pad h3 { margin: 6px 0 0; font-size: 14px; }
+.pm-repos { border-collapse: collapse; font-size: 12px; width: 100%; }
+.pm-repos th, .pm-repos td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.pm-url { word-break: break-all; color: var(--text2); }
+.pm-addrepo #pm-repo-name { width: 140px; flex: none; }
+.pm-addrepo #pm-repo-url { flex: 1; }
+.pm-status { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; }
+.pm-status .pm-msg { flex: 1; }

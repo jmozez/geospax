@@ -898,11 +898,71 @@ impl Engine {
             },
             // Plugins (docs/PLUGINS.md): tools and ribbon commands from GeoSpaX, RustGIS,
             // GeoLibre, QGIS and ArcGIS Pro packages.
+            // `plugins` is what the ribbon, Toolbox and palette offer (switched-off plugins left out);
+            // `disabled` lists the others, which the plugin manager shows with their switch off.
             ("GET", ["api", "plugins"]) => ApiResponse::json(200, &json!({
-                "plugins": self.plugins.list(),
+                "plugins": self.plugins.list_enabled(),
+                "all": self.plugins.list(),
+                "disabled": self.plugins.manager_config().disabled,
                 "runtimes": self.plugins.runtimes(),
                 "dirs": self.plugins.dirs(),
             })),
+            // The plugin manager (plugin_repos.rs): settings, repositories, install from a repository or a ZIP
+            ("GET", ["api", "plugins", "manager"]) => ApiResponse::json(200, &json!({
+                "config": self.plugins.manager_config(),
+                "index": self.plugins.repo_index(),
+            })),
+            ("POST", ["api", "plugins", "manager"]) => {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let mut cfg = self.plugins.manager_config();
+                if let Some(r) = body.get("repos") {
+                    match serde_json::from_value::<Vec<crate::plugin_repos::Repo>>(r.clone()) {
+                        Ok(r) => cfg.repos = r.into_iter().filter(|r| !r.url.trim().is_empty()).collect(),
+                        Err(e) => return ApiResponse::error(400, format!("repos: {e}")),
+                    }
+                }
+                if let Some(v) = body.get("check_updates").and_then(|v| v.as_bool()) {
+                    cfg.check_updates = v;
+                }
+                if let Some(v) = body.get("show_experimental").and_then(|v| v.as_bool()) {
+                    cfg.show_experimental = v;
+                }
+                match self.plugins.set_manager_config(&cfg) {
+                    Ok(()) => ApiResponse::json(200, &json!({ "config": cfg, "index": self.plugins.repo_index() })),
+                    Err(e) => ApiResponse::error(500, e),
+                }
+            },
+            ("POST", ["api", "plugins", "repos", "refresh"]) => match self.plugins.refresh_repos() {
+                Ok(idx) => ApiResponse::json(200, &json!({ "index": idx })),
+                Err(e) => ApiResponse::error(400, e),
+            },
+            ("POST", ["api", "plugins", "repos", "install"]) => {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                match self.plugins.install_from_repo(id) {
+                    Ok(info) => ApiResponse::json(200, &json!({ "plugin": info, "plugins": self.plugins.list_enabled() })),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            },
+            ("POST", ["api", "plugins", "upload"]) => {
+                let name = param(&req.query, "name").unwrap_or_else(|| "plugin.zip".to_string());
+                if req.body.is_empty() {
+                    ApiResponse::error(400, "upload needs the package as the request body")
+                } else {
+                    match self.plugins.install_bytes(&name, &req.body) {
+                        Ok(info) => ApiResponse::json(200, &json!({ "plugin": info, "plugins": self.plugins.list_enabled() })),
+                        Err(e) => ApiResponse::error(400, e),
+                    }
+                }
+            },
+            ("POST", ["api", "plugins", id, "enable"]) => {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap_or_default();
+                let on = body.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+                match self.plugins.set_enabled(id, on) {
+                    Ok(()) => ApiResponse::json(200, &json!({ "ok": true, "id": id, "enabled": on, "disabled": self.plugins.manager_config().disabled })),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            },
             ("POST", ["api", "plugins", "reload"]) => {
                 self.plugins.reload();
                 ApiResponse::json(200, &json!({ "plugins": self.plugins.list() }))
