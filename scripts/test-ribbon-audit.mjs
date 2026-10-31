@@ -58,7 +58,7 @@ const EXPECT = {
   'share.data.gpkg': 'file', 'share.data.shp': 'file', 'share.data.kml': 'file', 'share.data.csv': 'file', 'share.data.geojson': 'file', 'share.data.parquet': 'file',
   'share.publish': 'file', 'share.package': 'file', 'share.print': 'print',
   // Help
-  'help.tutorials': 'dialog', 'help.search': 'overlay|dialog', 'help.guide': 'docs', 'help.faq': 'docs', 'help.automation': 'docs', 'help.whatsnew': 'docs', 'help.matrix': 'docs',
+  'help.tutorials': 'dialog', 'help.search': 'overlay|dialog', 'help.guide': 'docs', 'help.faq': 'docs', 'help.automation': 'docs', 'help.whatsnew': 'dialog|docs', 'help.matrix': 'docs',
   'help.updates': 'docs', 'help.report': 'popup', 'help.keys': 'dialog|docs|overlay', 'help.credits': 'docs', 'help.about': 'docs', 'help.diagnostics': 'pane', 'analyze.bench': 'status|pane|dialog', 'analyze.deck': 'status|state|view',
   // Layer (contextual)
   'data.rasters': 'pane|status', 'analyze.gallery': 'pane|status',

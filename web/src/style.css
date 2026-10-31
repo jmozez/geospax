@@ -1676,6 +1676,33 @@ table.rules input:not([type=checkbox]) { width: 100%; }
 .dlg-field input { font-weight: 400; padding: 6px 8px; }
 .dlg-field input[aria-invalid='true'] { border-color: var(--danger, #c0392b); }
 
+/* ---- first-start tour and What's new (tour.ts): always dark, whatever the theme */
+.gx-tour-veil { position: fixed; z-index: 9998; border-radius: 10px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(6, 10, 18, .62), 0 0 0 2px #4da3ff, 0 0 24px 4px rgba(77, 163, 255, .45); transition: left .22s ease, top .22s ease, width .22s ease, height .22s ease; }
+.gx-tour-veil.full { left: 0; top: 0; width: 0; height: 0; box-shadow: 0 0 0 9999px rgba(6, 10, 18, .62); }
+.gx-tour { position: fixed; z-index: 9999; width: min(380px, calc(100vw - 24px)); background: #141a24; color: #e6ebf2; border: 1px solid #2b3647; border-radius: 12px; padding: 16px 18px 14px; box-shadow: 0 18px 48px rgba(0, 0, 0, .55); font: 13px/1.5 system-ui, "Segoe UI", sans-serif; }
+.gx-tour.center { left: 50%; top: 42%; transform: translate(-50%, -50%); }
+.gx-tour-top { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #8fa1b8; }
+.gx-tour-bar { height: 3px; margin: 8px 0 12px; background: #263142; border-radius: 3px; overflow: hidden; }
+.gx-tour-bar i { display: block; height: 100%; background: linear-gradient(90deg, #2f80ed, #4da3ff); transition: width .22s ease; }
+.gx-tour h3 { margin: 0 0 6px; font-size: 17px; font-weight: 600; color: #fff; }
+.gx-tour p { margin: 0 0 12px; color: #c4cfdd; }
+.gx-tour-dots { display: flex; gap: 6px; margin-bottom: 12px; }
+.gx-tour-dots b { width: 7px; height: 7px; border-radius: 50%; background: #34425a; }
+.gx-tour-dots b.past { background: #5b7aa6; }
+.gx-tour-dots b.on { background: #4da3ff; width: 18px; border-radius: 4px; }
+.gx-tour-nav { display: flex; align-items: center; gap: 8px; }
+.gx-tour-sp { flex: 1; }
+.gx-tour-off { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8fa1b8; cursor: pointer; }
+.gx-tour button { padding: 5px 14px; border-radius: 6px; border: 1px solid #34425a; background: #1c2431; color: #e6ebf2; cursor: pointer; font: inherit; }
+.gx-tour button:hover:not(:disabled) { border-color: #4da3ff; }
+.gx-tour button:disabled { opacity: .4; cursor: default; }
+.gx-tour button:focus-visible { outline: 2px solid #4da3ff; outline-offset: 2px; }
+.gx-tour .gx-tour-skip { border-color: transparent; background: transparent; color: #8fa1b8; }
+.gx-tour .gx-tour-next { background: #2f80ed; border-color: #2f80ed; color: #fff; font-weight: 600; }
+.gx-whatsnew .sheet { max-height: 80vh; display: flex; flex-direction: column; }
+.gx-whatsnew .body { overflow: auto; }
+.gx-wn-foot { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+
 /* ---- Home › Workspace and "Who's working?" (workspace.ts) */
 #profile-btn { padding: 1px 10px; border-radius: 12px; font-size: 11px; margin-right: 6px; }
 .gx-prof-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 6px 0 12px; }

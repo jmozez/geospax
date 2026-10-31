@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-// Workspaces and local profiles, end to end on servers of their own:
+// Workspaces, local profiles and the desktop tours, end to end on servers of their own:
 //   - per-computer workspaces: two OS users on one computer get separate workspaces, ids are SHA-256;
 //     Home › Workspace, tool switches, Restricted mode with a PIN, export and import;
+//   - tours: the first-start tour (6 to 8 steps, keys, Back, Skip), not on the second run, Help › Take
+//     the tour, What's new after a version change, "Don't show again";
 //   - profiles: the single-profile skip, "Who's working?", PIN (salted hash, wrong PIN refused),
 //     isolation, admin-only changes, per-profile Restricted mode and the PIN lock after a restart;
 //
@@ -71,6 +73,53 @@ try {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const layers = () => page.$$eval('#contents .layer', (a) => a.length);
+
+  // ------------------------------------------------------------ tours
+  const s1 = join(tmp, 'state1');
+  await start(s1);
+  console.log('tours');
+  await page.goto(`${base}/?mode=pro&theme=dark&tour=1`);
+  await page.waitForSelector('.gx-tour', { timeout: 8000 }).catch(() => {});
+  ok('the first-start tour shows on the first run', !!(await page.$('.gx-tour')));
+  const count = await page.textContent('.gx-tour-count').catch(() => '');
+  const n = Number(/of (\d+)/.exec(count ?? '')?.[1] ?? 0);
+  ok('the tour has 6 to 8 steps', n >= 6 && n <= 8, count);
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(300);
+  ok('the arrow keys move the tour on', /Step 2 of/.test((await page.textContent('.gx-tour-count')) ?? ''));
+  await page.click('[data-back]');
+  await page.waitForTimeout(200);
+  ok('Back works', /Step 1 of/.test((await page.textContent('.gx-tour-count')) ?? ''));
+  await page.click('[data-next]');
+  await page.click('[data-next]');
+  await page.waitForTimeout(500);
+  if (shots) await page.screenshot({ path: join(shots, 'tour.png') });
+  await page.click('[data-skip]');
+  await page.waitForTimeout(300);
+  ok('Skip closes the tour', !(await page.$('.gx-tour')));
+  await page.reload();
+  await page.waitForTimeout(3000);
+  ok('the tour does not show on the second run', !(await page.$('.gx-tour')));
+  ok("no What's new on the second run of the same version", !(await page.$('.gx-whatsnew')));
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('geospax:tour')));
+  await page.waitForTimeout(500);
+  ok('Help › Take the tour replays it', !!(await page.$('.gx-tour')));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  ok('Esc closes the tour', !(await page.$('.gx-tour')));
+  await api('api/ui-state', 'PUT', { lastVersion: '3.0.8' });
+  await page.reload();
+  await page.waitForSelector('.gx-whatsnew', { timeout: 8000 }).catch(() => {});
+  ok("What's new opens after a version change", !!(await page.$('.gx-whatsnew')));
+  const ver = (await api('api/health')).json?.version ?? '';
+  ok("What's new shows this version's highlights", ((await page.textContent('.gx-whatsnew')) ?? '').includes(ver), ver);
+  await page.click('.gx-whatsnew [data-x]');
+  ok('the last version run is recorded', (await api('api/ui-state')).json?.lastVersion === ver);
+  await api('api/ui-state', 'PUT', { tourSeen: false, tourOff: true });
+  await page.reload();
+  await page.waitForTimeout(2500);
+  ok('"Don\'t show again" keeps the tour away', !(await page.$('.gx-tour')));
+  await stop();
 
   // ------------------------------------------------------------ two OS users
   console.log('per-computer workspaces');
@@ -156,6 +205,7 @@ try {
   pr = (await api('api/profiles')).json;
   ok('the last profile used is remembered', pr?.current?.id === kila && pr.unlocked === true);
   ok("profiles are isolated (Kila does not see Jimmy's state)", (await api('api/project')).json?.name !== 'jimmy');
+  ok('a new profile sees the tour', !(await api('api/ui-state')).json?.tourSeen);
   r = await api('api/profiles', 'POST', { name: 'Third' });
   ok('only the admin adds profiles', r.status === 403);
   r = await api(`api/profiles/${kila}/rename`, 'POST', { name: 'Boss' });

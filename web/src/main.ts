@@ -19,6 +19,7 @@ import { AttributesPane } from './attributes';
 import { MapExtras } from './mapextras';
 import { ShareExtras, saveBlob } from './shareextras';
 import { Tutorials } from './tutorials';
+import { Tour } from './tour';
 import { WorkspaceUi } from './workspace';
 import { Editor } from './editing';
 import { Measure } from './measure';
@@ -1525,6 +1526,7 @@ async function openSettings() {
   const opt = (v: string, label: string, cur: string) => `<option value="${e(v)}"${v === cur ? ' selected' : ''}>${e(label)}</option>`;
   const { loadChartStyle, saveChartStyle, THEMES: CH_THEMES, PALETTES: CH_PALETTES } = ggchartMod;
   const chartSt = await loadChartStyle(backend);
+  const uiSt = await backend.json<{ tourOff?: boolean }>('api/ui-state').catch(() => ({} as { tourOff?: boolean }));
   const health = await backend.json<{ version?: string; data?: string[]; state?: string }>('api/about').catch(() => ({} as { version?: string; data?: string[]; state?: string }));
   const body = `
     <div class="settings">
@@ -1547,6 +1549,7 @@ async function openSettings() {
         <label class="chk"><input type="checkbox" name="auto" ${prefs.auto ? 'checked' : ''}> Style new layers automatically (AutoMap)</label>
         <label class="chk"><input type="checkbox" name="autooverviews" ${prefs.autooverviews ? 'checked' : ''}> Build overviews for large layers in the background</label>
         <label class="chk"><input type="checkbox" name="reopenLast" ${prefs.reopenLast ? 'checked' : ''}> Reopen last project at start (off: start with an empty map)</label>
+        <label class="chk"><input type="checkbox" name="tourOff" ${uiSt.tourOff ? 'checked' : ''}> Don't show the first-start tour (Help › Take the tour still works)</label>
       </section>
       <section><h3>Setup</h3>
         <div class="settings-btns">
@@ -1578,6 +1581,7 @@ async function openSettings() {
       prefs.auto = v.auto === 'on';
       prefs.autooverviews = v.autooverviews === 'on';
       prefs.reopenLast = v.reopenLast === 'on';
+      void backend.json('api/ui-state', { method: 'PUT', body: JSON.stringify({ tourOff: v.tourOff === 'on' }), headers: { 'content-type': 'application/json' } }).catch(() => undefined);
       prefs.basemap = v.basemap as Basemap;
       if (v.units !== prefs.units) {
         prefs.units = v.units as Prefs['units'];
@@ -1873,6 +1877,7 @@ async function main() {
   const wsUi = new WorkspaceUi(backend, (t) => { const m = document.querySelector('#sb-msg'); if (m) m.textContent = t; }, async () => {
     await backend.json('api/project', { method: 'PUT', body: JSON.stringify(project), headers: { 'content-type': 'application/json' } }).catch(() => undefined);
   });
+  (window as unknown as { wsUi: WorkspaceUi }).wsUi = wsUi;
   if (!about?.guest && !params.has('bench')) {
     const pr = await wsUi.profiles();
     if (pr.available && !pr.unlocked) {
@@ -2762,14 +2767,25 @@ async function main() {
   else if (fitOnLoad) intro ? setTimeout(() => fitAll(3000), 700) : fitAll();
   else if (intro) setTimeout(() => map.flyTo({ center: view.center, zoom: view.zoom, duration: 3000, essential: true }), 700);
 
-  // Home › Workspace, Switch profile and the title bar profile button (workspace.ts)
-  document.addEventListener('geospax:workspace', () => void wsUi.open());
-  document.addEventListener('geospax:profiles', () => void wsUi.picker(false));
-  document.addEventListener('geospax:tools-changed', () => void wsUi.applyTools());
-  void wsUi.applyTools();
-  if (!guestMode && !params.has('bench')) void wsUi.startup();
-  // Help › Open sample project: samples load only from here, never by themselves
-  document.addEventListener('geospax:sample-project', () => void openSamples());
+  // Home › Workspace, Switch profile, the first-start tour and What's new (workspace.ts, tour.ts)
+  {
+    const wsUi = (window as unknown as { wsUi: WorkspaceUi }).wsUi;
+    document.addEventListener('geospax:workspace', () => void wsUi.open());
+    document.addEventListener('geospax:profiles', () => void wsUi.picker(false));
+    document.addEventListener('geospax:tools-changed', () => void wsUi.applyTools());
+    void wsUi.applyTools();
+    const version = (await backend.json<{ version?: string }>('api/health').catch(() => ({} as { version?: string }))).version ?? '';
+    const tour = new Tour(backend, version, (u) => window.open(u, '_blank'));
+    (window as unknown as { tour: Tour }).tour = tour;
+    document.addEventListener('geospax:tour', () => tour.replay());
+    document.addEventListener('geospax:whatsnew', () => void tour.whatsNew());
+    document.addEventListener('geospax:sample-project', () => void openSamples());
+    // the tour and What's new wait for "Who's working?" when it shows
+    const params2 = new URLSearchParams(location.search);
+    // automated browsers (UI tests) get the tour only when they ask for it: ?tour=1
+    const tourOk = !guestMode && !params2.has('bench') && (params2.get('tour') === '1' || (!navigator.webdriver && params2.get('tour') !== '0'));
+    if (!guestMode && !params2.has('bench')) void wsUi.startup().then((picker) => { if (!picker && tourOk) void tour.startup(); });
+  }
 
   // Stage 2 of the lazy path: a start screen with a drop zone, drag-and-drop anywhere, and
   // "Finish my map" (web/src/start.ts, web/src/finish.ts)
