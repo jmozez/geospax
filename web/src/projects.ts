@@ -119,7 +119,7 @@ export function wireProjects(h: ProjectHost) {
     if (!name) return;
     const kept = await keepCurrent();
     const slug = slugify(name);
-    const p: Project = { version: 1, order: [], layers: {}, name, slug, removed: h.layerIds() };
+    const p: Project = { version: 1, order: [], layers: {}, name, slug, removed: h.layerIds(), explicit: true };
     await put(slug, p);
     h.hold();
     await putOpen(p);

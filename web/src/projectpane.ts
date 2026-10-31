@@ -122,8 +122,10 @@ export class ProjectPane {
       case 'open': return this.open();
       case 'new':
         if ((await dialog('New project', '<p>Every layer goes back to its default style; groups and bookmarks are removed. Your data files are not touched.</p>', [['ok', 'Start a new project'], ['', 'Cancel']])).button !== 'ok') return;
-        await this.host.replace({ version: 1, order: [], layers: {} });
+        await this.host.replace({ version: 1, order: [], layers: {}, removed: this.host.project().order.slice(), explicit: true });
         this.host.setStatus('New project');
+        // start again so no selection, edit history or cached result is left from the last project
+        setTimeout(() => location.reload(), 300);
         return this.render();
     }
   }
