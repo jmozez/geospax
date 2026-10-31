@@ -53,6 +53,8 @@ export interface Project {
   /** the project's name (Home › Project › New, Save as, Rename) and its file id under projects/ */
   name?: string;
   slug?: string;
+  /** only layers added on purpose are on the map (New project, a clean start): data folders do not fill it */
+  explicit?: boolean;
   /** draw order, bottom first */
   order: string[];
   layers: Record<string, LayerStyle>;

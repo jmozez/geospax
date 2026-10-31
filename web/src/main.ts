@@ -164,14 +164,16 @@ function mergeProject(saved: Project | null): Project {
   // rasters are in the same draw order as "r:<id>"; until the raster list has loaded, keep them all
   const rasterIds = rasterPane ? new Set(rasterPane.rasters.map((r) => `r:${r.id}`)) : null;
   const order = (saved?.order ?? []).filter((id) => known.has(id) || (id.startsWith('r:') && (!rasterIds || rasterIds.has(id))));
-  for (const id of defaultOrder) if (!order.includes(id)) order.push(id);
+  // an explicit project (New project, a clean start) holds only what was added to it: layers found in
+  // the data folders stay in the Explorer until added
+  if (!saved?.explicit) for (const id of defaultOrder) if (!order.includes(id)) order.push(id);
   if (rasterPane) {
     // results (recipe or tool outputs, "<recipe>.<name>") go on top like any new layer, hillshades above
     // their colour raster; rasters found in the data folders go just above the land polygons
     const fresh = rasterPane.rasters.filter((r) => !order.includes(`r:${r.id}`));
     const isResult = (id: string) => id.includes('.');
     const top = fresh.filter((r) => isResult(r.id)).sort((a, b) => +(a.kind === 'hillshade') - +(b.kind === 'hillshade'));
-    const bottom = fresh.filter((r) => !isResult(r.id));
+    const bottom = saved?.explicit ? [] : fresh.filter((r) => !isResult(r.id));
     const afterLand = order.reduce((at, id, i) => (isLand(id) ? i + 1 : at), 0);
     order.splice(afterLand, 0, ...bottom.map((r) => `r:${r.id}`));
     order.push(...top.map((r) => `r:${r.id}`));
@@ -598,10 +600,10 @@ async function autostyleLayer(id: string, opts: { keepVisibility?: boolean; quie
 /** The lazy-mapper automation (auto styles, auto overviews) is on unless ?<name>=0. Benchmarks and the
  *  UI tests (?bench, ?fresh) drive every step themselves, so it is off there unless ?<name>=1. */
 // ---------------------------------------------------------------- settings (Home › Settings)
-interface Prefs { auto: boolean; autooverviews: boolean; units: 'metric' | 'imperial' | 'nautical'; basemap: Basemap }
+interface Prefs { auto: boolean; autooverviews: boolean; units: 'metric' | 'imperial' | 'nautical'; basemap: Basemap; reopenLast: boolean }
 const PREFS_KEY = 'geospax.prefs';
 const prefs: Prefs = (() => {
-  const d: Prefs = { auto: true, autooverviews: true, units: 'metric', basemap: 'offline' };
+  const d: Prefs = { auto: true, autooverviews: true, units: 'metric', basemap: 'offline', reopenLast: true };
   try { return { ...d, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') }; } catch { return d; }
 })();
 const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* private mode */ } };
@@ -1543,6 +1545,7 @@ async function openSettings() {
       <section><h3>Automation</h3>
         <label class="chk"><input type="checkbox" name="auto" ${prefs.auto ? 'checked' : ''}> Style new layers automatically (AutoMap)</label>
         <label class="chk"><input type="checkbox" name="autooverviews" ${prefs.autooverviews ? 'checked' : ''}> Build overviews for large layers in the background</label>
+        <label class="chk"><input type="checkbox" name="reopenLast" ${prefs.reopenLast ? 'checked' : ''}> Reopen last project at start (off: start with an empty map)</label>
       </section>
       <section><h3>Setup</h3>
         <div class="settings-btns">
@@ -1573,6 +1576,7 @@ async function openSettings() {
       if (v.projection !== mapProjection) document.dispatchEvent(new CustomEvent('geospax:projection', { detail: v.projection }));
       prefs.auto = v.auto === 'on';
       prefs.autooverviews = v.autooverviews === 'on';
+      prefs.reopenLast = v.reopenLast === 'on';
       prefs.basemap = v.basemap as Basemap;
       if (v.units !== prefs.units) {
         prefs.units = v.units as Prefs['units'];
@@ -1885,7 +1889,18 @@ async function main() {
     backend.json<Project | null>('api/project').catch(() => null),
   ]);
   // ?fresh ignores the saved project (benchmarks, smoke tests)
-  const savedProject = params.has('fresh') || params.has('bench') ? null : saved;
+  let savedProject = params.has('fresh') || params.has('bench') ? null : saved;
+  // a clean start: no previous project (first run), or Settings › "Reopen last project" is off. The
+  // last project is kept as "Last session" (Home › Open, Recent projects). Samples never load by
+  // themselves: Help › Open sample project.
+  if (!params.has('fresh') && !params.has('bench') && !guestMode) {
+    const hasLast = !!saved && ((saved.order?.length ?? 0) > 0 || !!saved.slug);
+    if (hasLast && !prefs.reopenLast) {
+      if (!saved!.slug) await backend.json('api/projects/last-session', { method: 'PUT', body: JSON.stringify({ ...saved, name: 'Last session', slug: 'last-session' }), headers: { 'content-type': 'application/json' } }).catch(() => undefined);
+      savedProject = null;
+    }
+    if (!savedProject || (!hasLast && !saved?.explicit)) savedProject = { version: 1, order: [], layers: {}, explicit: true };
+  }
   // layers the user took off the map stay off (the file is kept), until they are added back
   layers = ls.filter((l) => !savedProject?.removed?.includes(l.id));
   project = mergeProject(savedProject);
@@ -2734,6 +2749,9 @@ async function main() {
   if (startEmpty) intro && setTimeout(() => map.easeTo({ zoom: globeZoom(), duration: 2000 }), 500);
   else if (fitOnLoad) intro ? setTimeout(() => fitAll(3000), 700) : fitAll();
   else if (intro) setTimeout(() => map.flyTo({ center: view.center, zoom: view.zoom, duration: 3000, essential: true }), 700);
+
+  // Help › Open sample project: samples load only from here, never by themselves
+  document.addEventListener('geospax:sample-project', () => void openSamples());
 
   // Stage 2 of the lazy path: a start screen with a drop zone, drag-and-drop anywhere, and
   // "Finish my map" (web/src/start.ts, web/src/finish.ts)
