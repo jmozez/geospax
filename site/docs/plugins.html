@@ -251,6 +251,12 @@ WASM module, hash-pinned packages, permissions, and commands that the ribbon, th
 CLI all call. The WASI &quot;tools over <code>/work</code>&quot; contract follows <strong>GeoLibre</strong>&#39;s <code>geolibre-rust</code> tool
 runner (MIT). QGIS and ArcGIS Pro compatibility uses their public, documented CLI surfaces
 (<code>qgis_process</code>, Python toolboxes). See <a href="https://github.com/jmozez/geospax/blob/main/THIRD_PARTY_NOTICES.md" rel="noopener" target="_blank"><code>THIRD_PARTY_NOTICES.md</code></a>.</p>
+<h2 id="manager">Plugin manager</h2>
+<p>Open Plugins &rsaquo; Manage plugins. The tabs are All, Installed, Not installed, Upgradeable, Install from ZIP and Settings. Untick a plugin to switch it off: it stays installed but its tools are hidden. Built-in plugins cannot be switched off or removed.</p>
+<p>Under Settings, add a repository (https, file:// or a local path) and press Reload repositories. A repository is a JSON index:</p>
+<pre><code>{"plugins": [{"id": "my-plugin", "name": "My plugin", "version": "1.2.0",
+  "download": "https://example.org/my-plugin-1.2.0.zip", "sha256": "optional hex digest"}]}</code></pre>
+<p>Where repositories overlap, the newest version wins. A package whose SHA-256 does not match is refused. QGIS plugins.xml repositories are not read.</p>
 </article>
     <aside class="doc-toc"><p class="kicker">On this page</p><a href="#1-what-is-compatible-with-what">1. What is compatible with what</a><a href="#1a-geolibre-tools-bundled">1a. GeoLibre tools (bundled)</a><a href="#1b-conservation-raster-and-species-tools-bundled">1b. Conservation, raster and species tools (bundled)</a><a href="#2-plugin-folders">2. Plugin folders</a><a href="#3-writing-a-geospax-plugin">3. Writing a GeoSpaX plugin</a><a href="#4-installing-plugins">4. Installing plugins</a><a href="#5-http-api">5. HTTP API</a><a href="#6-credits">6. Credits</a></aside>
   </div>

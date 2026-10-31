@@ -38,6 +38,7 @@ pub mod mvt;
 pub mod overview;
 pub mod phone;
 pub mod plugins;
+pub mod plugin_repos;
 pub mod pmtiles_io;
 pub mod project_import;
 pub mod raster;

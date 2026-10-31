@@ -5,6 +5,8 @@
 import { pickField, pickLayers, pickRasters } from './prefill';
 import type { Backend } from './backend';
 import { icon, pluginIcon } from './commands';
+import { PM_TABS, actionsFor, buildRows, checkRepo, filterRows, tabCounts } from './pluginmanager';
+import type { ManagerConfig, PmRow, PmTab, RepoIndex } from './pluginmanager';
 
 export interface ParamSpec {
   name: string;
@@ -63,7 +65,11 @@ export interface PluginInfo {
 }
 
 export interface PluginsState {
+  /** what the ribbon and Toolbox offer: switched-off plugins are left out */
   plugins: PluginInfo[];
+  /** every plugin found, switched off or not (the manager) */
+  all?: PluginInfo[];
+  disabled?: string[];
   runtimes: Record<string, string | null>;
   dirs: string[];
 }
@@ -95,6 +101,13 @@ export class PluginsPane {
   private error = '';
   /** id of a plugin whose Uninstall button has been pressed once (two-step delete). */
   private confirmUninstall: string | null = null;
+  // the manager (pluginmanager.ts)
+  private tab: PmTab = 'installed';
+  private query = '';
+  private selected: string | null = null;
+  private msg = '';
+  private config: ManagerConfig = { disabled: [], repos: [], check_updates: true, show_experimental: false };
+  private index: RepoIndex = { fetched: 0, plugins: [], errors: [] };
 
   constructor(
     private root: HTMLElement,
@@ -113,11 +126,22 @@ export class PluginsPane {
     });
     document.addEventListener('keydown', (e) => e.key === 'Escape' && this.closeModal());
     root.addEventListener('click', (e) => void this.onClick(e));
+    root.addEventListener('input', (e) => {
+      const t = e.target as HTMLInputElement;
+      if (t.id !== 'pm-search') return;
+      this.query = t.value;
+      this.render();
+    });
   }
 
   async reload() {
     try {
       this.state = await this.backend.json<PluginsState>('api/plugins');
+      const m = await this.backend
+        .json<{ config: ManagerConfig; index: RepoIndex }>('api/plugins/manager')
+        .catch(() => ({ config: this.config, index: this.index }));
+      this.config = { ...this.config, ...m.config };
+      this.index = m.index ?? this.index;
       this.error = '';
     } catch (e) {
       this.error = String((e as Error).message ?? e);
@@ -130,6 +154,22 @@ export class PluginsPane {
     return this.state.plugins;
   }
 
+  /** When the manager opens: fetch the repositories if you asked for update checks (Settings). */
+  async opened() {
+    await this.reload();
+    const stale = Date.now() / 1000 - (this.index.fetched || 0) > 3600;
+    if (this.config.check_updates && this.config.repos.some((r) => r.enabled) && stale) await this.refreshRepos(true);
+  }
+
+  private get stateDir(): string | undefined {
+    return this.state.dirs[this.state.dirs.length - 1];
+  }
+
+  private rows(): PmRow[] {
+    const all = this.state.all ?? this.state.plugins;
+    return buildRows(all, this.state.disabled ?? this.config.disabled, this.index.plugins, this.stateDir, this.config.show_experimental);
+  }
+
   // ---------------------------------------------------------------- render
 
   render() {
@@ -138,141 +178,387 @@ export class PluginsPane {
         <div class="pane-empty err">${esc(this.error)}</div>`;
       return;
     }
+    const search = this.root.querySelector<HTMLInputElement>('#pm-search');
+    const hadFocus = !!search && document.activeElement === search;
+    const rows = this.rows();
+    const counts = tabCounts(rows);
+    const rail = PM_TABS.map(
+      (t) => `<button type="button" class="pm-tab${t.id === this.tab ? ' on' : ''}" data-pm-tab="${t.id}">
+        <span>${esc(t.label)}</span>${counts[t.id] === null ? '' : `<span class="pm-count">${counts[t.id]}</span>`}</button>`,
+    ).join('');
+    let main = '';
+    if (this.tab === 'zip') main = this.zipView();
+    else if (this.tab === 'settings') main = this.settingsView();
+    else main = this.listView(rows);
     const rt = Object.entries(this.state.runtimes)
       .filter(([, v]) => v)
       .map(([k]) => k)
       .join(', ');
-    // built-in tool sets are part of GeoSpaX: their tools are in the Toolbox, not listed here
-    const added = this.state.plugins.filter((p) => !p.builtin).sort((a, b) => Number(!!b.default) - Number(!!a.default));
-    const head = `<div class="pane-head">
-        <span class="pane-title">Plugins</span>
-        <span class="pane-sub">${added.length} installed · runtimes: ${esc(rt || 'none found')}</span>
-      </div>
-      <div class="plugin-tools">
-        <button data-act="reload">Reload</button>
-        <input id="plugin-import" type="text" placeholder="Folder or package (.rgplugin, .esriAddInX, .zip)" />
-        <button data-act="import" class="primary">Install</button>
-      </div>`;
-    if (!added.length) {
-      this.root.innerHTML = `${head}
-        <div class="pane-empty">No plugins yet. Drop a folder into <code>${esc(
-          this.state.dirs[0] ?? '<state>/plugins',
-        )}</code>, install one above, or copy <code>plugins/example-python</code> to see the format.
-        Every plugin is a folder with a manifest: <code>plugin.yaml</code> (GeoSpaX),
-        <code>plugin.json</code> (RustGIS/GeoLibre), <code>metadata.txt</code> (QGIS) or
-        <code>Config.daml</code> (ArcGIS Pro).</div>`;
-      return;
+    this.root.innerHTML = `<div class="pm">
+      <nav class="pm-rail" aria-label="Plugin manager">${rail}</nav>
+      <div class="pm-main">${main}</div>
+    </div>
+    <div class="pm-status"><span class="pm-msg" role="status">${esc(this.msg)}</span><span class="dim">runtimes: ${esc(rt || 'none found')}</span>
+      <button type="button" data-act="reload">Reload</button></div>`;
+    if (hadFocus) {
+      const s = this.root.querySelector<HTMLInputElement>('#pm-search');
+      s?.focus();
+      s?.setSelectionRange(s.value.length, s.value.length);
     }
-    const cards = added.map((p) => this.card(p)).join('');
-    this.root.innerHTML = head + `<div class="plugin-list">${cards}</div>`;
   }
 
-  private card(p: PluginInfo): string {
-    const badge = `<span class="badge src-${p.source}">${esc(SOURCE_LABEL[p.source] ?? p.source)}</span>`;
-    const state = p.runnable
-      ? `<span class="badge ok">${esc(p.kind)} · ready</span>`
-      : `<span class="badge warn">needs ${esc(p.needs ?? 'its runtime')}</span>`;
-    const tools = p.tools.length
+  private listView(rows: PmRow[]): string {
+    const shown = filterRows(rows, this.tab, this.query);
+    if (!this.selected || !shown.some((r) => r.id === this.selected)) this.selected = shown[0]?.id ?? null;
+    const sel = shown.find((r) => r.id === this.selected);
+    const empty =
+      this.tab === 'not-installed' && !this.config.repos.length
+        ? 'No plugin repositories yet: add one under Settings, or install a ZIP.'
+        : this.tab === 'upgradeable'
+          ? 'Everything is up to date.'
+          : this.query
+            ? 'No plugin matches your search.'
+            : 'No plugins here.';
+    const list = shown.length
+      ? shown.map((r) => this.row(r)).join('')
+      : `<div class="pane-empty">${esc(empty)}</div>`;
+    return `<input id="pm-search" type="search" placeholder="Search plugins by name, description, author or tag" value="${esc(this.query)}" />
+      <div class="pm-split">
+        <div class="plugin-list pm-list" role="listbox">${list}</div>
+        <div class="pm-detail">${sel ? this.detail(sel) : '<div class="pane-empty">Choose a plugin to see its details.</div>'}</div>
+      </div>`;
+  }
+
+  private row(r: PmRow): string {
+    const p = r.installed;
+    const ver = p?.version ?? r.available?.version ?? '';
+    const flag = r.upgradeable
+      ? `<span class="badge up">upgrade ${esc(r.available!.version)}</span>`
+      : r.available?.experimental
+        ? `<span class="badge warn">experimental</span>`
+        : '';
+    const state = p && !p.runnable ? `<span class="badge warn">needs ${esc(p.needs ?? 'its runtime')}</span>` : '';
+    const check = p
+      ? `<input type="checkbox" data-act="toggle" data-id="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="${r.enabled ? 'Switch off (keeps it installed)' : 'Switch on'}" aria-label="Enable ${esc(r.name)}" />`
+      : `<span class="pm-nocheck" title="Not installed"></span>`;
+    return `<div class="plugin pm-row${r.id === this.selected ? ' on' : ''}${p ? '' : ' avail'}${r.enabled || !p ? '' : ' off'}" data-pm-row="${esc(r.id)}" role="option" aria-selected="${r.id === this.selected}">
+      ${check}
+      <span class="p-ico">${icon(p ? pluginIcon(p) : 'puzzle', 16)}</span>
+      <span class="p-name">${esc(r.name)}</span>
+      <span class="p-ver">${esc(ver)}</span>
+      ${flag}${state}
+    </div>`;
+  }
+
+  private detail(r: PmRow): string {
+    const p = r.installed;
+    const a = r.available;
+    const meta: [string, string | undefined][] = [
+      ['Installed version', p?.version ?? (p ? '(none)' : undefined)],
+      ['Available version', a ? `${a.version} · ${a.repo}` : undefined],
+      ['Source', SOURCE_LABEL[r.source] ?? r.source],
+      ['Kind', p ? `${p.kind}${p.runnable ? ' · ready' : ` · needs ${p.needs ?? 'its runtime'}`}` : undefined],
+      ['Author', p?.author ?? a?.author],
+      ['Licence', p?.license ?? a?.license],
+      ['Tags', a?.tags?.join(', ')],
+      ['Folder', p?.path],
+    ];
+    const home = p?.homepage ?? a?.homepage;
+    const tools = p?.tools.length
       ? p.tools
           .map(
             (t) => `<div class="tool-row">
               <span class="tool-ico">${icon(t.icon ?? 'play', 16)}</span>
               <span class="tool-name" data-open="${esc(p.id)}" data-tool="${esc(t.id)}" title="${esc(t.summary)}">${esc(t.name)}</span>
               <span class="tool-sum">${esc(t.summary)}</span>
-              <button data-open="${esc(p.id)}" data-tool="${esc(t.id)}" ${p.runnable ? '' : 'disabled'}>Run…</button>
+              <button data-open="${esc(p.id)}" data-tool="${esc(t.id)}" ${p.runnable && r.enabled ? '' : 'disabled'}>Run…</button>
             </div>`,
           )
           .join('')
-      : `<div class="tool-row dim">No tools declared.</div>`;
-    const cmds = p.commands.length
-      ? `<div class="cmd-row">ribbon: ${p.commands.map((c) => esc(c.title)).join(' · ')}</div>`
-      : '';
-    return `<div class="plugin ${p.runnable ? '' : 'off'}">
-      <div class="p-head">
-        <span class="p-ico">${icon(pluginIcon(p), 18)}</span><span class="p-name">${esc(p.name)}</span>
-        <span class="p-ver">${esc(p.version ?? '')}</span>
-        ${badge}${state}
+      : p
+        ? `<div class="tool-row dim">No tools declared.</div>`
+        : '';
+    const cmds = p?.commands.length ? `<div class="cmd-row">ribbon: ${p.commands.map((c) => esc(c.title)).join(' · ')}</div>` : '';
+    const label = { install: 'Install plugin', upgrade: 'Upgrade plugin', reinstall: 'Reinstall plugin', uninstall: 'Uninstall plugin' };
+    const buttons = actionsFor(r)
+      .map((act) =>
+        act === 'uninstall'
+          ? `<button class="p-del" data-act="uninstall" data-id="${esc(r.id)}" title="Remove this plugin from ${esc(this.stateDir ?? 'the plugin folder')}">${this.confirmUninstall === r.id ? 'Click again to delete' : label[act]}</button>`
+          : `<button class="${act === 'reinstall' ? '' : 'primary'}" data-act="${act}" data-id="${esc(r.id)}" ${this.busy.has(`pm:${r.id}`) ? 'disabled' : ''}>${label[act]}</button>`,
+      )
+      .join('');
+    const keep = r.isDefault
+      ? `<span class="p-keep dim" title="Ships with GeoSpaX">default plugin</span>`
+      : p && !r.removable
+        ? `<span class="p-keep dim" title="This one lives in a folder you pointed at with --plugins; remove it yourself">external folder</span>`
+        : '';
+    return `<div class="pm-dhead">
+        <span class="p-ico">${icon(p ? pluginIcon(p) : 'puzzle', 22)}</span>
+        <div><h3>${esc(r.name)}</h3><span class="badge src-${esc(r.source)}">${esc(SOURCE_LABEL[r.source] ?? r.source)}</span>
+        ${p ? (r.enabled ? '<span class="badge ok">on</span>' : '<span class="badge warn">switched off</span>') : '<span class="badge">not installed</span>'}
+        ${r.newer ? '<span class="badge">newer than the repository</span>' : ''}</div>
       </div>
-      <div class="p-desc">${esc(p.description)}</div>
-      ${p.warning ? `<div class="p-warn">⚠ ${esc(p.warning)}</div>` : ''}
-      <div class="p-tools">${tools}</div>
-      ${cmds}
-      <div class="p-foot">
-        <span class="p-path">${esc(p.path)}</span>
-        ${p.default
-          ? `<span class="p-keep dim" title="Ships with GeoSpaX">default plugin</span>`
-          : this.canUninstall(p)
-          ? `<button class="p-del" data-act="uninstall" data-id="${esc(p.id)}" title="Remove this plugin from ${esc(
-              this.state.dirs[this.state.dirs.length - 1] ?? 'the plugin folder',
-            )}">${this.confirmUninstall === p.id ? 'Click again to delete' : 'Uninstall'}</button>`
-          : `<span class="p-keep dim" title="This one lives in a folder you pointed at with --plugins; remove it yourself">external folder</span>`}
+      <p class="p-desc">${esc(r.description || a?.description || '')}</p>
+      ${p?.warning ? `<div class="p-warn">⚠ ${esc(p.warning)}</div>` : ''}
+      <table class="pm-meta">${meta
+        .filter(([, v]) => v)
+        .map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v!)}</td></tr>`)
+        .join('')}${home ? `<tr><th>Home page</th><td><a href="${esc(home)}" target="_blank" rel="noopener">${esc(home)}</a></td></tr>` : ''}</table>
+      ${tools ? `<div class="p-tools">${tools}</div>` : ''}${cmds}
+      <div class="p-foot pm-actions">${keep}${buttons}</div>`;
+  }
+
+  private zipView(): string {
+    return `<div class="pm-pad">
+      <h3>Install from ZIP</h3>
+      <p class="dim">A plugin package from a file: <code>.zip</code>, <code>.rgplugin</code> (RustGIS) or <code>.esriAddInX</code> (ArcGIS Pro).
+      Installing a newer copy of a plugin you have replaces it. Only install plugins from sources you trust: a plugin runs code on this computer.</p>
+      <label class="pf"><span>ZIP file</span><input id="pm-zip-file" type="file" accept=".zip,.rgplugin,.esriAddInX" /></label>
+      <div><button class="primary" data-act="upload">Install plugin</button></div>
+      <h3>Install from a folder or a path</h3>
+      <p class="dim">A plugin folder or package on this computer (on a server: on the server's disk).</p>
+      <div class="plugin-tools">
+        <input id="plugin-import" type="text" placeholder="Folder or package (.rgplugin, .esriAddInX, .zip)" />
+        <button data-act="import" class="primary">Install</button>
       </div>
     </div>`;
   }
 
-  /** Only plugins installed into the state directory can be removed from here. */
-  private canUninstall(p: PluginInfo): boolean {
-    const dir = this.state.dirs[this.state.dirs.length - 1];
-    return !!dir && p.path.startsWith(dir);
+  private settingsView(): string {
+    const repos = this.config.repos;
+    const when = this.index.fetched ? new Date(this.index.fetched * 1000).toLocaleString() : 'never';
+    return `<div class="pm-pad">
+      <h3>Settings</h3>
+      <label class="pf check"><input type="checkbox" data-pm-set="check_updates" ${this.config.check_updates ? 'checked' : ''} /><span>Check for updates when the manager opens</span></label>
+      <label class="pf check"><input type="checkbox" data-pm-set="show_experimental" ${this.config.show_experimental ? 'checked' : ''} /><span>Show experimental plugins</span></label>
+      <h3>Plugin repositories</h3>
+      <p class="dim">A repository is a <code>plugins.json</code> index of packages at a URL or a path (docs/PLUGINS.md). Last checked: ${esc(when)}.</p>
+      <table class="pm-repos">
+        <tr><th>On</th><th>Name</th><th>URL</th><th></th></tr>
+        ${repos.length ? repos
+          .map(
+            (r, i) => `<tr data-repo="${i}"><td><input type="checkbox" data-act="repo-toggle" data-i="${i}" ${r.enabled ? 'checked' : ''} aria-label="Use ${esc(r.name)}" /></td>
+              <td>${esc(r.name)}</td><td class="pm-url">${esc(r.url)}</td>
+              <td><button data-act="repo-del" data-i="${i}" title="Remove this repository">Remove</button></td></tr>`,
+          )
+          .join('') : '<tr><td colspan="4" class="dim">No repositories yet.</td></tr>'}
+      </table>
+      ${this.index.errors.map((e) => `<div class="p-warn">⚠ ${esc(e)}</div>`).join('')}
+      <div class="plugin-tools pm-addrepo">
+        <input id="pm-repo-name" type="text" placeholder="Name" />
+        <input id="pm-repo-url" type="text" placeholder="https://…/plugins.json or a path" />
+        <button data-act="repo-add">Add</button>
+      </div>
+      <div><button class="primary" data-act="repo-refresh" ${this.busy.has('pm:refresh') ? 'disabled' : ''}>Reload repositories</button></div>
+    </div>`;
+  }
+
+  private say(text: string, ms = 4000) {
+    this.msg = text;
+    const el = this.root.querySelector('.pm-msg');
+    if (el) el.textContent = text;
+    this.host.setStatus(text, ms);
+  }
+
+  private async saveConfig(patch: Partial<ManagerConfig>) {
+    this.config = { ...this.config, ...patch };
+    try {
+      const r = await this.backend.json<{ config: ManagerConfig; index: RepoIndex }>('api/plugins/manager', {
+        method: 'POST',
+        body: JSON.stringify(patch),
+        headers: { 'content-type': 'application/json' },
+      });
+      this.config = r.config;
+    } catch (err) {
+      this.say(`Could not save the settings: ${(err as Error).message}`, 6000);
+    }
+    this.render();
+  }
+
+  private async refreshRepos(quiet = false) {
+    if (this.busy.has('pm:refresh')) return;
+    this.busy.add('pm:refresh');
+    if (!quiet) this.say('Reading the plugin repositories…');
+    try {
+      const r = await this.backend.json<{ index: RepoIndex }>('api/plugins/repos/refresh', { method: 'POST' });
+      this.index = r.index;
+      const up = this.rows().filter((x) => x.upgradeable).length;
+      this.say(`${r.index.plugins.length} plugins in the repositories${up ? ` · ${up} upgradeable` : ''}${r.index.errors.length ? ` · ${r.index.errors.length} could not be read` : ''}`);
+    } catch (err) {
+      this.say(`Could not read the repositories: ${(err as Error).message}`, 6000);
+    } finally {
+      this.busy.delete('pm:refresh');
+    }
+    this.render();
+  }
+
+  private async installed(r: { plugin: PluginInfo }, verb: string) {
+    await this.reload();
+    this.selected = r.plugin.id;
+    this.say(`${verb} ${r.plugin.name} ${r.plugin.version ?? ''} (${r.plugin.tools.length} tools)`.replace('  ', ' '), 6000);
+    this.host.log(`plugins: ${verb.toLowerCase()} ${r.plugin.id}`);
   }
 
   // ---------------------------------------------------------------- events
 
   private async onClick(e: MouseEvent) {
     const t = e.target as HTMLElement;
-    const act = t.closest<HTMLElement>('[data-act]')?.dataset.act;
+    const tab = t.closest<HTMLElement>('[data-pm-tab]')?.dataset.pmTab as PmTab | undefined;
+    if (tab) {
+      this.tab = tab;
+      this.confirmUninstall = null;
+      this.render();
+      return;
+    }
+    const actEl = t.closest<HTMLElement>('[data-act]');
+    const act = actEl?.dataset.act;
+    const id = actEl?.dataset.id ?? '';
     if (act === 'reload') {
       await this.reload();
-      this.host.setStatus('Plugins reloaded');
+      this.say('Plugins reloaded');
+      return;
+    }
+    if (act === 'toggle') {
+      const on = (actEl as HTMLInputElement).checked;
+      try {
+        const r = await this.backend.json<{ disabled: string[] }>(`api/plugins/${encodeURIComponent(id)}/enable`, {
+          method: 'POST',
+          body: JSON.stringify({ enabled: on }),
+          headers: { 'content-type': 'application/json' },
+        });
+        this.config.disabled = r.disabled;
+        await this.reload();
+        this.say(`${this.state.all?.find((p) => p.id === id)?.name ?? id} ${on ? 'switched on' : 'switched off: its tools are hidden until you switch it on again'}`);
+      } catch (err) {
+        (actEl as HTMLInputElement).checked = !on;
+        this.say(`${(err as Error).message}`, 6000);
+      }
+      return;
+    }
+    if (act === 'install' || act === 'upgrade' || act === 'reinstall') {
+      const key = `pm:${id}`;
+      if (this.busy.has(key)) return;
+      this.busy.add(key);
+      const verb = { install: 'Installed', upgrade: 'Upgraded', reinstall: 'Reinstalled' }[act];
+      this.say(`${verb.replace(/ed$/, 'ing').replace('Upgradeing', 'Upgrading')} ${id}…`);
+      this.render();
+      try {
+        const r = await this.backend.json<{ plugin: PluginInfo }>('api/plugins/repos/install', {
+          method: 'POST',
+          body: JSON.stringify({ id }),
+          headers: { 'content-type': 'application/json' },
+        });
+        this.busy.delete(key);
+        await this.installed(r, verb);
+      } catch (err) {
+        this.busy.delete(key);
+        this.say(`Install failed: ${(err as Error).message}`, 8000);
+        this.render();
+      }
+      return;
+    }
+    if (act === 'upload') {
+      const file = this.root.querySelector<HTMLInputElement>('#pm-zip-file')?.files?.[0];
+      if (!file) {
+        this.say('Choose a ZIP file first');
+        return;
+      }
+      this.say(`Installing ${file.name}…`);
+      try {
+        const r = await this.backend.json<{ plugin: PluginInfo }>(`api/plugins/upload?name=${encodeURIComponent(file.name)}`, {
+          method: 'POST',
+          body: await file.arrayBuffer(),
+          headers: { 'content-type': 'application/zip' },
+        });
+        this.tab = 'installed';
+        await this.installed(r, 'Installed');
+      } catch (err) {
+        this.say(`Install failed: ${(err as Error).message}`, 8000);
+      }
       return;
     }
     if (act === 'import') {
       const input = this.root.querySelector<HTMLInputElement>('#plugin-import');
       const path = input?.value.trim();
       if (!path) return;
-      this.host.setStatus(`Installing ${path}…`);
+      this.say(`Installing ${path}…`);
       try {
         const r = await this.backend.json<{ plugin: PluginInfo }>('api/plugins/import', {
           method: 'POST',
           body: JSON.stringify({ path }),
           headers: { 'content-type': 'application/json' },
         });
-        await this.reload();
-        this.host.setStatus(`Installed ${r.plugin.name} (${r.plugin.tools.length} tools)`);
+        this.tab = 'installed';
+        await this.installed(r, 'Installed');
       } catch (err) {
-        this.host.setStatus(`Install failed: ${(err as Error).message}`, 6000);
+        this.say(`Install failed: ${(err as Error).message}`, 6000);
         this.host.log(`plugin install failed: ${err}`);
       }
       return;
     }
-    const del = t.closest<HTMLElement>('[data-act="uninstall"]');
-    if (del) {
-      const id = del.dataset.id!;
+    if (act === 'uninstall') {
       if (this.confirmUninstall !== id) {
         this.confirmUninstall = id;
         this.render();
-        this.host.setStatus('Press Uninstall again to delete this plugin');
+        this.say('Press Uninstall again to delete this plugin');
         return;
       }
       this.confirmUninstall = null;
-      this.host.setStatus(`Uninstalling ${id}…`);
+      this.say(`Uninstalling ${id}…`);
       try {
         const r = await this.backend.json<{ message: string }>(`api/plugins/${encodeURIComponent(id)}`, { method: 'DELETE' });
         await this.reload();
-        this.host.onChanged(this.state);
-        this.host.setStatus(r.message ?? `Uninstalled ${id}`);
+        this.say(r.message ?? `Uninstalled ${id}`);
         this.host.log(`plugins: ${r.message ?? id}`);
       } catch (err) {
-        this.host.setStatus(`Uninstall failed: ${(err as Error).message}`, 6000);
+        this.say(`Uninstall failed: ${(err as Error).message}`, 6000);
         this.host.log(`plugin uninstall failed: ${err}`);
       }
       return;
     }
+    if (act === 'repo-add') {
+      const name = this.root.querySelector<HTMLInputElement>('#pm-repo-name')?.value.trim() ?? '';
+      const url = this.root.querySelector<HTMLInputElement>('#pm-repo-url')?.value.trim() ?? '';
+      const bad = checkRepo(name, url, this.config.repos);
+      if (bad) {
+        this.say(bad);
+        return;
+      }
+      await this.saveConfig({ repos: [...this.config.repos, { name, url, enabled: true }] });
+      await this.refreshRepos();
+      return;
+    }
+    if (act === 'repo-del' || act === 'repo-toggle') {
+      const i = Number(actEl!.dataset.i);
+      const repos =
+        act === 'repo-del'
+          ? this.config.repos.filter((_, j) => j !== i)
+          : this.config.repos.map((r, j) => (j === i ? { ...r, enabled: (actEl as HTMLInputElement).checked } : r));
+      await this.saveConfig({ repos });
+      return;
+    }
+    if (act === 'repo-refresh') {
+      await this.refreshRepos();
+      return;
+    }
+    const set = t.closest<HTMLInputElement>('[data-pm-set]');
+    if (set) {
+      await this.saveConfig({ [set.dataset.pmSet!]: set.checked } as Partial<ManagerConfig>);
+      return;
+    }
     const open = t.closest<HTMLElement>('[data-open]');
     if (open?.dataset.open && open.dataset.tool) {
-      const p = this.state.plugins.find((x) => x.id === open.dataset.open);
+      const all = this.state.all ?? this.state.plugins;
+      const p = all.find((x) => x.id === open.dataset.open);
       const tool = p?.tools.find((x) => x.id === open.dataset.tool);
       if (p && tool) this.openTool(p, tool);
+      return;
+    }
+    const row = t.closest<HTMLElement>('[data-pm-row]');
+    if (row) {
+      this.selected = row.dataset.pmRow!;
+      this.confirmUninstall = null;
+      this.render();
     }
   }
 
