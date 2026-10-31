@@ -842,7 +842,7 @@ with your own title and credits.
 - **Offline vs online.** File/device tours work fully offline. DEM, WorldCover, Overture, OBIS and
   STAC tours fetch just the area on your map, then work from the local copy.
 
-## 2e. A clean start, workspaces and profiles
+## 2e. A clean start, workspaces, profiles and the tour
 
 ### A clean start
 
@@ -869,7 +869,7 @@ Home › Workspace shows the projects, data sources, saved workflows and storage
 
 ### Profiles
 
-Profiles let several people share one OS login, each with their own projects and settings.
+Profiles let several people share one OS login, each with their own projects, settings and tour state.
 
 - The first profile you add is the **admin**. Only the admin can add, rename and remove profiles, reset a PIN and put
   a profile in Restricted mode. The admin profile cannot be restricted or removed.
@@ -882,6 +882,19 @@ Profiles let several people share one OS login, each with their own projects and
 
 > Profiles are a convenience, not OS-level security. Anyone with access to the OS account can read the files of every
 > profile. Use separate OS accounts when people must not see each other's data.
+
+### The first-start tour and What's new
+
+The first time a profile starts GeoSpaX, a short tour (8 steps) points out the ribbon tabs, Contents, the 2D, globe
+and 3D switch, Lazy and Pro modes, Ask, Automate and Help. Use Next, Back and Skip, or the arrow keys, Enter and Esc.
+
+![The first-start tour on the Contents step](assets/tour.webp)
+
+- After an upgrade, **What's new** opens once with the highlights of the new version, and offers a short tour of the
+  new tools.
+- Help › Take the tour replays the tour at any time. Tick "Don't show again" on the tour, or use the setting in
+  Settings, to keep it from opening by itself.
+- The tour state is kept per profile, so each new profile sees it once.
 
 ## 3. Where things go
 

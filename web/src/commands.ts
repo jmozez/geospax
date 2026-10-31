@@ -55,6 +55,7 @@ export interface Command {
 
 // 24×24 monochrome glyphs; the ribbon tints them with `currentColor`.
 export const ICONS: Record<string, string> = {
+  signpost: 'M11 2h2v3h6l3 3-3 3h-6v2h4l-3 3h-1v6h-2v-6H5l-3-3 3-3h6V5zM6 8v1h12.2l1-1-1-1H6zm-.2 7.2l.8.8H15l.8-.8L15 14H6.6z',
   flask: 'M9 2h6v2h-1v5.3l5.6 9.4c.7 1.2-.2 2.3-1.4 2.3H5.8c-1.2 0-2.1-1.1-1.4-2.3L10 9.3V4H9zm3 8.5L8.4 16.6h7.2z',
   chevronLeft: 'M15.4 7.4L14 6l-6 6 6 6 1.4-1.4L10.8 12z',
   lasso: 'M12 3C6.5 3 2 6.1 2 10c0 2.4 1.7 4.5 4.3 5.8-.2.5-.3 1-.3 1.6C6 19.4 7.6 21 9.6 21c1.3 0 2.4-.7 3-1.7l-1.7-1c-.3.5-.8.7-1.3.7-.9 0-1.6-.7-1.6-1.6 0-.3.1-.6.2-.9 1.2.3 2.4.5 3.8.5 5.5 0 10-3.1 10-7s-4.5-7-10-7zm0 12c-4.4 0-8-2.2-8-5s3.6-5 8-5 8 2.2 8 5-3.6 5-8 5z',
@@ -619,11 +620,13 @@ export const COMMANDS: Command[] = [
   // ---- Help › Support
   {
     id: 'help.whatsnew', tab: 'help', group: 'Docs', title: "What's new", icon: 'news',
-    run: (h) => { h.openUrl('CHANGELOG.md'); },
+    hint: "This version's highlights, and a short tour of the new tools",
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:whatsnew')); },
   },
+  { id: 'help.tour', tab: 'help', group: 'Learn', title: 'Take the tour', icon: 'signpost', hint: 'The first-start guided tour of the window, again', run: () => { document.dispatchEvent(new CustomEvent('geospax:tour')); } },
+  { id: 'help.sample', tab: 'help', group: 'Learn', title: 'Open sample project', icon: 'flask', hint: 'Sample data for trying GeoSpaX, opened for this session only', run: () => { document.dispatchEvent(new CustomEvent('geospax:sample-project')); } },
   { id: 'home.workspace', tab: 'home', group: 'Workspace', title: 'Workspace', icon: 'database', hint: "This computer's projects, data sources, workflows, storage and tool settings", run: () => { document.dispatchEvent(new CustomEvent('geospax:workspace')); } },
   { id: 'home.switchProfile', tab: 'home', group: 'Workspace', title: 'Switch profile', icon: 'user', hint: "Who's working? Choose another local profile (closes this project first)", run: () => { document.dispatchEvent(new CustomEvent('geospax:profiles')); } },
-  { id: 'help.sample', tab: 'help', group: 'Learn', title: 'Open sample project', icon: 'flask', hint: 'Sample data for trying GeoSpaX, opened for this session only', run: () => { document.dispatchEvent(new CustomEvent('geospax:sample-project')); } },
   {
     id: 'help.updates', tab: 'help', group: 'Support', title: 'Check for updates', icon: 'update',
     hint: 'Compare this version with the newest GeoSpaX release',
