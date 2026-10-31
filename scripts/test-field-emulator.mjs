@@ -11,6 +11,14 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+// the EGM2008 grid the app uses (apps/field/public/geoid, see apps/field/src/elevation.ts), bilinear
+const G = new Int16Array(new Uint8Array(readFileSync(new URL('../apps/field/public/geoid/egm2008-15m.bin', import.meta.url))).buffer);
+function geoid(lat, lon) {
+  const r = (90 - lat) / 0.25, c = (((lon % 360) + 360) % 360) / 0.25, r0 = Math.floor(r), c0 = Math.floor(c), fr = r - r0, fc = c - c0;
+  const at = (i, j) => G[i * 1441 + j] / 100;
+  return at(r0, c0) * (1 - fr) * (1 - fc) + at(r0, c0 + 1) * (1 - fr) * fc + at(r0 + 1, c0) * fr * (1 - fc) + at(r0 + 1, c0 + 1) * fr * fc;
+}
 const PHONE_URL = process.env.PHONE_URL;
 const INBOX = process.env.INBOX;
 const ok = (c, m) => { if (!c) { console.error(`FAIL ${m}`); process.exit(1); } console.log(`ok   ${m}`); };
@@ -74,7 +82,11 @@ for (const [lon, lat] of [[147.1503, -6.7219], [147.1812, -6.7344]]) {
   for (let i = 0; i < 4; i++) { geoFix(...jitter(lon, lat)); await sleep(1000); }
   const here = await page.evaluate(() => window.__field.here());
   ok(here && metres([here[0], here[1]], [lon, lat]) < 1, `point position (averaged) within 1 m: ${here?.[0]}, ${here?.[1]}`);
-  ok(here[2] != null && Math.abs(here[2] - 40) < 1, `elevation from the fix: ${here[2]} m`);
+  // the emulator's 40 m is above the ellipsoid; the app saves the height above sea level (40 m minus the geoid)
+  const want = 40 - geoid(lat, lon);
+  ok(here[2] != null && Math.abs(here[2] - want) < 1, `height above sea level from the fix: ${here[2]} m, expected ${want.toFixed(2)} m`);
+  const hs = await page.evaluate(() => window.__field.heights());
+  ok(hs.best?.source === 'gnss', `height source: ${hs.best?.source} (GPS and geoid; the emulator has no barometer: ${hs.baro ? 'has one' : 'none'})`);
 }
 const blocked = await page.evaluate(() => window.__field.cspBlocked);
 ok(blocked.length === 0, `nothing blocked by the content security policy (${blocked.join(', ') || 'none'})`);

@@ -70,4 +70,13 @@ assert.equal(j.add(at(3, 147.18122, -6.7344, 5), T + 3000), null);
 assert.ok(j.add(at(4, 147.18118, -6.7344, 5), T + 4000), 'third agreeing jump accepted');
 const jb = j.best(T + 4000);
 assert.ok(metres([jb.lon, jb.lat], [147.1812, -6.7344]) < 1, 'averaged over the three');
+// the vertical accuracy of the averaged point is the best of the fixes that gave it a height
+const v = new FixFilter(T);
+v.add({ lon: 147, lat: -6, acc: 4, ele: 80, altAcc: 9, t: T + 1000 });
+v.add({ lon: 147, lat: -6, acc: 4, ele: 82, altAcc: 6, t: T + 2000 });
+assert.equal(v.best(T + 2000).altAcc, 6, 'vertical accuracy: the best single one');
+assert.equal(v.best(T + 2000).ele, 81, 'heights averaged');
+const nv = new FixFilter(T);
+nv.add({ lon: 147, lat: -6, acc: 4, ele: null, t: T + 1000 });
+assert.equal(nv.best(T + 1000).altAcc, null, 'no height, no vertical accuracy');
 console.log('field GPS filter: all checks passed');

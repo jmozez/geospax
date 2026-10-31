@@ -12,6 +12,13 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Field app: Offline maps lists the kept basemap tiles and their size per basemap, with Clear, and the storage the app uses. Tiles are still only kept as you view them, as the providers' terms require.
 - Field app: GPS status (tap the GPS chip) shows quality, accuracy, position, GPS height, speed, heading, the age of the last fix, the number of fixes and any location problem.
 - Field app: Backup and export saves a full backup with photos, restores one (adding records, never replacing) and exports the records as GeoJSON, through the phone's share sheet.
+- Field app heights above mean sea level: the GPS height (above the WGS 84 ellipsoid) is turned into a height above sea level with the EGM2008 geoid (a 0.25° grid in the app, within 1.5 m of the full model; `scripts/make-geoid-grid.py` makes it), using the phone's vertical accuracy.
+- Field app barometer: on phones with a pressure sensor (read through the Android NDK), heights are set from a good GPS height and kept steady when the GPS height is poor; without a calibration, standard air pressure gives a rough height.
+- Field app terrain model fallback: Copernicus GLO-90 heights from Open-Meteo when the GPS height is poor, off by default because it sends the position online (Settings), kept per ~100 m cell for offline use.
+- Field app: GPS status shows the height above sea level from each source and which one is used; saved points keep their height, its source and expected error, also in the record list and the GeoJSON export (`height_m`, `height_source`, `height_acc_m`).
+
+### Changed
+- Field app: the third coordinate of saved points, lines, areas and tracks (also as sent to GeoSpaX in GeoJSON and GPX) is now the height above mean sea level (EGM2008) from the best source, not the GPS height above the ellipsoid, which in Papua New Guinea is about 70 m higher.
 
 ## [3.0.9] - 2026-10-31
 
