@@ -8,6 +8,10 @@ export interface Fix {
   acc: number;
   ele: number | null;
   t: number;
+  /** ground speed, m/s, when the phone reports it */
+  speed?: number | null;
+  /** direction of travel, degrees from true north, when moving */
+  heading?: number | null;
 }
 
 export const inApp = '__TAURI_INTERNALS__' in window;
@@ -26,7 +30,7 @@ export async function watchPosition(onFix: (f: Fix) => void, onError: (msg: stri
     const id = await g.watchPosition(opts, (pos, err) => {
       if (err || !pos) return onError(String(err ?? 'no position'));
       const c = pos.coords;
-      onFix({ lon: c.longitude, lat: c.latitude, acc: c.accuracy, ele: c.altitude ?? null, t: pos.timestamp });
+      onFix({ lon: c.longitude, lat: c.latitude, acc: c.accuracy, ele: c.altitude ?? null, t: pos.timestamp, speed: c.speed ?? null, heading: c.heading ?? null });
     });
     return () => void g.clearWatch(id);
   }
@@ -35,7 +39,7 @@ export async function watchPosition(onFix: (f: Fix) => void, onError: (msg: stri
     return () => {};
   }
   const id = navigator.geolocation.watchPosition(
-    (pos) => onFix({ lon: pos.coords.longitude, lat: pos.coords.latitude, acc: pos.coords.accuracy, ele: pos.coords.altitude, t: pos.timestamp }),
+    (pos) => onFix({ lon: pos.coords.longitude, lat: pos.coords.latitude, acc: pos.coords.accuracy, ele: pos.coords.altitude, t: pos.timestamp, speed: pos.coords.speed, heading: pos.coords.heading }),
     (e) => onError(e.message || 'no position'),
     opts,
   );

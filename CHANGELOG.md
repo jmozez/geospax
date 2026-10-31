@@ -3,6 +3,16 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [3.1.0] - Unreleased
+
+### Added
+- Field app basics: a ⋯ menu with Help, About, What's new (shown once after an update) and Settings (basemap at start, ask before saving a point worse than a chosen accuracy, keep the screen on, show the tour again).
+- Field app: Send feedback opens your own mail app with a message to j.moses0131@gmail.com and the app version filled in, or a new GitHub issue; nothing is sent by the app itself.
+- Field app: a five-step tour on the first start (Next, Back, Skip), also under ⋯ › Take the tour.
+- Field app: Offline maps lists the kept basemap tiles and their size per basemap, with Clear, and the storage the app uses. Tiles are still only kept as you view them, as the providers' terms require.
+- Field app: GPS status (tap the GPS chip) shows quality, accuracy, position, GPS height, speed, heading, the age of the last fix, the number of fixes and any location problem.
+- Field app: Backup and export saves a full backup with photos, restores one (adding records, never replacing) and exports the records as GeoJSON, through the phone's share sheet.
+
 ## [3.0.9] - 2026-10-31
 
 ### Fixed
