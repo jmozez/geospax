@@ -90,6 +90,15 @@ jobs:
           for i in $(seq 30); do curl -fs http://127.0.0.1:18122/api/health >/dev/null && break; sleep 1; done
           PW=/tmp/pw/node_modules/playwright node scripts/test-ribbon-critical.mjs http://127.0.0.1:18122 /tmp/rc/shots || { cat /tmp/rc/server.log; exit 1; }
           kill "$pid"
+      - name: Clean start (UI: empty first start, New project empty in 2D, globe and 3D, Reopen last project, samples only from Help)
+        timeout-minutes: 15
+        run: PW=/tmp/pw/node_modules/playwright node scripts/test-clean-project.mjs target/release/geospax-server /tmp/cp-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clean-start-ui-shots
+          path: /tmp/cp-shots
+          if-no-files-found: ignore
       - name: Ribbon audit (every item on every tab clicked, effect and highlighting checked)
         timeout-minutes: 45
         run: |

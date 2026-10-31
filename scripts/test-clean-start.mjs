@@ -112,6 +112,9 @@ try {
   const r = await (await fetch(`${base}/api/samples/png`, { method: 'POST' })).json();
   ok('sample data opens', r.layers?.length > 0, r.folder);
   ok('sample data is not copied into the data folder', readdirSync(data).length === 0, readdirSync(data).join(','));
+  // a clean start never adds data by itself: the sample is put on the map as Help › Open sample project does
+  const pj = await (await fetch(`${base}/api/project`)).json();
+  await fetch(`${base}/api/project`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...pj, order: [...(pj.order ?? []), ...r.layers] }) });
   await page.reload();
   await page.waitForTimeout(3000);
   const rows = await page.$$eval('#contents .layer', (a) => a.map((x) => x.dataset.id));
