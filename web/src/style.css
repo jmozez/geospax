@@ -1675,3 +1675,33 @@ table.rules input:not([type=checkbox]) { width: 100%; }
 .dlg-field { display: grid; gap: 4px; font-weight: 600; }
 .dlg-field input { font-weight: 400; padding: 6px 8px; }
 .dlg-field input[aria-invalid='true'] { border-color: var(--danger, #c0392b); }
+
+/* ---- Home › Workspace and "Who's working?" (workspace.ts) */
+#profile-btn { padding: 1px 10px; border-radius: 12px; font-size: 11px; margin-right: 6px; }
+.gx-prof-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 6px 0 12px; }
+.gx-prof { display: grid; justify-items: center; gap: 4px; padding: 16px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--sunken); cursor: pointer; }
+.gx-prof:hover, .gx-prof:focus-visible { border-color: var(--accent); }
+.gx-prof small { color: var(--muted); min-height: 1em; }
+.gx-av { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 20px; font-weight: 600; }
+.gx-prof.add .gx-av { background: transparent; border: 2px dashed var(--line); color: var(--muted); }
+.gx-pin, .gx-add { display: grid; gap: 8px; max-width: 360px; }
+.gx-ws-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.gx-ws-grid ul { margin: 0; padding-left: 18px; max-height: 140px; overflow: auto; }
+.gx-groups { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.gx-chk { display: flex; gap: 6px; align-items: center; text-transform: capitalize; }
+.gx-ws h4 { margin: 14px 0 6px; }
+
+/* Restricted mode and switched-off tool groups (workspace.ts applyTools) */
+body[data-tools-off~="edit"] #ribbon-tabs [data-tab="edit"],
+body[data-tools-off~="design"] #ribbon-tabs [data-tab="design"],
+body[data-tools-off~="design"] [data-cmd="share.layout"],
+body[data-tools-off~="analysis"] #ribbon-tabs [data-tab="analyze"],
+body[data-tools-off~="analysis"] .dock-tabs [data-tab="toolbox"],
+body[data-tools-off~="automate"] .dock-tabs [data-tab="automate"],
+body[data-tools-off~="ai"] .dock-tabs [data-tab="ask"],
+body[data-tools-off~="devices"] #devices-box,
+body[data-tools-off~="plugins"] #plugin-manager,
+body[data-tools-off~="export"] #ribbon-tabs [data-tab="share"],
+body[data-tools-off~="export"] [data-cmd="edit.export"],
+body[data-tools-off~="delete"] [data-cmd*="remove"],
+body[data-tools-off~="delete"] [data-cmd*="delete"] { display: none !important; }

@@ -89,6 +89,7 @@ fn main() {
         devices: Default::default(),
         automation: Default::default(),
         phone: Default::default(),
+        per_user_workspace: false,
     })
     .expect("open engine");
     println!(

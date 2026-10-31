@@ -1426,6 +1426,7 @@ mod tests {
             devices: Default::default(),
             automation: Default::default(),
             phone: Default::default(),
+            per_user_workspace: false,
         })
         .unwrap();
         let l = e.layers().into_iter().next().expect("one layer");

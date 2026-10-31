@@ -1768,6 +1768,7 @@ dependencies = [
  "flate2",
  "gdal",
  "gdal-sys",
+ "getrandom 0.2.17",
  "jpeg-encoder",
  "kamadak-exif",
  "krilla",

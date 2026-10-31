@@ -184,6 +184,7 @@ export const ICONS: Record<string, string> = {
   redo: 'M16 5l5 5-5 5v-3.5h-6a4 4 0 0 0 0 8h3V22h-3a6.5 6.5 0 0 1 0-13h6z',
   magnet: 'M5 3h4v8a3 3 0 0 0 6 0V3h4v8a7 7 0 0 1-14 0zm0 0v3h4V3zm10 0v3h4V3z',
   folder: 'M3 5h7l2 2h9v12H3z',
+  user: 'M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z',
   folderPlus: 'M13 19C13 19.34 13.04 19.67 13.09 20H4C2.9 20 2 19.11 2 18V6C2 4.89 2.89 4 4 4H10L12 6H20C21.1 6 22 6.89 22 8V13.81C21.39 13.46 20.72 13.22 20 13.09V8H4V18H13.09C13.04 18.33 13 18.66 13 19M20 18V15H18V18H15V20H18V23H20V20H23V18H20Z',
   chat: 'M4 4h16v11H9l-5 4zm4 4v2h8V8zm0 3v1h5v-1z',
   settings: 'M10.5 2h3l.5 2.6 1.9.8 2.2-1.5 2.1 2.1-1.5 2.2.8 1.9 2.6.5v3l-2.6.5-.8 1.9 1.5 2.2-2.1 2.1-2.2-1.5-1.9.8-.5 2.6h-3l-.5-2.6-1.9-.8-2.2 1.5-2.1-2.1 1.5-2.2-.8-1.9L2 13.5v-3l2.6-.5.8-1.9-1.5-2.2 2.1-2.1 2.2 1.5 1.9-.8zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
@@ -620,6 +621,8 @@ export const COMMANDS: Command[] = [
     id: 'help.whatsnew', tab: 'help', group: 'Docs', title: "What's new", icon: 'news',
     run: (h) => { h.openUrl('CHANGELOG.md'); },
   },
+  { id: 'home.workspace', tab: 'home', group: 'Workspace', title: 'Workspace', icon: 'database', hint: "This computer's projects, data sources, workflows, storage and tool settings", run: () => { document.dispatchEvent(new CustomEvent('geospax:workspace')); } },
+  { id: 'home.switchProfile', tab: 'home', group: 'Workspace', title: 'Switch profile', icon: 'user', hint: "Who's working? Choose another local profile (closes this project first)", run: () => { document.dispatchEvent(new CustomEvent('geospax:profiles')); } },
   { id: 'help.sample', tab: 'help', group: 'Learn', title: 'Open sample project', icon: 'flask', hint: 'Sample data for trying GeoSpaX, opened for this session only', run: () => { document.dispatchEvent(new CustomEvent('geospax:sample-project')); } },
   {
     id: 'help.updates', tab: 'help', group: 'Support', title: 'Check for updates', icon: 'update',
