@@ -10,6 +10,7 @@ import { FixFilter, metres, watchPosition, type Fix } from './geo';
 import { BASEMAPS, installTileCache, type Basemap } from './tiles';
 import { hello, parseLink, saveLink, savedLink, scanLink, send } from './sync';
 import { inApp } from './geo';
+import { installBasics, settings } from './basics';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -20,7 +21,7 @@ const fixes = new FixFilter();
 let records: Rec[] = [];
 let draft: { kind: 'line' | 'area'; coords: Vertex[] } | null = null;
 let track: Rec | null = null;
-let basemap: Basemap = (localStorage.getItem('geospax-field.basemap') as Basemap) || 'imagery';
+let basemap: Basemap = settings().basemap;
 let follow = true;
 
 // ------------------------------------------------------------------ map
@@ -119,8 +120,13 @@ function showGps(text: string, cls: string) {
   g.className = `chip ${cls}`;
 }
 showGps('Finding GPS…', 'wait');
+// the latest raw fix, for ⋯ › GPS status
+const gps: { fix: Fix | null; count: number; error: string | null; since: number } = { fix: null, count: 0, error: null, since: Date.now() };
 void watchPosition(
   (raw) => {
+    gps.fix = raw;
+    gps.count++;
+    gps.error = null;
     const f = fixes.add(raw, Date.now());
     if (!f) {
       // a cached, coarse or jumping fix: say so while there is no good one yet, otherwise keep the last
@@ -129,7 +135,7 @@ void watchPosition(
     }
     useFix(f);
   },
-  (msg) => showGps(msg.length > 40 ? 'No GPS' : msg, 'poor'),
+  (msg) => { gps.error = msg; showGps(msg.length > 40 ? 'No GPS' : msg, 'poor'); },
 );
 // a jump the filter held back becomes the position once nothing has contradicted it for a while (phones
 // that only report a fix when the position changes send no second one after a move)
@@ -240,6 +246,8 @@ function toast(text: string) {
 // ------------------------------------------------------------------ the recording bar
 $('#btnPoint').addEventListener('click', async () => {
   const v = here() ?? (() => { const c = map.getCenter(); return [c.lng, c.lat, null, Date.now(), null] as Vertex; })();
+  const warn = settings().warnAcc;
+  if (warn && v[4] != null && v[4] > warn && !confirm(`GPS is only good to ±${Math.round(v[4])} m. Save the point anyway?`)) return;
   const r = await noteSheet(v[4] != null ? `Point at your position (±${Math.round(v[4])} m)` : 'Point at the map centre (no GPS yet)', true);
   if (r) await save('point', [v], r.note, r.photos);
 });
@@ -414,3 +422,13 @@ function newer(a: string, b: string) {
   return false;
 }
 setTimeout(() => void checkUpdate(), 3000);
+
+installBasics({
+  openSheet,
+  closeSheet: () => sheet.close(),
+  toast,
+  refresh,
+  fix: () => fixes.best() ?? fix,
+  raw: () => gps,
+  setBasemap,
+});
