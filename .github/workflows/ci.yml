@@ -119,6 +119,10 @@ jobs:
           kill "$pid"
       - name: Field app GPS filter
         run: node --experimental-strip-types --no-warnings scripts/test-field-gps.mjs
+      - name: Field app heights (geoid, barometer, terrain model)
+        run: node --experimental-strip-types --no-warnings scripts/test-field-elevation.mjs
+      - name: Field app menu screens (GPS status, settings, export, backup)
+        run: node --experimental-strip-types --no-warnings scripts/test-field-basics.mjs
       - name: Assistant (Ollama, OpenAI-compatible and Claude wire formats, scripted model) and MCP server
         run: python3 scripts/test-ai.py target/release/geospax-server /tmp/ed/data
       - name: Satellite embeddings (known landscapes in a local AlphaEarth-layout mirror)
@@ -338,6 +342,10 @@ jobs:
           restore-keys: cargo-emulator-
       - name: GPS filter (unit test)
         run: node --experimental-strip-types --no-warnings scripts/test-field-gps.mjs
+      - name: Field app heights (geoid, barometer, terrain model)
+        run: node --experimental-strip-types --no-warnings scripts/test-field-elevation.mjs
+      - name: Field app menu screens (GPS status, settings, export, backup)
+        run: node --experimental-strip-types --no-warnings scripts/test-field-basics.mjs
       - name: geospax-server (the computer side of the phone link)
         run: cargo build --release -p geospax-server
       - name: Debug APK for the emulator (x86_64)
