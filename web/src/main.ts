@@ -19,6 +19,7 @@ import { AttributesPane } from './attributes';
 import { MapExtras } from './mapextras';
 import { ShareExtras, saveBlob } from './shareextras';
 import { Tutorials } from './tutorials';
+import { WorkspaceUi } from './workspace';
 import { Editor } from './editing';
 import { Measure } from './measure';
 import { toolStateChanged } from './toolstate';
@@ -1868,6 +1869,17 @@ function showBench(r: BenchReport) {
 // ---------------------------------------------------------------- boot
 async function main() {
   const about = await backend.json<{ guest?: boolean }>('api/about').catch(() => null);
+  // local profiles: a profile with a PIN opens locked until "Who's working?" (workspace.ts)
+  const wsUi = new WorkspaceUi(backend, (t) => { const m = document.querySelector('#sb-msg'); if (m) m.textContent = t; }, async () => {
+    await backend.json('api/project', { method: 'PUT', body: JSON.stringify(project), headers: { 'content-type': 'application/json' } }).catch(() => undefined);
+  });
+  if (!about?.guest && !params.has('bench')) {
+    const pr = await wsUi.profiles();
+    if (pr.available && !pr.unlocked) {
+      await wsUi.picker(true);
+      return;
+    }
+  }
   if (about?.guest && backend.edition === 'web') {
     guestMode = true;
     // crypto.randomUUID needs HTTPS; getRandomValues works everywhere
@@ -2750,6 +2762,12 @@ async function main() {
   else if (fitOnLoad) intro ? setTimeout(() => fitAll(3000), 700) : fitAll();
   else if (intro) setTimeout(() => map.flyTo({ center: view.center, zoom: view.zoom, duration: 3000, essential: true }), 700);
 
+  // Home › Workspace, Switch profile and the title bar profile button (workspace.ts)
+  document.addEventListener('geospax:workspace', () => void wsUi.open());
+  document.addEventListener('geospax:profiles', () => void wsUi.picker(false));
+  document.addEventListener('geospax:tools-changed', () => void wsUi.applyTools());
+  void wsUi.applyTools();
+  if (!guestMode && !params.has('bench')) void wsUi.startup();
   // Help › Open sample project: samples load only from here, never by themselves
   document.addEventListener('geospax:sample-project', () => void openSamples());
 

@@ -842,6 +842,47 @@ with your own title and credits.
 - **Offline vs online.** File/device tours work fully offline. DEM, WorldCover, Overture, OBIS and
   STAC tours fetch just the area on your map, then work from the local copy.
 
+## 2e. A clean start, workspaces and profiles
+
+### A clean start
+
+GeoSpaX opens with an empty map the first time, and whenever there is no previous project. Layers in your data
+folders wait in the Explorer until you add them; nothing is put on the map for you. New project gives an empty map
+in 2D, on the globe and in 3D, with no selection, edit history or cached results from the last project.
+
+- **Reopen last project** (Settings, on by default): turn it off to start every session with an empty map. The
+  previous project is kept as "Last session" under Home › Open.
+- **Sample data** opens only when you ask: Help › Open sample project.
+
+### Your workspace on this computer
+
+Each computer and OS account has its own workspace, so two people with separate logins on one PC never see each
+other's projects. The workspace is named by a SHA-256 hash of the computer's machine ID and the OS user name; neither
+is stored as is, nothing else (no MAC or IP address) is read, and there is no server or sign-in.
+
+Home › Workspace shows the projects, data sources, saved workflows and storage, with Clear cache. From there you can:
+
+- switch tool groups and plugins on or off for this workspace;
+- turn on **Restricted mode** with a PIN, which hides and refuses editing, deleting and exporting until the PIN turns
+  it off again;
+- export the workspace to a zip and import it on another computer.
+
+### Profiles
+
+Profiles let several people share one OS login, each with their own projects and settings.
+
+- The first profile you add is the **admin**. Only the admin can add, rename and remove profiles, reset a PIN and put
+  a profile in Restricted mode. The admin profile cannot be restricted or removed.
+- A profile can have a PIN (4 to 12 digits). It is stored only as a salted PBKDF2-SHA256 hash. A profile with a PIN
+  opens locked until the PIN is entered.
+- **Who's working?** shows at start when there is more than one profile; with one profile it is skipped. The last
+  profile used is remembered.
+- Switch profile is on the Home tab and on the title bar button. Switching saves and closes the project, then opens
+  the other profile's workspace.
+
+> Profiles are a convenience, not OS-level security. Anyone with access to the OS account can read the files of every
+> profile. Use separate OS accounts when people must not see each other's data.
+
 ## 3. Where things go
 
 The installed desktop app keeps everything in one folder:
@@ -850,7 +891,7 @@ The installed desktop app keeps everything in one folder:
 ~/GeoSpaX/
 ├── Inbox/       drop photos, tracks, drone and sensor logs here → the matching recipe maps them
 ├── Data/        put GIS layers here (GeoPackage, Shapefile, GeoJSON, FlatGeobuf, GeoTIFF …)
-│                → they appear in the layer list next time GeoSpaX starts
+│                → they appear in the Explorer (Catalog), ready for Add to map
 ├── .geospax/    state: runs/ (finished maps, PDFs, reports), overviews, project, Auto switches
 └── README.txt
 ```

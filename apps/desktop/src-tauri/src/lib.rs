@@ -195,6 +195,8 @@ pub fn run() {
             enable: std::env::var("GEOSPAX_PHONE").map(|v| v == "1").unwrap_or(false),
             port: std::env::var("GEOSPAX_PHONE_PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(geospax_engine::phone::DEFAULT_PORT),
         },
+        // a workspace per computer and OS account (projects, settings, recipes, cache, plugins, audit log)
+        per_user_workspace: true,
         ..Default::default()
     };
     let engine = Arc::new(Engine::open(cfg).expect("failed to open engine"));
@@ -204,13 +206,17 @@ pub fn run() {
         eprintln!("warning: {w}");
     }
     let proto_engine = engine.clone();
+    let hook_engine = engine.clone();
 
     tauri::Builder::default()
         .manage(engine)
         .manage(PendingUpdate::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![tile, update_kind, update_check, update_install])
-        .setup(|app| {
+        .setup(move |app| {
+            // switching local profile (profiles.rs) opens another folder: restart the app
+            let h = app.handle().clone();
+            *hook_engine.restart_hook.lock().unwrap() = Some(Box::new(move || h.restart()));
             // Headless automation: GEOSPAX_URL_QUERY="bench=1&transport=invoke"
             // reloads the UI with that query (auto-runs the camera-tour benchmark).
             if let (Ok(q), Some(w)) = (std::env::var("GEOSPAX_URL_QUERY"), app.get_webview_window("main")) {
