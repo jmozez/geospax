@@ -57,3 +57,38 @@ export const countTiles = () => tx<number>('tiles', 'readonly', (s) => s.count()
 export const clearTiles = () => tx('tiles', 'readwrite', (s) => s.clear());
 
 export const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+/** Kept basemap tiles per server, with their size in bytes, for the offline maps manager. */
+export async function tileStats(): Promise<Record<string, { count: number; bytes: number }>> {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const out: Record<string, { count: number; bytes: number }> = {};
+    const req = d.transaction('tiles', 'readonly').objectStore('tiles').openCursor();
+    req.onsuccess = () => {
+      const c = req.result;
+      if (!c) return resolve(out);
+      const host = String(c.key).split('/')[0];
+      const s = (out[host] ??= { count: 0, bytes: 0 });
+      s.count++;
+      s.bytes += (c.value as ArrayBuffer)?.byteLength ?? 0;
+      c.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Forget the kept tiles of one server (its host name, as in the tile key). */
+export async function clearTilesFrom(host: string): Promise<number> {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    let n = 0;
+    const req = d.transaction('tiles', 'readwrite').objectStore('tiles').openCursor();
+    req.onsuccess = () => {
+      const c = req.result;
+      if (!c) return resolve(n);
+      if (String(c.key).split('/')[0] === host) { c.delete(); n++; }
+      c.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}

@@ -63,3 +63,30 @@ details button { width: 100%; }
 .maplibregl-ctrl-attrib { font-size: 11px; max-width: 70vw; }
 .pill { bottom: calc(env(safe-area-inset-bottom) + 150px); }
 .top .brand { width: 30px; height: 30px; flex: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+
+/* the ⋯ menu and its sheets */
+.chip { color: inherit; font-family: inherit; }
+#gps.chip { cursor: pointer; }
+#more { font-size: 22px; padding: 0 12px; }
+.menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 12px; }
+.menu button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 84px; padding: 8px 4px; }
+.menu b { font-size: 24px; line-height: 1; }
+.menu span { font-size: 13px; text-align: center; }
+#sheetBody h3 { margin: 14px 0 6px; font-size: 16px; color: var(--accent); }
+#sheetBody ul:not(.list) { margin: 0 0 8px; padding-left: 20px; }
+#sheetBody a { color: #4cc2ff; }
+.help dt { font-weight: 700; margin-top: 10px; } .help dd { margin: 2px 0 0; color: var(--muted); }
+.kv { width: 100%; border-collapse: collapse; margin: 0 0 12px; }
+.kv th, .kv td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); font-size: 15px; }
+.kv th { color: var(--muted); font-weight: 400; width: 45%; }
+label.field { display: block; color: var(--muted); margin: 0 0 12px; }
+select { display: block; width: 100%; margin-top: 6px; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-height: 48px; }
+label.check { display: flex; gap: 10px; align-items: center; min-height: 48px; margin: 0 0 8px; }
+label.check input { width: 22px; height: 22px; margin: 0; flex: none; }
+.list .clr { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); min-height: 40px; }
+.logo { vertical-align: middle; border-radius: 10px; }
+.tour { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.55); }
+.tour-ring { position: fixed; border: 3px solid var(--accent); border-radius: 16px; box-shadow: 0 0 0 4px rgba(255, 122, 69, 0.3); pointer-events: none; }
+.tour-card { position: fixed; left: 12px; right: 12px; max-width: 480px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.tour-card.low { bottom: calc(env(safe-area-inset-bottom) + 100px); } .tour-card.high { top: calc(env(safe-area-inset-top) + 70px); }
+.tour-card small { color: var(--muted); } .tour-card h3 { margin: 4px 0 6px; } .tour-card p { margin: 0 0 12px; color: var(--muted); }
