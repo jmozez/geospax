@@ -2959,7 +2959,7 @@ async function main() {
   }, (e as CustomEvent<string>).detail));
   // Plugins › Manage plugins: the plugins pane in a dialog
   const pm = $('#plugin-manager');
-  document.addEventListener('geospax:plugin-manager', () => { pm.hidden = false; });
+  document.addEventListener('geospax:plugin-manager', () => { pm.hidden = false; void pluginsPane?.opened(); });
   pm.addEventListener('click', (e) => { const t = e.target as HTMLElement; if (t === pm || t.closest('[data-close]')) pm.hidden = true; });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pm.hidden && document.querySelector('#plugin-modal[hidden]')) pm.hidden = true; }, true);
   // R tab: R setup and the R console (rconsole.ts)
