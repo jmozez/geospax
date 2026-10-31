@@ -6,6 +6,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [3.1.0] - Unreleased
 
 ### Added
+- Plugin manager in the style of QGIS: All, Installed, Not installed, Upgradeable, Install from ZIP and Settings tabs, search, a details panel, switching a plugin off without removing it, plugin repositories (a JSON index over https or a local path, with SHA-256 checks), upgrades, and a two-click uninstall.
 - Field app basics: a ⋯ menu with Help, About, What's new (shown once after an update) and Settings (basemap at start, ask before saving a point worse than a chosen accuracy, keep the screen on, show the tour again).
 - Field app: Send feedback opens your own mail app with a message to j.moses0131@gmail.com and the app version filled in, or a new GitHub issue; nothing is sent by the app itself.
 - Field app: a five-step tour on the first start (Next, Back, Skip), also under ⋯ › Take the tour.
