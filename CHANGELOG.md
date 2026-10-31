@@ -17,6 +17,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Field app barometer: on phones with a pressure sensor (read through the Android NDK), heights are set from a good GPS height and kept steady when the GPS height is poor; without a calibration, standard air pressure gives a rough height.
 - Field app terrain model fallback: Copernicus GLO-90 heights from Open-Meteo when the GPS height is poor, off by default because it sends the position online (Settings), kept per ~100 m cell for offline use.
 - Field app: GPS status shows the height above sea level from each source and which one is used; saved points keep their height, its source and expected error, also in the record list and the GeoJSON export (`height_m`, `height_source`, `height_acc_m`).
+- Field app photo points with a bearing: each photo keeps the compass bearing the camera faced (magnetic, averaged over two seconds), shown and correctable before saving, in the record list, the GeoJSON (`photo_bearings`) and the backup. GeoSpaX writes it to the photo's XMP sidecar (`exif:GPSImgDirection`), so mapped photos point the right way.
+- Field app voice notes: record a voice note (up to five minutes) on any point, line, area, track or photo, play it back or remove it before saving; voice notes are kept with the record, sent to GeoSpaX with it and included in the full backup.
 
 ### Changed
 - Field app: the third coordinate of saved points, lines, areas and tracks (also as sent to GeoSpaX in GeoJSON and GPX) is now the height above mean sea level (EGM2008) from the best source, not the GPS height above the ellipsoid, which in Papua New Guinea is about 70 m higher.

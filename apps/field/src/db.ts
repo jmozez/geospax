@@ -1,6 +1,7 @@
 // Everything recorded stays on the phone (IndexedDB) until it has been sent: no signal needed.
 // Map tiles that were on screen are kept too, so the map works offline where you have looked before.
 
+import type { Voice } from './capture';
 import type { Height } from './elevation';
 
 export type Kind = 'point' | 'line' | 'area' | 'track';
@@ -15,6 +16,8 @@ export interface Photo {
   lat: number | null;
   acc: number | null;
   ts: number;
+  /** where the camera faced: compass bearing in degrees from magnetic north (null without a compass) */
+  bearing?: number | null;
 }
 
 export interface Rec {
@@ -27,6 +30,8 @@ export interface Rec {
   photos: Photo[];
   /** the height of a point and where it came from (GPS and geoid, barometer or terrain model) */
   height?: Height | null;
+  /** voice notes recorded with it */
+  voice?: Voice[];
 }
 
 let dbp: Promise<IDBDatabase> | null = null;

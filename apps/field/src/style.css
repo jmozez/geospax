@@ -90,3 +90,13 @@ label.check input { width: 22px; height: 22px; margin: 0; flex: none; }
 .tour-card { position: fixed; left: 12px; right: 12px; max-width: 480px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
 .tour-card.low { bottom: calc(env(safe-area-inset-bottom) + 100px); } .tour-card.high { top: calc(env(safe-area-inset-top) + 70px); }
 .tour-card small { color: var(--muted); } .tour-card h3 { margin: 4px 0 6px; } .tour-card p { margin: 0 0 12px; color: var(--muted); }
+.thumbs figure.thumb { margin: 0; display: flex; flex-direction: column; gap: 4px; width: 120px; }
+.thumbs figure.thumb img { width: 120px; height: 90px; }
+.thumbs figure.thumb label { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+.thumbs figure.thumb input { width: 64px; padding: 4px 6px; }
+.thumbs figure.thumb figcaption { font-size: 12px; opacity: .75; }
+.voices { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.voices li { display: flex; align-items: center; gap: 8px; }
+.voices audio { flex: 1; min-width: 0; height: 36px; }
+.voices .del { flex: none; }
+#voiceBtn.rec { background: var(--poor); color: #fff; }

@@ -37,7 +37,7 @@ npx tauri icon src-tauri/icons/android-launcher.png -o "$ICONS" >/dev/null
 cp -r "$ICONS/android/." src-tauri/gen/android/app/src/main/res/
 rm -rf "$ICONS"
 MANIFEST=src-tauri/gen/android/app/src/main/AndroidManifest.xml
-for perm in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA; do
+for perm in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA RECORD_AUDIO MODIFY_AUDIO_SETTINGS; do
   grep -q "android.permission.$perm" "$MANIFEST" || \
     sed -i "s|<application|<uses-permission android:name=\"android.permission.$perm\" />\n    <application|" "$MANIFEST"
 done
