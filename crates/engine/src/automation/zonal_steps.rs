@@ -460,10 +460,10 @@ pub(super) fn vector_topology(sc: &mut StepCtx, p: &Value) -> Result<StepOut, St
             }
         }
     }
-    // SAFETY: coll is a valid geometry; OGR_G_UnaryUnion returns a new geometry that we read as
+    // SAFETY: coll is a valid multipolygon; OGR_G_UnionCascaded (GDAL 3.6 has no UnaryUnion) returns a new geometry that we read as
     // GeoJSON and then destroy; the JSON string is freed with CPLFree.
     let union: Option<Value> = unsafe {
-        let h = gdal_sys::OGR_G_UnaryUnion(coll.c_geometry());
+        let h = gdal_sys::OGR_G_UnionCascaded(coll.c_geometry());
         if h.is_null() {
             None
         } else {

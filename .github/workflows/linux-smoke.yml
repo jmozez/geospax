@@ -1,0 +1,133 @@
+# GeoSpaX linux-smoke: start the real desktop app on a virtual screen on every Linux distribution we support,
+# from the AppImage and from the .deb and .rpm, and check it stays up, shows a window that is not blank and logs
+# no GLIBC or missing-library errors (scripts/linux-smoke.sh). Screenshots are kept as artifacts.
+# Called by ci.yml after the AppImage job; the GitHub release waits for every job here.
+name: linux-smoke
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  appimage:
+    name: AppImage on ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.distro }}
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ "ubuntu:22.04", "ubuntu:24.04", "debian:12", "debian:13", "fedora:40", "fedora:41",
+                  "opensuse/tumbleweed:latest", "archlinux:latest", "linuxmintd/mint21-amd64:latest" ]
+    steps:
+      - name: Tools for checkout
+        run: |
+          if command -v apt-get >/dev/null; then apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
+          elif command -v dnf >/dev/null; then dnf install -y -q git
+          elif command -v zypper >/dev/null; then for i in 1 2 3; do zypper -n -q --gpg-auto-import-keys refresh && zypper -n -q install git tar gzip && break; sleep 30; done
+          else pacman -Sy --noconfirm -q git; fi
+      - uses: actions/checkout@v4
+      - name: Virtual screen and desktop libraries
+        run: bash scripts/linux-smoke-deps.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: geospax-appimage
+          path: dist
+      - name: Start the AppImage and check it
+        run: |
+          A=$(ls dist/GeoSpaX-*.AppImage); chmod +x "$A"
+          N=appimage-$(echo "${{ matrix.distro }}" | sed 's/:latest//; s|.*/||; s/:/-/')
+          echo "N=$N" >> "$GITHUB_ENV"
+          bash scripts/linux-smoke.sh "$N" "$A" --appimage-extract-and-run
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-smoke-${{ env.N }}
+          path: linux-smoke/
+
+  packages:
+    name: Build the ${{ matrix.kind }} on ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.distro }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: "ubuntu:22.04", kind: deb, suffix: ubuntu22.04, setup: "apt-get install -y -q --no-install-recommends software-properties-common gpg-agent && add-apt-repository -y ppa:ubuntugis/ppa && bash scripts/setup-linux.sh" }
+          - { distro: "ubuntu:24.04", kind: deb, suffix: ubuntu24.04, setup: "bash scripts/setup-linux.sh" }
+          - { distro: "debian:12", kind: deb, suffix: debian12, setup: "bash scripts/setup-linux.sh" }
+          - { distro: "debian:13", kind: deb, suffix: debian13, setup: "bash scripts/setup-linux.sh" }
+          - { distro: "fedora:40", kind: rpm, suffix: fedora40, setup: "bash scripts/setup-fedora.sh" }
+          - { distro: "fedora:41", kind: rpm, suffix: fedora41, setup: "bash scripts/setup-fedora.sh" }
+          # no native openSUSE Tumbleweed rpm: Tumbleweed ships GDAL 3.13, which the gdal crate (0.19) does not support yet;
+          # openSUSE users get the AppImage and the Flatpak, both tested on Tumbleweed above and in ci.yml
+    steps:
+      - name: Tools for checkout
+        run: |
+          if command -v apt-get >/dev/null; then apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
+          elif command -v dnf >/dev/null; then dnf install -y -q git
+          else for i in 1 2 3; do zypper -n -q --gpg-auto-import-keys refresh && zypper -n -q install git tar gzip && break; sleep 30; done; fi
+      - uses: actions/checkout@v4
+      - name: Build tools
+        run: ${{ matrix.setup }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /opt/cargo/registry
+            ~/.cargo/registry
+            target
+          key: cargo-${{ matrix.suffix }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ matrix.suffix }}-
+      - name: Build the ${{ matrix.kind }} (Tauri bundler)
+        run: BUNDLES=${{ matrix.kind }} PKG_SUFFIX=${{ matrix.suffix }} bash scripts/package-appimage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geospax-pkg-${{ matrix.suffix }}
+          path: releases/*.${{ matrix.kind }}
+
+  package:
+    name: Install the ${{ matrix.kind }} on ${{ matrix.distro }}
+    needs: packages
+    runs-on: ubuntu-latest
+    container: ${{ matrix.distro }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: "ubuntu:22.04", kind: deb, suffix: ubuntu22.04 }
+          - { distro: "ubuntu:24.04", kind: deb, suffix: ubuntu24.04 }
+          - { distro: "debian:12", kind: deb, suffix: debian12 }
+          - { distro: "debian:13", kind: deb, suffix: debian13 }
+          - { distro: "fedora:40", kind: rpm, suffix: fedora40 }
+          - { distro: "fedora:41", kind: rpm, suffix: fedora41 }
+          # openSUSE Tumbleweed: no native rpm yet (GDAL 3.13), see the packages job
+    steps:
+      - name: Tools for checkout
+        run: |
+          if command -v apt-get >/dev/null; then apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
+          elif command -v dnf >/dev/null; then dnf install -y -q git
+          else for i in 1 2 3; do zypper -n -q --gpg-auto-import-keys refresh && zypper -n -q install git tar gzip && break; sleep 30; done; fi
+      - uses: actions/checkout@v4
+      - name: Virtual screen and desktop libraries
+        run: bash scripts/linux-smoke-deps.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: geospax-pkg-${{ matrix.suffix }}
+          path: dist
+      - name: Install the package (dependencies from the distribution's own repositories)
+        run: |
+          P=$(ls dist/*.${{ matrix.kind }})
+          if command -v apt-get >/dev/null; then
+            [ "${{ matrix.suffix }}" = ubuntu22.04 ] && { apt-get install -y -q --no-install-recommends software-properties-common gpg-agent && add-apt-repository -y ppa:ubuntugis/ppa; }
+            apt-get install -y -q --no-install-recommends "./$P"
+          elif command -v dnf >/dev/null; then dnf install -y -q "./$P"
+          else zypper -n -q install --allow-unsigned-rpm "./$P"; fi
+          command -v geospax
+      - name: Start the installed app and check it
+        run: bash scripts/linux-smoke.sh ${{ matrix.kind }}-${{ matrix.suffix }} geospax
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-smoke-${{ matrix.kind }}-${{ matrix.suffix }}
+          path: linux-smoke/

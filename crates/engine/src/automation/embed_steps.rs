@@ -220,9 +220,10 @@ impl Emb {
         let mut data = vec![NODATA_I8; w * h * DIMS];
         for b in 0..DIMS {
             let band = ds.rasterband(b + 1).map_err(|e| e.to_string())?;
-            let v = band.read_as::<i8>((0, 0), (w, h), (w, h), None).map_err(|e| e.to_string())?.into_shape_and_vec().1;
+            // read as i16: GDAL before 3.7 has no Int8 type (signed bytes come back as 0..255, which wrap back below)
+            let v = band.read_as::<i16>((0, 0), (w, h), (w, h), None).map_err(|e| e.to_string())?.into_shape_and_vec().1;
             for (i, x) in v.into_iter().enumerate() {
-                data[i * DIMS + b] = x;
+                data[i * DIMS + b] = x as i8;
             }
         }
         Ok(Emb { w, h, gt, wkt, epsg, data })

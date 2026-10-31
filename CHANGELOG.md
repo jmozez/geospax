@@ -5,7 +5,13 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ## [3.0.9] - 2026-10-31
 
+### Fixed
+- The Linux AppImage is built on Ubuntu 22.04 (glibc 2.35) instead of 24.04, so it runs on Ubuntu 22.04, Linux Mint 21 and Debian 12 again; 3.0.8 needed glibc 2.39. A CI check (`scripts/check-glibc.sh`, objdump -T) fails the build if anything in the image needs a newer glibc, and the AppImage is now also tested on Ubuntu 22.04 and Debian 12.
+- The AppImage sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` in an AppRun hook unless you set it yourself, which avoids a blank window on some graphics drivers.
+
 ### Added
+- Linux packages from the Tauri bundler, each built on the distribution it is for and installing its dependencies from that distribution's own repositories: .deb files for Ubuntu 22.04 (with the UbuntuGIS PPA), Ubuntu 24.04, Debian 12 and Debian 13, and .rpm files for Fedora 40, Fedora 41 and openSUSE Tumbleweed.
+- `linux-smoke` CI: the desktop app is started on a virtual screen on Ubuntu 22.04 and 24.04, Debian 12 and 13, Fedora 40 and 41, openSUSE Tumbleweed, Arch Linux and Linux Mint 21, from the AppImage and from each .deb and .rpm. It must stay up for 30 seconds, show a window whose screenshot is not blank and log no GLIBC or missing-library errors; the release waits for every distribution to pass.
 - Automation: `lidar.3dtiles` writes LAS/LAZ point clouds as an OGC 3D Tiles 1.1 tileset (glTF points with colour) to open in CesiumJS, deck.gl, QGIS or ArcGIS. Two levels of detail and up to 20 million points for now; heights are the file's own unless `height_offset` is set.
 - View › GPU points (off by default, per layer): draws a large point layer with deck.gl from the Arrow stream instead of vector tiles, aimed at layers too large for smooth vector tile display. WebGL2 for now; WebGPU, lines and polygons later.
 - Share › Review: comments pinned to the map (with replies and resolve) and version history with restore (the last 50 saves) for named projects on a shared, self-hosted web edition. Sign-in and roles are not included yet.
