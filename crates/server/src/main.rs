@@ -93,6 +93,7 @@ fn parse_args_from(argv: Vec<String>) -> Args {
             "--plugins" => a.cfg.plugins.dirs.push(v().into()),
             "--auto" => a.cfg.automation.auto.extend(v().split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from)),
             "--no-triggers" => a.cfg.automation.triggers = false,
+            "--per-user-workspace" => a.cfg.per_user_workspace = true,
             "--phone" => a.cfg.phone.enable = true,
             "--phone-port" => a.cfg.phone.port = v().parse().unwrap_or_else(|_| usage_exit("--phone-port needs a number")),
             other => usage_exit(&format!("unknown argument {other}")),
@@ -214,6 +215,8 @@ options:
   --plugins DIR          extra plugin folder (repeatable; <state>/plugins is always read)
   --auto ID,ID           recipes whose triggers are on at start
   --no-triggers          no device/folder/schedule/sensor triggers
+  --per-user-workspace   a workspace for this computer and OS account under <state>/workspaces/ (as the
+                         desktop app does)
   --threads N · --no-cache · --no-gzip · --reader arrow|features · --bench-log FILE
   -h, --help · -V, --version
 
@@ -413,6 +416,22 @@ fn main() {
 async fn serve(args: Args) {
     let engine = Arc::new(Engine::open(args.cfg.clone()).expect("failed to open engine"));
     engine.start_services(); // device watcher + live GNSS sources
+    // switching local profile (profiles.rs) opens another folder: start again with the same arguments
+    *engine.restart_hook.lock().unwrap() = Some(Box::new(|| {
+        let exe = std::env::current_exe().expect("own path");
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let e = std::process::Command::new(&exe).args(&args).exec();
+            eprintln!("geospax: could not restart for the new profile: {e}");
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = std::process::Command::new(&exe).args(&args).spawn();
+            std::process::exit(0);
+        }
+    }));
     // Every client from another device must present the token, and whoever has it is trusted as on this
     // computer (it can already run recipes and install plugins). --restricted keeps a copy shared with a
     // class or group from connecting folders, adding web services or downloading.

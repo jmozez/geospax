@@ -99,6 +99,15 @@ jobs:
           name: clean-start-ui-shots
           path: /tmp/cp-shots
           if-no-files-found: ignore
+      - name: Workspaces and local profiles (UI, two OS users, Restricted mode, export and import, PIN, admin)
+        timeout-minutes: 20
+        run: PW=/tmp/pw/node_modules/playwright node scripts/test-workspace.mjs target/release/geospax-server /tmp/ws-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workspace-ui-shots
+          path: /tmp/ws-shots
+          if-no-files-found: ignore
       - name: Ribbon audit (every item on every tab clicked, effect and highlighting checked)
         timeout-minutes: 45
         run: |
