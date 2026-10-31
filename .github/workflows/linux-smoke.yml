@@ -60,7 +60,7 @@ jobs:
           - { distro: "debian:13", kind: deb, suffix: debian13, setup: "bash scripts/setup-linux.sh" }
           - { distro: "fedora:40", kind: rpm, suffix: fedora40, setup: "bash scripts/setup-fedora.sh" }
           - { distro: "fedora:41", kind: rpm, suffix: fedora41, setup: "bash scripts/setup-fedora.sh" }
-          - { distro: "opensuse/tumbleweed:latest", kind: rpm, suffix: opensuse-tumbleweed, features: gdal-bindgen, setup: "bash scripts/setup-opensuse.sh" }
+          - { distro: "opensuse/tumbleweed:latest", kind: rpm, suffix: opensuse-tumbleweed, setup: "bash scripts/setup-opensuse.sh" }
     steps:
       - name: Tools for checkout
         run: |
@@ -79,7 +79,7 @@ jobs:
           key: cargo-${{ matrix.suffix }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-${{ matrix.suffix }}-
       - name: Build the ${{ matrix.kind }} (Tauri bundler)
-        run: EXTRA_FEATURES="${{ matrix.features }}" BUNDLES=${{ matrix.kind }} PKG_SUFFIX=${{ matrix.suffix }} bash scripts/package-appimage.sh
+        run: BUNDLES=${{ matrix.kind }} PKG_SUFFIX=${{ matrix.suffix }} bash scripts/package-appimage.sh
       - uses: actions/upload-artifact@v4
         with:
           name: geospax-pkg-${{ matrix.suffix }}
