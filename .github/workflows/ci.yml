@@ -123,6 +123,15 @@ jobs:
         run: node --experimental-strip-types --no-warnings scripts/test-field-elevation.mjs
       - name: Field app menu screens (GPS status, settings, export, backup)
         run: node --experimental-strip-types --no-warnings scripts/test-field-basics.mjs
+      - name: Plugin manager logic (tabs, upgrades, filters)
+        run: node --experimental-strip-types --no-warnings scripts/test-plugin-manager.mjs
+      - name: Plugin manager UI (repository install, switch off, upgrade, ZIP, uninstall)
+        run: |
+          mkdir -p /tmp/pm/data /tmp/pm/state
+          ./target/release/geospax-server --data /tmp/pm/data --state-dir /tmp/pm/state --web web/dist --port 18126 --no-device-mounts --no-triggers &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:18126/api/health >/dev/null && break; sleep 1; done
+          PW=/tmp/pw/node_modules/playwright node scripts/test-plugin-manager-ui.mjs http://127.0.0.1:18126/ /tmp/pm/out
+          kill %1 || true
       - name: Assistant (Ollama, OpenAI-compatible and Claude wire formats, scripted model) and MCP server
         run: python3 scripts/test-ai.py target/release/geospax-server /tmp/ed/data
       - name: Satellite embeddings (known landscapes in a local AlphaEarth-layout mirror)

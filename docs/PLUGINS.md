@@ -227,3 +227,18 @@ WASM module, hash-pinned packages, permissions, and commands that the ribbon, th
 CLI all call. The WASI "tools over `/work`" contract follows **GeoLibre**'s `geolibre-rust` tool
 runner (MIT). QGIS and ArcGIS Pro compatibility uses their public, documented CLI surfaces
 (`qgis_process`, Python toolboxes). See [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+
+
+## Plugin manager
+
+Open Plugins › Manage plugins. The tabs are All, Installed, Not installed, Upgradeable, Install from ZIP and Settings. Untick a plugin to switch it off: it stays installed but its tools are hidden until you tick it again. Built-in plugins cannot be switched off or removed.
+
+Under Settings, add a repository by name and URL (https, file:// or a local path), then press Reload repositories. A repository is a JSON index:
+
+```json
+{"plugins": [{"id": "my-plugin", "name": "My plugin", "version": "1.2.0",
+  "description": "...", "author": "...", "download": "https://example.org/my-plugin-1.2.0.zip",
+  "sha256": "optional hex digest", "experimental": false}]}
+```
+
+Where repositories overlap, the newest version wins. A package whose SHA-256 does not match is refused. QGIS plugins.xml repositories are not read.
