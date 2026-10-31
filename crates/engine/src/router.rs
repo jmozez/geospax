@@ -1080,6 +1080,26 @@ impl Engine {
             ("POST", ["api", "workspace", "import"]) if !guest && self.restricted() => {
                 ApiResponse::error(403, "Restricted mode is on in this workspace: importing is turned off")
             }
+            // Per-profile UI state (tour seen, last version run, "Don't show again"): ui.json in the
+            // profile's folder, so every new profile sees the first-start tour once
+            ("GET", ["api", "ui-state"]) => ApiResponse::json(
+                200,
+                &std::fs::read(self.state_dir.join("ui.json")).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or_else(|| json!({})),
+            ),
+            ("PUT", ["api", "ui-state"]) if !guest => {
+                let mut cur: Value = std::fs::read(self.state_dir.join("ui.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_else(|| json!({}));
+                let b = body_json(&req.body);
+                if let (Some(c), Some(n)) = (cur.as_object_mut(), b.as_object()) {
+                    for (k, v) in n.iter().take(32) {
+                        c.insert(k.clone(), v.clone());
+                    }
+                }
+                let _ = std::fs::create_dir_all(&self.state_dir);
+                match std::fs::write(self.state_dir.join("ui.json"), serde_json::to_vec_pretty(&cur).unwrap_or_default()) {
+                    Ok(_) => ApiResponse::json(200, &cur),
+                    Err(e) => ApiResponse::error(500, e.to_string()),
+                }
+            }
             // Local profiles (profiles.rs): several people sharing one OS login. A convenience, not security.
             ("GET", ["api", "profiles"]) if !guest => ApiResponse::json(200, &self.profiles_json()),
             ("POST", ["api", "profiles"]) if !guest => self.profiles_add(&body_json(&req.body)),
