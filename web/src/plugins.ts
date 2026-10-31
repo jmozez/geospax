@@ -244,9 +244,8 @@ export class PluginsPane {
     return `<div class="plugin pm-row${r.id === this.selected ? ' on' : ''}${p ? '' : ' avail'}${r.enabled || !p ? '' : ' off'}" data-pm-row="${esc(r.id)}" role="option" aria-selected="${r.id === this.selected}">
       ${check}
       <span class="p-ico">${icon(p ? pluginIcon(p) : 'puzzle', 16)}</span>
-      <span class="p-name">${esc(r.name)}</span>
+      <span class="pm-namecol"><span class="p-name">${esc(r.name)}</span>${flag || state ? `<span class="pm-badges">${flag}${state}</span>` : ''}</span>
       <span class="p-ver">${esc(ver)}</span>
-      ${flag}${state}
     </div>`;
   }
 
