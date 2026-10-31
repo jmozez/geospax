@@ -13,6 +13,9 @@ import { inApp } from './geo';
 import { installBasics, settings } from './basics';
 import { fmtHeight, type Height } from './elevation';
 import { heights, onFix as heightsOnFix, setDem, startHeights } from './heights';
+import { askCompass, fmtBearing, fmtDur, MAX_VOICE_MS, norm, startCompass, startVoice, voiceName, type Recording, type Voice } from './capture';
+
+const compass = startCompass();
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -196,30 +199,93 @@ function openSheet(html: string) {
 }
 sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });
 
-function noteSheet(title: string, withPhoto = false): Promise<{ note: string; photos: Photo[] } | null> {
+interface Noted { note: string; photos: Photo[]; voice: Voice[] }
+/** The note sheet: a note, photos (with the way each faced) and voice notes. */
+function noteSheet(title: string, withPhoto = false, first: Photo[] = []): Promise<Noted | null> {
   return new Promise((resolve) => {
-    const photos: Photo[] = [];
+    const photos: Photo[] = [...first];
+    const voice: Voice[] = [];
+    let rec: Recording | null = null;
+    let tick = 0;
     openSheet(`<h2>${esc(title)}</h2>
+      <div id="thumbs" class="thumbs"></div>
       <textarea id="note" rows="3" placeholder="What is here? (optional)"></textarea>
-      ${withPhoto ? '<button type="button" class="wide" id="addPhoto">📷 Add a photo</button><div id="thumbs" class="thumbs"></div>' : ''}
+      <div class="row">${withPhoto ? '<button type="button" id="addPhoto">📷 Add a photo</button>' : ''}<button type="button" id="voiceBtn">🎙 Voice note</button></div>
+      <ul id="voices" class="voices"></ul>
       <div class="row"><button type="button" id="cancel">Cancel</button><button type="button" class="primary" id="save">Save</button></div>`);
+    const showPhoto = (p: Photo) => {
+      const fig = document.createElement('figure');
+      fig.className = 'thumb';
+      fig.innerHTML = `<img alt="" src="${URL.createObjectURL(p.blob)}" /><label>Facing <input type="number" inputmode="numeric" min="0" max="359" step="1" value="${p.bearing != null ? Math.round(p.bearing) : ''}" placeholder="°" aria-label="Bearing in degrees" />°</label><figcaption>${esc(fmtBearing(p.bearing))}</figcaption>`;
+      const inp = fig.querySelector('input')!;
+      inp.addEventListener('input', () => {
+        const v = inp.value.trim() === '' ? null : Number(inp.value);
+        p.bearing = v != null && Number.isFinite(v) ? norm(v) : null;
+        fig.querySelector('figcaption')!.textContent = fmtBearing(p.bearing);
+      });
+      $('#thumbs').append(fig);
+    };
+    photos.forEach(showPhoto);
+    const showVoice = (v: Voice) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>🎙 ${fmtDur(v.ms)}</span><audio controls preload="none" src="${URL.createObjectURL(v.blob)}"></audio><button type="button" class="del" aria-label="Remove this voice note">✕</button>`;
+      li.querySelector('.del')!.addEventListener('click', () => { voice.splice(voice.indexOf(v), 1); li.remove(); });
+      $('#voices').append(li);
+    };
     $('#addPhoto')?.addEventListener('click', async () => {
       const p = await takePhoto();
-      if (!p) return;
-      photos.push(p);
-      const img = document.createElement('img');
-      img.src = URL.createObjectURL(p.blob);
-      $('#thumbs').append(img);
+      if (p) { photos.push(p); showPhoto(p); }
     });
-    const done = (v: { note: string; photos: Photo[] } | null) => { sheet.close(); resolve(v); };
-    $('#cancel').addEventListener('click', () => done(null));
-    $('#save').addEventListener('click', () => done({ note: ($('#note') as HTMLTextAreaElement).value.trim(), photos }));
-    sheet.addEventListener('close', () => resolve(null), { once: true });
+    const btn = $('#voiceBtn') as HTMLButtonElement;
+    const stopVoice = async () => {
+      if (!rec) return;
+      const r0 = rec;
+      rec = null;
+      clearInterval(tick);
+      btn.classList.remove('rec');
+      btn.textContent = '🎙 Voice note';
+      const out = await r0.stop();
+      if (out.blob.size === 0) return toast('Nothing was recorded');
+      const b = fixes.best() ?? fix;
+      const v: Voice = { id: newId(), name: voiceName(r0.started, out.mime), blob: out.blob, ts: r0.started, ms: out.ms, lon: b?.lon ?? null, lat: b?.lat ?? null };
+      voice.push(v);
+      showVoice(v);
+    };
+    btn.addEventListener('click', async () => {
+      if (rec) return void stopVoice();
+      try {
+        rec = await startVoice();
+      } catch (e) {
+        return toast((e as Error).message);
+      }
+      btn.classList.add('rec');
+      const show = () => {
+        const ms = Date.now() - (rec?.started ?? Date.now());
+        btn.textContent = `■ Stop ${fmtDur(ms)}`;
+        if (ms >= MAX_VOICE_MS) void stopVoice();
+      };
+      show();
+      tick = window.setInterval(show, 500);
+    });
+    let settled = false;
+    const done = async (v: Noted | null) => {
+      if (settled) return;
+      settled = true;
+      if (rec) { if (v) await stopVoice(); else { rec.cancel(); rec = null; clearInterval(tick); } }
+      if (sheet.open) sheet.close();
+      resolve(v ? { ...v, voice } : null);
+    };
+    $('#cancel').addEventListener('click', () => void done(null));
+    $('#save').addEventListener('click', () => void done({ note: ($('#note') as HTMLTextAreaElement).value.trim(), photos, voice }));
+    sheet.addEventListener('close', () => void done(null), { once: true });
   });
 }
 
-/** The camera (or the gallery), with the position at the moment it was taken. */
+/** The camera (or the gallery), with the position at the moment it was taken and the way the camera faced. */
 function takePhoto(): Promise<Photo | null> {
+  void askCompass();
+  // the compass as the camera opens (the phone is being pointed); the camera app pauses this one
+  const aim = compass.bearing(Date.now());
   return new Promise((resolve) => {
     const input = $('#photoInput') as HTMLInputElement;
     input.value = '';
@@ -228,14 +294,15 @@ function takePhoto(): Promise<Photo | null> {
       if (!file) return resolve(null);
       const ts = Date.now();
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-      resolve({ id: newId(), name: `photo-${new Date(ts).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${ext}`, blob: file, lon: fix?.lon ?? null, lat: fix?.lat ?? null, acc: fix?.acc ?? null, ts });
+      const bearing = compass.bearing(ts) ?? aim;
+      resolve({ id: newId(), name: `photo-${new Date(ts).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${ext}`, blob: file, lon: fix?.lon ?? null, lat: fix?.lat ?? null, acc: fix?.acc ?? null, ts, bearing });
     };
     input.click();
   });
 }
 
-async function save(kind: Kind, coords: Vertex[], note: string, photos: Photo[] = [], height: Height | null = null) {
-  await putRecord({ id: newId(), kind, coords, note, created: Date.now(), sent: false, photos, ...(height ? { height } : {}) });
+async function save(kind: Kind, coords: Vertex[], note: string, photos: Photo[] = [], height: Height | null = null, voice: Voice[] = []) {
+  await putRecord({ id: newId(), kind, coords, note, created: Date.now(), sent: false, photos, ...(height ? { height } : {}), ...(voice.length ? { voice } : {}) });
   await refresh();
   toast(`${LABEL[kind]} saved`);
 }
@@ -255,7 +322,7 @@ $('#btnPoint').addEventListener('click', async () => {
   const warn = settings().warnAcc;
   if (warn && v[4] != null && v[4] > warn && !confirm(`GPS is only good to ±${Math.round(v[4])} m. Save the point anyway?`)) return;
   const r = await noteSheet(v[4] != null ? `Point at your position (±${Math.round(v[4])} m)` : 'Point at the map centre (no GPS yet)', true);
-  if (r) await save('point', [v], r.note, r.photos, v[2] != null ? hereHeight : null);
+  if (r) await save('point', [v], r.note, r.photos, v[2] != null ? hereHeight : null, r.voice);
 });
 
 function startDraw(kind: 'line' | 'area') {
@@ -282,7 +349,7 @@ $('#drawDone').addEventListener('click', async () => {
   const d = draft;
   const r = await noteSheet(`${LABEL[d.kind]} with ${d.coords.length} points`);
   if (r) {
-    await save(d.kind, d.coords, r.note);
+    await save(d.kind, d.coords, r.note, [], null, r.voice);
     endDraw();
   }
 });
@@ -307,7 +374,7 @@ $('#btnTrack').addEventListener('click', async () => {
   drawDraft();
   if (t.coords.length < 2) return toast('Track too short: nothing saved');
   const r = await noteSheet(trackText(t).replace('Recording · ', 'Track · '));
-  await save('track', t.coords, r?.note ?? '');
+  await save('track', t.coords, r?.note ?? '', [], null, r?.voice ?? []);
 });
 
 $('#btnPhoto').addEventListener('click', async () => {
@@ -315,7 +382,8 @@ $('#btnPhoto').addEventListener('click', async () => {
   if (!p) return;
   const h = p.lon != null && p.lat != null ? heights(fix).best : null;
   const v: Vertex = p.lon != null && p.lat != null ? [p.lon, p.lat, h?.value ?? null, p.ts, p.acc] : (() => { const c = map.getCenter(); return [c.lng, c.lat, null, p.ts, null] as Vertex; })();
-  await save('point', [v], 'Photo', [p], h);
+  const r = await noteSheet(`Photo point · facing ${fmtBearing(p.bearing)}`, true, [p]);
+  if (r) await save('point', [v], r.note || 'Photo', r.photos, h, r.voice);
 });
 
 $('#basemap').addEventListener('click', () => setBasemap(basemap === 'imagery' ? 'map' : 'imagery'));
@@ -325,7 +393,7 @@ $('#btnList').addEventListener('click', () => void listSheet());
 async function listSheet() {
   await refresh();
   const rows = records
-    .map((r) => `<li data-id="${r.id}"><b>${LABEL[r.kind]}</b> ${esc(r.note || '')}<small>${new Date(r.created).toLocaleString()}${r.height ? ` · ${esc(fmtHeight(r.height))}` : ''}${r.photos.length ? ` · ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''}` : ''} · ${r.sent ? 'sent' : '<em>not sent</em>'}</small><button type="button" class="del" aria-label="Delete">✕</button></li>`)
+    .map((r) => `<li data-id="${r.id}"><b>${LABEL[r.kind]}</b> ${esc(r.note || '')}<small>${new Date(r.created).toLocaleString()}${r.height ? ` · ${esc(fmtHeight(r.height))}` : ''}${r.photos.length ? ` · ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''}${r.photos[0].bearing != null ? ` facing ${esc(fmtBearing(r.photos[0].bearing))}` : ''}` : ''}${r.voice?.length ? ` · 🎙 ${r.voice.length}` : ''} · ${r.sent ? 'sent' : '<em>not sent</em>'}</small><button type="button" class="del" aria-label="Delete">✕</button></li>`)
     .join('');
   openSheet(`<h2>Records <small>${records.length}</small></h2>${records.length ? `<ul class="list">${rows}</ul>` : '<p class="muted">Nothing recorded yet. Use the bar at the bottom.</p>'}
     <div class="row"><button type="button" id="closeList">Close</button></div>`);

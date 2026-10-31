@@ -1,6 +1,7 @@
 // The phone basics behind the ⋯ menu: Help, About, What's new, Settings, Send feedback, the first-run tour,
 // the offline maps manager, GPS status, and backup and export. Nothing here leaves the phone unless you
 // choose to (feedback opens your own mail app; export hands a file to the share sheet).
+import type { Voice } from './capture';
 import { allRecords, clearTilesFrom, putRecord, tileStats, type Photo, type Rec } from './db';
 import { fmtHeight, SOURCE_LABEL, type Height } from './elevation';
 import type { Fix } from './geo';
@@ -116,7 +117,8 @@ function helpSheet(ctx: Ctx) {
       <dt>● Point</dt><dd>Saves your position, averaged over the last few seconds, with a note and photos. Without GPS it uses the map centre.</dd>
       <dt>╱ Line and ▱ Area</dt><dd>Tap the map or press My position for each corner, then Finish.</dd>
       <dt>⦿ Track</dt><dd>Records where you walk (a point every 3 m) until you press Stop.</dd>
-      <dt>📷 Photo</dt><dd>A photo saved as a point where it was taken.</dd>
+      <dt>📷 Photo</dt><dd>A photo saved as a point where it was taken, with the compass bearing the camera faced (you can correct it before saving).</dd>
+      <dt>🎙 Voice note</dt><dd>On any point, line, area or photo: tap Voice note, talk, tap Stop. It is kept with the record and sent with it.</dd>
       <dt>☰ Records</dt><dd>Everything on the phone. Tap one to zoom to it.</dd>
       <dt>Send</dt><dd>In GeoSpaX on your computer open Devices › Phone link and scan its QR code. Both must be on the same Wi-Fi.</dd>
       <dt>No signal?</dt><dd>Recording works offline. The map shows the places you have looked at before (⋯ › Offline maps).</dd>
@@ -241,15 +243,16 @@ async function offlineSheet(ctx: Ctx) {
 // ------------------------------------------------------------------ backup and export
 const b64 = (blob: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
 export async function backupJson(recs: Rec[]) {
-  const records = await Promise.all(recs.map(async (r) => ({ ...r, photos: await Promise.all(r.photos.map(async (p) => ({ ...p, blob: await b64(p.blob) }))) })));
+  const records = await Promise.all(recs.map(async (r) => ({ ...r, photos: await Promise.all(r.photos.map(async (p) => ({ ...p, blob: await b64(p.blob) }))), voice: await Promise.all((r.voice ?? []).map(async (v) => ({ ...v, blob: await b64(v.blob) }))) })));
   return JSON.stringify({ app: 'geospax-field', version: __APP_VERSION__, saved: new Date().toISOString(), records });
 }
 export async function restoreJson(text: string): Promise<Rec[]> {
   const j = JSON.parse(text);
   if (j?.app !== 'geospax-field' || !Array.isArray(j.records)) throw new Error('not a GeoSpaX Field backup');
-  return Promise.all((j.records as (Omit<Rec, 'photos'> & { photos: (Omit<Photo, 'blob'> & { blob: string })[] })[]).map(async (r) => ({
+  return Promise.all((j.records as (Omit<Rec, 'photos' | 'voice'> & { photos: (Omit<Photo, 'blob'> & { blob: string })[]; voice?: (Omit<Voice, 'blob'> & { blob: string })[] })[]).map(async (r) => ({
     ...r,
     photos: await Promise.all(r.photos.map(async (p) => ({ ...p, blob: await (await fetch(p.blob)).blob() }))),
+    voice: await Promise.all((r.voice ?? []).map(async (v) => ({ ...v, blob: await (await fetch(v.blob)).blob() }))),
   })));
 }
 export function toGeoJson(recs: Rec[]): GeoJSON.FeatureCollection {
@@ -258,7 +261,7 @@ export function toGeoJson(recs: Rec[]): GeoJSON.FeatureCollection {
     features: recs.map((r) => {
       const xy = r.coords.map((v) => (v[2] != null ? [v[0], v[1], v[2]] : [v[0], v[1]]));
       const geometry: GeoJSON.Geometry = r.kind === 'point' || xy.length === 1 ? { type: 'Point', coordinates: xy[0] } : r.kind === 'area' && xy.length > 2 ? { type: 'Polygon', coordinates: [[...xy, xy[0]]] } : { type: 'LineString', coordinates: xy };
-      return { type: 'Feature', id: r.id, geometry, properties: { kind: r.kind, note: r.note, created: new Date(r.created).toISOString(), accuracy_m: r.coords[0]?.[4] ?? null, height_m: r.height?.value ?? null, height_source: r.height?.source ?? null, height_acc_m: r.height?.acc ?? null, photos: r.photos.map((p) => p.name).join(';') || null, sent: r.sent } };
+      return { type: 'Feature', id: r.id, geometry, properties: { kind: r.kind, note: r.note, created: new Date(r.created).toISOString(), accuracy_m: r.coords[0]?.[4] ?? null, height_m: r.height?.value ?? null, height_source: r.height?.source ?? null, height_acc_m: r.height?.acc ?? null, photos: r.photos.map((p) => p.name).join(';') || null, photo_bearings: r.photos.some((p) => p.bearing != null) ? r.photos.map((p) => (p.bearing != null ? Math.round(p.bearing) : '')).join(';') : null, voice_notes: r.voice?.map((v) => v.name).join(';') || null, sent: r.sent } };
     }),
   };
 }
@@ -278,7 +281,7 @@ async function backupSheet(ctx: Ctx) {
   const stamp = new Date().toISOString().slice(0, 10);
   ctx.openSheet(`<h2>Backup and export</h2>
     <p class="muted">${recs.length} record${recs.length === 1 ? '' : 's'} and ${photos} photo${photos === 1 ? '' : 's'} on this phone.</p>
-    <button type="button" class="wide primary" id="bkSave">💾 Full backup (records and photos)</button>
+    <button type="button" class="wide primary" id="bkSave">💾 Full backup (records, photos and voice notes)</button>
     <button type="button" class="wide" id="bkGeo">Export as GeoJSON (for QGIS or GeoSpaX)</button>
     <button type="button" class="wide" id="bkLoad">Restore a backup</button>
     <input type="file" id="bkFile" accept=".json,application/json" hidden />

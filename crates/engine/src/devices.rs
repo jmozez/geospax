@@ -671,11 +671,11 @@ pub fn read_photo_full(path: &Path) -> (Option<Photo>, Option<Unlocated>) {
         let lon = signed(rational3(get(exif::Tag::GPSLongitude)?)?, get(exif::Tag::GPSLongitudeRef).and_then(ascii).as_deref());
         valid(lat, lon).then_some((lat, lon))
     })();
-    let (pos, placed, sidecar_time) = match exif_pos {
-        Some(p) => (Some(p), None, None),
+    let (pos, placed, (sidecar_time, sidecar_dir)) = match exif_pos {
+        Some(p) => (Some(p), None, (None, None)),
         None => match xmp_sidecar(path) {
-            Some((lat, lon, t)) if valid(lat, lon) => (Some((lat, lon)), Some("sidecar"), t),
-            _ => (None, None, None),
+            Some((lat, lon, t, d)) if valid(lat, lon) => (Some((lat, lon)), Some("sidecar"), (t, d)),
+            _ => (None, None, (None, None)),
         },
     };
     let Some((lat, lon)) = pos else {
@@ -696,7 +696,7 @@ pub fn read_photo_full(path: &Path) -> (Option<Photo>, Option<Unlocated>) {
         lon,
         lat,
         alt,
-        direction: get(exif::Tag::GPSImgDirection).and_then(rational1),
+        direction: get(exif::Tag::GPSImgDirection).and_then(rational1).or(sidecar_dir),
         taken_at: taken_at.or(sidecar_time),
         make,
         model,
@@ -708,8 +708,8 @@ pub fn read_photo_full(path: &Path) -> (Option<Photo>, Option<Unlocated>) {
 }
 
 /// XMP sidecar next to a photo: `exif:GPSLatitude="5,52.12345S"` (XMP's `DDD,MM.mmk` or `DDD,MM,SSk`), as an
-/// attribute or an element. Returns (lat, lon, capture time).
-fn xmp_sidecar(path: &Path) -> Option<(f64, f64, Option<String>)> {
+/// attribute or an element. Returns (lat, lon, capture time, compass bearing of the camera in degrees).
+fn xmp_sidecar(path: &Path) -> Option<(f64, f64, Option<String>, Option<f64>)> {
     let mut candidates = vec![PathBuf::from(format!("{}.xmp", path.display())), path.with_extension("xmp"), path.with_extension("XMP")];
     candidates.dedup();
     let text = candidates.iter().find_map(|c| std::fs::read_to_string(c).ok())?;
@@ -742,7 +742,12 @@ fn xmp_sidecar(path: &Path) -> Option<(f64, f64, Option<String>)> {
     let lat = coord(value("exif:GPSLatitude")?)?;
     let lon = coord(value("exif:GPSLongitude")?)?;
     let t = value("exif:DateTimeOriginal").or_else(|| value("xmp:CreateDate")).map(|t| t.chars().take(19).collect::<String>());
-    Some((lat, lon, t))
+    // XMP writes rationals as "1234/10"; plain decimals are accepted too
+    let dir = value("exif:GPSImgDirection").and_then(|v| match v.split_once('/') {
+        Some((n, d)) => Some(n.trim().parse::<f64>().ok()? / d.trim().parse::<f64>().ok().filter(|d| *d != 0.0)?),
+        None => v.parse::<f64>().ok(),
+    }).filter(|d| d.is_finite() && (0.0..=360.0).contains(d));
+    Some((lat, lon, t, dir))
 }
 
 /// Longest gap between two track points that a photo may be interpolated across, and how far before the first

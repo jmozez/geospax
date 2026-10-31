@@ -86,6 +86,8 @@ export function geojson(recs: Rec[]): string {
         recorded: iso(r.created),
         accuracy_m: r.coords[0]?.[4] ?? null,
         photos: r.photos.map((p) => p.name).join(';') || null,
+        photo_bearings: r.photos.some((p) => p.bearing != null) ? r.photos.map((p) => (p.bearing != null ? Math.round(p.bearing) : '')).join(';') : null,
+        voice_notes: r.voice?.map((v) => v.name).join(';') || null,
       },
     })),
   });
@@ -113,8 +115,10 @@ export async function send(l: Link, recs: Rec[], progress: (done: number, total:
       const extra: Record<string, string> = { ts: String(p.ts) };
       if (p.lat != null && p.lon != null) Object.assign(extra, { lat: String(p.lat), lon: String(p.lon) });
       if (p.acc != null) extra.acc = String(p.acc);
+      if (p.bearing != null) extra.dir = p.bearing.toFixed(1);
       files.push({ name: p.name, body: p.blob, extra });
     }
+    for (const v of r.voice ?? []) files.push({ name: v.name, body: v.blob, extra: { ts: String(v.ts) } });
   }
   let done = 0;
   progress(0, files.length);
