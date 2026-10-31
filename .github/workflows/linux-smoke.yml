@@ -60,7 +60,8 @@ jobs:
           - { distro: "debian:13", kind: deb, suffix: debian13, setup: "bash scripts/setup-linux.sh" }
           - { distro: "fedora:40", kind: rpm, suffix: fedora40, setup: "bash scripts/setup-fedora.sh" }
           - { distro: "fedora:41", kind: rpm, suffix: fedora41, setup: "bash scripts/setup-fedora.sh" }
-          - { distro: "opensuse/tumbleweed:latest", kind: rpm, suffix: opensuse-tumbleweed, setup: "bash scripts/setup-opensuse.sh" }
+          # no native openSUSE Tumbleweed rpm: Tumbleweed ships GDAL 3.13, which the gdal crate (0.19) does not support yet;
+          # openSUSE users get the AppImage and the Flatpak, both tested on Tumbleweed above and in ci.yml
     steps:
       - name: Tools for checkout
         run: |
@@ -100,7 +101,7 @@ jobs:
           - { distro: "debian:13", kind: deb, suffix: debian13 }
           - { distro: "fedora:40", kind: rpm, suffix: fedora40 }
           - { distro: "fedora:41", kind: rpm, suffix: fedora41 }
-          - { distro: "opensuse/tumbleweed:latest", kind: rpm, suffix: opensuse-tumbleweed }
+          # openSUSE Tumbleweed: no native rpm yet (GDAL 3.13), see the packages job
     steps:
       - name: Tools for checkout
         run: |
