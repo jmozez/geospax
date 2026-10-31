@@ -9,7 +9,7 @@ if command -v apt-get >/dev/null; then
     libxcb1 libwayland-client0 libgpg-error0 libcom-err2 procps file ca-certificates
 elif command -v dnf >/dev/null; then
   dnf install -y -q --setopt=install_weak_deps=False xorg-x11-server-Xvfb xwininfo ImageMagick dbus-daemon dbus-tools \
-    dejavu-sans-fonts mesa-libEGL mesa-libGL libglvnd-gles mesa-dri-drivers mesa-libgbm libdrm fontconfig harfbuzz fribidi libX11 libX11-xcb libxcb \
+    dejavu-sans-fonts mesa-libEGL mesa-libGL libglvnd-gles mesa-dri-drivers mesa-libgbm libdrm fontconfig harfbuzz fribidi libX11 libX11-xcb libxcb libgpg-error libcom_err \
     libwayland-client procps-ng findutils file
 elif command -v zypper >/dev/null; then
   ok=0
