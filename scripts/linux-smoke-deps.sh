@@ -9,13 +9,13 @@ if command -v apt-get >/dev/null; then
     libxcb1 libwayland-client0 libgpg-error0 libcom-err2 procps file ca-certificates
 elif command -v dnf >/dev/null; then
   dnf install -y -q --setopt=install_weak_deps=False xorg-x11-server-Xvfb xwininfo ImageMagick dbus-daemon dbus-tools \
-    dejavu-sans-fonts mesa-libEGL mesa-libGL libglvnd-gles mesa-libgbm libdrm fontconfig harfbuzz fribidi libX11 libX11-xcb libxcb \
+    dejavu-sans-fonts mesa-libEGL mesa-libGL libglvnd-gles mesa-dri-drivers mesa-libgbm libdrm fontconfig harfbuzz fribidi libX11 libX11-xcb libxcb \
     libwayland-client procps-ng findutils file
 elif command -v zypper >/dev/null; then
   ok=0
   for i in 1 2 3 4 5; do
     zypper -n --gpg-auto-import-keys refresh && zypper -n install --no-recommends xvfb-run xorg-x11-server-Xvfb xwininfo \
-      ImageMagick dbus-1 dejavu-fonts Mesa-libEGL1 Mesa-libGL1 libGLESv2-2 libgbm1 libdrm2 fontconfig libharfbuzz0 libfribidi0 libX11-6 \
+      ImageMagick dbus-1 dejavu-fonts Mesa-libEGL1 Mesa-libGL1 'libGLESv2.so.2()(64bit)' Mesa-dri libgbm1 libdrm2 fontconfig libharfbuzz0 libfribidi0 libX11-6 \
       libX11-xcb1 libxcb1 libwayland-client0 libcom_err2 libgpg-error0 procps findutils file && { ok=1; break; }
     sleep 60
   done

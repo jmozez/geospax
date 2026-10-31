@@ -7,7 +7,7 @@ echo "== system packages"
 ok=0
 for i in 1 2 3 4 5; do
   $SUDO zypper -n --gpg-auto-import-keys refresh && \
-  $SUDO zypper -n install --no-recommends gcc gcc-c++ make pkg-config clang clang-devel curl ca-certificates xz python3 file git \
+  $SUDO zypper -n install --force-resolution --no-recommends gcc gcc-c++ make pkg-config clang clang-devel curl ca-certificates xz python3 file git \
     findutils tar gzip gdal gdal-devel 'pkgconfig(webkit2gtk-4.1)' 'pkgconfig(gtk+-3.0)' 'pkgconfig(libsoup-3.0)' \
     'pkgconfig(librsvg-2.0)' 'pkgconfig(openssl)' 'pkgconfig(ayatana-appindicator3-0.1)' nodejs npm rpm-build binutils && { ok=1; break; }
   sleep 60
