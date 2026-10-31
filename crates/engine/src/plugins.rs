@@ -956,6 +956,9 @@ impl Plugins {
             .iter()
             .find(|t| t.id == tool_id)
             .ok_or_else(|| format!("plugin '{plugin_id}' has no tool '{tool_id}'"))?;
+        if !self.is_enabled(plugin_id) {
+            return Err(format!("{} is switched off: turn it on in Manage plugins", p.name));
+        }
         if !p.runnable {
             return Err(format!(
                 "{} cannot run here: install {}",
@@ -1138,6 +1141,115 @@ impl Plugins {
         fs::remove_dir_all(&path).map_err(|e| format!("could not remove {}: {e}", path.display()))?;
         self.reload();
         Ok(format!("uninstalled {} from {}", info.name, path.display()))
+    }
+
+    // ------------------------------------------------------------ manager (plugin_repos.rs)
+
+    fn state_dir(&self) -> Result<PathBuf, String> {
+        self.dirs.last().cloned().ok_or_else(|| "no plugin directory is configured".to_string())
+    }
+
+    /// The manager's settings: switched-off plugins, repositories, update checks.
+    pub fn manager_config(&self) -> crate::plugin_repos::ManagerConfig {
+        self.dirs.last().map(|d| crate::plugin_repos::load_config(d)).unwrap_or_default()
+    }
+
+    pub fn set_manager_config(&self, cfg: &crate::plugin_repos::ManagerConfig) -> Result<(), String> {
+        crate::plugin_repos::save_config(&self.state_dir()?, cfg)
+    }
+
+    pub fn is_enabled(&self, id: &str) -> bool {
+        !self.manager_config().disabled.iter().any(|d| d == id)
+    }
+
+    /// The plugins whose tools and commands are offered: everything except those switched off.
+    pub fn list_enabled(&self) -> Vec<PluginInfo> {
+        let off = self.manager_config().disabled;
+        self.list().into_iter().filter(|p| !off.contains(&p.id)).collect()
+    }
+
+    /// Switch a plugin on or off without removing it. The tool sets that are part of GeoSpaX stay on.
+    pub fn set_enabled(&self, id: &str, on: bool) -> Result<(), String> {
+        let info = self.get(id).ok_or_else(|| format!("unknown plugin '{id}'"))?;
+        if !on && (info.builtin || info.library) {
+            return Err(format!("{} is part of GeoSpaX and cannot be switched off", info.name));
+        }
+        let mut cfg = self.manager_config();
+        cfg.disabled.retain(|d| d != id);
+        if !on {
+            cfg.disabled.push(id.to_string());
+            cfg.disabled.sort();
+        }
+        self.set_manager_config(&cfg)
+    }
+
+    pub fn repo_index(&self) -> crate::plugin_repos::RepoIndex {
+        self.dirs.last().map(|d| crate::plugin_repos::load_index(d)).unwrap_or_default()
+    }
+
+    pub fn refresh_repos(&self) -> Result<crate::plugin_repos::RepoIndex, String> {
+        Ok(crate::plugin_repos::refresh(&self.state_dir()?, &self.manager_config()))
+    }
+
+    /// Install a package that arrives as bytes (an uploaded ZIP or a repository download),
+    /// replacing an earlier copy of the same plugin in the state directory (upgrade, reinstall).
+    pub fn install_bytes(&self, name: &str, bytes: &[u8]) -> Result<PluginInfo, String> {
+        let dest_dir = self.state_dir()?;
+        let tmp = dest_dir.parent().unwrap_or(&dest_dir).join("tmp").join(format!("pkg-{}", std::process::id()));
+        fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
+        let file = tmp.join(Path::new(name).file_name().ok_or("bad package name")?);
+        fs::write(&file, bytes).map_err(|e| e.to_string())?;
+        // unpack into a scratch plugin folder first: a broken package must not cost you the copy you have
+        let scratch = tmp.join("unpacked");
+        let _ = fs::remove_dir_all(&scratch);
+        let unpacked = unpack_package(&file, &scratch);
+        let _ = fs::remove_file(&file);
+        let unpacked = unpacked?;
+        let res = (|| {
+            let info = read_plugin(&unpacked).ok_or("the package has no manifest GeoSpaX recognises")?;
+            if self.get(&info.id).is_some_and(|p| p.builtin || p.default_set) {
+                return Err(format!("{} ships with GeoSpaX and is updated with it", info.name));
+            }
+            let dest = dest_dir.join(unpacked.file_name().ok_or("bad package")?);
+            let backup = tmp.join("previous");
+            let _ = fs::remove_dir_all(&backup);
+            fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+            if dest.exists() {
+                fs::rename(&dest, &backup).map_err(|e| e.to_string())?;
+            }
+            if let Err(e) = copy_dir(&unpacked, &dest) {
+                let _ = fs::remove_dir_all(&dest);
+                let _ = fs::rename(&backup, &dest);
+                return Err(e);
+            }
+            let _ = fs::remove_dir_all(&backup);
+            self.reload();
+            let id = dest.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            self.get(&id).or_else(|| read_plugin(&dest)).ok_or_else(|| "the installed folder has no manifest GeoSpaX recognises".to_string())
+        })();
+        let _ = fs::remove_dir_all(&tmp);
+        res
+    }
+
+    /// Install, upgrade or reinstall a plugin from the cached repository index.
+    pub fn install_from_repo(&self, id: &str) -> Result<PluginInfo, String> {
+        let entry = self
+            .repo_index()
+            .plugins
+            .into_iter()
+            .find(|p| p.id == id)
+            .ok_or_else(|| format!("no repository offers '{id}' (reload the repositories)"))?;
+        let dest_dir = self.state_dir()?;
+        let tmp = dest_dir.parent().unwrap_or(&dest_dir).join("tmp").join(format!("dl-{id}"));
+        let bytes = crate::plugin_repos::fetch(&entry.download, &tmp)?;
+        if let Some(want) = entry.sha256.as_deref() {
+            let got = crate::plugin_repos::sha256_hex(&bytes);
+            if !got.eq_ignore_ascii_case(want.trim()) {
+                return Err(format!("{}: the download does not match its checksum (sha256 {got}, expected {want})", entry.name));
+            }
+        }
+        let ext = Path::new(&entry.download).extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_else(|| "zip".into());
+        self.install_bytes(&crate::plugin_repos::package_name(&entry.id, &entry.version, &ext), &bytes)
     }
 }
 
