@@ -7,7 +7,7 @@ use crate::classify::{self, Method};
 use crate::jobs::Status;
 use crate::reader::ColumnValues;
 use crate::{overview, Engine};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::io::Write;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -109,6 +109,136 @@ pub(crate) fn param(query: &str, key: &str) -> Option<String> {
 }
 
 impl Engine {
+    fn profile_restricted(&self) -> bool {
+        self.profile.as_ref().is_some_and(|p| {
+            let id = p["id"].as_str().unwrap_or("");
+            self.workspace_root
+                .as_deref()
+                .map(|r| crate::profiles::list(r).iter().any(|q| q["id"] == id && q["restricted"] == true))
+                .unwrap_or(false)
+        })
+    }
+
+    /// Restricted mode: set in Home › Workspace (with a PIN) or by the admin profile for this profile.
+    pub fn restricted(&self) -> bool {
+        self.workspace_id.is_some() && (crate::workspace::is_restricted(&self.state_dir) || self.profile_restricted())
+    }
+
+    /// Workspace › Tools, with Restricted mode as it applies here (also when the admin profile set it).
+    fn tools_json(&self) -> Value {
+        let mut v = crate::workspace::public_settings(&self.state_dir);
+        if self.profile_restricted() {
+            v["restricted"] = json!(true);
+            v["byAdmin"] = json!(true);
+            v["hides"] = json!(crate::workspace::RESTRICTED_HIDES);
+        }
+        v
+    }
+
+    fn is_admin(&self) -> bool {
+        self.profile.as_ref().is_some_and(|p| p["admin"] == true) && self.unlocked.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn profiles_json(&self) -> Value {
+        let Some(root) = self.workspace_root.as_deref() else {
+            return json!({ "available": false, "profiles": [] });
+        };
+        let list = crate::profiles::list(root);
+        let cur = self.profile.as_ref().map(crate::profiles::public);
+        let unlocked = self.unlocked.load(std::sync::atomic::Ordering::Relaxed);
+        let picked = self.picked.load(std::sync::atomic::Ordering::Relaxed);
+        json!({
+            "available": true,
+            "profiles": list,
+            "current": cur,
+            "unlocked": unlocked,
+            // "Who's working?" shows at startup when more than one profile exists, or to enter a PIN
+            "showPicker": !picked && (list.len() > 1 || !unlocked),
+            "isAdmin": self.is_admin(),
+            "note": "Profiles are a convenience for people sharing one OS login, not OS-level security.",
+        })
+    }
+
+    fn profiles_add(&self, b: &Value) -> ApiResponse {
+        let Some(root) = self.workspace_root.as_deref() else {
+            return ApiResponse::error(400, "profiles need a per-user workspace (the desktop app, or the server with --per-user-workspace)");
+        };
+        let first = crate::profiles::list(root).is_empty();
+        if !first && !self.is_admin() {
+            return ApiResponse::error(403, "only the admin profile can add profiles");
+        }
+        match crate::profiles::add(root, b["name"].as_str().unwrap_or(""), b["pin"].as_str()) {
+            Ok(p) => {
+                if first {
+                    // the first profile is the admin and already owns this workspace folder: open it now
+                    crate::profiles::hand_over(root, p["id"].as_str().unwrap_or(""));
+                    self.schedule_restart();
+                    return ApiResponse::json(201, &json!({ "profile": p, "restart": true }));
+                }
+                ApiResponse::json(201, &json!({ "profile": p, "restart": false }))
+            }
+            Err(e) => ApiResponse::error(400, e),
+        }
+    }
+
+    fn profiles_choose(&self, b: &Value) -> ApiResponse {
+        let Some(root) = self.workspace_root.as_deref() else {
+            return ApiResponse::error(400, "profiles are not available here");
+        };
+        let id = b["id"].as_str().unwrap_or("");
+        match crate::profiles::choose(root, id, b["pin"].as_str().unwrap_or("")) {
+            Ok(p) => {
+                let same = self.profile.as_ref().is_some_and(|c| c["id"] == p["id"]);
+                if same {
+                    self.unlocked.store(true, std::sync::atomic::Ordering::Relaxed);
+                    self.picked.store(true, std::sync::atomic::Ordering::Relaxed);
+                    return ApiResponse::json(200, &json!({ "profile": crate::profiles::public(&p), "restart": false }));
+                }
+                // another profile: its folder opens after a restart, with the PIN already checked
+                crate::profiles::hand_over(root, id);
+                self.schedule_restart();
+                ApiResponse::json(200, &json!({ "profile": crate::profiles::public(&p), "restart": true }))
+            }
+            Err(e) => ApiResponse::error(403, e),
+        }
+    }
+
+    /// Run the restart hook shortly after the response has gone out.
+    pub fn schedule_restart(&self) {
+        let hook = self.restart_hook.lock().unwrap().take();
+        if let Some(h) = hook {
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(400));
+                h();
+            });
+        }
+    }
+
+    fn profiles_admin(&self, id: &str, action: &str, b: &Value) -> ApiResponse {
+        let Some(root) = self.workspace_root.as_deref() else {
+            return ApiResponse::error(400, "profiles are not available here");
+        };
+        if !self.is_admin() {
+            return ApiResponse::error(403, "only the admin profile can change profiles");
+        }
+        let r = match action {
+            "rename" => crate::profiles::rename(root, id, b["name"].as_str().unwrap_or("")),
+            "pin" => crate::profiles::reset_pin(root, id, b["pin"].as_str()),
+            "restricted" => crate::profiles::set_restricted(root, id, b["on"].as_bool().unwrap_or(false)),
+            "remove" => {
+                if self.profile.as_ref().is_some_and(|p| p["id"] == id) {
+                    return ApiResponse::error(400, "switch to another profile before removing this one");
+                }
+                crate::profiles::remove(root, id).map(|_| json!({ "removed": id }))
+            }
+            _ => return ApiResponse::error(404, format!("unknown profile action '{action}'")),
+        };
+        match r {
+            Ok(v) => ApiResponse::json(200, &v),
+            Err(e) => ApiResponse::error(400, e),
+        }
+    }
+
     pub fn handle(self: &Arc<Self>, req: ApiRequest) -> ApiResponse {
         if self.guest.load(std::sync::atomic::Ordering::Relaxed) {
             return crate::guest::handle(self, req);
@@ -121,6 +251,25 @@ impl Engine {
         let segs: Vec<&str> = segs.iter().map(String::as_str).collect();
         let q = req.query.as_str();
         let guest = self.guest.load(std::sync::atomic::Ordering::Relaxed);
+        // Restricted mode (Home › Workspace): editing, deleting and exporting are refused here too, not only hidden
+        // a profile with a PIN opens locked until the PIN is entered at "Who's working?" (profiles.rs)
+        if !self.unlocked.load(std::sync::atomic::Ordering::Relaxed)
+            && segs.first() == Some(&"api")
+            && !matches!(segs.get(1), Some(&("profiles" | "health" | "about" | "docs" | "version")))
+        {
+            return ApiResponse::error(423, "enter this profile's PIN first (Who's working?)");
+        }
+        if self.restricted() {
+            let blocked = match (req.method.as_str(), segs.as_slice()) {
+                ("DELETE", ["api", "layers" | "projects" | "rasters", ..]) => true,
+                ("POST", ["api", "layers", _, "edit" | "export" | "features" | "fields" | "geometry-edit" | "calculate" | "revert" | "download"]) => true,
+                ("GET", ["api", "layers", _, "download"]) => true,
+                _ => false,
+            };
+            if blocked {
+                return ApiResponse::error(403, "Restricted mode is on in this workspace: editing, deleting and exporting are turned off");
+            }
+        }
         match (req.method.as_str(), segs.as_slice()) {
             ("GET", ["api", "docs"]) => ApiResponse::json(
                 200,
@@ -901,6 +1050,64 @@ impl Engine {
             },
             // Named projects (Home › New, Open, Save as, Rename): one JSON file each in
             // <state>/projects/<slug>.json. The working project stays api/project.
+            // Home › Workspace (workspace.rs): this computer and account's own folder
+            ("GET", ["api", "workspace"]) if !guest => ApiResponse::json(200, &json!({
+                "id": self.workspace_id,
+                "perUser": self.workspace_id.is_some(),
+                "folder": self.state_dir,
+                "projects": self.projects_list(),
+                "dataSources": self.data_dirs,
+                "layers": self.layers().len(),
+                "workflows": crate::workspace::workflows(&self.state_dir),
+                "storage": crate::workspace::storage(&self.state_dir),
+                "tools": self.tools_json(),
+            })),
+            ("POST", ["api", "workspace", "cache", "clear"]) if !guest => {
+                let freed = crate::workspace::clear_cache(&self.state_dir);
+                ApiResponse::json(200, &json!({ "freed": freed, "storage": crate::workspace::storage(&self.state_dir) }))
+            }
+            ("GET", ["api", "workspace", "tools"]) => ApiResponse::json(200, &self.tools_json()),
+            ("PUT", ["api", "workspace", "tools"]) if !guest && self.profile_restricted() => {
+                ApiResponse::error(403, "the admin profile set Restricted mode for this profile")
+            }
+            ("PUT", ["api", "workspace", "tools"]) if !guest => match crate::workspace::save_tools(&self.state_dir, &body_json(&req.body)) {
+                Ok(v) => ApiResponse::json(200, &v),
+                Err(e) => ApiResponse::error(403, e),
+            },
+            ("POST", ["api", "workspace", "restricted"]) if !guest && self.profile_restricted() => {
+                ApiResponse::error(403, "the admin profile set Restricted mode for this profile")
+            }
+            ("POST", ["api", "workspace", "import"]) if !guest && self.restricted() => {
+                ApiResponse::error(403, "Restricted mode is on in this workspace: importing is turned off")
+            }
+            // Local profiles (profiles.rs): several people sharing one OS login. A convenience, not security.
+            ("GET", ["api", "profiles"]) if !guest => ApiResponse::json(200, &self.profiles_json()),
+            ("POST", ["api", "profiles"]) if !guest => self.profiles_add(&body_json(&req.body)),
+            ("POST", ["api", "profiles", "choose"]) if !guest => self.profiles_choose(&body_json(&req.body)),
+            ("POST", ["api", "profiles", id, action]) if !guest => self.profiles_admin(id, action, &body_json(&req.body)),
+            ("DELETE", ["api", "profiles", id]) if !guest => self.profiles_admin(id, "remove", &json!({})),
+            ("POST", ["api", "workspace", "restricted"]) if !guest => {
+                let b = body_json(&req.body);
+                match crate::workspace::set_restricted(&self.state_dir, b["on"].as_bool().unwrap_or(false), b["pin"].as_str().unwrap_or("")) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(403, e),
+                }
+            }
+            ("GET", ["api", "workspace", "export"]) if !guest => {
+                if self.restricted() {
+                    return ApiResponse::error(403, "Restricted mode is on in this workspace: exporting is turned off");
+                }
+                match crate::workspace::export_zip(&self.state_dir) {
+                    Ok(b) => {
+                        ApiResponse { status: 200, content_type: "application/zip", headers: vec![("Content-Disposition", "attachment; filename=\"geospax-workspace.zip\"".into())], body: b }
+                    }
+                    Err(e) => ApiResponse::error(500, e),
+                }
+            }
+            ("POST", ["api", "workspace", "import"]) if !guest => match crate::workspace::import_zip(&self.state_dir, &req.body) {
+                Ok(n) => ApiResponse::json(200, &json!({ "files": n })),
+                Err(e) => ApiResponse::error(400, e),
+            },
             ("GET", ["api", "projects"]) if !guest => ApiResponse::json(200, &self.projects_list()),
             ("GET", ["api", "projects", slug]) if !guest => match self.named_project(slug) {
                 Ok(p) if p.exists() => self.project_get(&p),

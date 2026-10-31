@@ -50,6 +50,8 @@ pub mod tile;
 pub mod tiles3d;
 pub mod upload;
 pub mod wkb;
+pub mod workspace;
+pub mod profiles;
 
 pub use catalog::{GeomKind, LayerInfo};
 pub use reader::ReadMode;
@@ -113,6 +115,9 @@ pub struct EngineConfig {
     pub phone: phone::PhoneConfig,
     /// Plugin folders (docs/PLUGINS.md).
     pub plugins: plugins::PluginsConfig,
+    /// A workspace per computer and OS account under `<state>/workspaces/` (workspace.rs): the desktop
+    /// app, and the server with `--per-user-workspace`.
+    pub per_user_workspace: bool,
 }
 
 impl Default for EngineConfig {
@@ -128,6 +133,7 @@ impl Default for EngineConfig {
             automation: automation::AutomationConfig::default(),
             phone: phone::PhoneConfig::default(),
             plugins: plugins::PluginsConfig::default(),
+            per_user_workspace: false,
         }
     }
 }
@@ -255,6 +261,18 @@ pub struct Engine {
     pub read_mode: ReadMode,
     pub gpkg_filtered: GpkgFiltered,
     pub state_dir: PathBuf,
+    /// The SHA-256 workspace id (computer and OS account) when workspaces are per user.
+    pub workspace_id: Option<String>,
+    /// The workspace folder (computer and OS account) that holds profiles.json, when per user.
+    pub workspace_root: Option<PathBuf>,
+    /// The local profile this session opened (profiles.rs), when profiles are set up.
+    pub profile: Option<serde_json::Value>,
+    /// Its PIN was entered this session (or it has none).
+    pub unlocked: std::sync::atomic::AtomicBool,
+    /// The "Who's working?" choice was made this session.
+    pub picked: std::sync::atomic::AtomicBool,
+    /// Restarts the app or server so another profile opens (set by the desktop shell or server).
+    pub restart_hook: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
     pub(crate) bench: Mutex<Option<serde_json::Value>>,
     pub(crate) bench_log: Option<PathBuf>,
     pub(crate) project_lock: Mutex<()>,
@@ -381,6 +399,28 @@ impl Engine {
             let dir = if base.is_dir() { base } else { base.parent().map(PathBuf::from).unwrap_or_else(|| PathBuf::from(".")) };
             dir.join(".geospax")
         });
+        let (workspace_id, workspace_root, state_dir) = if cfg.per_user_workspace {
+            let (id, dir) = workspace::resolve(&state_dir);
+            (Some(id), Some(dir.clone()), dir)
+        } else {
+            (None, None, state_dir)
+        };
+        // a local profile opens its own folder inside the workspace (profiles.rs)
+        let profile = workspace_root.as_deref().and_then(profiles::current);
+        let state_dir = match (&workspace_root, &profile) {
+            (Some(root), Some(p)) => {
+                let d = profiles::dir(root, p);
+                let _ = std::fs::create_dir_all(&d);
+                d
+            }
+            _ => state_dir,
+        };
+        // a switch that already checked the PIN restarts with the profile marked as unlocked
+        let handed = match (&workspace_root, &profile) {
+            (Some(root), Some(p)) => profiles::take_handover(root).as_deref() == p["id"].as_str(),
+            _ => false,
+        };
+        let unlocked = handed || profile.as_ref().is_none_or(|p| !p["pinHash"].is_string());
         // Re-attach overview pyramids built in earlier sessions (if still fresh).
         for l in &layers {
             let path = overview::path_for(&state_dir, &l.info.id);
@@ -437,6 +477,12 @@ impl Engine {
             read_mode: cfg.read_mode,
             gpkg_filtered,
             state_dir,
+            workspace_id,
+            workspace_root,
+            profile,
+            unlocked: std::sync::atomic::AtomicBool::new(unlocked),
+            picked: std::sync::atomic::AtomicBool::new(handed),
+            restart_hook: Mutex::new(None),
             bench: Mutex::new(None),
             bench_log: cfg.bench_log,
             project_lock: Mutex::new(()),

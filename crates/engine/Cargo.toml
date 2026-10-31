@@ -48,10 +48,12 @@ libm = "0.2"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 # your own ONNX models (docs/AI.md §4): pure Rust inference, no native runtime to ship
 tract-onnx = "0.23"
+# workspaces and local profiles (workspace.rs, profiles.rs): IDs and PBKDF2 PIN hashes
+sha2 = "0.10"
+getrandom = "0.2"
 
 [[bin]]
 name = "geospax-bench"
 path = "src/bin/geospax-bench.rs"
 
 [dev-dependencies]
-sha2 = "0.10"
