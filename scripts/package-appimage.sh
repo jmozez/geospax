@@ -65,7 +65,7 @@ PY
 echo "== web UI + AppImage (Tauri bundler)"
 (cd web && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npx vite build --logLevel warn)
 (cd apps/desktop && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && \
-  npx tauri build --verbose --bundles "$BUNDLES" --config "$CONFIG" --features custom-protocol)
+  npx tauri build --verbose --bundles "$BUNDLES" --config "$CONFIG" --features "custom-protocol${EXTRA_FEATURES:+,$EXTRA_FEATURES}")
 mkdir -p "$OUT"
 for f in target/release/bundle/deb/*.deb target/release/bundle/rpm/*.rpm; do
   [ -f "$f" ] && [ "$f" -nt "$ST" ] || continue
