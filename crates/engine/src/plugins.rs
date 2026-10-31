@@ -214,6 +214,9 @@ struct JsonTool {
     summary: Option<String>,
     #[serde(default)]
     toolbox: Option<String>,
+    /// Icon name (see web/src/commands.ts ICONS); the plugin's own icon when it is the first tool.
+    #[serde(default)]
+    icon: Option<String>,
     #[serde(default)]
     params: Vec<JsonParam>,
 }
@@ -255,7 +258,7 @@ impl JsonTool {
                 })
                 .collect(),
             recipe: None,
-            icon: None,
+            icon: self.icon.clone(),
             tab: None,
         }
     }
