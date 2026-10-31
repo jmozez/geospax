@@ -11,6 +11,8 @@ import { BASEMAPS, installTileCache, type Basemap } from './tiles';
 import { hello, parseLink, saveLink, savedLink, scanLink, send } from './sync';
 import { inApp } from './geo';
 import { installBasics, settings } from './basics';
+import { fmtHeight, type Height } from './elevation';
+import { heights, onFix as heightsOnFix, setDem, startHeights } from './heights';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -146,6 +148,7 @@ setInterval(() => {
 function useFix(f: Fix) {
   const first = !fix;
   fix = f;
+  heightsOnFix(f);
   showGps(`GPS ±${Math.round(f.acc)} m`, f.acc <= 10 ? 'good' : f.acc <= 30 ? 'fair' : 'poor');
   drawMe();
   if (first || follow) map.easeTo({ center: [f.lon, f.lat], zoom: first ? Math.max(map.getZoom(), 16) : map.getZoom(), duration: first ? 0 : 400 });
@@ -153,7 +156,7 @@ function useFix(f: Fix) {
     const last = track.coords[track.coords.length - 1];
     // a new track point every 3 m, and only fixes good enough to draw a line with
     if (f.acc <= 50 && (!last || metres([last[0], last[1]], [f.lon, f.lat]) >= 3)) {
-      track.coords.push([f.lon, f.lat, f.ele, f.t, f.acc]);
+      track.coords.push([f.lon, f.lat, heights(f).best?.value ?? null, f.t, f.acc]);
       $('#trackInfo').textContent = trackText(track);
       drawDraft();
     }
@@ -165,9 +168,12 @@ $('#locate').addEventListener('click', () => {
 });
 
 // a point is placed at the average of the last seconds' good fixes, not at the latest single one
+// its height is the best there is now (GPS and geoid, barometer or terrain model), with its source kept
+let hereHeight: Height | null = null;
 const here = (): Vertex | null => {
   const b = fixes.best();
-  return b ? [b.lon, b.lat, b.ele, Date.now(), b.acc] : null;
+  hereHeight = b ? heights(b).best : null;
+  return b ? [b.lon, b.lat, hereHeight?.value ?? null, Date.now(), b.acc] : null;
 };
 // for the emulator test in CI (scripts/test-field-emulator.mjs): what the app thinks its position is
 const cspBlocked: string[] = [];
@@ -175,7 +181,7 @@ document.addEventListener('securitypolicyviolation', (e) => {
   cspBlocked.push(`${e.effectiveDirective} ${e.blockedURI}`);
   console.warn('blocked by the content security policy:', e.effectiveDirective, e.blockedURI);
 });
-(window as unknown as { __field: object }).__field = { cspBlocked, fix: () => fix, best: () => fixes.best(), here, parseLink, hello, send };
+(window as unknown as { __field: object }).__field = { cspBlocked, fix: () => fix, best: () => fixes.best(), here, heights: () => heights(fixes.best() ?? fix), parseLink, hello, send };
 function trackText(t: Rec) {
   let m = 0;
   for (let i = 1; i < t.coords.length; i++) m += metres([t.coords[i - 1][0], t.coords[i - 1][1]], [t.coords[i][0], t.coords[i][1]]);
@@ -228,8 +234,8 @@ function takePhoto(): Promise<Photo | null> {
   });
 }
 
-async function save(kind: Kind, coords: Vertex[], note: string, photos: Photo[] = []) {
-  await putRecord({ id: newId(), kind, coords, note, created: Date.now(), sent: false, photos });
+async function save(kind: Kind, coords: Vertex[], note: string, photos: Photo[] = [], height: Height | null = null) {
+  await putRecord({ id: newId(), kind, coords, note, created: Date.now(), sent: false, photos, ...(height ? { height } : {}) });
   await refresh();
   toast(`${LABEL[kind]} saved`);
 }
@@ -249,7 +255,7 @@ $('#btnPoint').addEventListener('click', async () => {
   const warn = settings().warnAcc;
   if (warn && v[4] != null && v[4] > warn && !confirm(`GPS is only good to ±${Math.round(v[4])} m. Save the point anyway?`)) return;
   const r = await noteSheet(v[4] != null ? `Point at your position (±${Math.round(v[4])} m)` : 'Point at the map centre (no GPS yet)', true);
-  if (r) await save('point', [v], r.note, r.photos);
+  if (r) await save('point', [v], r.note, r.photos, v[2] != null ? hereHeight : null);
 });
 
 function startDraw(kind: 'line' | 'area') {
@@ -307,8 +313,9 @@ $('#btnTrack').addEventListener('click', async () => {
 $('#btnPhoto').addEventListener('click', async () => {
   const p = await takePhoto();
   if (!p) return;
-  const v: Vertex = p.lon != null && p.lat != null ? [p.lon, p.lat, fix?.ele ?? null, p.ts, p.acc] : (() => { const c = map.getCenter(); return [c.lng, c.lat, null, p.ts, null] as Vertex; })();
-  await save('point', [v], 'Photo', [p]);
+  const h = p.lon != null && p.lat != null ? heights(fix).best : null;
+  const v: Vertex = p.lon != null && p.lat != null ? [p.lon, p.lat, h?.value ?? null, p.ts, p.acc] : (() => { const c = map.getCenter(); return [c.lng, c.lat, null, p.ts, null] as Vertex; })();
+  await save('point', [v], 'Photo', [p], h);
 });
 
 $('#basemap').addEventListener('click', () => setBasemap(basemap === 'imagery' ? 'map' : 'imagery'));
@@ -318,7 +325,7 @@ $('#btnList').addEventListener('click', () => void listSheet());
 async function listSheet() {
   await refresh();
   const rows = records
-    .map((r) => `<li data-id="${r.id}"><b>${LABEL[r.kind]}</b> ${esc(r.note || '')}<small>${new Date(r.created).toLocaleString()}${r.photos.length ? ` · ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''}` : ''} · ${r.sent ? 'sent' : '<em>not sent</em>'}</small><button type="button" class="del" aria-label="Delete">✕</button></li>`)
+    .map((r) => `<li data-id="${r.id}"><b>${LABEL[r.kind]}</b> ${esc(r.note || '')}<small>${new Date(r.created).toLocaleString()}${r.height ? ` · ${esc(fmtHeight(r.height))}` : ''}${r.photos.length ? ` · ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''}` : ''} · ${r.sent ? 'sent' : '<em>not sent</em>'}</small><button type="button" class="del" aria-label="Delete">✕</button></li>`)
     .join('');
   openSheet(`<h2>Records <small>${records.length}</small></h2>${records.length ? `<ul class="list">${rows}</ul>` : '<p class="muted">Nothing recorded yet. Use the bar at the bottom.</p>'}
     <div class="row"><button type="button" id="closeList">Close</button></div>`);
@@ -430,5 +437,8 @@ installBasics({
   refresh,
   fix: () => fixes.best() ?? fix,
   raw: () => gps,
+  heights: () => heights(fixes.best() ?? fix),
+  setDem,
   setBasemap,
 });
+startHeights(settings().dem);
