@@ -29,7 +29,9 @@ win=$(xwininfo -root -tree 2>/dev/null | grep -i '"GeoSpaX' | head -1)
 if command -v magick >/dev/null; then IMPORT=(magick import) IDENT=(magick identify); else IMPORT=(import) IDENT=(identify); fi
 "${IMPORT[@]}" -display :99 -window root "$PNG" 2>>"$OUT/$NAME.xvfb.log" || true
 colours=$("${IDENT[@]}" -format '%k' "$PNG" 2>/dev/null || echo 0)
-kill $APID 2>/dev/null; sleep 1; pkill -f geospax 2>/dev/null; kill $XPID 2>/dev/null
+# match the process name exactly: 'pkill -f geospax' also matched this script's own command line
+# (linux-smoke.sh ... geospax) and terminated the smoke test itself with exit code 143
+kill $APID 2>/dev/null; sleep 1; pkill -x geospax 2>/dev/null; pkill -f WebKitWebProcess 2>/dev/null; kill $XPID 2>/dev/null
 libs=$(grep -E "GLIBC_[0-9.]+' not found|GLIBCXX_[0-9.]+' not found|error while loading shared libraries|cannot open shared object file" "$LOG" | head -3)
 [ -z "$libs" ] || fail "library errors: $libs"
 [ "$alive" = 1 ] || fail "the app exited within ${WAIT}s"
