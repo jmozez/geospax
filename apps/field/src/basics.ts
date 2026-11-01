@@ -119,6 +119,9 @@ function helpSheet(ctx: Ctx) {
       <dt>⦿ Track</dt><dd>Records where you walk (a point every 3 m) until you press Stop. Tap the red pill at the top to pause and go on.</dd>
       <dt>🚶 Walk it</dt><dd>While drawing a line or area, tap Walk it and walk the boundary: a point is added every 3 m and the area and perimeter (or length) are shown as you go.</dd>
       <dt>➜ Navigate</dt><dd>In Records, tap ➜ on a record, or Go to coordinates, for the distance and an arrow to it. Tap ✕ to stop.</dd>
+      <dt>📋 Forms</dt><dd>When saving, pick a form to fill in its fields. Make or share forms in Records › Forms.</dd>
+      <dt>▦ Scan a code</dt><dd>In Records: scan a tag, a form, coordinates or the GeoSpaX phone link. Code fields in a form have their own Scan button.</dd>
+      <dt>⬚ Plot and ⟶ Transect</dt><dd>In Records: lay out a plot around you, or a transect on a bearing with stations you are then guided to one by one.</dd>
       <dt>📷 Photo</dt><dd>A photo saved as a point where it was taken, with the compass bearing the camera faced (you can correct it before saving).</dd>
       <dt>🎙 Voice note</dt><dd>On any point, line, area or photo: tap Voice note, talk, tap Stop. It is kept with the record and sent with it.</dd>
       <dt>☰ Records</dt><dd>Everything on the phone. Tap one to zoom to it.</dd>
@@ -263,7 +266,7 @@ export function toGeoJson(recs: Rec[]): GeoJSON.FeatureCollection {
     features: recs.map((r) => {
       const xy = r.coords.map((v) => (v[2] != null ? [v[0], v[1], v[2]] : [v[0], v[1]]));
       const geometry: GeoJSON.Geometry = r.kind === 'point' || xy.length === 1 ? { type: 'Point', coordinates: xy[0] } : r.kind === 'area' && xy.length > 2 ? { type: 'Polygon', coordinates: [[...xy, xy[0]]] } : { type: 'LineString', coordinates: xy };
-      return { type: 'Feature', id: r.id, geometry, properties: { kind: r.kind, note: r.note, created: new Date(r.created).toISOString(), accuracy_m: r.coords[0]?.[4] ?? null, height_m: r.height?.value ?? null, height_source: r.height?.source ?? null, height_acc_m: r.height?.acc ?? null, photos: r.photos.map((p) => p.name).join(';') || null, photo_bearings: r.photos.some((p) => p.bearing != null) ? r.photos.map((p) => (p.bearing != null ? Math.round(p.bearing) : '')).join(';') : null, voice_notes: r.voice?.map((v) => v.name).join(';') || null, sent: r.sent } };
+      return { type: 'Feature', id: r.id, geometry, properties: { ...r.attrs, form: r.form ?? null, kind: r.kind, note: r.note, created: new Date(r.created).toISOString(), accuracy_m: r.coords[0]?.[4] ?? null, height_m: r.height?.value ?? null, height_source: r.height?.source ?? null, height_acc_m: r.height?.acc ?? null, photos: r.photos.map((p) => p.name).join(';') || null, photo_bearings: r.photos.some((p) => p.bearing != null) ? r.photos.map((p) => (p.bearing != null ? Math.round(p.bearing) : '')).join(';') : null, voice_notes: r.voice?.map((v) => v.name).join(';') || null, sent: r.sent } };
     }),
   };
 }
