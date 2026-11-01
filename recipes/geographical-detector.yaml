@@ -1,0 +1,18 @@
+# What explains the spatial pattern of a variable? Geographical detector with optimal discretisation.
+recipe: geographical-detector
+version: 1
+title: What explains it? (geographical detector)
+description: >-
+  Measures how much of the spatial variation of a variable (yield, disease rate, species richness,
+  rainfall) each factor explains, as the q-statistic of the geographical detector (Wang et al. 2010,
+  IJGIS). Numeric factors are split into strata the best way (OPGD, Song et al. 2020, GIScience & Remote
+  Sensing); the interaction detector says whether two factors together explain more than each alone.
+inputs:
+  layer: { type: layer, default: auto, description: layer with the variable and the factors }
+  y: { type: field, default: "", description: the variable to explain (a number) }
+  x: { type: string, default: auto, description: "factors, comma-separated (auto = every other field)" }
+steps:
+  - id: detector
+    use: stats.geodetector
+    with: { layer: "${inputs.layer}", y: "${inputs.y}", x: "${inputs.x}" }
+outputs: [detector]

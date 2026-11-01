@@ -1,0 +1,21 @@
+# Cross-validation folds that tell the truth about map accuracy: kNNDM (Linnenbrink et al. 2024).
+recipe: knndm-folds
+version: 1
+title: Honest cross-validation folds (kNNDM)
+description: >-
+  Assigns training points to k cross-validation folds so that, as in the real prediction, each test point
+  is about as far from the training data as the map's locations are (k-fold nearest-neighbour distance
+  matching, Linnenbrink et al. 2024, Geoscientific Model Development). Random folds overstate the
+  accuracy of maps from clustered samples; use the new fold field in R, Python or any model tool.
+inputs:
+  layer: { type: layer, default: auto, description: the training points }
+  area: { type: layer, default: "", description: polygon(s) of the area the map will cover }
+  folds: { type: number, default: 5, description: number of folds }
+steps:
+  - id: folds
+    use: model.knndm
+    with: { layer: "${inputs.layer}", area: "${inputs.area}", folds: "${inputs.folds}" }
+  - id: style
+    use: automap.style
+    with: { layers: ["${folds.layer}"], field: fold }
+outputs: [folds]

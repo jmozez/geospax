@@ -551,7 +551,7 @@ pub(super) fn raster_sample(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
     let l = sc.layer(&layer_id)?;
     let mut fs = features::read_layer(sc.engine, &l, None, None, 200_000)?;
     let ids: Vec<String> = match p.get("rasters") {
-        Some(v) if !v.is_null() && v.as_str() != Some("auto") => p_list(p, "rasters"),
+        Some(v) if !v.is_null() && v.as_str() != Some("auto") && v.as_str() != Some("") => p_list(p, "rasters"),
         _ => sc.rasters.iter().filter(|id| sc.engine.raster(id).is_some_and(|r| !matches!(r.info.kind.as_str(), "hillshade" | "rgb"))).cloned().collect(),
     };
     if ids.is_empty() {

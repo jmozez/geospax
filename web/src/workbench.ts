@@ -134,6 +134,8 @@ export class Workbench {
   private statusExpire = 0;
 
   constructor(private host: WorkbenchHost) {
+    // turning a tablet or resizing a window across the phone width redraws the ribbon
+    setTimeout(() => this.phone?.addEventListener('change', () => { this.ribbonPeek = false; this.buildRibbon(); }), 0);
     this.loadLayout();
     // a narrower or wider window: lay the ribbon out again (groups collapse or open up)
     let t: number | undefined;
@@ -423,13 +425,16 @@ export class Workbench {
     </div>`;
   }
 
+  /** Phones: the ribbon never stays pinned open (it would take a fifth of the screen); a tab tap
+   *  opens it over the map and it closes after a command, as in auto-hide mode. */
+  private phone = typeof matchMedia === 'function' ? matchMedia('(max-width: 600px)') : null;
   private ribbonVisible(): boolean {
-    return this.layout.ribbonPinned || this.ribbonPeek;
+    return (this.layout.ribbonPinned && !this.phone?.matches) || this.ribbonPeek;
   }
 
   /** Auto-hide mode: put the body away after a command, a map click or Escape. */
   private hideRibbon() {
-    if (this.layout.ribbonPinned || !this.ribbonPeek) return;
+    if ((this.layout.ribbonPinned && !this.phone?.matches) || !this.ribbonPeek) return;
     this.ribbonPeek = false;
     this.buildRibbon();
   }
@@ -1039,6 +1044,9 @@ export class Workbench {
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (raw) this.layout = { ...DEFAULT_LAYOUT, ...(JSON.parse(raw) as Layout), tabs: { ...DEFAULT_LAYOUT.tabs, ...(JSON.parse(raw) as Layout).tabs } };
+      // first start on a small screen (a tablet in landscape, a small laptop): narrower panes and the
+      // bottom pane folded, so the map gets the room; the user's own sizes are kept from then on
+      else if (innerWidth <= 1280) this.layout = { ...DEFAULT_LAYOUT, tabs: { ...DEFAULT_LAYOUT.tabs }, left: 260, right: 300, collapsed: ['bottom'] };
     } catch { /* first run, or a stale shape: defaults are fine */ }
     // a tab that no longer exists (e.g. the old bottom Plugins tab) falls back to the default
     for (const dock of Object.keys(this.layout.tabs) as Dock[]) {

@@ -89,6 +89,40 @@ tiles.append(({"tile": "bowtie"}, [[(1000, 0), (1100, 100), (1100, 0), (1000, 10
 utm_layer(os.path.join(data, "tiles.geojson"), tiles)
 utm_layer(os.path.join(data, "parcel.geojson"), [({"owner": "Kila"}, box(0, 0, 100, 100))])
 
+
+def utm_any(path, feats):
+    """Points or lines in metres from (X0, Y0) → GeoJSON in WGS 84."""
+    src = path + ".utm.geojson"
+    fc = {"type": "FeatureCollection", "crs": {"type": "name", "properties": {"name": "EPSG:32755"}}, "features": []}
+    for props, kind, coords in feats:
+        c = [X0 + coords[0], Y0 - coords[1]] if kind == "Point" else [[X0 + x, Y0 - y] for x, y in coords]
+        fc["features"].append({"type": "Feature", "properties": props, "geometry": {"type": kind, "coordinates": c}})
+    json.dump(fc, open(src, "w"))
+    subprocess.run(["ogr2ogr", "-q", "-f", "GeoJSON", "-t_srs", "EPSG:4326", "-lco", "COORDINATE_PRECISION=10", path, src], check=True)
+    os.remove(src)
+
+
+# journal methods: 40 plots in the parcel's north-west corner (x, y 2–38 m); yield jumps from 10 to 30
+# where slope passes 50, and noise is unrelated; a second raster whose value is the row index
+plots = []
+for i in range(40):
+    x, y = 2 + (i % 8) * 5, 2 + (i // 8) * 8
+    slope = i * 2.5
+    plots.append(({"plot": i, "slope": slope, "noise": (i * 7919) % 13, "yield": 10 if slope < 50 else 30}, "Point", (x, y)))
+asc2 = os.path.join(tmp, "rows.asc")
+with open(asc2, "w") as f:
+    f.write(f"ncols 10\nnrows 10\nxllcorner {X0}\nyllcorner {Y0 - 100}\ncellsize 10\nNODATA_value -9999\n")
+    for r in range(10):
+        f.write(" ".join(str(r) for _ in range(10)) + "\n")
+subprocess.run(["gdal_translate", "-q", "-of", "GTiff", "-a_srs", "EPSG:32755", asc2, os.path.join(data, "rows.tif")], check=True)
+
+# for layers.combine: 3 wells in tile 00 (yields 10, 20, 30), 1 in tile 22, 1 outside every tile;
+# a road crossing tile 01 west → east (100 m inside it) and running on 50 m past it
+utm_any(os.path.join(data, "wells.geojson"), [({"well": "W1", "yield": 10}, "Point", (20, 20)), ({"well": "W2", "yield": 20}, "Point", (50, 50)), ({"well": "W3", "yield": 30}, "Point", (80, 80)),
+                                              ({"well": "W4", "yield": 5}, "Point", (250, 250)), ({"well": "W5", "yield": 7}, "Point", (900, 900))])
+utm_any(os.path.join(data, "plots.geojson"), plots)
+utm_any(os.path.join(data, "roads.geojson"), [({"road": "R1"}, "LineString", [(-50, 150), (150, 150)])])
+
 srv = subprocess.Popen([BIN, "--data", data, "--state-dir", os.path.join(tmp, "state"), "--port", str(PORT), "--no-device-mounts", "--no-triggers"],
                        stdout=subprocess.DEVNULL, stderr=open(os.path.join(tmp, "server.log"), "w"))
 try:
@@ -203,6 +237,48 @@ try:
     check("reshape inwards keeps the larger part", s == 200 and area(fid) < 1.25 * full, r.get("error", round(area(fid) / full, 4)))
     s, r = call("POST", f"api/layers/{pid}/geometry-edit", {"op": "split", "fids": [fid], "sketch": {"type": "LineString", "coordinates": [[x0 - 2 * w, y0 - 2 * w], [x0 - w, y0 - w]]}})
     check("a line that misses is refused with a reason", s == 400 and "cross" in r.get("error", ""), r.get("error"))
+    print("combine two layers (Lazy › Combine with …)")
+    r, info = run("combine-layers", {"layer": ids["tiles"], "other": ids["wells"], "field": "yield"})
+    check("points in areas run", r and r.get("status") == "done", json.dumps(info)[:200])
+    cl = out_layer(r or {}, "combined")
+    t = {x["tile"]: x for x in rows(cl)} if cl else {}
+    ok_counts = t.get("00", {}).get("n_wells") == 3 and t.get("22", {}).get("n_wells") == 1 and t.get("01", {}).get("n_wells") == 0
+    check("wells counted per tile (3, 1, 0)", ok_counts, {k: v.get("n_wells") for k, v in t.items()})
+    check("sum and mean of yield in tile 00 (60, 20)", t.get("00", {}).get("sum_yield") == 60 and t.get("00", {}).get("mean_yield") == 20, t.get("00"))
+    r, info = run("combine-layers", {"layer": ids["tiles"], "other": ids["roads"]})
+    cl = out_layer(r or {}, "combined")
+    t = {x["tile"]: x for x in rows(cl)} if cl else {}
+    ln = t.get("01", {}).get("len_m_roads") or 0
+    check("road length inside tile 01 ≈ 100 m", abs(ln - 100) < 1.5, ln)
+    check("no road in tile 22", (t.get("22", {}).get("len_m_roads") or 0) == 0)
+    r, info = run("combine-layers", {"layer": ids["wells"], "other": ids["tiles"]})
+    cl = out_layer(r or {}, "combined")
+    w = {x["well"]: x for x in rows(cl)} if cl else {}
+    check("each well's tile (W1 → 00, W5 → none)", w.get("W1", {}).get("in_tiles") == "00" and w.get("W5", {}).get("in_tiles") in (None, ""), {k: v.get("in_tiles") for k, v in w.items()})
+    r, info = run("combine-layers", {"layer": ids["roads"], "other": ids["wells"]})
+    cl = out_layer(r or {}, "combined")
+    rd = rows(cl) if cl else []
+    near = rd[0].get("near_m_wells") if rd else None
+    check("road to nearest well = 70 m (perpendicular to W3, not a vertex)", near is not None and abs(near - 70) < 1, near)
+
+    print("journal methods")
+    r, info = run("geographical-detector", {"layer": ids["plots"], "y": "yield", "x": "slope,noise"})
+    det = next((st.get("outputs") for st in (r or {}).get("steps", []) if st.get("id") == "detector"), {}) or {}
+    q = {row["factor"]: row["q"] for row in det.get("rows", [])}
+    check("geodetector: slope explains yield (q ≈ 1)", q.get("slope", 0) > 0.95, q)
+    check("geodetector: noise explains little (q < 0.3)", q.get("noise", 1) < 0.3, q)
+    check("interaction detector reported", len(det.get("interactions", [])) == 1, det.get("interactions"))
+    rid2 = next(x["id"] for x in call("GET", "api/rasters")[1]["rasters"] if "rows" in x["id"])
+    r, info = run("area-of-applicability", {"layer": ids["plots"], "rasters": f"{rid},{rid2}"})
+    a = next((st.get("outputs") for st in (r or {}).get("steps", []) if st.get("id") == "aoa"), {}) or {}
+    check("AOA: rasters made", bool(a.get("di")) and bool(a.get("aoa")), json.dumps(info)[:300] if not a else a)
+    check("AOA covers the sampled corner, not the whole grid (10–50 %)", 10 <= (a.get("inside_pct") or 0) <= 50, a.get("inside_pct"))
+    r, info = run("knndm-folds", {"layer": ids["plots"], "area": ids["parcel"], "folds": 4})
+    k = next((st.get("outputs") for st in (r or {}).get("steps", []) if st.get("id") == "folds"), {}) or {}
+    check("kNNDM: folds no worse than random", k.get("w") is not None and k["w"] <= k["w_random"] + 1e-6, k or json.dumps(info)[:300])
+    fl = rows(k["layer"]) if k.get("layer") else []
+    check("kNNDM: every plot has a fold 1–4", fl and all(1 <= (x.get("fold") or 0) <= 4 for x in fl), sorted({x.get("fold") for x in fl}))
+
     print("export data (Share › Export data)")
     import io, zipfile
     for fmt, magic in [("gpkg", b"SQLite format 3"), ("geojson", b"{"), ("kml", b"<?xml"), ("csv", b"WKT"), ("shp", b"PK")]:

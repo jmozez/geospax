@@ -1774,3 +1774,50 @@ body[data-tools-off~="delete"] [data-cmd*="delete"] { display: none !important; 
 .pm-addrepo #pm-repo-url { flex: 1; }
 .pm-status { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; }
 .pm-status .pm-msg { flex: 1; }
+
+/* ---------------------------------------------------------------- phones (≤ 600 px)
+   The map owns the screen. Header: logo, Lazy/Pro, settings. The ribbon tabs scroll sideways and a tab
+   tap opens its tools over the map (closed after a command). One-line status bar. A bottom navigation
+   bar opens Layers, Tools and the Panel. Dialogs fill the width; touch targets are at least 40 px. */
+@media (max-width: 600px) {
+  #titlebar { gap: 6px; padding: 0 8px; min-height: 44px; }
+  #titlebar .brand .tag, #quickbar, .tb-hint, #theme-switch { display: none !important; }
+  #titlebar .brand { font-size: 16px; }
+  #mode-switch button { padding: 6px 10px; min-height: 32px; }
+  #settings-btn { min-width: 40px; min-height: 40px; }
+  #ribbon { position: relative; z-index: 30; }
+  #ribbon-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  #ribbon-tabs::-webkit-scrollbar { display: none; }
+  #ribbon-tabs .rb-tab, #ribbon-tabs .rb-ctx { flex: none; min-height: 40px; padding: 0 12px; }
+  #ribbon-tabs .rb-pin { display: none; }
+  /* the tools of a tab: a sheet over the map, scrolling sideways, not pushing the map down */
+  #ribbon-body:not([hidden]) { position: absolute; left: 0; right: 0; top: 100%; max-height: 46vh; overflow: auto; box-shadow: 0 10px 24px rgba(0,0,0,.35); background: var(--panel); border-bottom: 1px solid var(--line); }
+  #ribbon-body .rb-group { flex: none; }
+  #ribbon-body .rb-btn { min-height: 40px; }
+  #statusbar { height: 26px; font-size: 11px; white-space: nowrap; overflow: hidden; }
+  #statusbar #sb-layer, #statusbar #sb-edition, #statusbar .sb-sep { display: none; }
+  #statusbar #sb-msg { overflow: hidden; text-overflow: ellipsis; max-width: 45vw; }
+  /* bottom navigation: full width, big targets, above the status bar and the phone's home bar */
+  .mobile-bar { left: 0 !important; right: 0; transform: none !important; bottom: 0 !important; border-radius: 0 !important; border-width: 1px 0 0 !important; justify-content: space-around; padding: 4px 6px calc(4px + env(safe-area-inset-bottom)) !important; }
+  .mobile-bar button { flex: 1; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px !important; padding: 4px !important; }
+  .mobile-bar button svg { width: 20px; height: 20px; }
+  #map .maplibregl-ctrl-bottom-right, #map .maplibregl-ctrl-bottom-left { bottom: 60px; }
+  #shell > #dock-left.mobile-open, #shell > #dock-right.mobile-open { width: 100% !important; bottom: 58px !important; }
+  #center.bottom-open { --bottom-m: 50vh; }
+  /* dialogs and sheets fill the screen width */
+  .modal .sheet, .gx-dialog .sheet { width: calc(100vw - 16px) !important; max-width: none !important; max-height: calc(100vh - 32px); overflow: auto; }
+  .modal .sheet footer button { min-height: 40px; }
+  .gx-time { bottom: 70px; }
+  .tut-card { width: calc(100vw - 24px); left: 12px !important; }
+}
+
+/* tablets (601–900 px): the panes slide over the map; bigger touch targets for fingers */
+@media (min-width: 601px) and (max-width: 900px) {
+  .mobile-bar button { min-height: 40px; padding: 8px 18px; }
+  #ribbon-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: thin; }
+  #ribbon-tabs .rb-tab { flex: none; }
+}
+@media (pointer: coarse) {
+  .dock-tabs button, .tb-btn { min-height: 36px; }
+  .maplibregl-ctrl-group button { width: 38px !important; height: 38px !important; }
+}
