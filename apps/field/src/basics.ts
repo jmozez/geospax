@@ -5,6 +5,7 @@ import type { Voice } from './capture';
 import { allRecords, clearTilesFrom, putRecord, tileStats, type Photo, type Rec } from './db';
 import { fmtHeight, SOURCE_LABEL, type Height } from './elevation';
 import type { Fix } from './geo';
+import { canBluetooth, fmtAcc, QUALITY_LABEL, type GnssFix } from './gnss';
 import { BASEMAPS, type Basemap } from './tiles';
 
 export interface Ctx {
@@ -17,6 +18,8 @@ export interface Ctx {
   setBasemap(b: Basemap): void;
   heights(): Heights;
   setDem(on: boolean): void;
+  /** the Bluetooth GNSS receiver in use, if any */
+  receiver(): { name: string | null; connect(): Promise<void>; disconnect(): void };
 }
 export interface Heights { gnss: Height | null; baro: Height | null; dem: Height | null; best: Height | null }
 
@@ -121,6 +124,9 @@ function helpSheet(ctx: Ctx) {
       <dt>➜ Navigate</dt><dd>In Records, tap ➜ on a record, or Go to coordinates, for the distance and an arrow to it. Tap ✕ to stop.</dd>
       <dt>📋 Forms</dt><dd>When saving, pick a form to fill in its fields. Make or share forms in Records › Forms.</dd>
       <dt>▦ Scan a code</dt><dd>In Records: scan a tag, a form, coordinates or the GeoSpaX phone link. Code fields in a form have their own Scan button.</dd>
+      <dt>📍 Stake out</dt><dd>In Records: paste design points or use saved ones, walk until it says On the mark, then tap Staked. The offsets are saved with the point.</dd>
+      <dt>✔ Check records</dt><dd>In Records: lists weak fixes, duplicates, crossed areas, track gaps and unanswered form questions. Tap one to see it.</dd>
+      <dt>Bluetooth GNSS</dt><dd>Tap the GPS chip, then Connect a Bluetooth receiver, for RTK accuracy. In the phone app, use the receiver's mock location instead.</dd>
       <dt>⬚ Plot and ⟶ Transect</dt><dd>In Records: lay out a plot around you, or a transect on a bearing with stations you are then guided to one by one.</dd>
       <dt>📷 Photo</dt><dd>A photo saved as a point where it was taken, with the compass bearing the camera faced (you can correct it before saving).</dd>
       <dt>🎙 Voice note</dt><dd>On any point, line, area or photo: tap Voice note, talk, tap Stop. It is kept with the record and sent with it.</dd>
@@ -189,6 +195,17 @@ function settingsSheet(ctx: Ctx) {
 }
 
 // ------------------------------------------------------------------ GPS status
+/** Fix type, satellites and DOP, when the fix came from an external receiver. */
+export function receiverRows(r: Fix | null): [string, string][] {
+  const g = r as GnssFix | null;
+  if (!g || !('quality' in g)) return [];
+  return [
+    ['Receiver fix', `${QUALITY_LABEL[g.quality]} (${fmtAcc(g.acc)})`],
+    ['Satellites', g.sats != null ? String(g.sats) : 'not reported'],
+    ['HDOP · PDOP', `${g.hdop ?? '-'} · ${g.pdop ?? '-'}`],
+    ...(g.age != null ? [['Correction age', `${g.age} s`] as [string, string]] : []),
+  ];
+}
 export function gpsRows(f: Fix | null, raw: ReturnType<Ctx['raw']>, now = Date.now(), hs: Heights | null = null): [string, string][] {
   const r = raw.fix;
   const age = r ? Math.max(0, Math.round((now - r.t) / 1000)) : null;
@@ -206,6 +223,7 @@ export function gpsRows(f: Fix | null, raw: ReturnType<Ctx['raw']>, now = Date.n
     ['Speed', r?.speed != null ? `${(r.speed * 3.6).toFixed(1)} km/h` : 'not reported'],
     ['Heading', r?.heading != null && !Number.isNaN(r.heading) ? `${Math.round(r.heading)}°` : 'not reported'],
     ['Last fix', age == null ? 'none yet' : `${age} s ago`],
+    ...receiverRows(r),
     ['Fixes received', String(raw.count)],
     ['Problem', raw.error ?? 'none'],
   ];
@@ -216,9 +234,20 @@ function gpsSheet(ctx: Ctx) {
     if (!body) return clearInterval(timer);
     body.innerHTML = gpsRows(ctx.fix(), ctx.raw(), Date.now(), ctx.heights()).map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join('');
   };
+  const rx = ctx.receiver();
   ctx.openSheet(`<h2>GPS status</h2><table class="kv"><tbody id="gpsRows"></tbody></table>
+    <h3>External receiver</h3>
+    ${rx.name ? `<p>Using <b>${esc(rx.name)}</b>. The phone's own GPS is ignored while it sends fixes.</p><button type="button" class="wide" id="rxOff">Disconnect</button>`
+      : canBluetooth() ? '<p class="muted">For centimetre work, connect an RTK or survey receiver that sends NMEA over Bluetooth LE (a Nordic UART or HM-10 serial service).</p><button type="button" class="wide" id="rxOn">Connect a Bluetooth receiver</button>'
+      : '<p class="muted">This phone app cannot open Bluetooth receivers itself. Pair the receiver in the phone settings, run its app or a Bluetooth GNSS app, and turn on mock location in the developer options: GeoSpaX Field then uses its fixes.</p>'}
+    <p id="rxMsg" class="msg" aria-live="polite"></p>
     <p class="muted">Phones do not give apps the satellite count. Accuracy is the phone's own estimate; under trees and near buildings it can be worse than shown. Heights are above mean sea level (EGM2008); the best source is used for saved points.</p>${backRow}`);
   back(ctx);
+  document.getElementById('rxOff')?.addEventListener('click', () => { rx.disconnect(); gpsSheet(ctx); });
+  document.getElementById('rxOn')?.addEventListener('click', () => {
+    $('#rxMsg').textContent = 'Choose the receiver…';
+    rx.connect().then(() => gpsSheet(ctx), (e: Error) => { if (document.getElementById('rxMsg')) $('#rxMsg').textContent = e.name === 'NotFoundError' ? 'No receiver chosen.' : e.message; });
+  });
   const timer = window.setInterval(draw, 1000);
   draw();
 }
