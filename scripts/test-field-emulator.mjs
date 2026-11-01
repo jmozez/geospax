@@ -91,7 +91,7 @@ for (const [lon, lat] of [[147.1503, -6.7219], [147.1812, -6.7344]]) {
 const blocked = await page.evaluate(() => window.__field.cspBlocked);
 ok(blocked.length === 0, `nothing blocked by the content security policy (${blocked.join(', ') || 'none'})`);
 const chip = await page.textContent('#gps');
-ok(/GPS ±\d+ m/.test(chip ?? ''), `status chip shows the accuracy: "${chip}"`);
+ok(/GPS ±\d+(\.\d)? c?m/.test(chip ?? ''), `status chip shows the accuracy: "${chip}"`);
 
 // 2 + 3. Pair with the phone link and send a point
 if (PHONE_URL) {
