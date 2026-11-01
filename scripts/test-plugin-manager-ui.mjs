@@ -17,15 +17,21 @@ const ok = (c, m) => { if (!c) fail(m); };
 
 // a local repository of demo packages
 const repo = mkdtempSync(join(tmpdir(), 'gsx-pm-repo-'));
+// realistic demo packages: a (minimal, valid) WebAssembly module and a tool icon, so nothing is flagged
+const DEMO = {
+  'demo-repo': { name: 'Contour labeller for survey plans', icon: 'gp-contour', tool: 'Label contours' },
+  'demo-zip': { name: 'Traverse misclosure checker', icon: 'ruler', tool: 'Check traverse' },
+};
 function pkg(id, version) {
   const file = join(repo, `${id}-${version}.zip`);
-  const manifest = JSON.stringify({ id, name: `Demo ${id}`, version, description: `Demo plugin ${id}`, entry: 'plugin.wasm', tools: [{ id: 't', name: 'Tool', summary: 's' }] });
-  execFileSync('python3', ['-c', 'import sys,zipfile\nz=zipfile.ZipFile(sys.argv[1],"w")\nz.writestr("plugin.json",sys.argv[2])\nz.close()', file, manifest]);
+  const d = DEMO[id];
+  const manifest = JSON.stringify({ id, name: d.name, version, description: `${d.name}: a demo plugin.`, author: 'GeoSpax tests', license: 'MIT', entry: 'plugin.wasm', tools: [{ id: 't', name: d.tool, summary: d.tool, icon: d.icon }] });
+  execFileSync('python3', ['-c', 'import sys,zipfile\nz=zipfile.ZipFile(sys.argv[1],"w")\nz.writestr("plugin.json",sys.argv[2])\nz.writestr("plugin.wasm",bytes([0,97,115,109,1,0,0,0]))\nz.close()', file, manifest]);
   return file;
 }
 function writeIndex(version) {
   const download = pkg('demo-repo', version);
-  writeFileSync(join(repo, 'plugins.json'), JSON.stringify({ plugins: [{ id: 'demo-repo', name: 'Demo demo-repo', version, description: 'Repository demo', author: 'GeoSpax tests', download }] }));
+  writeFileSync(join(repo, 'plugins.json'), JSON.stringify({ plugins: [{ id: 'demo-repo', name: DEMO['demo-repo'].name, version, description: 'Labels contour lines on survey plans.', author: 'GeoSpax tests', download }] }));
 }
 writeIndex('1.0');
 const zipFile = pkg('demo-zip', '2.0');
@@ -102,11 +108,23 @@ await dlg.locator('#pm-zip-file').setInputFiles(zipFile);
 await dlg.locator('[data-act="upload"]').click();
 await until(page, async () => (await enabledIds(page)).includes('demo-zip'), 'ZIP install failed');
 console.log('ok: install from ZIP');
+ok((await api(page, 'api/plugins')).all.find((p) => p.id === 'demo-zip')?.tools[0]?.icon === 'ruler', 'plugin.json tool icon was not read');
+console.log('ok: tool icon read from plugin.json');
 
 // screenshot before uninstall
 await dlg.locator('[data-pm-tab="installed"]').click();
 await dlg.locator('[data-pm-row="demo-repo"]').click();
 await page.waitForTimeout(300);
+for (const id of ['demo-repo', 'demo-zip']) {
+  const row = dlg.locator(`[data-pm-row="${id}"]`);
+  ok((await row.locator('.badge.warn').count()) === 0, `${id} shows a warning badge`);
+  const full = await row.locator('.p-name').evaluate((e) => e.scrollWidth <= e.clientWidth + 1 && !e.textContent.includes('…'));
+  ok(full, `${id} name is truncated`);
+}
+console.log('ok: names shown in full, no warnings');
+const ico = await dlg.locator('[data-pm-row="demo-repo"] .p-ico path').getAttribute('d');
+ok(ico?.startsWith('M2 18c3-6'), 'the plugin row does not show its tool icon');
+console.log('ok: plugin icon shown');
 await page.screenshot({ path: join(out, 'plugin-manager-dark.png') });
 
 // two-click uninstall

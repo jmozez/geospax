@@ -1750,7 +1750,10 @@ body[data-tools-off~="delete"] [data-cmd*="delete"] { display: none !important; 
 .plugin.pm-row.on { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .plugin.pm-row.off .p-name { color: var(--muted); }
 .plugin.pm-row.avail .p-name { font-style: italic; }
-.plugin.pm-row .p-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin.pm-row .pm-namecol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.plugin.pm-row .p-name { overflow-wrap: anywhere; white-space: normal; }
+.plugin.pm-row .pm-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.plugin.pm-row .pm-badges .badge { white-space: normal; }
 .plugin.pm-row .p-ver { color: var(--muted); font-size: 11px; }
 .pm-nocheck { width: 13px; }
 .badge.up { background: color-mix(in srgb, var(--accent) 30%, transparent); }

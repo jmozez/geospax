@@ -128,6 +128,9 @@ jobs:
       - name: Plugin manager UI (repository install, switch off, upgrade, ZIP, uninstall)
         run: |
           mkdir -p /tmp/pm/data /tmp/pm/state
+          # a WebAssembly runtime, so the demo wasm plugins are runnable and show no warning
+          curl -sSfL https://github.com/bytecodealliance/wasmtime/releases/download/v25.0.0/wasmtime-v25.0.0-x86_64-linux.tar.xz | tar xJ -C /tmp
+          export PATH=/tmp/wasmtime-v25.0.0-x86_64-linux:$PATH
           ./target/release/geospax-server --data /tmp/pm/data --state-dir /tmp/pm/state --web web/dist --port 18126 --no-device-mounts --no-triggers &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:18126/api/health >/dev/null && break; sleep 1; done
           PW=/tmp/pw/node_modules/playwright node scripts/test-plugin-manager-ui.mjs http://127.0.0.1:18126/ /tmp/pm/out
