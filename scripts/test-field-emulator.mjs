@@ -93,6 +93,20 @@ ok(blocked.length === 0, `nothing blocked by the content security policy (${bloc
 const chip = await page.textContent('#gps');
 ok(/GPS ±\d+(\.\d)? c?m/.test(chip ?? ''), `status chip shows the accuracy: "${chip}"`);
 
+// 1b. The native Bluetooth GNSS plugin is in the app and answers (the emulator has no real receiver to connect)
+const bt = await page.evaluate(async () => {
+  const inv = window.__TAURI_INTERNALS__?.invoke;
+  if (!inv) return { error: 'no Tauri bridge' };
+  const call = (c, a) => inv(c, a).then((r) => ({ ok: r }), (e) => ({ err: String(e?.message ?? e) }));
+  return { perm: await call('plugin:gnss|check_permissions'), devices: await call('plugin:gnss|devices', { scanMs: 1500 }), off: await call('plugin:gnss|disconnect') };
+});
+console.log('bluetooth plugin:', JSON.stringify(bt));
+ok(!bt.error, `Tauri bridge in the web view (${bt.error ?? 'yes'})`);
+const missing = (r) => /not found|not allowed|unknown/i.test(r?.err ?? '');
+ok(bt.perm?.ok?.bluetooth === 'granted', `Bluetooth permission reported granted after pm grant: ${JSON.stringify(bt.perm)}`);
+ok(!missing(bt.devices) && (Array.isArray(bt.devices?.ok?.devices) || /bluetooth/i.test(bt.devices?.err ?? '')), `device list answers (a list, or no Bluetooth on this emulator): ${JSON.stringify(bt.devices)}`);
+ok(bt.off && !missing(bt.off), `disconnect answers: ${JSON.stringify(bt.off)}`);
+
 // 2 + 3. Pair with the phone link and send a point
 if (PHONE_URL) {
   const res = await page.evaluate(async (url) => {
