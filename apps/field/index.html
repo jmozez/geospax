@@ -50,6 +50,13 @@
 
   <input type="file" id="photoInput" accept="image/*" capture="environment" hidden />
   <dialog id="sheet"><div id="sheetBody"></div></dialog>
+  <dialog id="scanDlg" class="scan">
+    <h2 id="scanTitle">Scan a code</h2>
+    <video id="scanVideo" playsinline muted></video>
+    <p id="scanMsg" class="muted"></p>
+    <input id="scanText" placeholder="Or type the code" autocomplete="off" />
+    <div class="row"><button type="button" id="scanCancel">Cancel</button><button type="button" class="primary" id="scanUse">Use</button></div>
+  </dialog>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

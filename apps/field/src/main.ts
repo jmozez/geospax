@@ -14,6 +14,9 @@ import { installBasics, settings } from './basics';
 import { fmtHeight, type Height } from './elevation';
 import { heights, onFix as heightsOnFix, setDem, startHeights } from './heights';
 import { areaM2, fmtArea, fmtLen, fmtTime, lengthM, navTo, parseCoords, takeFix, trackStats, turn, xy } from './walk';
+import { BUILT_IN, check, coerce, parseForm, qrKind, summary, TYPE_LABEL, TYPES, type Field, type FieldType, type Form, type Values } from './forms';
+import { plot, plotArea, SIZES, transect, type Shape } from './plots';
+import { scanCode } from './qr';
 import { askCompass, fmtBearing, fmtDur, MAX_VOICE_MS, norm, startCompass, startVoice, voiceName, type Recording, type Voice } from './capture';
 
 const compass = startCompass();
@@ -85,6 +88,9 @@ map.on('load', () => {
   map.addLayer({ id: 'draft-fill', type: 'fill', source: 'draft', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#ffd43b', 'fill-opacity': 0.25 } });
   map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#ffd43b', 'line-width': 3, 'line-dasharray': [2, 1] } });
   map.addLayer({ id: 'draft-pt', type: 'circle', source: 'draft', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 5, 'circle-color': '#ffd43b', 'circle-stroke-color': '#000', 'circle-stroke-width': 1 } });
+  map.addSource('plan', { type: 'geojson', data: fc([]) });
+  map.addLayer({ id: 'plan-line', type: 'line', source: 'plan', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#ffd166', 'line-width': 3, 'line-dasharray': [2, 1] } });
+  map.addLayer({ id: 'plan-pt', type: 'circle', source: 'plan', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 5, 'circle-color': '#ffd166', 'circle-stroke-color': '#000', 'circle-stroke-width': 1 } });
   map.addSource('nav', { type: 'geojson', data: fc([]) });
   map.addLayer({ id: 'nav-line', type: 'line', source: 'nav', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#4cc2ff', 'line-width': 2, 'line-dasharray': [1, 1] } });
   map.addLayer({ id: 'nav-pt', type: 'circle', source: 'nav', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 9, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#4cc2ff', 'circle-stroke-width': 3 } });
@@ -238,9 +244,53 @@ function openSheet(html: string) {
 }
 sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });
 
-interface Noted { note: string; photos: Photo[]; voice: Voice[] }
+interface Noted { note: string; photos: Photo[]; voice: Voice[]; form?: string; attrs?: Values }
+
+// ------------------------------------------------------------------ forms
+const FORMS_KEY = 'geospax-field.forms';
+const LAST_FORM_KEY = 'geospax-field.lastForm';
+function userForms(): Form[] {
+  try {
+    const a = JSON.parse(localStorage.getItem(FORMS_KEY) || '[]');
+    return Array.isArray(a) ? a.flatMap((f) => { try { return [parseForm(f)]; } catch { return []; } }) : [];
+  } catch { return []; }
+}
+function saveUserForms(f: Form[]) { try { localStorage.setItem(FORMS_KEY, JSON.stringify(f)); } catch { /* private mode */ } }
+const allForms = () => [...BUILT_IN, ...userForms()];
+const formNamed = (name?: string) => (name ? allForms().find((f) => f.name === name) : undefined);
+/** Adds a form (replacing one with the same name); built-in names are kept for the built-in forms. */
+function addForm(f: Form) {
+  if (BUILT_IN.some((b) => b.name === f.name)) throw new Error(`"${f.name}" is a built-in form: give yours another name.`);
+  saveUserForms([...userForms().filter((x) => x.name !== f.name), f]);
+}
+function fieldHtml(f: Field, v: Values[string] | undefined): string {
+  const val = v == null ? '' : String(v);
+  const lab = `${esc(f.label)}${f.unit ? ` (${esc(f.unit)})` : ''}${f.required ? ' <i>*</i>' : ''}`;
+  const k = esc(f.key);
+  if (f.type === 'choice') return `<label>${lab}<select data-key="${k}"><option value=""></option>${f.options!.map((o) => `<option${o === val ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`;
+  if (f.type === 'yesno') return `<label>${lab}<select data-key="${k}"><option value=""></option><option value="yes"${v === true ? ' selected' : ''}>Yes</option><option value="no"${v === false ? ' selected' : ''}>No</option></select></label>`;
+  if (f.type === 'code') return `<label>${lab}<span class="codeRow"><input data-key="${k}" value="${esc(val)}" autocomplete="off" /><button type="button" class="scanBtn" data-for="${k}" aria-label="Scan ${esc(f.label)}">▦ Scan</button></span></label>`;
+  const attrs = f.type === 'number' ? `type="number" inputmode="decimal" step="any"${f.min != null ? ` min="${f.min}"` : ''}${f.max != null ? ` max="${f.max}"` : ''}` : f.type === 'date' ? 'type="date"' : '';
+  return `<label>${lab}<input data-key="${k}" ${attrs} value="${esc(val)}" /></label>`;
+}
+/** Shows a form's fields in a box, with Scan buttons for codes; returns a reader for what was typed. */
+function showForm(box: HTMLElement, form: Form | undefined, values: Values = {}): () => Values | null {
+  if (!form) { box.innerHTML = ''; return () => null; }
+  box.innerHTML = form.fields.map((f) => fieldHtml(f, values[f.key])).join('');
+  for (const b of box.querySelectorAll<HTMLButtonElement>('.scanBtn')) {
+    b.addEventListener('click', async () => {
+      const code = await scanCode(`Scan: ${form.fields.find((f) => f.key === b.dataset.for)?.label ?? 'code'}`);
+      if (code) (box.querySelector(`[data-key="${b.dataset.for}"]`) as HTMLInputElement).value = code;
+    });
+  }
+  return () => {
+    const raw: Record<string, string> = {};
+    for (const el of box.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-key]')) raw[el.dataset.key!] = el.value;
+    return coerce(form, raw);
+  };
+}
 /** The note sheet: a note, photos (with the way each faced) and voice notes. */
-function noteSheet(title: string, withPhoto = false, first: Photo[] = []): Promise<Noted | null> {
+function noteSheet(title: string, withPhoto = false, first: Photo[] = [], noteInit = ''): Promise<Noted | null> {
   return new Promise((resolve) => {
     const photos: Photo[] = [...first];
     const voice: Voice[] = [];
@@ -248,7 +298,10 @@ function noteSheet(title: string, withPhoto = false, first: Photo[] = []): Promi
     let tick = 0;
     openSheet(`<h2>${esc(title)}</h2>
       <div id="thumbs" class="thumbs"></div>
-      <textarea id="note" rows="3" placeholder="What is here? (optional)"></textarea>
+      <textarea id="note" rows="3" placeholder="What is here? (optional)">${esc(noteInit)}</textarea>
+      <label class="formpick">Form<select id="formSel"><option value="">No form</option>${allForms().map((f) => `<option${f.name === localStorage.getItem(LAST_FORM_KEY) ? ' selected' : ''}>${esc(f.name)}</option>`).join('')}</select></label>
+      <div id="formBox" class="form"></div>
+      <p id="formMsg" class="msg" aria-live="polite"></p>
       <div class="row">${withPhoto ? '<button type="button" id="addPhoto">📷 Add a photo</button>' : ''}<button type="button" id="voiceBtn">🎙 Voice note</button></div>
       <ul id="voices" class="voices"></ul>
       <div class="row"><button type="button" id="cancel">Cancel</button><button type="button" class="primary" id="save">Save</button></div>`);
@@ -265,6 +318,13 @@ function noteSheet(title: string, withPhoto = false, first: Photo[] = []): Promi
       $('#thumbs').append(fig);
     };
     photos.forEach(showPhoto);
+    let readForm = showForm($('#formBox'), formNamed(($('#formSel') as HTMLSelectElement).value));
+    $('#formBox').addEventListener('input', () => { $('#formMsg').textContent = ''; });
+    $('#formSel').addEventListener('change', () => {
+      const name = ($('#formSel') as HTMLSelectElement).value;
+      try { localStorage.setItem(LAST_FORM_KEY, name); } catch { /* private mode */ }
+      readForm = showForm($('#formBox'), formNamed(name));
+    });
     const showVoice = (v: Voice) => {
       const li = document.createElement('li');
       li.innerHTML = `<span>🎙 ${fmtDur(v.ms)}</span><audio controls preload="none" src="${URL.createObjectURL(v.blob)}"></audio><button type="button" class="del" aria-label="Remove this voice note">✕</button>`;
@@ -315,7 +375,13 @@ function noteSheet(title: string, withPhoto = false, first: Photo[] = []): Promi
       resolve(v ? { ...v, voice } : null);
     };
     $('#cancel').addEventListener('click', () => void done(null));
-    $('#save').addEventListener('click', () => void done({ note: ($('#note') as HTMLTextAreaElement).value.trim(), photos, voice }));
+    $('#save').addEventListener('click', () => {
+      const form = formNamed(($('#formSel') as HTMLSelectElement).value);
+      const attrs = readForm();
+      const bad = form && attrs ? check(form, attrs) : [];
+      if (bad.length) return void ($('#formMsg').textContent = bad.join(' '));
+      void done({ note: ($('#note') as HTMLTextAreaElement).value.trim(), photos, voice, ...(form && attrs ? { form: form.name, attrs } : {}) });
+    });
     sheet.addEventListener('close', () => void done(null), { once: true });
   });
 }
@@ -340,8 +406,10 @@ function takePhoto(): Promise<Photo | null> {
   });
 }
 
-async function save(kind: Kind, coords: Vertex[], note: string, photos: Photo[] = [], height: Height | null = null, voice: Voice[] = []) {
-  await putRecord({ id: newId(), kind, coords, note, created: Date.now(), sent: false, photos, ...(height ? { height } : {}), ...(voice.length ? { voice } : {}) });
+async function save(kind: Kind, coords: Vertex[], n: Noted, height: Height | null = null, quiet = false, created = Date.now()) {
+  const extra = { ...(n.form ? { form: n.form } : {}), ...(n.attrs && Object.keys(n.attrs).length ? { attrs: n.attrs } : {}) };
+  await putRecord({ id: newId(), kind, coords, note: n.note, created, sent: false, photos: n.photos, ...(height ? { height } : {}), ...(n.voice.length ? { voice: n.voice } : {}), ...extra });
+  if (quiet) return;
   await refresh();
   toast(`${LABEL[kind]} saved`);
 }
@@ -361,7 +429,7 @@ $('#btnPoint').addEventListener('click', async () => {
   const warn = settings().warnAcc;
   if (warn && v[4] != null && v[4] > warn && !confirm(`GPS is only good to ±${Math.round(v[4])} m. Save the point anyway?`)) return;
   const r = await noteSheet(v[4] != null ? `Point at your position (±${Math.round(v[4])} m)` : 'Point at the map centre (no GPS yet)', true);
-  if (r) await save('point', [v], r.note, r.photos, v[2] != null ? hereHeight : null, r.voice);
+  if (r) await save('point', [v], r, v[2] != null ? hereHeight : null);
 });
 
 function startDraw(kind: 'line' | 'area') {
@@ -406,7 +474,7 @@ $('#drawDone').addEventListener('click', async () => {
   setWalking(false);
   const r = await noteSheet(`${LABEL[d.kind]} · ${draftText(d.kind, d.coords, false).replace(/: tap.*$/, '')}`);
   if (r) {
-    await save(d.kind, d.coords, r.note, [], null, r.voice);
+    await save(d.kind, d.coords, r);
     endDraw();
   }
 });
@@ -433,7 +501,7 @@ $('#btnTrack').addEventListener('click', async () => {
   drawDraft();
   if (t.coords.length < 2) return toast('Track too short: nothing saved');
   const r = await noteSheet(`Track · ${measure(t)}`);
-  await save('track', t.coords, r?.note ?? '', [], null, r?.voice ?? []);
+  await save('track', t.coords, r ?? { note: '', photos: [], voice: [] });
 });
 
 $('#btnPhoto').addEventListener('click', async () => {
@@ -442,7 +510,7 @@ $('#btnPhoto').addEventListener('click', async () => {
   const h = p.lon != null && p.lat != null ? heights(fix).best : null;
   const v: Vertex = p.lon != null && p.lat != null ? [p.lon, p.lat, h?.value ?? null, p.ts, p.acc] : (() => { const c = map.getCenter(); return [c.lng, c.lat, null, p.ts, null] as Vertex; })();
   const r = await noteSheet(`Photo point · facing ${fmtBearing(p.bearing)}`, true, [p]);
-  if (r) await save('point', [v], r.note || 'Photo', r.photos, h, r.voice);
+  if (r) await save('point', [v], { ...r, note: r.note || 'Photo' }, h);
 });
 
 $('#basemap').addEventListener('click', () => setBasemap(basemap === 'imagery' ? 'map' : 'imagery'));
@@ -452,10 +520,15 @@ $('#btnList').addEventListener('click', () => void listSheet());
 async function listSheet() {
   await refresh();
   const rows = records
-    .map((r) => `<li data-id="${r.id}"><b>${LABEL[r.kind]}</b> ${esc(r.note || '')}<small>${new Date(r.created).toLocaleString()}${measure(r) ? ` · ${esc(measure(r))}` : ''}${r.height ? ` · ${esc(fmtHeight(r.height))}` : ''}${r.photos.length ? ` · ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''}${r.photos[0].bearing != null ? ` facing ${esc(fmtBearing(r.photos[0].bearing))}` : ''}` : ''}${r.voice?.length ? ` · 🎙 ${r.voice.length}` : ''} · ${r.sent ? 'sent' : '<em>not sent</em>'}</small><button type="button" class="go" aria-label="Navigate here">➜</button><button type="button" class="del" aria-label="Delete">✕</button></li>`)
+    .map((r) => `<li data-id="${r.id}"><b>${LABEL[r.kind]}</b> ${esc(r.note || '')}${r.form && r.attrs ? ` <span class="attrs">${esc(summary(formNamed(r.form), r.attrs))}</span>` : ''}<small>${new Date(r.created).toLocaleString()}${measure(r) ? ` · ${esc(measure(r))}` : ''}${r.height ? ` · ${esc(fmtHeight(r.height))}` : ''}${r.photos.length ? ` · ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''}${r.photos[0].bearing != null ? ` facing ${esc(fmtBearing(r.photos[0].bearing))}` : ''}` : ''}${r.voice?.length ? ` · 🎙 ${r.voice.length}` : ''} · ${r.sent ? 'sent' : '<em>not sent</em>'}</small><button type="button" class="go" aria-label="Navigate here">➜</button><button type="button" class="del" aria-label="Delete">✕</button></li>`)
     .join('');
   openSheet(`<h2>Records <small>${records.length}</small></h2>${records.length ? `<ul class="list">${rows}</ul>` : '<p class="muted">Nothing recorded yet. Use the bar at the bottom.</p>'}
-    <div class="row"><button type="button" id="goCoords">🧭 Go to coordinates</button><button type="button" id="closeList">Close</button></div>`);
+    <div class="tools"><button type="button" id="goCoords">🧭 Go to coordinates</button><button type="button" id="plotBtn">⬚ Plot</button><button type="button" id="transectBtn">⟶ Transect</button><button type="button" id="scanBtn">▦ Scan a code</button><button type="button" id="formsBtn">📋 Forms</button></div>
+    <div class="row"><button type="button" id="closeList">Close</button></div>`);
+  $('#plotBtn').addEventListener('click', plotSheet);
+  $('#transectBtn').addEventListener('click', transectSheet);
+  $('#scanBtn').addEventListener('click', () => void scanAny());
+  $('#formsBtn').addEventListener('click', formsSheet);
   $('#closeList').addEventListener('click', () => sheet.close());
   $('#goCoords').addEventListener('click', coordsSheet);
   for (const li of $('#sheetBody').querySelectorAll<HTMLElement>('li')) {
@@ -578,7 +651,11 @@ function coordsSheet() {
     startNav(`${at[1].toFixed(5)}, ${at[0].toFixed(5)}`, at);
   });
 }
-function startNav(name: string, at: [number, number]) {
+/** Stations still to walk to after this one (a transect), in order. */
+let navQueue: { name: string; at: [number, number] }[] = [];
+function startNav(name: string, at: [number, number], then: { name: string; at: [number, number] }[] = []) {
+  navQueue = then;
+  wasArrived = false;
   target = { name, at };
   void askCompass();
   $('#navName').textContent = name;
@@ -591,6 +668,7 @@ function startNav(name: string, at: [number, number]) {
 }
 function stopNav() {
   target = null;
+  navQueue = [];
   $('#nav').hidden = true;
   (map.getSource('nav') as maplibregl.GeoJSONSource | undefined)?.setData(fc([]));
 }
@@ -618,10 +696,205 @@ function showNav() {
     ? `You are there (±${Math.round(me.acc)} m)`
     : `${fmtLen(n.distance)} · ${Math.round(n.bearing)}°${facing == null ? ' (arrow from north: no compass)' : ''}${n.eta != null ? ` · about ${fmtTime(n.eta)}` : ''}`;
   $('#nav').classList.toggle('arrived', n.arrived);
-  if (n.arrived && !wasArrived) { toast('You have arrived'); navigator.vibrate?.(200); }
+  if (n.arrived && !wasArrived) {
+    navigator.vibrate?.(200);
+    const next = navQueue.shift();
+    if (next) {
+      toast(`Reached ${target.name}: on to ${next.name}`);
+      target = { ...next };
+      $('#navName').textContent = next.name;
+      wasArrived = false;
+      return showNav();
+    }
+    toast('You have arrived');
+  }
   wasArrived = n.arrived;
   src?.setData(fc([pt, { type: 'Feature', geometry: { type: 'LineString', coordinates: [[me.lon, me.lat], target.at] }, properties: {} }]));
 }
+
+// ------------------------------------------------------------------ plots, transects, codes and forms
+const nextId = (prefix: string, key: string) => {
+  let n = 0;
+  for (const r of records) { const m = String(r.attrs?.[key] ?? '').match(new RegExp(`^${prefix}(\\d+)$`)); if (m) n = Math.max(n, Number(m[1])); }
+  return `${prefix}${n + 1}`;
+};
+const centre = (): [number, number, number | null] => {
+  const me = fixes.best() ?? fix;
+  if (me) return [me.lon, me.lat, me.acc];
+  const c = map.getCenter();
+  return [c.lng, c.lat, null];
+};
+
+function plotSheet() {
+  const id = nextId('P', 'plot_id');
+  const [, , acc] = centre();
+  const opts = (shape: Shape) => SIZES[shape].map((m) => `<option value="${m}">${shape === 'circle' ? `radius ${m} m` : `${m} × ${m} m`} (${fmtArea(plotArea(shape, m))})</option>`).join('');
+  openSheet(`<h2>Lay out a plot</h2>
+    <p class="muted">Centred on ${acc != null ? `your position (±${Math.round(acc)} m)` : 'the map centre (no GPS yet)'}.</p>
+    <label>Plot<input id="plotId" value="${id}" /></label>
+    <label>Shape<select id="plotShape"><option value="circle">Circle</option><option value="square">Square (sides north to south)</option></select></label>
+    <label>Size<select id="plotSize">${opts('circle')}</select></label>
+    <div class="row"><button type="button" id="plotCancel">Cancel</button><button type="button" class="primary" id="plotGo">Lay out</button></div>`);
+  ($('#plotSize') as HTMLSelectElement).selectedIndex = 1;
+  $('#plotShape').addEventListener('change', () => { $('#plotSize').innerHTML = opts(($('#plotShape') as HTMLSelectElement).value as Shape); });
+  $('#plotCancel').addEventListener('click', () => sheet.close());
+  $('#plotGo').addEventListener('click', async () => {
+    const shape = ($('#plotShape') as HTMLSelectElement).value as Shape;
+    const size = Number(($('#plotSize') as HTMLSelectElement).value);
+    const pid = ($('#plotId') as HTMLInputElement).value.trim() || id;
+    const [lon, lat, a] = centre();
+    const ring = plot(lon, lat, shape, size);
+    const now = Date.now();
+    const coords: Vertex[] = ring.map(([x, y]) => [x, y, null, now, a]);
+    showPlan([ring]);
+    const r = await noteSheet(`Plot ${pid} · ${shape === 'circle' ? `radius ${size} m` : `${size} × ${size} m`} · ${fmtArea(plotArea(shape, size))}`, false, [], `Plot ${pid}`);
+    showPlan([]);
+    if (!r) return;
+    await save('area', coords, { ...r, attrs: { ...r.attrs, plot_id: pid, plot_shape: shape, plot_size_m: size } });
+    map.fitBounds(ring.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(ring[0], ring[0])), { padding: 80, maxZoom: 19 });
+  });
+}
+
+function transectSheet() {
+  const id = nextId('T', 'transect_id');
+  const [, , acc] = centre();
+  const b = compass.bearing(Date.now());
+  openSheet(`<h2>Lay out a transect</h2>
+    <p class="muted">Starts at ${acc != null ? `your position (±${Math.round(acc)} m)` : 'the map centre (no GPS yet)'}. You are then guided to each station in turn.</p>
+    <label>Transect<input id="trId" value="${id}" /></label>
+    <label>Bearing (degrees from north)<span class="codeRow"><input id="trBearing" type="number" inputmode="decimal" min="0" max="359" step="any" value="${b != null ? Math.round(b) : 0}" /><button type="button" id="trAim">🧭 Facing</button></span></label>
+    <div class="row"><label>Length (m)<input id="trLen" type="number" inputmode="decimal" min="1" step="any" value="100" /></label><label>Station every (m)<input id="trEvery" type="number" inputmode="decimal" min="1" step="any" value="10" /></label></div>
+    <p id="trMsg" class="msg" aria-live="polite"></p>
+    <div class="row"><button type="button" id="trCancel">Cancel</button><button type="button" class="primary" id="trGo">Lay out</button></div>`);
+  void askCompass();
+  $('#trAim').addEventListener('click', () => {
+    const v = compass.bearing(Date.now());
+    if (v == null) return void ($('#trMsg').textContent = 'No compass reading: type the bearing.');
+    ($('#trBearing') as HTMLInputElement).value = String(Math.round(v));
+  });
+  $('#trCancel').addEventListener('click', () => sheet.close());
+  $('#trGo').addEventListener('click', async () => {
+    const num = (sel: string) => Number(($(sel) as HTMLInputElement).value);
+    const bearing = norm(num('#trBearing')), length = num('#trLen'), every = num('#trEvery');
+    const tid = ($('#trId') as HTMLInputElement).value.trim() || id;
+    const [lon, lat, a] = centre();
+    let t;
+    try { t = transect(lon, lat, bearing, length, every); } catch (e) { return void ($('#trMsg').textContent = (e as Error).message); }
+    showPlan([t.line], t.stations.map((s) => s.at));
+    const r = await noteSheet(`Transect ${tid} · ${fmtLen(length)} on ${Math.round(bearing)}° (${fmtBearing(bearing)}) · ${t.stations.length} stations`, false, [], `Transect ${tid}`);
+    showPlan([]);
+    if (!r) return;
+    const now = Date.now();
+    const meta = { transect_id: tid, bearing_deg: Math.round(bearing * 10) / 10, length_m: length, station_every_m: every };
+    await save('line', t.line.map(([x, y]) => [x, y, null, now, a] as Vertex), { ...r, attrs: { ...r.attrs, ...meta } }, null, true, now);
+    for (const [i, st] of t.stations.entries()) await save('point', [[st.at[0], st.at[1], null, now, a]], { note: `${tid} station ${st.m} m`, photos: [], voice: [], attrs: { transect_id: tid, station_m: st.m } }, null, true, now + i + 1);
+    await refresh();
+    toast(`Transect ${tid} saved with ${t.stations.length} stations`);
+    const legs = t.stations.slice(1).map((st) => ({ name: `${tid} station ${st.m} m`, at: st.at }));
+    if (legs.length) startNav(legs[0].name, legs[0].at, legs.slice(1));
+  });
+}
+
+/** A plot or transect being laid out, drawn on the map until it is saved or cancelled. */
+function showPlan(lines: [number, number][][], pts: [number, number][] = []) {
+  const src = map.getSource('plan') as maplibregl.GeoJSONSource | undefined;
+  src?.setData(fc([
+    ...lines.map((l): GeoJSON.Feature => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: l.length > 2 ? [...l, l[0]] : l }, properties: {} })),
+    ...pts.map((p): GeoJSON.Feature => ({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: {} })),
+  ]));
+}
+
+/** Scans any code: a form is added, a phone link pairs, coordinates are navigated to, anything else is saved as a point. */
+async function scanAny() {
+  const code = await scanCode('Scan a code');
+  if (!code) return;
+  const k = qrKind(code);
+  if (k === 'form') {
+    try { const f = parseForm(code); addForm(f); toast(`Form "${f.name}" added`); return formsSheet(); } catch (e) { return toast((e as Error).message); }
+  }
+  if (k === 'link') { const l = parseLink(code); if (l) { saveLink(l); return void sendSheet(); } }
+  const at = parseCoords(code);
+  if (at) { sheet.close(); return startNav(`${at[1].toFixed(5)}, ${at[0].toFixed(5)}`, at); }
+  const v = here() ?? (() => { const c = map.getCenter(); return [c.lng, c.lat, null, Date.now(), null] as Vertex; })();
+  const r = await noteSheet(`Code ${code.length > 40 ? `${code.slice(0, 40)}…` : code}`, true, [], code);
+  if (r) await save('point', [v], { ...r, attrs: { ...r.attrs, code } });
+}
+
+function formsSheet() {
+  const forms = allForms();
+  openSheet(`<h2>Forms <small>${forms.length}</small></h2>
+    <p class="muted">Pick a form when you save a record to fill in its fields. They are sent to GeoSpaX as attributes.</p>
+    <ul class="list forms">${forms.map((f, i) => `<li data-i="${i}"><b>${esc(f.name)}</b><small>${f.fields.length} field${f.fields.length === 1 ? '' : 's'}: ${esc(f.fields.map((x) => x.label).join(', '))}${i < BUILT_IN.length ? ' · built in' : ''}</small><button type="button" class="share" aria-label="Share ${esc(f.name)}">⇪</button>${i < BUILT_IN.length ? '' : `<button type="button" class="del" aria-label="Delete ${esc(f.name)}">✕</button>`}</li>`).join('')}</ul>
+    <div class="tools"><button type="button" id="newForm">＋ New form</button><button type="button" id="scanForm">▦ Scan a form</button><button type="button" id="pasteForm">Paste a form</button></div>
+    <div class="row"><button type="button" id="formsBack">Back</button></div>`);
+  $('#formsBack').addEventListener('click', () => void listSheet());
+  $('#newForm').addEventListener('click', () => formBuilder());
+  $('#scanForm').addEventListener('click', () => void scanAny());
+  $('#pasteForm').addEventListener('click', () => {
+    openSheet(`<h2>Paste a form</h2><textarea id="formJson" rows="8" placeholder='{"name": "…", "fields": [{"label": "…", "type": "text"}]}'></textarea><p id="pasteMsg" class="msg"></p>
+      <div class="row"><button type="button" id="pasteBack">Back</button><button type="button" class="primary" id="pasteAdd">Add</button></div>`);
+    $('#pasteBack').addEventListener('click', formsSheet);
+    $('#pasteAdd').addEventListener('click', () => {
+      try { const f = parseForm(($('#formJson') as HTMLTextAreaElement).value); addForm(f); toast(`Form "${f.name}" added`); formsSheet(); } catch (e) { $('#pasteMsg').textContent = (e as Error).message; }
+    });
+  });
+  for (const li of $('#sheetBody').querySelectorAll<HTMLElement>('ul.forms li')) {
+    const f = forms[Number(li.dataset.i)];
+    li.querySelector('.del')?.addEventListener('click', () => {
+      if (!confirm(`Delete the form "${f.name}"? Records already filled in keep their answers.`)) return;
+      saveUserForms(userForms().filter((x) => x.name !== f.name));
+      formsSheet();
+    });
+    li.querySelector('.share')!.addEventListener('click', () => {
+      const json = JSON.stringify(f);
+      openSheet(`<h2>${esc(f.name)}</h2><p class="muted">Copy this and paste it on another phone (Forms › Paste a form), or make a QR code of it to scan.</p><textarea id="formJson" rows="8" readonly>${esc(json)}</textarea>
+        <div class="row"><button type="button" id="shareBack">Back</button><button type="button" class="primary" id="shareCopy">Copy</button></div>`);
+      $('#shareBack').addEventListener('click', formsSheet);
+      $('#shareCopy').addEventListener('click', () => void navigator.clipboard?.writeText(json).then(() => toast('Copied'), () => toast('Select the text and copy it')));
+    });
+  }
+}
+
+function formBuilder() {
+  openSheet(`<h2>New form</h2>
+    <label>Name<input id="fbName" placeholder="Water point check" /></label>
+    <div id="fbFields"></div>
+    <button type="button" class="wide" id="fbAdd">＋ Add a field</button>
+    <p id="fbMsg" class="msg" aria-live="polite"></p>
+    <div class="row"><button type="button" id="fbBack">Back</button><button type="button" class="primary" id="fbSave">Save form</button></div>`);
+  const addRow = () => {
+    const d = document.createElement('fieldset');
+    d.className = 'fbRow';
+    d.innerHTML = `<input class="fbLabel" placeholder="Field label" /><select class="fbType">${TYPES.map((t) => `<option value="${t}">${TYPE_LABEL[t]}</option>`).join('')}</select>
+      <input class="fbOpts" placeholder="Choices, separated by commas" hidden /><input class="fbUnit" placeholder="Unit (optional), e.g. cm" hidden />
+      <span class="codeRow"><label class="check"><input type="checkbox" class="fbReq" /> Needed</label><button type="button" class="fbDel" aria-label="Remove this field">✕</button></span>`;
+    const ty = d.querySelector<HTMLSelectElement>('.fbType')!;
+    ty.addEventListener('change', () => {
+      d.querySelector<HTMLInputElement>('.fbOpts')!.hidden = ty.value !== 'choice';
+      d.querySelector<HTMLInputElement>('.fbUnit')!.hidden = ty.value !== 'number';
+    });
+    d.querySelector('.fbDel')!.addEventListener('click', () => d.remove());
+    $('#fbFields').append(d);
+    d.querySelector<HTMLInputElement>('.fbLabel')!.focus();
+  };
+  addRow();
+  $('#fbAdd').addEventListener('click', addRow);
+  $('#fbBack').addEventListener('click', formsSheet);
+  $('#fbSave').addEventListener('click', () => {
+    const fields = [...$('#fbFields').querySelectorAll<HTMLElement>('.fbRow')].map((d) => {
+      const q = (c: string) => d.querySelector<HTMLInputElement>(c)!;
+      const type = (d.querySelector<HTMLSelectElement>('.fbType')!.value) as FieldType;
+      return { label: q('.fbLabel').value, type, required: q('.fbReq').checked, ...(type === 'choice' ? { options: q('.fbOpts').value.split(',') } : {}), ...(type === 'number' && q('.fbUnit').value.trim() ? { unit: q('.fbUnit').value } : {}) };
+    });
+    try {
+      const f = parseForm({ name: ($('#fbName') as HTMLInputElement).value, fields });
+      addForm(f);
+      toast(`Form "${f.name}" saved`);
+      formsSheet();
+    } catch (e) { $('#fbMsg').textContent = (e as Error).message; }
+  });
+}
+
 setInterval(showNav, 300);
 (window as unknown as { __field: Record<string, unknown> }).__field.startNav = startNav;
 

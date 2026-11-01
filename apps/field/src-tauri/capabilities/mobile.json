@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile",
-  "description": "QR scanning for pairing (phones only)",
+  "description": "QR and barcode scanning for pairing, form fields and forms (phones only)",
   "windows": ["main"],
   "platforms": ["android", "iOS"],
   "permissions": ["barcode-scanner:default"]
