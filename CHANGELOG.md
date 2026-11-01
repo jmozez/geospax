@@ -31,6 +31,20 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Field app Bluetooth GNSS: connect an RTK or survey receiver that sends NMEA over Bluetooth LE (Nordic UART or HM-10 serial) in browsers with Web Bluetooth. Its fixes replace the phone's, the GPS chip shows RTK fixed, RTK float, DGPS or GPS with the accuracy in centimetres, and GPS status adds satellites, HDOP, PDOP and the correction age. In the phone app, receivers are used through mock location.
 - Field app quality checks: Check records lists weak fixes, possible duplicate points, areas that cross themselves, very short lines, gaps and jumps in tracks, unanswered form questions and stakeout misses, errors first, each shown on the map with a tap. Send warns when there are problems.
 
+- Methods from recent journal articles (engine, Toolbox and recipes, with known-answer tests):
+  - **What explains it? (geographical detector)**: the q-statistic of each factor, the share of the
+    spatial variance of a variable it explains (Wang et al. 2010, *International Journal of Geographical
+    Information Science* 24:107–127), with numeric factors split into strata the best of 3 methods × 3–8
+    strata (OPGD, Song et al. 2020, *GIScience & Remote Sensing* 57:593–610) and the interaction detector
+    (enhance / weaken / independent). Step `stats.geodetector`.
+  - **Where can the prediction be trusted? (area of applicability)**: the dissimilarity index raster and
+    the area where a model's predictors are like its training data (Meyer & Pebesma 2021, *Methods in
+    Ecology and Evolution* 12:1620–1633); threshold from the training cells' cross-validated DI with
+    outliers removed. Step `model.aoa`.
+  - **Honest cross-validation folds (kNNDM)**: fold numbers for training points so that test-to-training
+    distances match the prediction area's distances to the samples (Linnenbrink et al. 2024,
+    *Geoscientific Model Development* 17:5897–5912); reports the Wasserstein distance against random folds.
+    Step `model.knndm`.
 - Lazy mode across layers: the task bar's "Next for …" now also offers what the selected layer can be
   combined with among the other layers and rasters on the map, in plain words: Count <points> in each
   area (with the sum and mean of a number field), Length of <lines> in each area, Overlap with <areas>,

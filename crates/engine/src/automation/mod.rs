@@ -34,6 +34,7 @@ pub mod steps;
 pub mod triggers;
 pub mod zonal_steps;
 pub mod combine_steps;
+pub mod journal_steps;
 
 use crate::jobs::{Job, Status};
 use crate::Engine;
@@ -56,6 +57,9 @@ pub const GALLERY: &[(&str, &str)] = &[
     ("zonal-statistics", include_str!("../../../../recipes/zonal-statistics.yaml")),
     ("combine-layers", include_str!("../../../../recipes/combine-layers.yaml")),
     ("values-at-points", include_str!("../../../../recipes/values-at-points.yaml")),
+    ("geographical-detector", include_str!("../../../../recipes/geographical-detector.yaml")),
+    ("area-of-applicability", include_str!("../../../../recipes/area-of-applicability.yaml")),
+    ("knndm-folds", include_str!("../../../../recipes/knndm-folds.yaml")),
     ("check-topology", include_str!("../../../../recipes/check-topology.yaml")),
     ("points-to-hotspots", include_str!("../../../../recipes/points-to-hotspots.yaml")),
     ("interpolate-samples", include_str!("../../../../recipes/interpolate-samples.yaml")),
