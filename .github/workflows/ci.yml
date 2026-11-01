@@ -131,6 +131,8 @@ jobs:
         run: node --experimental-strip-types --no-warnings scripts/test-field-forms.mjs
       - name: Field app Bluetooth GNSS, stakeout and quality checks
         run: node --experimental-strip-types --no-warnings scripts/test-field-gnss-qc.mjs
+      - name: Field app field sheet PDF and battery saver
+        run: node --experimental-strip-types --no-warnings scripts/test-field-sheet.mjs
       - name: Field app native Bluetooth GNSS (Android plugin)
         run: node --experimental-strip-types --no-warnings scripts/test-field-btnative.mjs
       - name: Plugin manager logic (tabs, upgrades, filters)
@@ -376,6 +378,8 @@ jobs:
         run: node --experimental-strip-types --no-warnings scripts/test-field-forms.mjs
       - name: Field app Bluetooth GNSS, stakeout and quality checks
         run: node --experimental-strip-types --no-warnings scripts/test-field-gnss-qc.mjs
+      - name: Field app field sheet PDF and battery saver
+        run: node --experimental-strip-types --no-warnings scripts/test-field-sheet.mjs
       - name: Field app native Bluetooth GNSS (Android plugin)
         run: node --experimental-strip-types --no-warnings scripts/test-field-btnative.mjs
       - name: geospax-server (the computer side of the phone link)

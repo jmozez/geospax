@@ -7,6 +7,7 @@ import { fmtHeight, SOURCE_LABEL, type Height } from './elevation';
 import type { Fix } from './geo';
 import { canNativeBluetooth, listDevices, TYPE_LABEL, type BtDevice } from './btnative';
 import { canBluetooth, fmtAcc, QUALITY_LABEL, type GnssFix } from './gnss';
+import { SAVER_LABEL, type SaverMode } from './battery';
 import { BASEMAPS, type Basemap } from './tiles';
 
 export interface Ctx {
@@ -21,6 +22,11 @@ export interface Ctx {
   setDem(on: boolean): void;
   /** the Bluetooth GNSS receiver in use, if any */
   receiver(): { name: string | null; connect(device?: BtDevice): Promise<void>; disconnect(): void };
+  /** the field sheet PDF of these records */
+  fieldSheet(recs: Rec[]): Promise<Uint8Array>;
+  /** the battery saver: whether it is on now and the battery level, and re-apply after a settings change */
+  battery(): { on: boolean; text: string };
+  applySaver(): void;
 }
 export interface Heights { gnss: Height | null; baro: Height | null; dem: Height | null; best: Height | null }
 
@@ -41,10 +47,12 @@ export interface Settings {
   tourDone: boolean;
   /** ask the terrain model (Open-Meteo, online) for heights: sends the position */
   dem: boolean;
+  /** lighter map drawing, slower screen updates, no keep-awake and GPS off in the background */
+  batterySaver: SaverMode;
 }
 const SKEY = 'geospax-field.settings';
 export function settings(): Settings {
-  const d: Settings = { basemap: (localStorage.getItem('geospax-field.basemap') as Basemap) || 'imagery', warnAcc: 30, keepAwake: false, tourDone: false, dem: false };
+  const d: Settings = { basemap: (localStorage.getItem('geospax-field.basemap') as Basemap) || 'imagery', warnAcc: 30, keepAwake: false, tourDone: false, dem: false, batterySaver: 'auto' };
   try { return { ...d, ...JSON.parse(localStorage.getItem(SKEY) ?? '{}') }; } catch { return d; }
 }
 export function saveSettings(s: Partial<Settings>) {
@@ -54,13 +62,20 @@ export function saveSettings(s: Partial<Settings>) {
 }
 
 let wake: { release(): Promise<void> } | null = null;
+let saverActive = false;
+/** the battery saver overrides keep-awake while it is on */
+export function setSaverActive(on: boolean) {
+  saverActive = on;
+  void applyKeepAwake(settings().keepAwake);
+}
 export async function applyKeepAwake(on: boolean) {
+  on = on && !saverActive;
   const wl = (navigator as unknown as { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock;
   if (!on) { await wake?.release().catch(() => {}); wake = null; return; }
   if (!wl || wake) return;
   try { wake = await wl.request('screen'); } catch { /* not allowed now: tried again when the app is back in front */ }
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && settings().keepAwake) { wake = null; void applyKeepAwake(true); } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && settings().keepAwake && !saverActive) { wake = null; void applyKeepAwake(true); } });
 
 // ------------------------------------------------------------------ what's new, help, about
 export const WHATS_NEW: { version: string; items: string[] }[] = [
@@ -128,6 +143,8 @@ function helpSheet(ctx: Ctx) {
       <dt>📍 Stake out</dt><dd>In Records: paste design points or use saved ones, walk until it says On the mark, then tap Staked. The offsets are saved with the point.</dd>
       <dt>✔ Check records</dt><dd>In Records: lists weak fixes, duplicates, crossed areas, track gaps and unanswered form questions. Tap one to see it.</dd>
       <dt>Bluetooth GNSS</dt><dd>Tap the GPS chip, then Connect (in a browser) or Find Bluetooth receivers (in the Android app), for RTK accuracy. The app reads NMEA over Bluetooth Classic or Bluetooth LE.</dd>
+      <dt>📄 Field sheet</dt><dd>In ⋯ › Backup and export: a PDF with a sketch map, a table of every record with its answers, and the photos, to print, file or send.</dd>
+      <dt>🔋 Battery saver</dt><dd>In Settings: on its own below 20%, or always. The map draws at lower detail, the screen updates once a second and may sleep, and GPS stops in the background unless you are recording a track, walking, navigating or staking out.</dd>
       <dt>⬚ Plot and ⟶ Transect</dt><dd>In Records: lay out a plot around you, or a transect on a bearing with stations you are then guided to one by one.</dd>
       <dt>📷 Photo</dt><dd>A photo saved as a point where it was taken, with the compass bearing the camera faced (you can correct it before saving).</dd>
       <dt>🎙 Voice note</dt><dd>On any point, line, area or photo: tap Voice note, talk, tap Stop. It is kept with the record and sent with it.</dd>
@@ -178,12 +195,18 @@ function feedbackSheet(ctx: Ctx) {
 }
 
 // ------------------------------------------------------------------ settings sheet
+function saverText(ctx: Ctx) {
+  const b = ctx.battery();
+  return `Battery ${b.text}. The saver is ${b.on ? 'on: the map draws at lower detail, the screen updates once a second, the screen may sleep and GPS stops in the background unless you are recording a track, walking, navigating or staking out' : 'off'}.`;
+}
 function settingsSheet(ctx: Ctx) {
   const s = settings();
   ctx.openSheet(`<h2>Settings</h2>
     <label class="field">Basemap at start<select id="sBase">${(Object.keys(BASEMAPS) as Basemap[]).map((b) => `<option value="${b}" ${b === s.basemap ? 'selected' : ''}>${BASEMAPS[b].label}</option>`).join('')}</select></label>
     <label class="field">Ask before saving a point worse than<select id="sAcc">${[10, 20, 30, 50, 100, 0].map((m) => `<option value="${m}" ${m === s.warnAcc ? 'selected' : ''}>${m ? `±${m} m` : 'never ask'}</option>`).join('')}</select></label>
     <label class="check"><input type="checkbox" id="sAwake" ${s.keepAwake ? 'checked' : ''} /> Keep the screen on (uses more battery)</label>
+    <label class="field">Battery saver<select id="sSaver">${(Object.keys(SAVER_LABEL) as SaverMode[]).map((m) => `<option value="${m}" ${m === s.batterySaver ? 'selected' : ''}>${SAVER_LABEL[m]}</option>`).join('')}</select></label>
+    <p class="muted" id="sSaverNow">${esc(saverText(ctx))}</p>
     <label class="check"><input type="checkbox" id="sDem" ${s.dem ? 'checked' : ''} /> Heights from the terrain model when GPS is poor (online: sends your position to Open-Meteo)</label>
     <label class="check"><input type="checkbox" id="sTour" ${s.tourDone ? '' : 'checked'} /> Show the tour at the next start</label>
     ${backRow}`);
@@ -191,6 +214,7 @@ function settingsSheet(ctx: Ctx) {
   $('#sBase').addEventListener('change', (e) => { const b = (e.target as HTMLSelectElement).value as Basemap; saveSettings({ basemap: b }); ctx.setBasemap(b); });
   $('#sAcc').addEventListener('change', (e) => saveSettings({ warnAcc: Number((e.target as HTMLSelectElement).value) }));
   $('#sAwake').addEventListener('change', (e) => { const on = (e.target as HTMLInputElement).checked; saveSettings({ keepAwake: on }); void applyKeepAwake(on); });
+  $('#sSaver').addEventListener('change', (e) => { saveSettings({ batterySaver: (e.target as HTMLSelectElement).value as SaverMode }); ctx.applySaver(); $('#sSaverNow').textContent = saverText(ctx); });
   $('#sDem').addEventListener('change', (e) => { const on = (e.target as HTMLInputElement).checked; saveSettings({ dem: on }); ctx.setDem(on); });
   $('#sTour').addEventListener('change', (e) => saveSettings({ tourDone: !(e.target as HTMLInputElement).checked }));
 }
@@ -233,7 +257,8 @@ function gpsSheet(ctx: Ctx) {
   const draw = () => {
     const body = document.getElementById('gpsRows');
     if (!body) return clearInterval(timer);
-    body.innerHTML = gpsRows(ctx.fix(), ctx.raw(), Date.now(), ctx.heights()).map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join('');
+    const bt = ctx.battery();
+    body.innerHTML = [...gpsRows(ctx.fix(), ctx.raw(), Date.now(), ctx.heights()), ['Battery', `${bt.text}${bt.on ? ' · saver on' : ''}`] as [string, string]].map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join('');
   };
   const rx = ctx.receiver();
   ctx.openSheet(`<h2>GPS status</h2><table class="kv"><tbody id="gpsRows"></tbody></table>
@@ -314,8 +339,8 @@ export function toGeoJson(recs: Rec[]): GeoJSON.FeatureCollection {
     }),
   };
 }
-async function hand(name: string, text: string, type: string) {
-  const file = new File([text], name, { type });
+async function hand(name: string, text: string | Uint8Array, type: string) {
+  const file = new File([text as BlobPart], name, { type });
   const nav = navigator as Navigator & { canShare?(d: { files: File[] }): boolean };
   if (nav.canShare?.({ files: [file] })) { try { await nav.share({ files: [file], title: name }); return; } catch { /* cancelled: fall through to a download */ } }
   const a = document.createElement('a');
@@ -332,6 +357,7 @@ async function backupSheet(ctx: Ctx) {
     <p class="muted">${recs.length} record${recs.length === 1 ? '' : 's'} and ${photos} photo${photos === 1 ? '' : 's'} on this phone.</p>
     <button type="button" class="wide primary" id="bkSave">💾 Full backup (records, photos and voice notes)</button>
     <button type="button" class="wide" id="bkGeo">Export as GeoJSON (for QGIS or GeoSpaX)</button>
+    <button type="button" class="wide" id="bkPdf">📄 Field sheet (PDF: map, table and photos to print or file)</button>
     <button type="button" class="wide" id="bkLoad">Restore a backup</button>
     <input type="file" id="bkFile" accept=".json,application/json" hidden />
     <p class="muted">Restoring adds the backup's records; records already on the phone are kept.</p>
@@ -340,6 +366,10 @@ async function backupSheet(ctx: Ctx) {
   const msg = $('#bkMsg');
   $('#bkSave').addEventListener('click', async () => { msg.textContent = 'Preparing…'; await hand(`geospax-field-backup-${stamp}.json`, await backupJson(recs), 'application/json'); msg.textContent = ''; });
   $('#bkGeo').addEventListener('click', () => void hand(`geospax-field-${stamp}.geojson`, JSON.stringify(toGeoJson(recs)), 'application/geo+json'));
+  $('#bkPdf').addEventListener('click', async () => {
+    msg.textContent = 'Making the field sheet…';
+    try { await hand(`geospax-field-sheet-${stamp}.pdf`, await ctx.fieldSheet(recs), 'application/pdf'); msg.textContent = ''; } catch (e) { msg.textContent = `Could not make the field sheet: ${(e as Error).message}`; }
+  });
   $('#bkLoad').addEventListener('click', () => ($('#bkFile') as HTMLInputElement).click());
   $('#bkFile').addEventListener('change', async (e) => {
     const f = (e.target as HTMLInputElement).files?.[0];

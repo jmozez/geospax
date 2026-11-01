@@ -23,7 +23,7 @@ globalThis.FileReader = FR;
 const B = await import('../apps/field/src/basics.ts');
 
 // settings: defaults, then saved ones; the terrain model is off unless switched on (it sends the position)
-assert.deepEqual(B.settings(), { basemap: 'imagery', warnAcc: 30, keepAwake: false, tourDone: false, dem: false });
+assert.deepEqual(B.settings(), { basemap: 'imagery', warnAcc: 30, keepAwake: false, tourDone: false, dem: false, batterySaver: 'auto' });
 B.saveSettings({ dem: true, warnAcc: 10 });
 assert.equal(B.settings().dem, true);
 assert.equal(B.settings().warnAcc, 10);
