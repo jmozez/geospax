@@ -1,0 +1,4 @@
+"$schema" = "schemas/schema.json"
+[default]
+description = "List, connect to and read Bluetooth GNSS receivers."
+permissions = ["allow-devices", "allow-connect", "allow-disconnect", "allow-check-permissions", "allow-request-permissions"]

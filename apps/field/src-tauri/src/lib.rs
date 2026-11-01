@@ -1,6 +1,6 @@
 //! GeoSpaX Field: the phone app. The UI (apps/field/src) does the work; this adds the plugins it needs:
 //! GPS, the camera as a QR scanner (pairing with the desktop) and HTTP that accepts the desktop phone
-//! link's self-signed certificate, and the barometer for heights.
+//! link's self-signed certificate, the barometer for heights and Bluetooth GNSS receivers (plugins/gnss).
 
 mod barometer;
 
@@ -13,7 +13,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![barometer::barometer_hpa]);
     #[cfg(mobile)]
     {
-        app = app.plugin(tauri_plugin_barcode_scanner::init());
+        app = app.plugin(tauri_plugin_barcode_scanner::init()).plugin(tauri_plugin_gnss::init());
     }
     app.run(tauri::generate_context!()).expect("error while running GeoSpaX Field");
 }
