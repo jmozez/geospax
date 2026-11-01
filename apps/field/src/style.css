@@ -100,3 +100,16 @@ label.check input { width: 22px; height: 22px; margin: 0; flex: none; }
 .voices audio { flex: 1; min-width: 0; height: 36px; }
 .voices .del { flex: none; }
 #voiceBtn.rec { background: var(--poor); color: #fff; }
+.pill.rec.paused { color: var(--fair); }
+.pill.rec.paused::before { content: '❚❚ '; animation: none; }
+#drawWalk.rec { background: var(--poor); color: #fff; }
+#draw .row { flex-wrap: wrap; }
+.navbox { position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top) + 112px); display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: rgba(13, 16, 19, 0.94); border: 1px solid var(--line); border-radius: 16px; z-index: 5; }
+.navbox .arrow { flex: none; width: 52px; height: 52px; display: grid; place-items: center; font-size: 34px; color: #4cc2ff; transition: transform .25s; }
+.navbox .arrow.north { opacity: .6; }
+.navbox.arrived .arrow { color: var(--good); }
+.navbox .grow { flex: 1; min-width: 0; }
+.navbox b { display: block; overflow-wrap: anywhere; }
+.navbox p { margin: 2px 0 0; color: var(--muted); }
+.list li:has(.go) { padding-right: 92px; }
+.list .go { position: absolute; right: 46px; top: 50%; transform: translateY(-50%); width: 40px; min-height: 40px; padding: 0; border: 0; background: transparent; color: #4cc2ff; font-size: 20px; }
