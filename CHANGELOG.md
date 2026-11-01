@@ -32,6 +32,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 
 ### Changed
 - Field app: the third coordinate of saved points, lines, areas and tracks (also as sent to GeoSpaX in GeoJSON and GPX) is now the height above mean sea level (EGM2008) from the best source, not the GPS height above the ellipsoid, which in Papua New Guinea is about 70 m higher.
+- Field app field sheet: Backup and export makes a PDF (A4, no extra library) with a sketch map of the records, numbered, with a scale bar and north arrow, a table of every record with its note, form answers, position, accuracy, height, size and time, and the JPEG photos with their bearings, to print, file or share.
+- Field app battery saver (Settings: off, below 20% or always): the map draws at normal rather than high pixel density, the screen updates once a second, keep-awake is paused and GPS stops while the app is in the background unless a track, walk, navigation or stakeout is running. GPS status shows the battery level.
 
 ## [3.0.9] - 2026-10-31
 
