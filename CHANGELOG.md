@@ -6,6 +6,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [3.1.0] - Unreleased
 
 ### Added
+- Field app: the Android app connects to Bluetooth GNSS receivers itself, since its web view has no Web Bluetooth. A built-in plugin lists paired receivers and nearby Bluetooth LE ones, connects over Bluetooth Classic (serial port profile) or Bluetooth LE (Nordic UART or HM-10), asks for the Nearby devices permission on Android 12 and newer, and feeds the NMEA it receives into the same parser as the browser. Mock location is no longer needed.
 - Plugin manager: long plugin names wrap instead of being cut short, badges sit below the name, and a plugin.json tool may set its own icon.
 - Plugin manager in the style of QGIS: All, Installed, Not installed, Upgradeable, Install from ZIP and Settings tabs, search, a details panel, switching a plugin off without removing it, plugin repositories (a JSON index over https or a local path, with SHA-256 checks), upgrades, and a two-click uninstall.
 - Field app basics: a ⋯ menu with Help, About, What's new (shown once after an update) and Settings (basemap at start, ask before saving a point worse than a chosen accuracy, keep the screen on, show the tour again).

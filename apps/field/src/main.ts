@@ -10,6 +10,7 @@ import { FixFilter, watchPosition, type Fix } from './geo';
 import { BASEMAPS, installTileCache, type Basemap } from './tiles';
 import { hello, parseLink, saveLink, savedLink, scanLink, send } from './sync';
 import { inApp } from './geo';
+import { connectNative, type BtDevice } from './btnative';
 import { installBasics, setSaverActive, settings } from './basics';
 import { fmtBattery, gpsWanted, plan, saverOn, watchBattery, type Battery } from './battery';
 import { fieldSheet } from './pdf';
@@ -178,11 +179,13 @@ function onFixIn(raw: Fix) {
   }
   useFix(f);
 }
-async function connectGnss() {
-  receiver = await connectReceiver(
-    (g) => { receiverAt = Date.now(); onFixIn({ ...g, t: receiverAt }); },
-    () => { receiver = null; toast('The GNSS receiver disconnected: back to the phone GPS'); },
-  );
+async function connectGnss(device?: BtDevice) {
+  receiver?.disconnect();
+  receiver = null;
+  const onFix = (g: GnssFix) => { receiverAt = Date.now(); onFixIn({ ...g, t: receiverAt }); };
+  const onGone = (error?: string | null) => { if (!receiver) return; receiver = null; toast(`${error ? `${error}: ` : 'The GNSS receiver disconnected: '}back to the phone GPS`); };
+  // the Android app reads receivers through its own plugin; browsers through Web Bluetooth
+  receiver = device ? await connectNative(device, onFix, onGone) : await connectReceiver(onFix, () => onGone());
   toast(`Connected to ${receiver.name}`);
 }
 let stopGps: (() => void) | null = null;
