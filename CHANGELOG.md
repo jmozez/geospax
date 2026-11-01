@@ -31,6 +31,14 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Field app Bluetooth GNSS: connect an RTK or survey receiver that sends NMEA over Bluetooth LE (Nordic UART or HM-10 serial) in browsers with Web Bluetooth. Its fixes replace the phone's, the GPS chip shows RTK fixed, RTK float, DGPS or GPS with the accuracy in centimetres, and GPS status adds satellites, HDOP, PDOP and the correction age. In the phone app, receivers are used through mock location.
 - Field app quality checks: Check records lists weak fixes, possible duplicate points, areas that cross themselves, very short lines, gaps and jumps in tracks, unanswered form questions and stakeout misses, errors first, each shown on the map with a tap. Send warns when there are problems.
 
+- Web app on phones and tablets: on a phone (600 px or narrower) the map takes the screen; the header is
+  one compact row; the ribbon tabs scroll sideways and a tab tap opens its tools over the map (closed after
+  a command) instead of pushing the map down; the status bar is one line; a full-width bottom bar with
+  icons opens Layers, Tools and Activity (44 px targets); panes and dialogs fill the screen width. On a
+  first start on a small screen (a tablet in landscape, a laptop up to 1280 px) the side panes are
+  narrower and the bottom pane starts folded. Tested on Pixel 7, iPhone 13 and iPad in both orientations
+  (`scripts/test-web-mobile.mjs`, in CI).
+
 ### Changed
 - Field app: the third coordinate of saved points, lines, areas and tracks (also as sent to GeoSpaX in GeoJSON and GPX) is now the height above mean sea level (EGM2008) from the best source, not the GPS height above the ellipsoid, which in Papua New Guinea is about 70 m higher.
 - Field app field sheet: Backup and export makes a PDF (A4, no extra library) with a sketch map of the records, numbered, with a scale bar and north arrow, a table of every record with its note, form answers, position, accuracy, height, size and time, and the JPEG photos with their bearings, to print, file or share.

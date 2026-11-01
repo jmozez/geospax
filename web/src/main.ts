@@ -1,3 +1,4 @@
+import { icon as cmdIcon } from './commands';
 import { wireProjects } from './projects';
 import * as editingMod from './editing';
 import * as ggchartMod from './ggchart';
@@ -2522,7 +2523,9 @@ async function main() {
   {
     const bar = document.createElement('div');
     bar.className = 'mobile-bar';
-    bar.innerHTML = '<button data-m="left">Layers</button><button data-m="bottom">Tools</button><button data-m="right">Panel</button>';
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Panes');
+    bar.innerHTML = `<button data-m="left" aria-label="Layers and data">${cmdIcon('layers', 20)}<span>Layers</span></button><button data-m="right" aria-label="Style, tools and Ask">${cmdIcon('toolbox', 20)}<span>Tools</span></button><button data-m="bottom" aria-label="Activity, table and history">${cmdIcon('history', 20)}<span>Activity</span></button>`;
     $('#center').append(bar);
     const docks: Record<string, HTMLElement | null> = { left: document.querySelector('#dock-left'), right: document.querySelector('#dock-right') };
     const sync = () => {
