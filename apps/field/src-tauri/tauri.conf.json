@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [{ "title": "GeoSpaX Field", "width": 420, "height": 860 }],
-    "security": { "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' ipc: http://ipc.localhost https: http: data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" }
+    "security": { "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https: http: data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" }
   },
   "bundle": {
     "active": true,

@@ -523,7 +523,8 @@ fn upload<R: Read>(engine: &Arc<Engine>, req: &Request, rd: &mut R) -> Reply {
             && lat.abs() <= 90.0 && lon.abs() <= 180.0 {
                 let ts = param(q, "ts").and_then(|v| v.parse::<f64>().ok()).map(|ms| ms / 1000.0);
                 let acc = param(q, "acc").and_then(|v| v.parse::<f64>().ok());
-                if std::fs::write(sidecar_path(&path), xmp_sidecar(lat, lon, ts, acc)).is_ok() {
+                let dir = param(q, "dir").and_then(|v| v.parse::<f64>().ok()).filter(|d| d.is_finite() && (0.0..=360.0).contains(d));
+                if std::fs::write(sidecar_path(&path), xmp_sidecar(lat, lon, ts, acc, dir)).is_ok() {
                     gps = json!("phone");
                 }
             }
@@ -535,8 +536,9 @@ fn sidecar_path(photo: &Path) -> PathBuf {
     PathBuf::from(format!("{}.xmp", photo.display()))
 }
 
-/// XMP sidecar (Lightroom/darktable/digiKam style) with the phone's position at capture time.
-pub fn xmp_sidecar(lat: f64, lon: f64, ts: Option<f64>, accuracy: Option<f64>) -> String {
+/// XMP sidecar (Lightroom/darktable/digiKam style) with the phone's position at capture time, and the
+/// compass bearing the camera faced (magnetic, from the phone's compass) when the phone sent one.
+pub fn xmp_sidecar(lat: f64, lon: f64, ts: Option<f64>, accuracy: Option<f64>, direction: Option<f64>) -> String {
     let dm = |v: f64, pos: char, neg: char| {
         let a = v.abs();
         format!("{},{:.6}{}", a.trunc() as i64, (a - a.trunc()) * 60.0, if v < 0.0 { neg } else { pos })
@@ -546,8 +548,9 @@ pub fn xmp_sidecar(lat: f64, lon: f64, ts: Option<f64>, accuracy: Option<f64>) -
         .map(|d| format!(" exif:DateTimeOriginal=\"{}\"", d.with_timezone(&chrono::Local).format("%Y-%m-%dT%H:%M:%S%:z")))
         .unwrap_or_default();
     let acc = accuracy.map(|a| format!(" exif:GPSHPositioningError=\"{:.0}/1\"", a.max(0.0))).unwrap_or_default();
+    let dir = direction.map(|d| format!(" exif:GPSImgDirection=\"{:.0}/10\" exif:GPSImgDirectionRef=\"M\"", (d * 10.0).rem_euclid(3600.0))).unwrap_or_default();
     format!(
-        "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n  <rdf:Description rdf:about=\"\" xmlns:exif=\"http://ns.adobe.com/exif/1.0/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n   exif:GPSVersionID=\"2.3.0.0\" exif:GPSLatitude=\"{}\" exif:GPSLongitude=\"{}\"{time}{acc}\n   xmp:CreatorTool=\"GeoSpaX phone link\"/>\n </rdf:RDF>\n</x:xmpmeta>\n<?xpacket end=\"w\"?>\n",
+        "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n  <rdf:Description rdf:about=\"\" xmlns:exif=\"http://ns.adobe.com/exif/1.0/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n   exif:GPSVersionID=\"2.3.0.0\" exif:GPSLatitude=\"{}\" exif:GPSLongitude=\"{}\"{time}{acc}{dir}\n   xmp:CreatorTool=\"GeoSpaX phone link\"/>\n </rdf:RDF>\n</x:xmpmeta>\n<?xpacket end=\"w\"?>\n",
         dm(lat, 'N', 'S'),
         dm(lon, 'E', 'W')
     )
@@ -693,13 +696,14 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let photo = dir.join("IMG_0001.jpg");
         std::fs::write(&photo, b"not really a jpeg").unwrap();
-        std::fs::write(sidecar_path(&photo), xmp_sidecar(-5.8721, 144.2214, Some(1_791_878_400.0), Some(4.0))).unwrap();
+        std::fs::write(sidecar_path(&photo), xmp_sidecar(-5.8721, 144.2214, Some(1_791_878_400.0), Some(4.0), Some(237.4))).unwrap();
         let (p, u) = crate::devices::read_photo_full(&photo);
         let p = p.expect("placed from the sidecar");
         assert!(u.is_none());
         assert_eq!(p.placed, Some("sidecar"));
         assert!((p.lat + 5.8721).abs() < 1e-6 && (p.lon - 144.2214).abs() < 1e-6, "{p:?}");
         assert!(p.taken_at.is_some());
+        assert!((p.direction.unwrap() - 237.4).abs() < 1e-9, "{p:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
