@@ -281,7 +281,7 @@ function gpsSheet(ctx: Ctx) {
     try { ds = await listDevices(); } catch (e) { if (document.getElementById('rxMsg')) $('#rxMsg').textContent = (e as Error).message; return; }
     if (!document.getElementById('rxList')) return;
     $('#rxMsg').textContent = ds.length ? 'Tap the receiver:' : 'No receivers found. Pair a Bluetooth Classic receiver in the phone settings, or switch a Bluetooth LE one on, then try again.';
-    $('#rxList').innerHTML = ds.map((d, i) => `<li><button type="button" class="rxDev" data-i="${i}"><b>${esc(d.name)}</b><small>${TYPE_LABEL[d.type]}${d.paired ? ' · paired' : ''} · ${esc(d.address)}</small></button></li>`).join('');
+    $('#rxList').innerHTML = ds.map((d, i) => `<li><button type="button" class="rxDev wide" data-i="${i}"><b>${esc(d.name)}</b><small>${TYPE_LABEL[d.type]}${d.paired ? ' · paired' : ''} · ${esc(d.address)}</small></button></li>`).join('');
     for (const b of $('#rxList').querySelectorAll<HTMLButtonElement>('.rxDev')) b.addEventListener('click', () => {
       const d = ds[Number(b.dataset.i)];
       $('#rxMsg').textContent = `Connecting to ${d.name}…`;
