@@ -6,13 +6,14 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import { allRecords, deleteRecord, newId, putRecord, type Kind, type Photo, type Rec, type Vertex } from './db';
-import { FixFilter, metres, watchPosition, type Fix } from './geo';
+import { FixFilter, watchPosition, type Fix } from './geo';
 import { BASEMAPS, installTileCache, type Basemap } from './tiles';
 import { hello, parseLink, saveLink, savedLink, scanLink, send } from './sync';
 import { inApp } from './geo';
 import { installBasics, settings } from './basics';
 import { fmtHeight, type Height } from './elevation';
 import { heights, onFix as heightsOnFix, setDem, startHeights } from './heights';
+import { areaM2, fmtArea, fmtLen, fmtTime, lengthM, navTo, parseCoords, takeFix, trackStats, turn, xy } from './walk';
 import { askCompass, fmtBearing, fmtDur, MAX_VOICE_MS, norm, startCompass, startVoice, voiceName, type Recording, type Voice } from './capture';
 
 const compass = startCompass();
@@ -26,6 +27,11 @@ const fixes = new FixFilter();
 let records: Rec[] = [];
 let draft: { kind: 'line' | 'area'; coords: Vertex[] } | null = null;
 let track: Rec | null = null;
+let trackPaused = false;
+/** walk-to-measure: the draft takes a vertex from each good fix as you walk */
+let walking = false;
+/** navigate to a point */
+let target: { name: string; at: [number, number] } | null = null;
 let basemap: Basemap = settings().basemap;
 let follow = true;
 
@@ -79,6 +85,9 @@ map.on('load', () => {
   map.addLayer({ id: 'draft-fill', type: 'fill', source: 'draft', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#ffd43b', 'fill-opacity': 0.25 } });
   map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#ffd43b', 'line-width': 3, 'line-dasharray': [2, 1] } });
   map.addLayer({ id: 'draft-pt', type: 'circle', source: 'draft', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 5, 'circle-color': '#ffd43b', 'circle-stroke-color': '#000', 'circle-stroke-width': 1 } });
+  map.addSource('nav', { type: 'geojson', data: fc([]) });
+  map.addLayer({ id: 'nav-line', type: 'line', source: 'nav', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#4cc2ff', 'line-width': 2, 'line-dasharray': [1, 1] } });
+  map.addLayer({ id: 'nav-pt', type: 'circle', source: 'nav', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 9, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#4cc2ff', 'circle-stroke-width': 3 } });
   map.addLayer({ id: 'me-acc', type: 'circle', source: 'me', paint: { 'circle-radius': ['get', 'px'], 'circle-color': '#4c8dff', 'circle-opacity': 0.15 } });
   map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-radius': 8, 'circle-color': '#4c8dff', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 } });
   setBasemap(basemap);
@@ -105,10 +114,26 @@ function drawDraft() {
   if (draft) {
     parts.push(recFeature(draft));
     for (const v of draft.coords) parts.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [v[0], v[1]] }, properties: {} });
-    $('#drawMsg').textContent = `${draft.coords.length} point${draft.coords.length === 1 ? '' : 's'}: tap the map or add your position`;
+    $('#drawMsg').textContent = draftText(draft.kind, draft.coords, walking);
   }
   if (track) parts.push(recFeature(track));
   (map.getSource('draft') as maplibregl.GeoJSONSource | undefined)?.setData(fc(parts.filter(Boolean)));
+}
+
+/** what the draw panel says: the points so far and what they measure */
+function draftText(kind: 'line' | 'area', coords: Vertex[], walk: boolean) {
+  const n = `${coords.length} point${coords.length === 1 ? '' : 's'}`;
+  const pts = coords.map(xy);
+  const m = kind === 'area' ? (coords.length > 2 ? ` · ${fmtArea(areaM2(pts))} · perimeter ${fmtLen(lengthM(pts, true))}` : '') : coords.length > 1 ? ` · ${fmtLen(lengthM(pts))}` : '';
+  return walk ? `Walking${kind === 'area' ? ' the boundary' : ''} · ${n}${m}` : `${n}${m}: tap the map, add your position or walk it`;
+}
+/** what a saved record measures, for the list */
+function measure(r: Rec) {
+  const pts = r.coords.map(xy);
+  if (r.kind === 'area') return `${fmtArea(areaM2(pts))} · perimeter ${fmtLen(lengthM(pts, true))}`;
+  if (r.kind === 'line') return fmtLen(lengthM(pts));
+  if (r.kind === 'track') { const t = trackStats(r.coords); return `${fmtLen(t.distance)} · ${fmtTime(t.duration)}${t.gain >= 3 ? ` · ↑${Math.round(t.gain)} m` : ''}`; }
+  return '';
 }
 
 async function refresh() {
@@ -155,15 +180,20 @@ function useFix(f: Fix) {
   showGps(`GPS ±${Math.round(f.acc)} m`, f.acc <= 10 ? 'good' : f.acc <= 30 ? 'fair' : 'poor');
   drawMe();
   if (first || follow) map.easeTo({ center: [f.lon, f.lat], zoom: first ? Math.max(map.getZoom(), 16) : map.getZoom(), duration: first ? 0 : 400 });
-  if (track) {
-    const last = track.coords[track.coords.length - 1];
+  if (track && !trackPaused) {
     // a new track point every 3 m, and only fixes good enough to draw a line with
-    if (f.acc <= 50 && (!last || metres([last[0], last[1]], [f.lon, f.lat]) >= 3)) {
+    if (takeFix(track.coords[track.coords.length - 1], f.lon, f.lat, f.acc, 3, 50)) {
       track.coords.push([f.lon, f.lat, heights(f).best?.value ?? null, f.t, f.acc]);
       $('#trackInfo').textContent = trackText(track);
       drawDraft();
     }
   }
+  // walk-to-measure: a vertex every 3 m from fixes good to ±20 m
+  if (draft && walking && takeFix(draft.coords[draft.coords.length - 1], f.lon, f.lat, f.acc, 3, 20)) {
+    draft.coords.push([f.lon, f.lat, heights(f).best?.value ?? null, f.t, f.acc]);
+    drawDraft();
+  }
+  showNav();
 }
 $('#locate').addEventListener('click', () => {
   follow = true;
@@ -186,10 +216,19 @@ document.addEventListener('securitypolicyviolation', (e) => {
 });
 (window as unknown as { __field: object }).__field = { cspBlocked, fix: () => fix, best: () => fixes.best(), here, heights: () => heights(fixes.best() ?? fix), parseLink, hello, send };
 function trackText(t: Rec) {
-  let m = 0;
-  for (let i = 1; i < t.coords.length; i++) m += metres([t.coords[i - 1][0], t.coords[i - 1][1]], [t.coords[i][0], t.coords[i][1]]);
-  return `Recording · ${m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`}`;
+  const s = trackStats(t.coords);
+  const time = fmtTime((t.coords.length ? Date.now() - t.coords[0][3] : 0));
+  return `${trackPaused ? 'Paused (tap to go on)' : 'Recording'} · ${fmtLen(s.distance)} · ${time}${s.speed ? ` · ${(s.speed * 3.6).toFixed(1)} km/h` : ''}`;
 }
+// tap the recording pill to pause the track (a break, a drive) and again to go on
+$('#trackInfo').addEventListener('click', () => {
+  if (!track) return;
+  trackPaused = !trackPaused;
+  $('#trackInfo').classList.toggle('paused', trackPaused);
+  $('#trackInfo').textContent = trackText(track);
+  toast(trackPaused ? 'Track paused' : 'Track going on');
+});
+setInterval(() => { if (track) $('#trackInfo').textContent = trackText(track); }, 1000);
 
 // ------------------------------------------------------------------ sheets
 const sheet = $('#sheet') as HTMLDialogElement;
@@ -327,6 +366,7 @@ $('#btnPoint').addEventListener('click', async () => {
 
 function startDraw(kind: 'line' | 'area') {
   draft = { kind, coords: [] };
+  setWalking(false);
   $('#draw').hidden = false;
   $('#bar').hidden = true;
   drawDraft();
@@ -339,15 +379,32 @@ $('#drawHere').addEventListener('click', () => {
   draft.coords.push(v);
   drawDraft();
 });
+function setWalking(on: boolean) {
+  walking = on;
+  const b = $('#drawWalk');
+  b.classList.toggle('rec', on);
+  b.textContent = on ? '■ Stop walking' : '🚶 Walk it';
+  if (on) {
+    follow = true;
+    const v = here();
+    if (v && draft && takeFix(draft.coords[draft.coords.length - 1], v[0], v[1], v[4] ?? Infinity, 3, 20)) draft.coords.push(v);
+  }
+  drawDraft();
+}
+$('#drawWalk').addEventListener('click', () => {
+  if (!walking && !fix) return toast('No GPS position yet');
+  setWalking(!walking);
+});
 $('#drawUndo').addEventListener('click', () => { draft?.coords.pop(); drawDraft(); });
-const endDraw = () => { draft = null; $('#draw').hidden = true; $('#bar').hidden = false; drawDraft(); };
+const endDraw = () => { setWalking(false); draft = null; $('#draw').hidden = true; $('#bar').hidden = false; drawDraft(); };
 $('#drawCancel').addEventListener('click', endDraw);
 $('#drawDone').addEventListener('click', async () => {
   if (!draft) return;
   const need = draft.kind === 'area' ? 3 : 2;
   if (draft.coords.length < need) return toast(`An ${draft.kind} needs at least ${need} points`);
   const d = draft;
-  const r = await noteSheet(`${LABEL[d.kind]} with ${d.coords.length} points`);
+  setWalking(false);
+  const r = await noteSheet(`${LABEL[d.kind]} · ${draftText(d.kind, d.coords, false).replace(/: tap.*$/, '')}`);
   if (r) {
     await save(d.kind, d.coords, r.note, [], null, r.voice);
     endDraw();
@@ -357,6 +414,8 @@ $('#drawDone').addEventListener('click', async () => {
 $('#btnTrack').addEventListener('click', async () => {
   if (!track) {
     track = { id: newId(), kind: 'track', coords: [], note: '', created: Date.now(), sent: false, photos: [] };
+    trackPaused = false;
+    $('#trackInfo').classList.remove('paused');
     const v = here();
     if (v) track.coords.push(v);
     $('#btnTrack').classList.add('rec');
@@ -373,7 +432,7 @@ $('#btnTrack').addEventListener('click', async () => {
   $('#trackInfo').hidden = true;
   drawDraft();
   if (t.coords.length < 2) return toast('Track too short: nothing saved');
-  const r = await noteSheet(trackText(t).replace('Recording · ', 'Track · '));
+  const r = await noteSheet(`Track · ${measure(t)}`);
   await save('track', t.coords, r?.note ?? '', [], null, r?.voice ?? []);
 });
 
@@ -393,15 +452,20 @@ $('#btnList').addEventListener('click', () => void listSheet());
 async function listSheet() {
   await refresh();
   const rows = records
-    .map((r) => `<li data-id="${r.id}"><b>${LABEL[r.kind]}</b> ${esc(r.note || '')}<small>${new Date(r.created).toLocaleString()}${r.height ? ` · ${esc(fmtHeight(r.height))}` : ''}${r.photos.length ? ` · ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''}${r.photos[0].bearing != null ? ` facing ${esc(fmtBearing(r.photos[0].bearing))}` : ''}` : ''}${r.voice?.length ? ` · 🎙 ${r.voice.length}` : ''} · ${r.sent ? 'sent' : '<em>not sent</em>'}</small><button type="button" class="del" aria-label="Delete">✕</button></li>`)
+    .map((r) => `<li data-id="${r.id}"><b>${LABEL[r.kind]}</b> ${esc(r.note || '')}<small>${new Date(r.created).toLocaleString()}${measure(r) ? ` · ${esc(measure(r))}` : ''}${r.height ? ` · ${esc(fmtHeight(r.height))}` : ''}${r.photos.length ? ` · ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''}${r.photos[0].bearing != null ? ` facing ${esc(fmtBearing(r.photos[0].bearing))}` : ''}` : ''}${r.voice?.length ? ` · 🎙 ${r.voice.length}` : ''} · ${r.sent ? 'sent' : '<em>not sent</em>'}</small><button type="button" class="go" aria-label="Navigate here">➜</button><button type="button" class="del" aria-label="Delete">✕</button></li>`)
     .join('');
   openSheet(`<h2>Records <small>${records.length}</small></h2>${records.length ? `<ul class="list">${rows}</ul>` : '<p class="muted">Nothing recorded yet. Use the bar at the bottom.</p>'}
-    <div class="row"><button type="button" id="closeList">Close</button></div>`);
+    <div class="row"><button type="button" id="goCoords">🧭 Go to coordinates</button><button type="button" id="closeList">Close</button></div>`);
   $('#closeList').addEventListener('click', () => sheet.close());
+  $('#goCoords').addEventListener('click', coordsSheet);
   for (const li of $('#sheetBody').querySelectorAll<HTMLElement>('li')) {
     li.addEventListener('click', (e) => {
       const r = records.find((x) => x.id === li.dataset.id);
       if (!r) return;
+      if ((e.target as HTMLElement).classList.contains('go')) {
+        sheet.close();
+        return startNav(`${LABEL[r.kind]}${r.note ? `: ${r.note}` : ''}${r.kind === 'point' ? '' : ' (start)'}`, xy(r.coords[0]));
+      }
       if ((e.target as HTMLElement).classList.contains('del')) {
         if (confirm(`Delete this ${LABEL[r.kind].toLowerCase()}?`)) void deleteRecord(r.id).then(listSheet);
         return;
@@ -497,6 +561,69 @@ function newer(a: string, b: string) {
   return false;
 }
 setTimeout(() => void checkUpdate(), 3000);
+
+// ------------------------------------------------------------------ navigate to a point
+function coordsSheet() {
+  openSheet(`<h2>Go to coordinates</h2>
+    <input id="coordsIn" type="text" inputmode="text" placeholder="-9.4431, 147.1803 or 9°26'35&quot;S 147°10'49&quot;E" autocomplete="off" />
+    <p class="muted">Latitude then longitude in decimal degrees, or degrees, minutes and seconds (WGS 84).</p>
+    <p id="coordsMsg" class="msg" aria-live="polite"></p>
+    <div class="row"><button type="button" id="coordsCancel">Cancel</button><button type="button" class="primary" id="coordsGo">Go</button></div>`);
+  $('#coordsCancel').addEventListener('click', () => sheet.close());
+  $('#coordsGo').addEventListener('click', () => {
+    const text = ($('#coordsIn') as HTMLInputElement).value;
+    const at = parseCoords(text);
+    if (!at) return void ($('#coordsMsg').textContent = 'Those are not coordinates GeoSpaX Field can read.');
+    sheet.close();
+    startNav(`${at[1].toFixed(5)}, ${at[0].toFixed(5)}`, at);
+  });
+}
+function startNav(name: string, at: [number, number]) {
+  target = { name, at };
+  void askCompass();
+  $('#navName').textContent = name;
+  $('#nav').hidden = false;
+  follow = false;
+  const me = fixes.best() ?? fix;
+  if (me) map.fitBounds([[Math.min(me.lon, at[0]), Math.min(me.lat, at[1])], [Math.max(me.lon, at[0]), Math.max(me.lat, at[1])]], { padding: 100, maxZoom: 18 });
+  else map.easeTo({ center: at, zoom: Math.max(map.getZoom(), 16) });
+  showNav();
+}
+function stopNav() {
+  target = null;
+  $('#nav').hidden = true;
+  (map.getSource('nav') as maplibregl.GeoJSONSource | undefined)?.setData(fc([]));
+}
+$('#navStop').addEventListener('click', stopNav);
+let wasArrived = false;
+function showNav() {
+  if (!target) return;
+  // the latest fix, not the averaged best one, so the line and distance follow you as you walk
+  const me = fix ?? fixes.best();
+  const src = map.getSource('nav') as maplibregl.GeoJSONSource | undefined;
+  const pt: GeoJSON.Feature = { type: 'Feature', geometry: { type: 'Point', coordinates: target.at }, properties: {} };
+  if (!me) {
+    $('#navInfo').textContent = 'Waiting for GPS…';
+    src?.setData(fc([pt]));
+    return;
+  }
+  const n = navTo(me, target.at);
+  // which way the phone faces: the direction of travel when walking briskly, otherwise the compass
+  const moving = me.speed != null && me.speed > 1 && me.heading != null;
+  const facing = moving ? me.heading! : compass.bearing(Date.now());
+  const arrow = $('#navArrow');
+  arrow.style.transform = `rotate(${(facing != null ? turn(n.bearing, facing) : n.bearing) - 90}deg)`;
+  arrow.classList.toggle('north', facing == null);
+  $('#navInfo').textContent = n.arrived
+    ? `You are there (±${Math.round(me.acc)} m)`
+    : `${fmtLen(n.distance)} · ${Math.round(n.bearing)}°${facing == null ? ' (arrow from north: no compass)' : ''}${n.eta != null ? ` · about ${fmtTime(n.eta)}` : ''}`;
+  $('#nav').classList.toggle('arrived', n.arrived);
+  if (n.arrived && !wasArrived) { toast('You have arrived'); navigator.vibrate?.(200); }
+  wasArrived = n.arrived;
+  src?.setData(fc([pt, { type: 'Feature', geometry: { type: 'LineString', coordinates: [[me.lon, me.lat], target.at] }, properties: {} }]));
+}
+setInterval(showNav, 300);
+(window as unknown as { __field: Record<string, unknown> }).__field.startNav = startNav;
 
 installBasics({
   openSheet,

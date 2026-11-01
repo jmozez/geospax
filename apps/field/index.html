@@ -22,11 +22,17 @@
   <button type="button" id="locate" class="fab" aria-label="Back to my position">◎</button>
   <div id="trackInfo" class="pill rec" hidden></div>
   <div id="toast" class="pill" hidden></div>
+  <div id="nav" class="navbox" hidden role="status">
+    <div id="navArrow" class="arrow" aria-hidden="true">➤</div>
+    <div class="grow"><b id="navName"></b><p id="navInfo"></p></div>
+    <button type="button" id="navStop" aria-label="Stop navigating">✕</button>
+  </div>
 
   <div id="draw" class="panel" hidden>
     <p id="drawMsg"></p>
     <div class="row">
       <button type="button" id="drawHere">My position</button>
+      <button type="button" id="drawWalk">🚶 Walk it</button>
       <button type="button" id="drawUndo">Undo</button>
       <button type="button" id="drawCancel">Cancel</button>
       <button type="button" id="drawDone" class="primary">Finish</button>

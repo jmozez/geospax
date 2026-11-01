@@ -20,6 +20,9 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Field app: GPS status shows the height above sea level from each source and which one is used; saved points keep their height, its source and expected error, also in the record list and the GeoJSON export (`height_m`, `height_source`, `height_acc_m`).
 - Field app photo points with a bearing: each photo keeps the compass bearing the camera faced (magnetic, averaged over two seconds), shown and correctable before saving, in the record list, the GeoJSON (`photo_bearings`) and the backup. GeoSpaX writes it to the photo's XMP sidecar (`exif:GPSImgDirection`), so mapped photos point the right way.
 - Field app voice notes: record a voice note (up to five minutes) on any point, line, area, track or photo, play it back or remove it before saving; voice notes are kept with the record, sent to GeoSpaX with it and included in the full backup.
+- Field app tracks: the recording pill shows distance, time and moving speed; tap it to pause and go on. Saved tracks show distance, time and height gained in the record list.
+- Field app walk-to-measure: Walk it on a line or area adds a vertex every 3 m from fixes good to ±20 m as you walk the boundary, with the area (m² or ha) and perimeter, or the length, shown live and in the record list.
+- Field app navigate to a point: ➜ on any record, or Go to coordinates (decimal degrees, or degrees, minutes and seconds), shows the distance, bearing and time to go, with an arrow that turns with the compass (or the direction of travel when walking), a line on the map, and a buzz on arrival.
 
 ### Changed
 - Field app: the third coordinate of saved points, lines, areas and tracks (also as sent to GeoSpaX in GeoJSON and GPX) is now the height above mean sea level (EGM2008) from the best source, not the GPS height above the ellipsoid, which in Papua New Guinea is about 70 m higher.

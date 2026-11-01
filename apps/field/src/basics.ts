@@ -116,7 +116,9 @@ function helpSheet(ctx: Ctx) {
     <dl class="help">
       <dt>● Point</dt><dd>Saves your position, averaged over the last few seconds, with a note and photos. Without GPS it uses the map centre.</dd>
       <dt>╱ Line and ▱ Area</dt><dd>Tap the map or press My position for each corner, then Finish.</dd>
-      <dt>⦿ Track</dt><dd>Records where you walk (a point every 3 m) until you press Stop.</dd>
+      <dt>⦿ Track</dt><dd>Records where you walk (a point every 3 m) until you press Stop. Tap the red pill at the top to pause and go on.</dd>
+      <dt>🚶 Walk it</dt><dd>While drawing a line or area, tap Walk it and walk the boundary: a point is added every 3 m and the area and perimeter (or length) are shown as you go.</dd>
+      <dt>➜ Navigate</dt><dd>In Records, tap ➜ on a record, or Go to coordinates, for the distance and an arrow to it. Tap ✕ to stop.</dd>
       <dt>📷 Photo</dt><dd>A photo saved as a point where it was taken, with the compass bearing the camera faced (you can correct it before saving).</dd>
       <dt>🎙 Voice note</dt><dd>On any point, line, area or photo: tap Voice note, talk, tap Stop. It is kept with the record and sent with it.</dd>
       <dt>☰ Records</dt><dd>Everything on the phone. Tap one to zoom to it.</dd>
