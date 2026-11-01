@@ -212,7 +212,7 @@ export function gpsRows(f: Fix | null, raw: ReturnType<Ctx['raw']>, now = Date.n
   const quality = !f ? 'No usable fix yet' : f.acc <= 10 ? 'Good (±10 m or better)' : f.acc <= 30 ? 'Fair (±30 m or better)' : 'Poor';
   return [
     ['Quality', quality],
-    ['Accuracy', f ? `±${f.acc.toFixed(1)} m` : '-'],
+    ['Accuracy', f ? fmtAcc(f.acc) : '-'],
     ['Latitude', f ? f.lat.toFixed(7) : '-'],
     ['Longitude', f ? f.lon.toFixed(7) : '-'],
     ['Height above sea level', fmtHeight(hs?.best ?? null)],

@@ -800,7 +800,8 @@ function showStake(me: Fix, src: maplibregl.GeoJSONSource | undefined, pt: GeoJS
 }
 $('#navStake').addEventListener('click', async () => {
   if (!staking) return;
-  const b = fixes.best() ?? fix;
+  // the latest fix, as shown in the box: an average would lag behind the last steps onto the mark
+  const b = fix ?? fixes.best();
   if (!b) return toast('Waiting for GPS');
   const d = staking.points[staking.i];
   const h = heights(b).best;
