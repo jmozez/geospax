@@ -42,7 +42,7 @@ import { OnlineData } from './online';
 import { StacSearch } from './stac';
 import { CadDesigner } from './cad';
 import { RConsole } from './rconsole';
-import { GROUP_TITLE, actionsFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
+import { GROUP_TITLE, actionsFor, combineFor, friendlyName, groupOf, lazyCard, modeSwitch, proGroup, proRow, type Group, type UiMode } from './layercards';
 import {
   colorExpression,
   fmtNum,
@@ -2398,10 +2398,18 @@ async function main() {
     nextSteps: (id) => {
       const l = layerById(id);
       if (!l) return [];
-      return actionsFor(l, project.layers[id].symbology, recipeIds).map(([rid, label]) => ({
+      const own = actionsFor(l, project.layers[id].symbology, recipeIds).map(([rid, label]) => ({
         label,
         run: () => void automatePane?.run(rid, { layer: id }),
       }));
+      // across layers: the selected layer with each other layer or raster on the map (Lazy › Combine)
+      const others = project.order.filter((x) => x !== id && layerById(x) && shownOnMap(x)).map((x) => ({ id: x, name: friendlyName(layerById(x)!, layers), geometry: layerById(x)!.geometry }));
+      const rasters = (rasterPane?.all() ?? []).filter((r) => !['hillshade', 'rgb'].includes(r.kind)).map((r) => ({ id: r.id, title: r.title }));
+      const combos = combineFor(l, others, rasters, recipeIds).map((c) => ({
+        label: c.label,
+        run: () => void automatePane?.run(c.recipe, c.inputs),
+      }));
+      return [...own, ...combos];
     },
     fitLayer,
     fitAll,

@@ -405,6 +405,14 @@ pub const CATALOGUE: &[StepSpec] = &[
         borrowed: "ArcGIS Zonal Statistics as Table, QGIS Zonal statistics, exactextract, GDAL gdal raster zonal-stats",
     },
     StepSpec {
+        name: "layers.combine",
+        family: "Analysis",
+        summary: "Combine two layers, the method chosen from their geometry: points counted in areas (sum/mean of a field), length of lines in areas, overlap of areas, the area each point is in, or the distance to the nearest point.",
+        running: "Combining layers",
+        params: &[("layer", true, "the layer that gets the new fields"), ("other", true, "the layer to combine with"), ("how", false, "auto, count, length, overlap, within or nearest"), ("field", false, "number field of the other layer to sum and average"), ("name", false, "output layer name")],
+        borrowed: "ArcGIS Summarize Within, Spatial Join, Near; QGIS Count points in polygon, Sum line lengths, Join attributes by location",
+    },
+    StepSpec {
         name: "vector.topology",
         family: "Analysis",
         summary: "Check a polygon layer for invalid geometries, overlaps between features and gaps between them; each error becomes a feature of a new layer.",
@@ -810,6 +818,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "raster.sample" => raster_steps::raster_sample(sc, p),
         "raster.zonal" => super::zonal_steps::raster_zonal(sc, p),
         "vector.topology" => super::zonal_steps::vector_topology(sc, p),
+        "layers.combine" => super::combine_steps::layers_combine(sc, p),
         "rs.search" => raster_steps::rs_search(sc, p),
         "rs.index" => raster_steps::rs_index(sc, p),
         "rs.fetch" => raster_steps::rs_fetch(sc, p),

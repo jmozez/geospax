@@ -31,6 +31,14 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - Field app Bluetooth GNSS: connect an RTK or survey receiver that sends NMEA over Bluetooth LE (Nordic UART or HM-10 serial) in browsers with Web Bluetooth. Its fixes replace the phone's, the GPS chip shows RTK fixed, RTK float, DGPS or GPS with the accuracy in centimetres, and GPS status adds satellites, HDOP, PDOP and the correction age. In the phone app, receivers are used through mock location.
 - Field app quality checks: Check records lists weak fixes, possible duplicate points, areas that cross themselves, very short lines, gaps and jumps in tracks, unanswered form questions and stakeout misses, errors first, each shown on the map with a tap. Send warns when there are problems.
 
+- Lazy mode across layers: the task bar's "Next for …" now also offers what the selected layer can be
+  combined with among the other layers and rasters on the map, in plain words: Count <points> in each
+  area (with the sum and mean of a number field), Length of <lines> in each area, Overlap with <areas>,
+  Which <area> each point is in, Distance to nearest <points> (along line segments, not just vertices),
+  Average <raster> per area (exact zonal statistics) and <raster> at each point. One click runs it and the
+  answer joins the map. New engine step `layers.combine` and recipes "Combine two layers" and "Raster
+  values at points" (Toolbox, Pro mode and the Ask assistant reach them too). Known-answer tests in
+  `scripts/test-ribbon-tools.py`; the Lazy flow in `scripts/test-lazy-combine.mjs` (both in CI).
 - Web app on phones and tablets: on a phone (600 px or narrower) the map takes the screen; the header is
   one compact row; the ribbon tabs scroll sideways and a tab tap opens its tools over the map (closed after
   a command) instead of pushing the map down; the status bar is one line; a full-width bottom bar with
