@@ -10,7 +10,9 @@ import { FixFilter, watchPosition, type Fix } from './geo';
 import { BASEMAPS, installTileCache, type Basemap } from './tiles';
 import { hello, parseLink, saveLink, savedLink, scanLink, send } from './sync';
 import { inApp } from './geo';
-import { installBasics, settings } from './basics';
+import { installBasics, setSaverActive, settings } from './basics';
+import { fmtBattery, gpsWanted, plan, saverOn, watchBattery, type Battery } from './battery';
+import { fieldSheet } from './pdf';
 import { fmtHeight, type Height } from './elevation';
 import { heights, onFix as heightsOnFix, setDem, startHeights } from './heights';
 import { areaM2, fmtArea, fmtLen, fmtTime, lengthM, navTo, parseCoords, takeFix, trackStats, turn, xy } from './walk';
@@ -183,7 +185,8 @@ async function connectGnss() {
   );
   toast(`Connected to ${receiver.name}`);
 }
-void watchPosition(
+let stopGps: (() => void) | null = null;
+const startGps = () => watchPosition(
   (raw) => {
     if (receiverLive()) return;
     gps.fix = raw;
@@ -199,6 +202,7 @@ void watchPosition(
   },
   (msg) => { gps.error = msg; showGps(msg.length > 40 ? 'No GPS' : msg, 'poor'); },
 );
+void startGps().then((s) => (stopGps = s));
 // a jump the filter held back becomes the position once nothing has contradicted it for a while (phones
 // that only report a fix when the position changes send no second one after a move)
 setInterval(() => {
@@ -1025,7 +1029,31 @@ function formBuilder() {
   });
 }
 
-setInterval(showNav, 300);
+// ------------------------------------------------------------------ battery saver
+let battery: Battery | null = null;
+let saver = false;
+let navTimer = 0;
+function applySaver() {
+  saver = saverOn(settings().batterySaver, battery);
+  const p = plan(saver, settings().keepAwake, window.devicePixelRatio || 1);
+  map.setPixelRatio(p.pixelRatio ?? window.devicePixelRatio ?? 1);
+  clearInterval(navTimer);
+  navTimer = window.setInterval(showNav, p.navMs);
+  setSaverActive(saver);
+  document.body.classList.toggle('saver', saver);
+}
+applySaver();
+void watchBattery((b) => { const was = saver; battery = b; applySaver(); if (saver && !was) toast(`Battery ${fmtBattery(b)}: battery saver on`); });
+// in the background with the saver on, GPS stops unless something needs it (a track, walking, navigating, staking)
+let gpsBusy = Promise.resolve();
+document.addEventListener('visibilitychange', () => {
+  const want = gpsWanted(saver, document.visibilityState === 'hidden', !!track || walking || !!target || !!staking);
+  gpsBusy = gpsBusy.then(async () => {
+    if (!want && stopGps) { stopGps(); stopGps = null; }
+    else if (want && !stopGps) { stopGps = await startGps(); }
+  });
+});
+(window as unknown as { __field: Record<string, unknown> }).__field.saver = () => ({ saver, battery, gps: !!stopGps });
 (window as unknown as { __field: Record<string, unknown> }).__field.startNav = startNav;
 
 installBasics({
@@ -1039,5 +1067,13 @@ installBasics({
   heights: () => heights(fixes.best() ?? fix),
   setDem,
   setBasemap,
+  battery: () => ({ on: saver, text: fmtBattery(battery) }),
+  applySaver,
+  fieldSheet: (recs) => fieldSheet(recs, {
+    title: `GeoSpaX field sheet ${new Date().toISOString().slice(0, 10)}`,
+    measure,
+    answers: (r) => (r.form && r.attrs ? summary(formNamed(r.form), r.attrs) : ''),
+    photo: async (r, i) => { const b = r.photos[i]?.blob; return b && /jpe?g/i.test(b.type) ? new Uint8Array(await b.arrayBuffer()) : null; },
+  }),
 });
 startHeights(settings().dem);
