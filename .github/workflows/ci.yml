@@ -123,6 +123,8 @@ jobs:
         run: node --experimental-strip-types --no-warnings scripts/test-field-elevation.mjs
       - name: Field app menu screens (GPS status, settings, export, backup)
         run: node --experimental-strip-types --no-warnings scripts/test-field-basics.mjs
+      - name: Field app photo bearings and voice notes
+        run: node --experimental-strip-types --no-warnings scripts/test-field-capture.mjs
       - name: Plugin manager logic (tabs, upgrades, filters)
         run: node --experimental-strip-types --no-warnings scripts/test-plugin-manager.mjs
       - name: Plugin manager UI (repository install, switch off, upgrade, ZIP, uninstall)
@@ -358,6 +360,8 @@ jobs:
         run: node --experimental-strip-types --no-warnings scripts/test-field-elevation.mjs
       - name: Field app menu screens (GPS status, settings, export, backup)
         run: node --experimental-strip-types --no-warnings scripts/test-field-basics.mjs
+      - name: Field app photo bearings and voice notes
+        run: node --experimental-strip-types --no-warnings scripts/test-field-capture.mjs
       - name: geospax-server (the computer side of the phone link)
         run: cargo build --release -p geospax-server
       - name: Debug APK for the emulator (x86_64)
