@@ -107,6 +107,12 @@ label.check input { width: 22px; height: 22px; margin: 0; flex: none; }
 .navbox { position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top) + 112px); display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: rgba(13, 16, 19, 0.94); border: 1px solid var(--line); border-radius: 16px; z-index: 5; }
 .navbox .arrow { flex: none; width: 52px; height: 52px; display: grid; place-items: center; font-size: 34px; color: #4cc2ff; transition: transform .25s; }
 .navbox .arrow.north { opacity: .6; }
+.navbox .stakebtn { display: none; }
+.navbox.staking .stakebtn { display: block; background: #2e7d32; color: #fff; border: 0; border-radius: 10px; padding: 10px 12px; font-weight: 600; }
+.navbox .big { font-size: 1.3em; font-weight: 700; margin-right: 6px; }
+.list.qc li { cursor: pointer; }
+.list.qc li.error b { color: #ff6b6b; }
+.list.qc li.warning b { color: #ffb84d; }
 .navbox.arrived .arrow { color: var(--good); }
 .navbox .grow { flex: 1; min-width: 0; }
 .navbox b { display: block; overflow-wrap: anywhere; }

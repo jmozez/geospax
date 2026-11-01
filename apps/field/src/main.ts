@@ -17,6 +17,9 @@ import { areaM2, fmtArea, fmtLen, fmtTime, lengthM, navTo, parseCoords, takeFix,
 import { BUILT_IN, check, coerce, parseForm, qrKind, summary, TYPE_LABEL, TYPES, type Field, type FieldType, type Form, type Values } from './forms';
 import { plot, plotArea, SIZES, transect, type Shape } from './plots';
 import { scanCode } from './qr';
+import { connectReceiver, fmtAcc, QUALITY_LABEL, type GnssFix, type Receiver } from './gnss';
+import { fmtAhead, fmtCutFill, fmtNE, parseDesign, stake, type Design } from './stakeout';
+import { checkRecords, type Issue } from './qc';
 import { askCompass, fmtBearing, fmtDur, MAX_VOICE_MS, norm, startCompass, startVoice, voiceName, type Recording, type Voice } from './capture';
 
 const compass = startCompass();
@@ -158,8 +161,31 @@ function showGps(text: string, cls: string) {
 showGps('Finding GPS…', 'wait');
 // the latest raw fix, for ⋯ › GPS status
 const gps: { fix: Fix | null; count: number; error: string | null; since: number } = { fix: null, count: 0, error: null, since: Date.now() };
+// an external Bluetooth receiver: while it sends fixes the phone's own are ignored
+let receiver: Receiver | null = null;
+let receiverAt = 0;
+const receiverLive = () => !!receiver && Date.now() - receiverAt < 5000;
+function onFixIn(raw: Fix) {
+  gps.fix = raw;
+  gps.count++;
+  gps.error = null;
+  const f = fixes.add(raw, Date.now());
+  if (!f) {
+    if (!fix) showGps(`Waiting for GPS (${fmtAcc(raw.acc)})`, 'wait');
+    return;
+  }
+  useFix(f);
+}
+async function connectGnss() {
+  receiver = await connectReceiver(
+    (g) => { receiverAt = Date.now(); onFixIn({ ...g, t: receiverAt }); },
+    () => { receiver = null; toast('The GNSS receiver disconnected: back to the phone GPS'); },
+  );
+  toast(`Connected to ${receiver.name}`);
+}
 void watchPosition(
   (raw) => {
+    if (receiverLive()) return;
     gps.fix = raw;
     gps.count++;
     gps.error = null;
@@ -183,7 +209,8 @@ function useFix(f: Fix) {
   const first = !fix;
   fix = f;
   heightsOnFix(f);
-  showGps(`GPS ±${Math.round(f.acc)} m`, f.acc <= 10 ? 'good' : f.acc <= 30 ? 'fair' : 'poor');
+  const q = (f as GnssFix).quality;
+  showGps(`${q ? QUALITY_LABEL[q] : 'GPS'} ${fmtAcc(f.acc)}`, f.acc <= 10 ? 'good' : f.acc <= 30 ? 'fair' : 'poor');
   drawMe();
   if (first || follow) map.easeTo({ center: [f.lon, f.lat], zoom: first ? Math.max(map.getZoom(), 16) : map.getZoom(), duration: first ? 0 : 400 });
   if (track && !trackPaused) {
@@ -523,12 +550,14 @@ async function listSheet() {
     .map((r) => `<li data-id="${r.id}"><b>${LABEL[r.kind]}</b> ${esc(r.note || '')}${r.form && r.attrs ? ` <span class="attrs">${esc(summary(formNamed(r.form), r.attrs))}</span>` : ''}<small>${new Date(r.created).toLocaleString()}${measure(r) ? ` · ${esc(measure(r))}` : ''}${r.height ? ` · ${esc(fmtHeight(r.height))}` : ''}${r.photos.length ? ` · ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''}${r.photos[0].bearing != null ? ` facing ${esc(fmtBearing(r.photos[0].bearing))}` : ''}` : ''}${r.voice?.length ? ` · 🎙 ${r.voice.length}` : ''} · ${r.sent ? 'sent' : '<em>not sent</em>'}</small><button type="button" class="go" aria-label="Navigate here">➜</button><button type="button" class="del" aria-label="Delete">✕</button></li>`)
     .join('');
   openSheet(`<h2>Records <small>${records.length}</small></h2>${records.length ? `<ul class="list">${rows}</ul>` : '<p class="muted">Nothing recorded yet. Use the bar at the bottom.</p>'}
-    <div class="tools"><button type="button" id="goCoords">🧭 Go to coordinates</button><button type="button" id="plotBtn">⬚ Plot</button><button type="button" id="transectBtn">⟶ Transect</button><button type="button" id="scanBtn">▦ Scan a code</button><button type="button" id="formsBtn">📋 Forms</button></div>
+    <div class="tools"><button type="button" id="goCoords">🧭 Go to coordinates</button><button type="button" id="plotBtn">⬚ Plot</button><button type="button" id="transectBtn">⟶ Transect</button><button type="button" id="scanBtn">▦ Scan a code</button><button type="button" id="formsBtn">📋 Forms</button><button type="button" id="stakeBtn">📍 Stake out</button><button type="button" id="qcBtn">✔ Check records</button></div>
     <div class="row"><button type="button" id="closeList">Close</button></div>`);
   $('#plotBtn').addEventListener('click', plotSheet);
   $('#transectBtn').addEventListener('click', transectSheet);
   $('#scanBtn').addEventListener('click', () => void scanAny());
   $('#formsBtn').addEventListener('click', formsSheet);
+  $('#stakeBtn').addEventListener('click', stakeSheet);
+  $('#qcBtn').addEventListener('click', () => void qcSheet());
   $('#closeList').addEventListener('click', () => sheet.close());
   $('#goCoords').addEventListener('click', coordsSheet);
   for (const li of $('#sheetBody').querySelectorAll<HTMLElement>('li')) {
@@ -562,9 +591,10 @@ async function sendSheet() {
     <div id="linkState" class="state">${link ? `Paired with <b>${esc(link.base)}</b>` : 'Not paired yet'}</div>
     ${inApp ? '<button type="button" class="wide" id="scan">Scan the QR code</button>' : ''}
     <details ${inApp ? '' : 'open'}><summary>Or paste the phone link address</summary><input id="linkText" placeholder="https://192.168.1.20:8765/#t=…" /><button type="button" id="useLink">Use this address</button></details>
-    <p>${unsent.length} record${unsent.length === 1 ? '' : 's'} to send.</p>
+    <p>${unsent.length} record${unsent.length === 1 ? '' : 's'} to send.${(() => { const n = checkRecords(unsent, allForms()).length; return n ? ` <a href="#" id="sendQc">${n} problem${n === 1 ? '' : 's'} found: check first</a>` : ''; })()}</p>
     <div class="row"><button type="button" id="closeSend">Close</button><button type="button" class="primary" id="doSend" ${link && unsent.length ? '' : 'disabled'}>Send</button></div>
     <p id="sendMsg" class="msg" aria-live="polite"></p>`);
+  document.getElementById('sendQc')?.addEventListener('click', (e) => { e.preventDefault(); void qcSheet(); });
   const msg = $('#sendMsg');
   const pair = async (l: ReturnType<typeof parseLink>) => {
     if (!l) return void (msg.textContent = 'That is not a GeoSpaX phone link (it has no #t= code).');
@@ -655,6 +685,8 @@ function coordsSheet() {
 let navQueue: { name: string; at: [number, number] }[] = [];
 function startNav(name: string, at: [number, number], then: { name: string; at: [number, number] }[] = []) {
   navQueue = then;
+  staking = null;
+  $('#nav').classList.remove('staking');
   wasArrived = false;
   target = { name, at };
   void askCompass();
@@ -669,6 +701,8 @@ function startNav(name: string, at: [number, number], then: { name: string; at: 
 function stopNav() {
   target = null;
   navQueue = [];
+  staking = null;
+  $('#nav').classList.remove('staking');
   $('#nav').hidden = true;
   (map.getSource('nav') as maplibregl.GeoJSONSource | undefined)?.setData(fc([]));
 }
@@ -685,6 +719,7 @@ function showNav() {
     src?.setData(fc([pt]));
     return;
   }
+  if (staking) return showStake(me, src, pt);
   const n = navTo(me, target.at);
   // which way the phone faces: the direction of travel when walking briskly, otherwise the compass
   const moving = me.speed != null && me.speed > 1 && me.heading != null;
@@ -710,6 +745,101 @@ function showNav() {
   }
   wasArrived = n.arrived;
   src?.setData(fc([pt, { type: 'Feature', geometry: { type: 'LineString', coordinates: [[me.lon, me.lat], target.at] }, properties: {} }]));
+}
+
+// ------------------------------------------------------------------ stakeout
+/** The design points being staked out, which one is next, and the tolerance in metres. */
+let staking: { points: Design[]; i: number; tol: number } | null = null;
+function stakeSheet() {
+  const pts = records.filter((r) => r.kind === 'point' && r.attrs?.stake_id == null);
+  openSheet(`<h2>Stake out</h2>
+    <p class="muted">Paste design points, one per line: <code>id, latitude, longitude, height</code> (height above sea level, optional). A CSV with a header line works.</p>
+    <textarea id="stakeIn" rows="5" placeholder="P1, -9.44310, 147.18030, 52.10"></textarea>
+    <label class="check"><input type="checkbox" id="stakeSaved" ${pts.length ? '' : 'disabled'} /> Or stake the ${pts.length} saved point${pts.length === 1 ? '' : 's'}</label>
+    <label>Tolerance <input id="stakeTol" type="number" inputmode="decimal" value="5" min="1" max="500" style="width:5em" /> cm</label>
+    <p id="stakeMsg" class="msg" aria-live="polite"></p>
+    <div class="row"><button type="button" id="stakeCancel">Cancel</button><button type="button" class="primary" id="stakeGo">Start</button></div>`);
+  $('#stakeCancel').addEventListener('click', () => sheet.close());
+  $('#stakeIn').addEventListener('input', () => { $('#stakeMsg').textContent = ''; });
+  $('#stakeGo').addEventListener('click', () => {
+    const tol = Math.max(0.01, Number(($('#stakeTol') as HTMLInputElement).value || 5) / 100);
+    let points: Design[];
+    if (($('#stakeSaved') as HTMLInputElement).checked) {
+      points = [...pts].reverse().map((r, i) => ({ id: r.note.split('\n')[0].trim().slice(0, 30) || `P${i + 1}`, at: xy(r.coords[0]), h: r.coords[0][2] }));
+    } else {
+      const d = parseDesign(($('#stakeIn') as HTMLTextAreaElement).value);
+      if (d.bad.length) return void ($('#stakeMsg').textContent = `Line${d.bad.length > 1 ? 's' : ''} ${d.bad.join(', ')} ${d.bad.length > 1 ? 'are' : 'is'} not a point.`);
+      points = d.points;
+    }
+    if (!points.length) return void ($('#stakeMsg').textContent = 'No design points yet.');
+    sheet.close();
+    startStake(points, 0, tol);
+  });
+}
+function startStake(points: Design[], i: number, tol: number) {
+  const p = points[i];
+  startNav(`Stake ${p.id} (${i + 1} of ${points.length})`, p.at);
+  staking = { points, i, tol };
+  $('#nav').classList.add('staking');
+  showNav();
+}
+function showStake(me: Fix, src: maplibregl.GeoJSONSource | undefined, pt: GeoJSON.Feature) {
+  const d = staking!.points[staking!.i];
+  const moving = me.speed != null && me.speed > 1 && me.heading != null;
+  const facing = moving ? me.heading! : compass.bearing(Date.now());
+  const s = stake([me.lon, me.lat], d.at, facing, heights(me).best?.value ?? null, d.h, staking!.tol);
+  const bearing = norm((Math.atan2(s.e, s.n) * 180) / Math.PI);
+  const arrow = $('#navArrow');
+  arrow.style.transform = `rotate(${(facing != null ? turn(bearing, facing) : bearing) - 90}deg)`;
+  arrow.classList.toggle('north', facing == null);
+  $('#navInfo').innerHTML = `<span class="big">${s.on ? 'On the mark' : esc(fmtLen(s.dist))}</span> ${esc(fmtNE(s))}${fmtAhead(s) ? `<br>${esc(fmtAhead(s))}` : ''}${d.h != null ? `<br>${esc(fmtCutFill(s.dh) || 'No height here yet')}` : ''}<br><small>${esc(fmtAcc(me.acc))}${me.acc > staking!.tol ? ': weaker than the tolerance' : ''}</small>`;
+  $('#nav').classList.toggle('arrived', s.on);
+  if (s.on && !wasArrived) navigator.vibrate?.(200);
+  wasArrived = s.on;
+  src?.setData(fc([pt, { type: 'Feature', geometry: { type: 'LineString', coordinates: [[me.lon, me.lat], d.at] }, properties: {} }]));
+}
+$('#navStake').addEventListener('click', async () => {
+  if (!staking) return;
+  // the latest fix, as shown in the box: an average would lag behind the last steps onto the mark
+  const b = fix ?? fixes.best();
+  if (!b) return toast('Waiting for GPS');
+  const d = staking.points[staking.i];
+  const h = heights(b).best;
+  const s = stake([b.lon, b.lat], d.at, null, h?.value ?? null, d.h, staking.tol);
+  const r2 = (x: number) => Math.round(x * 1000) / 1000;
+  await save('point', [[b.lon, b.lat, h?.value ?? null, Date.now(), b.acc]], {
+    note: `Staked ${d.id}`, photos: [], voice: [],
+    attrs: { stake_id: d.id, design_lat: d.at[1], design_lon: d.at[0], design_h: d.h, stake_dn: r2(-s.n), stake_de: r2(-s.e), stake_offset_m: r2(s.dist), stake_dh: s.dh != null ? r2(-s.dh) : null },
+  }, h, true);
+  await refresh();
+  toast(`${d.id} staked ${s.on ? 'within tolerance' : `${fmtLen(s.dist)} off`}`);
+  const { points, i, tol } = staking;
+  if (i + 1 < points.length) startStake(points, i + 1, tol);
+  else { stopNav(); toast(`All ${points.length} points staked`); }
+});
+
+// ------------------------------------------------------------------ quality checks
+async function qcSheet() {
+  await refresh();
+  const issues = checkRecords(records, allForms(), { maxAcc: settings().warnAcc || 10 });
+  const by = (l: Issue['level']) => issues.filter((i) => i.level === l).length;
+  openSheet(`<h2>Check records <small>${records.length}</small></h2>
+    ${issues.length ? `<p>${by('error')} error${by('error') === 1 ? '' : 's'} and ${by('warning')} warning${by('warning') === 1 ? '' : 's'}. Tap one to see it on the map.</p>
+    <ul class="list qc">${issues.map((i, n) => `<li data-n="${n}" class="${i.level}"><b>${i.level === 'error' ? '✕' : '!'}</b> ${esc(i.text)}</li>`).join('')}</ul>`
+      : '<p class="state">No problems found.</p>'}
+    <p class="muted">Checks: weak fixes, possible duplicate points, areas that cross themselves, very short lines, gaps and jumps in tracks, unanswered form questions and stakeout misses.</p>
+    <div class="row"><button type="button" id="qcClose">Close</button></div>`);
+  $('#qcClose').addEventListener('click', () => sheet.close());
+  for (const li of $('#sheetBody').querySelectorAll<HTMLElement>('li[data-n]')) {
+    li.addEventListener('click', () => {
+      const r = records.find((x) => x.id === issues[Number(li.dataset.n)].id);
+      if (!r) return;
+      sheet.close();
+      follow = false;
+      const b = r.coords.reduce((bb, v) => bb.extend([v[0], v[1]]), new maplibregl.LngLatBounds([r.coords[0][0], r.coords[0][1]], [r.coords[0][0], r.coords[0][1]]));
+      map.fitBounds(b, { padding: 80, maxZoom: 19 });
+    });
+  }
 }
 
 // ------------------------------------------------------------------ plots, transects, codes and forms
@@ -905,6 +1035,7 @@ installBasics({
   refresh,
   fix: () => fixes.best() ?? fix,
   raw: () => gps,
+  receiver: () => ({ name: receiverLive() || receiver ? receiver!.name : null, connect: connectGnss, disconnect: () => { receiver?.disconnect(); receiver = null; } }),
   heights: () => heights(fixes.best() ?? fix),
   setDem,
   setBasemap,
