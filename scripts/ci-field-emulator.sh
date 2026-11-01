@@ -15,6 +15,10 @@ adb install -r -g "$APK"
 adb shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION
 adb shell pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION
 adb shell settings put secure location_mode 3 || true
+# the Bluetooth GNSS plugin's permissions must have reached the APK's merged manifest (pm grant fails otherwise)
+adb shell dumpsys package "$PKG" | grep -E "android.permission.BLUETOOTH_(CONNECT|SCAN)" | sort -u
+adb shell pm grant "$PKG" android.permission.BLUETOOTH_CONNECT
+adb shell pm grant "$PKG" android.permission.BLUETOOTH_SCAN
 
 # the computer side: the emulator reaches this machine's loopback as 10.0.2.2
 "$SERVER" --port 18095 --state-dir "$W/state" --inbox "$W/inbox" --no-device-mounts > "$W/server.log" 2>&1 &
