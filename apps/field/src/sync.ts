@@ -81,6 +81,8 @@ export function geojson(recs: Rec[]): string {
       type: 'Feature',
       geometry: geometry(r),
       properties: {
+        ...r.attrs,
+        form: r.form ?? null,
         kind: r.kind,
         note: r.note,
         recorded: iso(r.created),

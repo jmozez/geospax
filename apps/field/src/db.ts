@@ -32,6 +32,9 @@ export interface Rec {
   height?: Height | null;
   /** voice notes recorded with it */
   voice?: Voice[];
+  /** the form filled in for it, and the answers by field key */
+  form?: string;
+  attrs?: Record<string, string | number | boolean | null>;
 }
 
 let dbp: Promise<IDBDatabase> | null = null;

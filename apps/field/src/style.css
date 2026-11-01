@@ -113,3 +113,25 @@ label.check input { width: 22px; height: 22px; margin: 0; flex: none; }
 .navbox p { margin: 2px 0 0; color: var(--muted); }
 .list li:has(.go) { padding-right: 92px; }
 .list .go { position: absolute; right: 46px; top: 50%; transform: translateY(-50%); width: 40px; min-height: 40px; padding: 0; border: 0; background: transparent; color: #4cc2ff; font-size: 20px; }
+
+/* forms, codes, plots and transects */
+.formpick { display: block; margin: 0 0 8px; color: var(--muted); }
+.form label { display: block; margin: 0 0 4px; color: var(--muted); }
+.form label i { color: var(--fair); font-style: normal; }
+.form input, .form select { margin-top: 6px; }
+.codeRow { display: flex; gap: 8px; align-items: center; }
+.codeRow input { flex: 1; margin-bottom: 0; }
+.codeRow button { flex: none; min-height: 48px; }
+.form .codeRow { margin: 6px 0 12px; }
+.tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 10px; }
+.tools button { min-height: 48px; }
+.list .attrs { color: #ffd166; font-size: 14px; }
+.list.forms li { padding-right: 92px; }
+.list li .share { position: absolute; right: 48px; top: 50%; transform: translateY(-50%); }
+.fbRow { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin: 0 0 10px; }
+.fbRow select { margin: 0 0 10px; }
+.fbRow .codeRow { justify-content: space-between; }
+dialog.scan { width: min(92vw, 520px); border: 1px solid var(--line); border-radius: 18px; background: var(--panel); color: var(--fg); padding: 16px; }
+dialog.scan::backdrop { background: rgba(0, 0, 0, 0.75); }
+dialog.scan h2 { margin: 0 0 10px; font-size: 20px; }
+dialog.scan video { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: #000; }
