@@ -80,7 +80,16 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
   ],
   imagery: [
     { group: 'Rasters', big: ['data.rasters'] },
-    { group: 'Indices', big: [{ split: 'imagery-indices', label: 'Indices', icon: 'leaf', hint: 'NDVI, NDWI, NBR, NDMI, SAVI or EVI from the newest clear Sentinel-2 pass over the map view', items: ['imagery.ndvi', 'imagery.idx.ndwi', 'imagery.idx.nbr', 'imagery.idx.ndmi', 'imagery.idx.savi', 'imagery.idx.evi'], default: 'imagery.ndvi' }, 'imagery.index'], small: ['imagery.ndi'] },
+    {
+      group: 'Indices',
+      big: [{
+        split: 'imagery-indices', label: 'Indices', icon: 'leaf',
+        hint: 'Spectral indices: from the newest clear Sentinel-2 pass over the map view, from an image you have, or any two bands',
+        items: ['§From Sentinel-2 (downloaded for the map view)', 'imagery.ndvi', 'imagery.idx.ndwi', 'imagery.idx.mndwi', 'imagery.idx.nbr', 'imagery.idx.nbr2', 'imagery.idx.ndmi', 'imagery.idx.savi', 'imagery.idx.msavi', 'imagery.idx.evi', 'imagery.idx.gndvi', 'imagery.idx.ndre', 'imagery.idx.ndbi', 'imagery.idx.bsi',
+          '§From an image you have', 'imagery.index', '§Any two bands', 'imagery.ndi'],
+        default: 'imagery.ndvi',
+      }],
+    },
     { group: 'Terrain', big: ['imagery.terrain'], small: ['imagery.hillshade', 'imagery.slope', 'imagery.aspect', 'imagery.tri', 'imagery.twi', 'imagery.viewshed', 'imagery.profile', 'imagery.landforms', 'imagery.lidar'] },
     { group: 'Raster tools', big: ['imagery.rasterTools'], small: ['imagery.clip', 'imagery.mosaic', 'imagery.reproject', 'imagery.resample', 'imagery.change'] },
     { group: 'Satellite embeddings', big: ['imagery.embeddings'], small: ['imagery.similar', 'imagery.groups', 'imagery.classifyEmb', 'imagery.embChange'] },

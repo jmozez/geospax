@@ -463,7 +463,7 @@ pub const CATALOGUE: &[StepSpec] = &[
     StepSpec {
         name: "rs.index",
         family: "Remote sensing",
-        summary: "Spectral index (NDVI, NDWI, NBR, NDMI, SAVI, EVI) from the newest scene that is clear over the area; clouds and shadows are masked.",
+        summary: "Spectral index (NDVI, NDWI, NBR, NDMI, SAVI, EVI, GNDVI, NDRE, NDBI, MNDWI, NBR2, MSAVI, BSI) from the newest scene that is clear over the area; clouds and shadows are masked.",
         running: "Computing the index",
         params: &[
             ("index", false, "ndvi (default), ndwi, nbr, ndmi, savi, evi"), ("min_clear", false, "share of the area that must be cloud-free (default 0.7)"), ("max_tries", false, "dates to try (default 5)"),

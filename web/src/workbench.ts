@@ -593,9 +593,9 @@ export class Workbench {
     if (!s) return '';
     const cur = splitCurrent(s);
     const rows = s.items
-      .map((id) => commandById(id))
-      .filter((c): c is Command => !!c)
-      .map((c) => `<button class="rb-menu-row${c.id === cur ? ' current' : ''}" role="menuitem" data-cmd="${esc(c.id)}" title="${esc(`${c.title}${c.hint ? `: ${c.hint}` : ''}`)}">
+      .map((id) => (id.startsWith('§') ? id : commandById(id)))
+      .filter((c): c is Command | string => !!c)
+      .map((c) => typeof c === 'string' ? `<div class="rb-menu-sub" role="presentation">${esc(c.slice(1))}</div>` : `<button class="rb-menu-row${c.id === cur ? ' current' : ''}" role="menuitem" data-cmd="${esc(c.id)}" title="${esc(`${c.title}${c.hint ? `: ${c.hint}` : ''}`)}">
           <span class="rm-ico">${icon(c.icon, 16)}</span>
           <span class="rm-txt"><span class="rm-name">${esc(c.title)}${c.keys ? ` <kbd>${esc(c.keys)}</kbd>` : ''}</span>${c.hint ? `<span class="rm-desc">${esc(c.hint)}</span>` : ''}</span></button>`)
       .join('');

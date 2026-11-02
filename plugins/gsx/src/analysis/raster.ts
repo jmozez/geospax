@@ -13,7 +13,7 @@ import { formatArea } from "./units";
 // Index presets + band-assignment caveat (printed on every result per spec)
 // ---------------------------------------------------------------------------
 
-export type IndexPresetId = "NDVI" | "NDWI" | "NDBI" | "NBR" | "CUSTOM";
+export type IndexPresetId = "NDVI" | "NDWI" | "NDBI" | "NBR" | "GNDVI" | "NDRE" | "MNDWI" | "NDMI" | "NDSI" | "CUSTOM";
 
 export interface IndexPreset {
   id: IndexPresetId;
@@ -56,6 +56,46 @@ export const INDEX_PRESETS: Record<IndexPresetId, IndexPreset> = {
     aLabel: "NIR",
     bLabel: "SWIR2",
     description: "Low NBR flags burns / low moisture; dNBR differences track severity.",
+  },
+  GNDVI: {
+    id: "GNDVI",
+    label: "GNDVI — chlorophyll / crop nitrogen",
+    formula: "(NIR − Green) / (NIR + Green)",
+    aLabel: "NIR",
+    bLabel: "Green",
+    description: "More sensitive than NDVI to chlorophyll in dense crops (Gitelson et al. 1996).",
+  },
+  NDRE: {
+    id: "NDRE",
+    label: "NDRE — red edge, crop health",
+    formula: "(NIR − RedEdge) / (NIR + RedEdge)",
+    aLabel: "NIR",
+    bLabel: "Red edge",
+    description: "Tracks nitrogen and stress in mid- to late-season crops; needs a red-edge band (Sentinel-2 B5, drones).",
+  },
+  MNDWI: {
+    id: "MNDWI",
+    label: "MNDWI — open water, suppresses built-up",
+    formula: "(Green − SWIR) / (Green + SWIR)",
+    aLabel: "Green",
+    bLabel: "SWIR",
+    description: "Open water stands out from towns and soil better than with NDWI (Xu 2006).",
+  },
+  NDMI: {
+    id: "NDMI",
+    label: "NDMI — vegetation moisture",
+    formula: "(NIR − SWIR1) / (NIR + SWIR1)",
+    aLabel: "NIR",
+    bLabel: "SWIR1",
+    description: "Leaf water content; low values flag drought stress (Gao 1996).",
+  },
+  NDSI: {
+    id: "NDSI",
+    label: "NDSI — snow and ice",
+    formula: "(Green − SWIR1) / (Green + SWIR1)",
+    aLabel: "Green",
+    bLabel: "SWIR1",
+    description: "Snow and ice above about 0.4 (Hall et al. 1995).",
   },
   CUSTOM: {
     id: "CUSTOM",
