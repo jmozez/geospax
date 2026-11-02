@@ -484,6 +484,19 @@ pub const CATALOGUE: &[StepSpec] = &[
         borrowed: "ArcGIS Living Atlas imagery, QGIS XYZ basemaps, ERDAS Subset",
     },
     StepSpec {
+        name: "rs.flood",
+        family: "Remote sensing",
+        summary: "Flood extent from Sentinel-1 radar (sees through cloud): the newest scene against one before the event, water by Otsu's threshold, with flooded and permanent-water areas in hectares.",
+        running: "Mapping the flood",
+        params: &[
+            ("aoi", false, "box, layer id or auto"), ("buffer", false, "metres"), ("max_km", false, ""),
+            ("days", false, "after window: the last N days (default 12)"), ("after", false, "after window as start/end dates"),
+            ("before_days", false, "before window length (default 60)"), ("gap", false, "days between the windows (default 0)"), ("before", false, "before window as start/end dates"),
+            ("drop", false, "least darkening in dB to count as flooded (default 3)"), ("resolution", false, "metres (default 20)"), ("name", false, ""),
+        ],
+        borrowed: "UN-SPIDER Sentinel-1 flood mapping practice, Copernicus EMS rapid mapping, GEE flood scripts",
+    },
+    StepSpec {
         name: "grass",
         family: "Providers",
         summary: "Run GRASS modules headless in a temporary project; inputs are imported and outputs come back as rasters/layers (with GRASS class labels and colours).",
@@ -849,6 +862,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "rs.search" => raster_steps::rs_search(sc, p),
         "rs.index" => raster_steps::rs_index(sc, p),
         "rs.fetch" => raster_steps::rs_fetch(sc, p),
+        "rs.flood" => raster_steps::rs_flood(sc, p),
         "grass" => providers::grass(sc, p),
         "saga" => providers::saga(sc, p),
         "export.report" => export_report(sc, p),

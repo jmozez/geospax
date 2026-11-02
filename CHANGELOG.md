@@ -8,6 +8,8 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ### Added
 - Interface languages: Settings › Appearance › Language offers Tok Pisin (first draft, to be reviewed by fluent speakers), French, Spanish and Bahasa Indonesia. Ribbon tabs and groups are translated, and about 60 common commands in Tok Pisin; untranslated text stays in English.
 - 13 more basemaps, in the spirit of the QGIS HCMGIS plugin: Esri Street, National Geographic, Light and Dark Gray, Ocean, Shaded Relief and Physical; Humanitarian OSM; CyclOSM; CARTO Voyager; NASA Blue Marble and yesterday's VIIRS and MODIS true colour. Each shows its licence; Google and Bing are left out because their terms forbid use in other apps.
+- Step `rs.flood` and recipe `flood-extent`: flood extent from Sentinel-1 radar, which sees through cloud. The newest scene is compared with one from before the event (same orbit direction when possible); water is set by Otsu's threshold for each scene; flooded pixels are water after, land before and at least 3 dB darker. Flooded and permanent water in hectares, a map and a report. Imagery: terrain-corrected gamma0 from Microsoft Planetary Computer, no account needed.
+- Recipes: any step can loop with `for_each:` (a list, an expression or comma-separated text); `${item}` is the current item and the outputs are `{ each, count }`. The PNG data pack uses it for districts and LLGs.
 - Recipe `png-data-pack`: Papua New Guinea's provinces, districts and local-level governments (GADM 4.1), WorldClim temperature and rainfall, and Copernicus 90 m terrain for the area in view, with citations. Any country code works.
 
 ### Changed

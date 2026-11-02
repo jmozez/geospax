@@ -58,6 +58,7 @@ pub const GALLERY: &[(&str, &str)] = &[
     ("combine-layers", include_str!("../../../../recipes/combine-layers.yaml")),
     ("values-at-points", include_str!("../../../../recipes/values-at-points.yaml")),
     ("png-data-pack", include_str!("../../../../recipes/png-data-pack.yaml")),
+    ("flood-extent", include_str!("../../../../recipes/flood-extent.yaml")),
     ("geographical-detector", include_str!("../../../../recipes/geographical-detector.yaml")),
     ("area-of-applicability", include_str!("../../../../recipes/area-of-applicability.yaml")),
     ("knndm-folds", include_str!("../../../../recipes/knndm-folds.yaml")),
@@ -699,7 +700,7 @@ impl Automation {
                     _ => {}
                 }
             }
-            let params = match recipe::resolve(&step.with, &ctx) {
+            let params = match if step.for_each.is_some() { Ok(Value::Null) } else { recipe::resolve(&step.with, &ctx) } {
                 Ok(p) => p,
                 Err(e) => {
                     run.set_step(n, |r| {
@@ -716,7 +717,43 @@ impl Automation {
             sc.step_id = step.id.clone();
             sc.records = run.records_json();
             let t = Instant::now();
-            let res = std::panic::catch_unwind(AssertUnwindSafe(|| steps::execute(&mut sc, &step.uses, &params)));
+            // for_each: the same step once per item, `${item}` bound to the item
+            let items = match &step.for_each {
+                None => None,
+                Some(f) => match recipe::resolve(f, &ctx) {
+                    Ok(Value::Array(a)) => Some(a),
+                    Ok(Value::String(s)) => Some(s.split(',').map(|x| Value::String(x.trim().to_string())).filter(|x| x.as_str() != Some("")).collect()),
+                    Ok(other) => Some(vec![other]),
+                    Err(e) => {
+                        run.set_step(n, |r| {
+                            r.status = "failed";
+                            r.error = Some(e.clone());
+                        });
+                        failure = Some(format!("step '{}': {e}", step.id));
+                        continue;
+                    }
+                },
+            };
+            let res = match items {
+                None => std::panic::catch_unwind(AssertUnwindSafe(|| steps::execute(&mut sc, &step.uses, &params))),
+                Some(items) => std::panic::catch_unwind(AssertUnwindSafe(|| {
+                    let mut each = Vec::new();
+                    let mut why = Vec::new();
+                    for (k, item) in items.iter().enumerate() {
+                        if run.job.cancel.load(Ordering::Relaxed) {
+                            return Err("cancelled".to_string());
+                        }
+                        let mut with_item = outs.clone();
+                        with_item.insert("item".into(), item.clone());
+                        let ictx = recipe::Ctx { inputs: &run.inputs, run: &run_meta, recipe: &recipe.id, trigger: &run.trigger, steps: &with_item };
+                        let p = recipe::resolve(&step.with, &ictx)?;
+                        let o = steps::execute(&mut sc, &step.uses, &p).map_err(|e| format!("item {} ({}): {e}", k + 1, recipe::value_text(item)))?;
+                        why.extend(o.why.into_iter().map(|w| format!("[{}] {w}", recipe::value_text(item))));
+                        each.push(o.outputs);
+                    }
+                    Ok(steps::StepOut { outputs: json!({ "each": each, "count": items.len() }), why })
+                })),
+            };
             let ms = t.elapsed().as_secs_f64() * 1000.0;
             match res {
                 Ok(Ok(out)) => {
