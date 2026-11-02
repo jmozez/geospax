@@ -3,6 +3,7 @@
 // do, so the same command can live in the ribbon, the palette, a context menu or a
 // script. Pattern borrowed from RustGIS (Apache-2.0, https://github.com/opengeos/RustGIS),
 // which registers every action in `crates/engine/src/cmd/`.
+import { t as trTitle } from './i18n';
 import type * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import type { RecipeInfo } from './automate';
@@ -1467,3 +1468,6 @@ export function groupsFor(tab: TabId): { group: string; items: Command[] }[] {
   const rank = (g: string) => (order.includes(g) ? order.indexOf(g) : order.length);
   return out.map((g, i) => ({ g, i })).sort((a, b) => rank(a.g.group) - rank(b.g.group) || a.i - b.i).map(({ g }) => g);
 }
+
+// Command titles in the chosen interface language (i18n.ts; English when untranslated).
+for (const c of COMMANDS) c.title = trTitle(c.title);
