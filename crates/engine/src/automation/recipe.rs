@@ -142,6 +142,9 @@ pub struct Step {
     pub with: Value,
     pub needs: Vec<String>,
     pub when: Option<Value>,
+    /// Run the step once per item of this list (or of the list it resolves to); `${item}` is the
+    /// current item. Outputs become `{ each: [...], count }`.
+    pub for_each: Option<Value>,
     pub title: Option<String>,
 }
 
@@ -163,7 +166,7 @@ pub struct Recipe {
 }
 
 /// Names a step id may not take (they are expression roots).
-const RESERVED: &[&str] = &["inputs", "run", "recipe", "trigger"];
+const RESERVED: &[&str] = &["inputs", "run", "recipe", "trigger", "item"];
 
 pub fn valid_id(s: &str) -> bool {
     !s.is_empty()
@@ -306,6 +309,7 @@ impl Recipe {
                         with,
                         needs: as_str_list(m.get("needs")),
                         when: m.get("when").cloned(),
+                        for_each: m.get("for_each").cloned(),
                         title: m.get("title").and_then(Value::as_str).map(str::to_string),
                     });
                 }
@@ -328,10 +332,15 @@ impl Recipe {
             if let Some(w) = &s.when {
                 refs_in(w, &mut heads);
             }
+            if let Some(f) = &s.for_each {
+                refs_in(f, &mut heads);
+            }
             for h in heads {
                 let root = h.split('.').next().unwrap_or("");
                 match root {
                     "run" | "recipe" | "trigger" => {}
+                    "item" if s.for_each.is_none() => errs.push(format!("step '{}' uses ${{{h}}} but has no for_each list", s.id)),
+                    "item" => {}
                     "inputs" => {
                         let name = h.split('.').nth(1).unwrap_or("");
                         if !name.is_empty() && !r.inputs.iter().any(|i| i.name == name) {
@@ -826,6 +835,16 @@ steps:
         assert!(all.contains("circle"), "{all}");
         assert!(all.contains("'nope'"), "{all}");
         assert!(all.contains("no input 'q'"), "{all}");
+    }
+
+    #[test]
+    fn for_each_binds_item() {
+        let ok = "recipe: loop\nsteps:\n  - id: a\n    use: data.fetch\n    for_each: [1, 2, 3]\n    with: { source: gadm, country: PNG, level: \"${item}\" }\n";
+        let r = Recipe::parse(ok, Origin::Api).unwrap();
+        assert!(r.steps[0].for_each.is_some());
+        let bad = "recipe: loop\nsteps:\n  - id: a\n    use: data.fetch\n    with: { source: gadm, country: PNG, level: \"${item}\" }\n";
+        let e = Recipe::parse(bad, Origin::Api).unwrap_err();
+        assert!(e.iter().any(|x| x.contains("no for_each")), "{e:?}");
     }
 
     #[test]
