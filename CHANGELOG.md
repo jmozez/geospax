@@ -3,7 +3,7 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [3.1.0] - Unreleased
+## [3.1.0] - 2026-11-02
 
 ### Added
 - Field app: the Android app connects to Bluetooth GNSS receivers itself, since its web view has no Web Bluetooth. A built-in plugin lists paired receivers and nearby Bluetooth LE ones, connects over Bluetooth Classic (serial port profile) or Bluetooth LE (Nordic UART or HM-10), asks for the Nearby devices permission on Android 12 and newer, and feeds the NMEA it receives into the same parser as the browser. Mock location is no longer needed.

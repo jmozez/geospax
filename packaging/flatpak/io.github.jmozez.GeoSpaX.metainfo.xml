@@ -77,6 +77,9 @@
     <display_length compare="ge">900</display_length>
   </requires>
   <releases>
+    <release version="3.1.0" date="2026-11-02">
+      <description><p>Phone and tablet layout for the web app; Lazy mode combines layers (count, length, overlap, nearest, zonal statistics, values at points); geographical detector with OPGD, area of applicability and kNNDM cross-validation.</p></description>
+    </release>
     <release version="3.0.9" date="2026-10-31">
       <description><p>SQL across layers, an Ask plan preview, file-based field sync, map review comments, GPU points, 3D Tiles export and new Earth observation recipes.</p></description>
     </release>
