@@ -2,6 +2,7 @@
 // and history. It renders commands (commands.ts) and hosts the panes that already exist
 // (symbology, rasters, devices, automate) instead of replacing them, so the engine keeps
 // one front end. Layout state (pane sizes, open tabs) persists in localStorage.
+import { t as tr } from './i18n';
 import * as maplibregl from 'maplibre-gl';
 import type { Backend, LayerInfo } from './backend';
 import { DocsViewer } from './docs';
@@ -310,7 +311,7 @@ export class Workbench {
     tabsEl.innerHTML = lazy
       ? ''
       : TABS.map(
-        (t) => `<button class="rb-tab${t.id === this.layout.ribbon ? ' on' : ''}" data-tab="${t.id}">${esc(t.label)}</button>`,
+        (t) => `<button class="rb-tab${t.id === this.layout.ribbon ? ' on' : ''}" data-tab="${t.id}">${esc(tr(t.label))}</button>`,
       ).join('') + ctx +
       `<button class="rb-pin${pinned ? ' on' : ''}" data-ribbon-pin title="${
         pinned ? 'Ribbon is pinned open: click to auto-hide it (Ctrl+F1)' : 'Ribbon is hidden: it opens when you click a tab (Ctrl+F1)'
@@ -460,7 +461,7 @@ export class Workbench {
     const item = (x: Command | ResolvedSplit, big: boolean) => (isResolvedSplit(x) ? this.splitHtml(x, big) : commandHtml(x, big));
     for (const g of groups) {
       const items = groupItemsHtml(g.big.map((x) => item(x, true)), g.small.map((x) => item(x, false)));
-      parts.push(`<div class="rb-group" data-group="${esc(g.group)}"><div class="rb-items">${items}</div><div class="rb-title">${esc(g.group)}</div></div>`);
+      parts.push(`<div class="rb-group" data-group="${esc(g.group)}"><div class="rb-items">${items}</div><div class="rb-title">${esc(tr(g.group))}</div></div>`);
     }
     // contextual Layer tab: the analyses that fit the selected layer, run on it
     if (this.layout.ribbon === 'layer') {
@@ -582,7 +583,7 @@ export class Workbench {
     const mainTip = big && s.label ? `${s.label}: ${cur.title}. ${cur.hint ?? ''}`.trim() : tip(cur);
     return `<div class="rb-split ${big ? 'big' : 'small'}" data-split-box="${esc(s.split)}">
       <button class="rb-btn ${big ? 'big' : 'small'} rb-split-main" data-split="${esc(s.split)}" data-cmd="${esc(cur.id)}" title="${esc(mainTip)}">
-        <span class="rb-ico">${icon(ico, big ? (sub ? 22 : 28) : 16)}</span><span class="rb-label">${esc(label)}</span>${sub}
+        <span class="rb-ico">${icon(ico, big ? (sub ? 22 : 28) : 16)}</span><span class="rb-label">${esc(tr(label))}</span>${sub}
       </button><button class="rb-split-arrow" data-split-arrow="${esc(s.split)}" data-menu="split:${esc(s.split)}" aria-haspopup="menu" aria-expanded="false" title="${esc(`${s.label ?? cur.title}: ${s.hint ?? 'more options'}`)}">${icon('chevronDown', 12)}</button></div>`;
   }
 

@@ -1821,3 +1821,39 @@ body[data-tools-off~="delete"] [data-cmd*="delete"] { display: none !important; 
   .dock-tabs button, .tb-btn { min-height: 36px; }
   .maplibregl-ctrl-group button { width: 38px !important; height: 38px !important; }
 }
+
+/* Help inside the app (no pop-up windows) */
+.docs-modal.docs-framed .docs-sheet { width: min(1200px, 96vw); height: min(880px, 92vh); max-height: none; display: flex; flex-direction: column; }
+.docs-modal.docs-framed .docs-body { flex: 1; padding: 0; overflow: hidden; }
+.docs-modal.docs-framed .help-frame { width: 100%; height: 100%; border: 0; display: block; background: var(--bg, #fff); }
+
+/* ==== Office / ArcGIS Pro flat look (last, so it wins) ====
+   Flat surfaces, no gradients or shadows on controls; one accent colour that marks state:
+   hover = light tint, press = deeper tint, selected/on = tint + accent border (as Office "checked"). */
+:root { --ui-hover: color-mix(in srgb, var(--accent) 9%, transparent); --ui-press: color-mix(in srgb, var(--accent) 22%, transparent); --ui-on: color-mix(in srgb, var(--accent) 15%, transparent); }
+/* tabs: flat text tabs, the open one in accent with a bold underline (Office, Pro) */
+#ribbon-tabs { gap: 0; padding: 0 6px; }
+#ribbon-tabs .rb-tab { border: 0 !important; border-radius: 0; background: none !important; box-shadow: none !important; padding: 6px 12px 5px; position: relative; }
+#ribbon-tabs .rb-tab:hover { background: var(--ui-hover) !important; }
+#ribbon-tabs .rb-tab.on { color: var(--accent); font-weight: 600; }
+#ribbon-tabs .rb-tab.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 0; height: 3px; border-radius: 2px 2px 0 0; background: var(--accent); }
+#ribbon-body { background: var(--panel); }
+/* ribbon buttons */
+.rb-btn { border-radius: 3px; transition: background-color 80ms, border-color 80ms; }
+.rb-btn:hover { background: var(--ui-hover); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.rb-btn:active { background: var(--ui-press); border-color: var(--accent); }
+.rb-btn[aria-pressed='true'], .rb-btn.on[aria-pressed='true'] { background: var(--ui-on); border-color: var(--accent); box-shadow: none; }
+.rb-btn[aria-pressed='true']:hover { background: var(--ui-press); }
+.rb-split:hover { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.rb-split-arrow:hover { background: var(--ui-hover); }
+.rb-title { text-transform: none; letter-spacing: 0; }
+/* side panes: flat headers and selected rows like Pro's Contents pane */
+.dock-tabs button.on, .pane-tabs button.on, [role='tab'][aria-selected='true'] { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); background: none; }
+.layer-row.selected, .layer-row.active, .tree-row.selected, [aria-selected='true'].row { background: var(--ui-on); box-shadow: inset 3px 0 0 var(--accent); }
+.layer-row:hover, .tree-row:hover { background: var(--ui-hover); }
+/* buttons and fields: flat, square-ish, clear focus */
+button.primary, .btn.primary { background: var(--accent); border: 1px solid var(--accent); color: #fff; box-shadow: none; border-radius: 3px; }
+button.primary:hover { filter: brightness(1.08); }
+input[type='text'], input[type='search'], input[type='number'], select, textarea { border-radius: 2px; box-shadow: none; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+.sheet, .modal .sheet { border-radius: 4px; }
