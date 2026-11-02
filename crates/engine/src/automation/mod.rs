@@ -58,6 +58,7 @@ pub const GALLERY: &[(&str, &str)] = &[
     ("combine-layers", include_str!("../../../../recipes/combine-layers.yaml")),
     ("values-at-points", include_str!("../../../../recipes/values-at-points.yaml")),
     ("png-data-pack", include_str!("../../../../recipes/png-data-pack.yaml")),
+    ("flood-extent", include_str!("../../../../recipes/flood-extent.yaml")),
     ("geographical-detector", include_str!("../../../../recipes/geographical-detector.yaml")),
     ("area-of-applicability", include_str!("../../../../recipes/area-of-applicability.yaml")),
     ("knndm-folds", include_str!("../../../../recipes/knndm-folds.yaml")),

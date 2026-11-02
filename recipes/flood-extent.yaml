@@ -1,0 +1,24 @@
+# Flood extent from radar: works through the cloud that hides floods from optical satellites.
+recipe: flood-extent
+version: 1
+kit: Disaster
+title: Flood extent from radar (Sentinel-1)
+description: >-
+  Maps where water has spread: the newest Sentinel-1 radar scene of the area against one from before
+  the flood. Radar sees through cloud, so it works in the wet season. Gives flooded and permanent
+  water in hectares, a map and a report with the method and dates.
+inputs:
+  area: { type: layer, default: auto, description: "area to map (a layer, or auto for the map view)" }
+  days: { type: number, default: 12, description: "look for the after scene in the last N days" }
+steps:
+  - id: flood
+    use: rs.flood
+    with: { aoi: "${inputs.area}", days: "${inputs.days}", max_km: 100 }
+  - id: map
+    use: export.map
+    with: { name: flood-extent, layers: ["${flood.raster}"], title: "Flood extent" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Flood extent · ${run.date}" }
+outputs: [map, report]

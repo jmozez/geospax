@@ -889,9 +889,171 @@ pub(super) fn rs_fetch(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
     Ok(StepOut { outputs: json!({ "raster": h.info.id, "scene": scene["id"], "date": date }), why })
 }
 
+
+// ------------------------------------------------------------------ flood mapping (Sentinel-1 radar)
+
+pub const PLANETARY: &str = "https://planetarycomputer.microsoft.com/api";
+
+/// Otsu's threshold over values in [lo, hi): the cut that best separates two classes (water and
+/// land in radar backscatter, in dB). None when there are too few values.
+pub fn otsu(vals: &[f32], lo: f32, hi: f32, bins: usize) -> Option<f32> {
+    let mut hist = vec![0u64; bins];
+    let width = (hi - lo) / bins as f32;
+    for v in vals.iter().filter(|v| v.is_finite() && **v >= lo && **v < hi) {
+        hist[(((v - lo) / width) as usize).min(bins - 1)] += 1;
+    }
+    let total: u64 = hist.iter().sum();
+    if total < 100 {
+        return None;
+    }
+    let sum_all: f64 = hist.iter().enumerate().map(|(i, c)| i as f64 * *c as f64).sum();
+    let (mut w0, mut sum0, mut best, mut cut) = (0u64, 0.0f64, -1.0f64, 0usize);
+    for (i, c) in hist.iter().enumerate() {
+        w0 += c;
+        if w0 == 0 || w0 == total {
+            continue;
+        }
+        sum0 += i as f64 * *c as f64;
+        let (m0, m1) = (sum0 / w0 as f64, (sum_all - sum0) / (total - w0) as f64);
+        let between = w0 as f64 * (total - w0) as f64 * (m0 - m1).powi(2);
+        if between > best {
+            best = between;
+            cut = i;
+        }
+    }
+    Some(lo + (cut as f32 + 1.0) * width)
+}
+
+/// Flood classes from before and after backscatter (dB): 1 permanent water (water in both), 2 flood
+/// (water after, land before, and at least `drop` dB darker), 3 land; 0 no data.
+pub fn flood_classes(before: &[f32], after: &[f32], t_before: f32, t_after: f32, drop: f32) -> Vec<u8> {
+    before
+        .iter()
+        .zip(after)
+        .map(|(b, a)| {
+            if !b.is_finite() || !a.is_finite() {
+                0
+            } else if *a < t_after && *b < t_before {
+                1
+            } else if *a < t_after && b - a >= drop {
+                2
+            } else {
+                3
+            }
+        })
+        .collect()
+}
+
+fn s1_search(b: [f64; 4], datetime: &str) -> Result<Vec<Value>, String> {
+    let body = json!({ "collections": ["sentinel-1-rtc"], "bbox": b, "datetime": datetime, "limit": 20, "sortby": [{ "field": "properties.datetime", "direction": "desc" }] });
+    let bytes = raster::http(&format!("{PLANETARY}/stac/v1/search"), Some(&body.to_string()), 45)?;
+    let v: Value = serde_json::from_slice(&bytes).map_err(|e| format!("Sentinel-1 search: {e}"))?;
+    let mut out = Vec::new();
+    for f in v["features"].as_array().into_iter().flatten() {
+        let pr = &f["properties"];
+        let Some(href) = f["assets"]["vv"]["href"].as_str() else { continue };
+        let epsg = pr["proj:epsg"].as_u64().or_else(|| pr["proj:code"].as_str().and_then(|c| c.trim_start_matches("EPSG:").parse().ok()));
+        out.push(json!({ "id": f["id"], "date": pr["datetime"].as_str().unwrap_or("").get(..10).unwrap_or(""), "epsg": epsg, "vv": href,
+                         "orbit": pr["sat:orbit_state"], "covers": covers(&f["geometry"], b) }));
+    }
+    // a scene that covers the whole area first, then the newest
+    out.sort_by(|a, c| c["covers"].as_bool().cmp(&a["covers"].as_bool()).then(c["date"].as_str().cmp(&a["date"].as_str())));
+    Ok(out)
+}
+
+fn s1_read_db(scene: &Value, token: &str, b: [f64; 4], res: f64) -> Result<(gdal::Dataset, Vec<f32>, usize, usize), String> {
+    let href = scene["vv"].as_str().ok_or("scene has no VV band")?;
+    let epsg = scene["epsg"].as_u64().ok_or("scene has no projection")?;
+    let src = raster::open(Path::new(&format!("/vsicurl/{href}?{token}")))?;
+    let mem = raster::warp(&[&src], "", &grid_args(epsg, b, res, "average"))?;
+    let (v, w, h) = raster::read_full(&mem, 1)?;
+    // gamma0 (linear power) to decibels; zero and negative are no data
+    Ok((mem, v.into_iter().map(|x| if x > 0.0 { 10.0 * x.log10() } else { f32::NAN }).collect(), w, h))
+}
+
+fn window(end_days_ago: f64, days: f64) -> String {
+    let end = chrono::Utc::now() - chrono::Duration::seconds((end_days_ago * 86400.0) as i64);
+    let start = end - chrono::Duration::seconds((days * 86400.0) as i64);
+    format!("{}/{}", start.format("%Y-%m-%dT%H:%M:%SZ"), end.format("%Y-%m-%dT%H:%M:%SZ"))
+}
+
+pub(super) fn rs_flood(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
+    let t0 = Instant::now();
+    let (b, what) = aoi(sc, p)?;
+    let res = p_f64(p, "resolution").unwrap_or(20.0);
+    let after_w = p_str(p, "after").map(str::to_string).unwrap_or_else(|| window(0.0, p_f64(p, "days").unwrap_or(12.0)));
+    let before_w = p_str(p, "before").map(str::to_string).unwrap_or_else(|| window(p_f64(p, "days").unwrap_or(12.0) + p_f64(p, "gap").unwrap_or(0.0), p_f64(p, "before_days").unwrap_or(60.0)));
+    let drop = p_f64(p, "drop").unwrap_or(3.0) as f32;
+    let after_s = s1_search(b, &after_w)?;
+    let before_s = s1_search(b, &before_w)?;
+    let a = after_s.first().ok_or(format!("no Sentinel-1 scene over the area in {after_w} (try days: 24)"))?.clone();
+    // same orbit direction for a fair comparison when there is one
+    let bs = before_s.iter().find(|s| s["orbit"] == a["orbit"]).or(before_s.first()).ok_or(format!("no Sentinel-1 scene before the event in {before_w} (try before_days: 120)"))?.clone();
+    let tok: Value = serde_json::from_slice(&raster::http(&format!("{PLANETARY}/sas/v1/token/sentinel-1-rtc"), None, 30)?).map_err(|e| format!("token: {e}"))?;
+    let token = tok["token"].as_str().ok_or("Planetary Computer gave no access token")?.to_string();
+    let (ads, av, w, h) = s1_read_db(&a, &token, b, res)?;
+    let (_, bv, bw, bh) = s1_read_db(&bs, &token, b, res)?;
+    if (bw, bh) != (w, h) {
+        return Err("before and after grids differ".into());
+    }
+    let ta = otsu(&av, -35.0, 5.0, 200).unwrap_or(-18.0).min(-12.0);
+    let tb = otsu(&bv, -35.0, 5.0, 200).unwrap_or(-18.0).min(-12.0);
+    let cls = flood_classes(&bv, &av, tb, ta, drop);
+    let mut n = [0u64; 4];
+    for c in &cls {
+        n[*c as usize] += 1;
+    }
+    let gt = ads.geo_transform().map_err(|e| e.to_string())?;
+    let wkt = ads.spatial_ref().and_then(|s| s.to_wkt()).map_err(|e| e.to_string())?;
+    let px_ha = (gt[1] * gt[5]).abs() / 1e4;
+    let name = sanitize(p_str(p, "name").unwrap_or("flood"));
+    let out = out_path(sc, &name)?;
+    raster::write_tif_u8(&out, w, h, gt, &wkt, cls, Some(0.0))?;
+    let (ad, bd) = (a["date"].as_str().unwrap_or("").to_string(), bs["date"].as_str().unwrap_or("").to_string());
+    let flood_ha = n[2] as f64 * px_ha;
+    let classes = json!([
+        { "value": 1, "label": format!("Permanent water · {:.0} ha", n[1] as f64 * px_ha), "color": "#1f4e9e" },
+        { "value": 2, "label": format!("Flooded · {flood_ha:.0} ha"), "color": "#e8453c" },
+        { "value": 3, "label": "Dry land", "color": "#d9d4c7" },
+    ]);
+    let title = format!("Flood extent · Sentinel-1 · {}", human_date(&ad));
+    let hnd = register(sc, &out, &name, json!({ "kind": "classes", "title": title, "classes": classes,
+        "description": format!("Radar (VV) {} vs {} · water below {ta:.1} / {tb:.1} dB (Otsu) · © Copernicus Sentinel-1 data, RTC by Microsoft Planetary Computer", human_date(&ad), human_date(&bd)),
+        "credit": format!("Copernicus Sentinel-1 data {} (ESA); radiometric terrain correction: Microsoft Planetary Computer", ad.get(..4).unwrap_or("")) }))?;
+    sc.cards.push(("Flooded".into(), format!("{flood_ha:.0} ha ({})", human_date(&ad))));
+    sc.cards.push(("Permanent water".into(), format!("{:.0} ha", n[1] as f64 * px_ha)));
+    sc.methods.push(format!(
+        "Flood extent was mapped from Sentinel-1 radar (VV, radiometrically terrain-corrected gamma0 from Microsoft Planetary Computer) at {res:.0} m: water was taken as backscatter below Otsu's threshold of each scene ({ta:.1} dB on {}, {tb:.1} dB on {}); flooded pixels are water after the event, land before it and at least {drop:.0} dB darker. Radar sees through cloud; it can miss flooding under dense forest and confuse smooth tarmac or sand with water.",
+        human_date(&ad), human_date(&bd)
+    ));
+    Ok(StepOut {
+        outputs: json!({ "raster": hnd.info.id, "after": a["id"], "before": bs["id"], "flood_ha": (flood_ha * 10.0).round() / 10.0, "water_ha": (n[1] as f64 * px_ha * 10.0).round() / 10.0, "threshold_db": [tb, ta], "seconds": t0.elapsed().as_secs_f64() }),
+        why: vec![
+            format!("area: {what}"),
+            format!("after: {} ({}), before: {} ({})", human_date(&ad), a["orbit"].as_str().unwrap_or("?"), human_date(&bd), bs["orbit"].as_str().unwrap_or("?")),
+            format!("water threshold (Otsu): {ta:.1} dB after, {tb:.1} dB before; {flood_ha:.0} ha newly flooded"),
+        ],
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn otsu_splits_water_from_land() {
+        let mut v: Vec<f32> = (0..3000).map(|i| -22.0 + (i % 40) as f32 * 0.05).collect();
+        v.extend((0..7000).map(|i| -8.0 + (i % 60) as f32 * 0.05));
+        let t = otsu(&v, -35.0, 5.0, 200).unwrap();
+        assert!(t > -20.5 && t < -8.0, "threshold {t}");
+    }
+
+    #[test]
+    fn flood_classes_mark_new_water() {
+        let before = [-25.0, -8.0, -8.0, f32::NAN];
+        let after = [-24.0, -20.0, -9.0, -20.0];
+        assert_eq!(flood_classes(&before, &after, -15.0, -15.0, 3.0), vec![1, 2, 3, 0]);
+    }
 
     #[test]
     fn copernicus_tile_names() {
