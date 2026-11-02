@@ -1,3 +1,4 @@
+import { LANGS, currentLang, setLang, type Lang } from './i18n';
 import { icon as cmdIcon } from './commands';
 import { wireProjects } from './projects';
 import * as editingMod from './editing';
@@ -1533,6 +1534,7 @@ async function openSettings() {
     <div class="settings">
       <section><h3>Appearance</h3>
         <label>Mode <select name="mode">${opt('lazy', 'Lazy: cards, task bar, plain-language steps', uiMode)}${opt('pro', 'Pro: full ribbon, layer tree, every pane', uiMode)}</select></label>
+        <label>Language <select name="lang">${LANGS.map(([k, n]) => opt(k, n, currentLang())).join('')}</select></label>
         <label>Theme <select name="theme">${opt('light', 'Light', theme)}${opt('dark', 'Dark', theme)}${opt('system', 'Follow the system', theme)}</select></label>
       </section>
       <section><h3>Map</h3>
@@ -1589,6 +1591,7 @@ async function openSettings() {
         scaleControl?.setUnit(prefs.units);
       }
       savePrefs();
+      if (v.lang && v.lang !== currentLang()) { setLang(v.lang as Lang); location.reload(); return true; }
       if (v.ch_theme !== chartSt.theme || v.ch_palette !== chartSt.palette || Number(v.ch_size) !== chartSt.base_size) {
         void saveChartStyle(backend, { theme: v.ch_theme, palette: v.ch_palette, base_size: Number(v.ch_size) || 11 }).then(() => document.dispatchEvent(new CustomEvent('geospax:reload-views')));
       }

@@ -6,7 +6,7 @@ import type * as maplibregl from 'maplibre-gl';
 export interface BasemapDef {
   id: string;
   title: string;
-  group: 'Offline' | 'Streets and topography' | 'Imagery' | 'Light and dark canvas' | 'Your own';
+  group: 'Offline' | 'Streets and topography' | 'Imagery' | 'Daily satellite (NASA)' | 'Ocean and relief' | 'Light and dark canvas' | 'Your own';
   tiles?: string[];
   tileSize?: number;
   maxzoom?: number;
@@ -15,6 +15,11 @@ export interface BasemapDef {
   terms: string;
   /** imagery stays as it is; street maps are toned down so the data carries the colour */
   dim?: boolean;
+}
+
+/** Yesterday (UTC) as YYYY-MM-DD: today's daily satellite mosaic is still filling in. */
+function gibsDay(): string {
+  return new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 }
 
 export const BASEMAPS: BasemapDef[] = [
@@ -60,6 +65,87 @@ export const BASEMAPS: BasemapDef[] = [
     tiles: ['a', 'b', 'c', 'd'].map((s) => `https://${s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png`),
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
     terms: 'Free for non-commercial use; CARTO licence needed for commercial use',
+  },
+
+  // ---- More basemaps, in the spirit of the QGIS HCMGIS plugin's basemap list. Only services whose
+  // terms allow use in third-party apps are listed (no Google or Bing tiles, which forbid it).
+  {
+    id: 'osm-hot', title: 'Humanitarian (HOT)', group: 'Streets and topography', dim: true, maxzoom: 19,
+    tiles: ['a', 'b'].map((s) => `https://${s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png`),
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, style © Humanitarian OpenStreetMap Team, hosted by OSM France',
+    terms: 'ODbL data; OSM France tile policy (light use)',
+  },
+  {
+    id: 'cyclosm', title: 'CyclOSM (paths and tracks)', group: 'Streets and topography', dim: true, maxzoom: 19,
+    tiles: ['a', 'b', 'c'].map((s) => `https://${s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png`),
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, style © CyclOSM, hosted by OSM France',
+    terms: 'ODbL data; OSM France tile policy (light use)',
+  },
+  {
+    id: 'esri-street', title: 'Esri World Street Map', group: 'Streets and topography', maxzoom: 19,
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
+    attribution: 'Sources: Esri, HERE, Garmin, USGS, Intermap, INCREMENT P, NGA, © OpenStreetMap contributors',
+    terms: "Esri's terms of use apply (an ArcGIS account may be needed for commercial use)",
+  },
+  {
+    id: 'esri-natgeo', title: 'Esri National Geographic style', group: 'Streets and topography', maxzoom: 16,
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}'],
+    attribution: 'National Geographic, Esri, Garmin, HERE, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, increment P',
+    terms: "Esri's terms of use apply (an ArcGIS account may be needed for commercial use)",
+  },
+  {
+    id: 'esri-gray', title: 'Esri Light Gray canvas', group: 'Light and dark canvas', maxzoom: 16,
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'],
+    attribution: 'Esri, HERE, Garmin, © OpenStreetMap contributors',
+    terms: "Esri's terms of use apply (an ArcGIS account may be needed for commercial use)",
+  },
+  {
+    id: 'esri-darkgray', title: 'Esri Dark Gray canvas', group: 'Light and dark canvas', maxzoom: 16,
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'],
+    attribution: 'Esri, HERE, Garmin, © OpenStreetMap contributors',
+    terms: "Esri's terms of use apply (an ArcGIS account may be needed for commercial use)",
+  },
+  {
+    id: 'carto-voyager', title: 'CARTO Voyager', group: 'Light and dark canvas', maxzoom: 20,
+    tiles: ['a', 'b', 'c', 'd'].map((s) => `https://${s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png`),
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+    terms: 'Free for non-commercial use; CARTO licence needed for commercial use',
+  },
+  {
+    id: 'esri-ocean', title: 'Esri Ocean (bathymetry)', group: 'Ocean and relief', maxzoom: 13,
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}'],
+    attribution: 'Esri, GEBCO, NOAA, National Geographic, Garmin, HERE and other contributors',
+    terms: "Esri's terms of use apply (an ArcGIS account may be needed for commercial use)",
+  },
+  {
+    id: 'esri-relief', title: 'Esri Shaded Relief', group: 'Ocean and relief', maxzoom: 13,
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}'],
+    attribution: 'Esri, USGS, NOAA',
+    terms: "Esri's terms of use apply (an ArcGIS account may be needed for commercial use)",
+  },
+  {
+    id: 'esri-physical', title: 'Esri Physical', group: 'Ocean and relief', maxzoom: 8,
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}'],
+    attribution: 'U.S. National Park Service',
+    terms: "Esri's terms of use apply (an ArcGIS account may be needed for commercial use)",
+  },
+  {
+    id: 'gibs-bluemarble', title: 'NASA Blue Marble (relief and bathymetry)', group: 'Daily satellite (NASA)', maxzoom: 8,
+    tiles: ['https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg'],
+    attribution: 'NASA Earth Observatory, via NASA GIBS',
+    terms: 'NASA imagery: no copyright, free for any use with credit',
+  },
+  {
+    id: 'gibs-viirs', title: "NASA VIIRS true colour (yesterday)", group: 'Daily satellite (NASA)', maxzoom: 9,
+    tiles: [`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/${gibsDay()}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`],
+    attribution: 'NASA EOSDIS GIBS, Suomi NPP VIIRS',
+    terms: 'NASA imagery: no copyright, free for any use with credit. One image a day at 375 m: fires, smoke, floods, cloud',
+  },
+  {
+    id: 'gibs-modis', title: 'NASA MODIS Terra true colour (yesterday)', group: 'Daily satellite (NASA)', maxzoom: 9,
+    tiles: [`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${gibsDay()}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`],
+    attribution: 'NASA EOSDIS GIBS, Terra MODIS',
+    terms: 'NASA imagery: no copyright, free for any use with credit. One image a day at 250 m',
   },
   { id: 'custom', title: 'Your own tiles (XYZ URL)', group: 'Your own', terms: 'Any XYZ raster tile service: {z}/{x}/{y} in the URL (as QGIS XYZ Tiles)' },
   { id: 'none', title: 'No basemap', group: 'Offline', terms: 'A plain background' },

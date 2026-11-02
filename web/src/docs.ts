@@ -99,30 +99,6 @@ export function renderMarkdown(md: string): string {
   return out.join('\n');
 }
 
-/** Open the help page on a guide (`USER_GUIDE`, `FAQ/installing`); false when it could not open. */
-export async function openHelpPage(route: string, edition?: string): Promise<boolean> {
-  const url = `help.html#${route}`;
-  if (edition === 'desktop') {
-    try {
-      const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-      const open = await WebviewWindow.getByLabel('help');
-      if (open) {
-        await open.emit('geospax:help', route).catch(() => undefined);
-        await open.setFocus();
-        return true;
-      }
-      const w = new WebviewWindow('help', { url, title: 'GeoSpaX Help', width: 1200, height: 860 });
-      return await new Promise<boolean>((resolve) => {
-        void w.once('tauri://created', () => resolve(true));
-        void w.once('tauri://error', () => resolve(false));
-      });
-    } catch {
-      return false;
-    }
-  }
-  return !!window.open(url, 'geospax-help');
-}
-
 export class DocsViewer {
   private modal: HTMLElement;
   private body: HTMLElement;
@@ -170,6 +146,7 @@ export class DocsViewer {
   }
 
   private show(title: string, html: string) {
+    this.modal.classList.remove('docs-framed');
     this.title.textContent = title;
     this.body.innerHTML = html;
     this.body.scrollTop = 0;
@@ -182,11 +159,26 @@ export class DocsViewer {
   async open(name: string) {
     const key = name.replace(/^.*\//, '').replace(/\.md(#.*)?$/, '');
     const anchor = /#(.+)$/.exec(name)?.[1];
-    if (await openHelpPage(key + (anchor ? `/${anchor}` : ''), (this.backend as { edition?: string }).edition)) {
-      this.close();
-      return;
+    this.openFramed(key + (anchor ? `/${anchor}` : ''));
+  }
+
+  /** The full help page (search, contents, guides) inside the app, in a large in-app panel: no
+   *  pop-up browser tab or extra window. Links between guides stay in the panel. */
+  openFramed(route: string) {
+    this.history = [];
+    this.title.textContent = 'GeoSpaX Help';
+    this.modal.classList.add('docs-framed');
+    let f = this.body.querySelector<HTMLIFrameElement>('iframe.help-frame');
+    if (!f) {
+      this.body.innerHTML = '';
+      f = Object.assign(document.createElement('iframe'), { className: 'help-frame', title: 'GeoSpaX Help' });
+      this.body.append(f);
     }
-    return this.openHere(key);
+    const url = `help.html#${route}`;
+    if (f.getAttribute('src')?.split('#')[0] === 'help.html' && f.contentWindow) f.contentWindow.location.hash = route;
+    else f.src = url;
+    this.modal.querySelector<HTMLButtonElement>('.docs-back')!.hidden = true;
+    this.modal.hidden = false;
   }
 
   /** The guide inside the app (the fallback when no help page can open). */
