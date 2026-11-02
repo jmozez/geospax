@@ -226,3 +226,39 @@ export function actionsFor(l: LayerInfo, s: Symbology, recipes: Set<string>): [s
   }
   return out;
 }
+
+/** Lazy mode across layers: what the selected layer can be combined with among the other layers and
+ *  rasters on the map, in plain words. Each entry runs a recipe with both inputs filled in
+ *  (combine-layers picks the method from the two geometries; zonal-statistics and values-at-points
+ *  take a raster). At most `max` suggestions, the most useful pairings first. */
+export function combineFor(
+  l: LayerInfo,
+  others: { id: string; name: string; geometry: string }[],
+  rasters: { id: string; title: string }[],
+  recipes: Set<string>,
+  max = 4,
+): { label: string; recipe: string; inputs: Record<string, string> }[] {
+  const out: { label: string; recipe: string; inputs: Record<string, string>; rank: number }[] = [];
+  const short = (s: string) => (s.length > 22 ? `${s.slice(0, 21)}…` : s);
+  if (recipes.has('combine-layers')) {
+    for (const o of others) {
+      if (o.id === l.id) continue;
+      const n = short(o.name);
+      const pair = `${l.geometry}>${o.geometry}`;
+      const [label, rank] =
+        pair === 'polygon>point' ? [`Count ${n} in each area`, 0]
+          : pair === 'polygon>line' ? [`Length of ${n} in each area`, 2]
+            : pair === 'polygon>polygon' ? [`Overlap with ${n}`, 3]
+              : pair === 'point>polygon' ? [`Which ${n} each is in`, 1]
+                : pair === 'point>point' || pair === 'line>point' ? [`Distance to nearest ${n}`, 2]
+                  : ['', 9];
+      if (label) out.push({ label, recipe: 'combine-layers', inputs: { layer: l.id, other: o.id }, rank });
+    }
+  }
+  for (const r of rasters) {
+    const n = short(r.title || r.id);
+    if (l.geometry === 'polygon' && recipes.has('zonal-statistics')) out.push({ label: `Average ${n} per area`, recipe: 'zonal-statistics', inputs: { layer: l.id, raster: r.id }, rank: 1 });
+    if (l.geometry === 'point' && recipes.has('values-at-points')) out.push({ label: `${n} at each point`, recipe: 'values-at-points', inputs: { layer: l.id, raster: r.id }, rank: 1 });
+  }
+  return out.sort((a, b) => a.rank - b.rank).slice(0, max).map(({ rank: _r, ...x }) => x);
+}

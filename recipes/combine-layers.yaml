@@ -1,0 +1,21 @@
+# Two layers into one answer: the method follows what they hold.
+recipe: combine-layers
+version: 1
+title: Combine two layers
+description: >-
+  Puts the answer from a second layer onto the first: points counted in each area (with the sum and
+  mean of a number), length of lines in each area, overlap between two sets of areas, which area each
+  point is in, or the distance to the nearest point. Lazy mode offers it as "Combine with …".
+inputs:
+  layer: { type: layer, default: auto, description: the layer that gets the new fields }
+  other: { type: layer, default: "", description: the layer to combine with }
+  how: { type: string, default: auto, description: "auto, count, length, overlap, within or nearest" }
+  field: { type: string, default: "", description: "optional number field of the other layer to sum and average (points in areas)" }
+steps:
+  - id: combined
+    use: layers.combine
+    with: { layer: "${inputs.layer}", other: "${inputs.other}", how: "${inputs.how}", field: "${inputs.field}" }
+  - id: style
+    use: automap.style
+    with: { layers: ["${combined.layer}"] }
+outputs: [combined]
