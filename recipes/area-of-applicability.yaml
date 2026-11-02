@@ -1,0 +1,17 @@
+# Where can a prediction map be trusted? Meyer & Pebesma (2021).
+recipe: area-of-applicability
+version: 1
+title: Where can the prediction be trusted? (area of applicability)
+description: >-
+  For a map predicted from training points and predictor rasters (species distribution, soil property,
+  biomass), shows where the predictors are like those the model learnt from (inside the area of
+  applicability) and where the model extrapolates and its cross-validated accuracy does not hold
+  (Meyer & Pebesma 2021, Methods in Ecology and Evolution). Also maps the dissimilarity index.
+inputs:
+  layer: { type: layer, default: auto, description: the training points }
+  rasters: { type: string, default: "", description: "predictor raster ids, comma-separated (two or more)" }
+steps:
+  - id: aoa
+    use: model.aoa
+    with: { layer: "${inputs.layer}", rasters: "${inputs.rasters}" }
+outputs: [aoa]

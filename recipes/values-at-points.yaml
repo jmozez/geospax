@@ -1,0 +1,15 @@
+# Raster values (elevation, NDVI, rainfall …) added to point features.
+recipe: values-at-points
+version: 1
+title: Raster values at points
+description: >-
+  Adds the value of a raster (elevation, slope, NDVI, rainfall, land cover) at each point as a new field,
+  and reports the strongest relationship with a measured field of the points.
+inputs:
+  layer: { type: layer, default: auto, description: point layer }
+  raster: { type: raster, default: "", description: raster to read }
+steps:
+  - id: sampled
+    use: raster.sample
+    with: { layer: "${inputs.layer}", rasters: "${inputs.raster}" }
+outputs: [sampled]
