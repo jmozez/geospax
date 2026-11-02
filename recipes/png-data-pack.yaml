@@ -15,12 +15,11 @@ steps:
   - id: provinces
     use: data.fetch
     with: { source: gadm, country: "${inputs.country}", level: 1, name: provinces }
-  - id: districts
+  # districts (level 2) and local-level governments (level 3), one download each
+  - id: lower
     use: data.fetch
-    with: { source: gadm, country: "${inputs.country}", level: 2, name: districts }
-  - id: llgs
-    use: data.fetch
-    with: { source: gadm, country: "${inputs.country}", level: 3, name: llgs }
+    for_each: [2, 3]
+    with: { source: gadm, country: "${inputs.country}", level: "${item}", name: "admin${item}" }
   - id: climate
     use: data.fetch
     with: { source: worldclim, aoi: provinces, variables: [1, 12], resolution: 5m, name: climate }
@@ -29,7 +28,7 @@ steps:
     with: { aoi: "${inputs.area}", source: copernicus-90, resolution: 90, max_km: 400, name: terrain }
   - id: map
     use: export.map
-    with: { name: png-data-pack, layers: [provinces, districts], title: "${inputs.country}: administrative areas" }
+    with: { name: png-data-pack, layers: [provinces, admin2], title: "${inputs.country}: administrative areas" }
   - id: report
     use: export.report
     needs: [map]

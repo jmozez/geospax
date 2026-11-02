@@ -91,7 +91,16 @@ A string that is exactly one `${…}` keeps the referenced type, so `layers: "${
   - step 'b': 'vector.buffer' needs 'distance'
 ```
 
-Planned control steps: `for_each` (files, features, dates, devices), `parallel` and `ask` (one question with a recommended answer, only when the autopilot's confidence is low).
+**Loops.** Any step can take `for_each:` with a list (or an expression that gives one, or a comma-separated text); it then runs once per item with `${item}` bound to the item, and its outputs become `{ each: [...], count }`:
+
+```yaml
+  - id: lower
+    use: data.fetch
+    for_each: [2, 3]
+    with: { source: gadm, country: PNG, level: "${item}", name: "admin${item}" }
+```
+
+Planned control steps: `parallel` and `ask` (one question with a recommended answer, only when the autopilot's confidence is low).
 
 ### Step catalogue (built)
 
@@ -192,7 +201,7 @@ decisions" table and the UI.
 | Polygons | 1–3 areas over other data are see-through; layers with more than 400 polygons drop outlines; the step that made a layer can hint (IDW: no outlines; hexbins: outlines) | Cartographic practice |
 | Label field | `name`, `title`, `label`, `site`, `*_name`; photo file names never labelled | QGIS/ArcGIS label defaults |
 | CRS for analysis | UTM zone from the data's centre (buffers) | PROJ |
-| Interpolation | IDW power from leave-one-out cross-validation over {1, 1.5, 2, 3}; kriging via the R step (gstat fits Sph/Exp/Gau and keeps the best). Automatic IDW-vs-kriging choice: planned | gstat, ArcGIS Geostatistical Analyst |
+| Interpolation | IDW power from leave-one-out cross-validation over {1, 1.5, 2, 3}; kriging via the R step (gstat fits Sph/Exp/Gau and keeps the best). Automatic IDW-vs-kriging choice: `interpolate.auto` (lower cross-validation error wins) | gstat, ArcGIS Geostatistical Analyst |
 | Raster styles | DEM → hypsometric tint stretched 2–98 %; hillshade → grey at 50 % with multiply blending over the colour layer; slope 0–45° pale yellow → dark red; aspect → colour wheel; NDVI/SAVI/EVI → red–yellow–green with a **fixed** −0.2…0.9 range (dates compare); NDWI/NDMI brown → blue; wetness → blues; classes → their own colours (GRASS's for GRASS outputs); RGB → 2–98 % stretch + gamma 0.75 | ✅ `raster.rs` |
 | Raster maps | One thematic raster per map (the newest) with relief shading on top; the frame is filled with data (no empty margins); rasters render at native resolution (1–2× the page) | ✅ |
 | Scene choice | Newest pass first; a scene must be ≥ 70 % clear **over the area** (scene classification), not just on average; same-day tiles: the one covering the whole area | ✅ `rs.index` |
