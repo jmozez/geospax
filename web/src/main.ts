@@ -2222,6 +2222,11 @@ async function main() {
   });
   void toolbox.reload();
   document.addEventListener('geospax:plugins-changed', () => void toolbox.reload());
+  document.addEventListener('geospax:run-recipe-in', (e) => {
+    const { id, inputs } = (e as CustomEvent<{ id: string; inputs: Record<string, unknown> }>).detail;
+    workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
+    void automatePane?.run(id, inputs);
+  });
   document.addEventListener('geospax:run-recipe', (e) => {
     workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');
     void automatePane?.run((e as CustomEvent<string>).detail);

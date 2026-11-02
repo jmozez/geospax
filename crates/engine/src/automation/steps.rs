@@ -497,6 +497,14 @@ pub const CATALOGUE: &[StepSpec] = &[
         borrowed: "UN-SPIDER Sentinel-1 flood mapping practice, Copernicus EMS rapid mapping, GEE flood scripts",
     },
     StepSpec {
+        name: "climate.series",
+        family: "Climate",
+        summary: "Monthly rainfall and temperature for a place since 1991 (ERA5 via Open-Meteo, no key): anomalies against the 1991–2020 normal, the last 12 months' rain as % of normal, and trends (Mann-Kendall, Sen's slope), with charts and a CSV.",
+        running: "Reading the climate record",
+        params: &[("aoi", false, "box, layer id or auto (its centre is used)"), ("start", false, "first year (default 1991)"), ("base", false, "normal period (default 1991-2020)"), ("name", false, "CSV name"), ("base_url", false, "Open-Meteo archive mirror")],
+        borrowed: "Copernicus Climate Change Service, KNMI Climate Explorer, R trend/Kendall packages",
+    },
+    StepSpec {
         name: "grass",
         family: "Providers",
         summary: "Run GRASS modules headless in a temporary project; inputs are imported and outputs come back as rasters/layers (with GRASS class labels and colours).",
@@ -863,6 +871,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "rs.index" => raster_steps::rs_index(sc, p),
         "rs.fetch" => raster_steps::rs_fetch(sc, p),
         "rs.flood" => raster_steps::rs_flood(sc, p),
+        "climate.series" => super::climate_steps::climate_series(sc, p),
         "grass" => providers::grass(sc, p),
         "saga" => providers::saga(sc, p),
         "export.report" => export_report(sc, p),
