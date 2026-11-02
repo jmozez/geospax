@@ -1,0 +1,37 @@
+# Papua New Guinea base data: one click for the layers most PNG projects start from.
+recipe: png-data-pack
+version: 1
+kit: Papua New Guinea
+title: PNG data pack (provinces, districts, LLGs, terrain, climate)
+description: >-
+  The administrative areas of Papua New Guinea at three levels (provinces, districts and local-level
+  governments, from GADM 4.1), terrain for the area you are working on (Copernicus 90 m DEM) and
+  climate normals (WorldClim 2.1 annual temperature and rainfall), each with its citation. Another
+  country works too: change the code (SLB, VUT, FJI, IDN …).
+inputs:
+  country: { type: text, default: PNG, description: "ISO 3166 alpha-3 country code" }
+  area: { type: layer, default: auto, description: "area for terrain (a layer, or auto for the map view)" }
+steps:
+  - id: provinces
+    use: data.fetch
+    with: { source: gadm, country: "${inputs.country}", level: 1, name: provinces }
+  - id: districts
+    use: data.fetch
+    with: { source: gadm, country: "${inputs.country}", level: 2, name: districts }
+  - id: llgs
+    use: data.fetch
+    with: { source: gadm, country: "${inputs.country}", level: 3, name: llgs }
+  - id: climate
+    use: data.fetch
+    with: { source: worldclim, aoi: provinces, variables: [1, 12], resolution: 5m, name: climate }
+  - id: terrain
+    use: dem.fetch
+    with: { aoi: "${inputs.area}", source: copernicus-90, resolution: 90, max_km: 400, name: terrain }
+  - id: map
+    use: export.map
+    with: { name: png-data-pack, layers: [provinces, districts], title: "${inputs.country}: administrative areas" }
+  - id: report
+    use: export.report
+    needs: [map]
+    with: { title: "Data pack · ${inputs.country} · ${run.date}" }
+outputs: [map, report]

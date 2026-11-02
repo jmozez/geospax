@@ -3,6 +3,17 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Interface languages: Settings › Appearance › Language offers Tok Pisin (first draft, to be reviewed by fluent speakers), French, Spanish and Bahasa Indonesia. Ribbon tabs and groups are translated, and about 60 common commands in Tok Pisin; untranslated text stays in English.
+- 13 more basemaps, in the spirit of the QGIS HCMGIS plugin: Esri Street, National Geographic, Light and Dark Gray, Ocean, Shaded Relief and Physical; Humanitarian OSM; CyclOSM; CARTO Voyager; NASA Blue Marble and yesterday's VIIRS and MODIS true colour. Each shows its licence; Google and Bing are left out because their terms forbid use in other apps.
+- Recipe `png-data-pack`: Papua New Guinea's provinces, districts and local-level governments (GADM 4.1), WorldClim temperature and rainfall, and Copernicus 90 m terrain for the area in view, with citations. Any country code works.
+
+### Changed
+- Help (user guide, FAQ, credits and every other guide) opens in a panel inside the app instead of a new browser tab or window.
+- Flat Office / ArcGIS Pro look: text tabs with an accent underline on the open tab; ribbon buttons tinted on hover, deeper on press, tinted with an accent border while on; flat fields with an accent focus line; Excel-like attribute table grid with an accent selection bar; dialogs with a title bar and a right-aligned footer.
+
 ## [3.1.0] - 2026-11-02
 
 ### Added
