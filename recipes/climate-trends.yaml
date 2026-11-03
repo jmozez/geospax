@@ -1,0 +1,19 @@
+# Is it drier or hotter than usual here? Monthly climate since 1991 for the area in view.
+recipe: climate-trends
+version: 1
+kit: Climate
+title: Rainfall and temperature trends (since 1991)
+description: >-
+  Monthly rainfall and temperature for the centre of the area from the ERA5 reanalysis, compared
+  with the 1991–2020 normal: how this year's rain compares, and whether temperature and rainfall are
+  trending up or down (Mann-Kendall test). Charts, a CSV of every month and a report.
+inputs:
+  area: { type: layer, default: auto, description: "area (a layer, or auto for the map view)" }
+steps:
+  - id: climate
+    use: climate.series
+    with: { aoi: "${inputs.area}" }
+  - id: report
+    use: export.report
+    with: { title: "Climate trends · ${run.date}" }
+outputs: [climate, report]

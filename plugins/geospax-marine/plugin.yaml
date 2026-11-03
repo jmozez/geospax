@@ -68,14 +68,14 @@ tools:
       - { name: "block_deg", label: "Block size (°, blank = automatic)", kind: number, description: "Spatial blocks for cross-validation, in degrees; automatic: a sixth of the study area’s width, made smaller until the presences fall in at least twice as many blocks as folds." }
   - id: "spectral-index"
     name: "Spectral index and extent (Otsu)"
-    summary: "NDVI, NDWI, NDBI, NBR or any band pair from a multiband image, with an automatic Otsu threshold and the area above it."
+    summary: "NDVI, NDWI, MNDWI, NDBI, NBR, NDMI, GNDVI, NDRE, NDSI or any band pair from a multiband image you have, with an automatic Otsu threshold and the area above it."
     group: "Marine"
     icon: satellite
     params:
       - { name: "image", label: "Image", kind: raster, required: true, description: "A multiband raster (Sentinel-2, Landsat, drone …)." }
-      - { name: "index", label: "Index", kind: choice, default: "NDVI", description: "Formula (A − B) / (A + B); the bands below say which band is A and which is B.", choices: ["NDVI", "NDWI", "NDBI", "NBR", "CUSTOM"] }
-      - { name: "band_a", label: "Band A", kind: number, default: 4, description: "NDVI/NDWI/NBR: near infrared; NDBI: SWIR. 1 = first band." }
-      - { name: "band_b", label: "Band B", kind: number, default: 3, description: "NDVI: red; NDWI/NDBI: NIR or SWIR; NBR: SWIR2." }
+      - { name: "index", label: "Index", kind: choice, default: "NDVI", description: "Formula (A − B) / (A + B); the bands below say which band is A and which is B.", choices: ["NDVI", "NDWI", "MNDWI", "NDBI", "NBR", "NDMI", "GNDVI", "NDRE", "NDSI", "CUSTOM"] }
+      - { name: "band_a", label: "Band A", kind: number, default: 4, description: "The first band in the formula (NDVI, NBR, NDMI, GNDVI, NDRE: near infrared; NDBI: SWIR; MNDWI, NDSI: green). 1 = first band." }
+      - { name: "band_b", label: "Band B", kind: number, default: 3, description: "The second band (NDVI: red; NBR: SWIR2; NDMI, MNDWI, NDSI: SWIR1; GNDVI: green; NDRE: red edge)." }
       - { name: "threshold", label: "Threshold (blank = Otsu)", kind: number, description: "Cells at or above it count as the extent (vegetation, water, built-up, burnt …)." }
   - id: "suitability"
     name: "Weighted suitability (WLC)"

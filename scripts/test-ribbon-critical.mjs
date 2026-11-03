@@ -157,7 +157,7 @@ if (arrow) {
     const el = document.querySelector('.rb-menu'); const r = el?.getBoundingClientRect();
     return el ? { n: el.querySelectorAll('[data-cmd]').length, inside: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, focus: document.activeElement?.dataset?.cmd ?? '' } : null;
   });
-  check(!!m && m.n === 4 && m.inside, `Export map menu: ${m?.n} entries, inside the window`);
+  check(!!m && m.n === 5 && m.inside, `Export map menu: ${m?.n} entries, inside the window`);
   await shot('share-export-map-menu.png', { x: 0, y: 0, width: 1600, height: 420 });
   await page.keyboard.press('ArrowDown');
   const f2 = await page.evaluate(() => document.activeElement?.dataset?.cmd ?? '');
@@ -170,7 +170,7 @@ if (arrow) {
   await page.keyboard.press('ArrowDown');
   await page.waitForTimeout(300);
   const dm = await page.evaluate(() => [...document.querySelectorAll('.rb-menu [data-cmd]')].map((b) => b.dataset.cmd));
-  check(dm.join() === 'share.data.geojson,share.data.shp,share.data.csv,share.data.gpkg,share.data.kml,share.data.parquet', `Export data menu by ArrowDown, most used first (${dm.join(', ')})`);
+  check(dm.join() === 'share.data.geojson,share.data.shp,share.data.csv,share.data.gpkg,share.data.kml,share.data.parquet,share.data.pmtiles', `Export data menu by ArrowDown, most used first (${dm.join(', ')})`);
   await shot('share-export-data-menu.png', { x: 0, y: 0, width: 1600, height: 420 });
   await page.keyboard.press('Escape');
 }

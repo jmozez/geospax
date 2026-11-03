@@ -58,7 +58,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
     { group: 'Selection', big: [{ split: 'edit-select', label: 'Select', icon: 'select', hint: 'Select features by attributes or by location', items: ['edit.sel.attributes', 'edit.sel.location'] }], small: ['edit.sel.zoom', 'edit.sel.clear'] },
     { group: 'Fields', big: ['edit.calculate'], small: ['edit.addField', 'edit.table', 'edit.defquery', 'edit.rules', 'edit.fieldsync'] },
     { group: 'Measure', big: [{ split: 'edit-measure', label: 'Measure', icon: 'ruler', hint: 'Measure a distance or an area on the map', items: ['edit.measure.distance', 'edit.measure.area', 'edit.measure.clear'] }] },
-    { group: 'Manage edits', small: ['edit.undo', 'edit.redo', 'edit.snap', 'edit.discard', 'edit.topology'] },
+    { group: 'Manage edits', small: ['edit.undo', 'edit.redo', 'edit.snap', 'edit.discard', 'edit.topology', 'edit.export'] },
   ],
   design: [
     { group: 'Draw', big: ['design.line', { split: 'design-shapes', label: 'Shapes', icon: 'polyline', hint: 'Polyline, polygon, rectangle, circle, arc or ellipse', items: ['design.polyline', 'design.polygon', 'design.rect', 'design.circle', 'design.arc', 'design.ellipse'] }], small: ['design.point', 'design.text', 'design.hatch'] },
@@ -80,7 +80,16 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
   ],
   imagery: [
     { group: 'Rasters', big: ['data.rasters'] },
-    { group: 'Indices', big: ['imagery.ndvi', 'imagery.index'], small: ['imagery.ndi'] },
+    {
+      group: 'Indices',
+      big: [{
+        split: 'imagery-indices', label: 'Indices', icon: 'leaf',
+        hint: 'Spectral indices: from the newest clear Sentinel-2 pass over the map view, from an image you have, or any two bands',
+        items: ['§From Sentinel-2 (downloaded for the map view)', 'imagery.ndvi', 'imagery.idx.ndwi', 'imagery.idx.mndwi', 'imagery.idx.nbr', 'imagery.idx.nbr2', 'imagery.idx.ndmi', 'imagery.idx.savi', 'imagery.idx.msavi', 'imagery.idx.evi', 'imagery.idx.gndvi', 'imagery.idx.ndre', 'imagery.idx.ndbi', 'imagery.idx.bsi',
+          '§From an image you have', 'imagery.index', '§Any two bands', 'imagery.ndi'],
+        default: 'imagery.ndvi',
+      }],
+    },
     { group: 'Terrain', big: ['imagery.terrain'], small: ['imagery.hillshade', 'imagery.slope', 'imagery.aspect', 'imagery.tri', 'imagery.twi', 'imagery.viewshed', 'imagery.profile', 'imagery.landforms', 'imagery.lidar'] },
     { group: 'Raster tools', big: ['imagery.rasterTools'], small: ['imagery.clip', 'imagery.mosaic', 'imagery.reproject', 'imagery.resample', 'imagery.change'] },
     { group: 'Satellite embeddings', big: ['imagery.embeddings'], small: ['imagery.similar', 'imagery.groups', 'imagery.classifyEmb', 'imagery.embChange'] },
@@ -101,13 +110,12 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
   share: [
     {
       group: 'Export map',
-      big: [{ split: 'share-map', label: 'Export map', icon: 'print', hint: 'The finished map (legend, scale bar, north arrow) as a file', items: ['share.map.pdf', 'share.map.png', 'share.map.svg', 'share.map.report'], default: 'share.map.pdf' }],
-      small: ['home.exportPng', 'share.print'],
+      big: [{ split: 'share-map', label: 'Export map', icon: 'print', hint: 'The finished map (legend, scale bar, north arrow) as a file', items: ['share.map.pdf', 'share.map.png', 'share.map.svg', 'share.map.report', 'home.exportPng'], default: 'share.map.pdf' }],
+      small: ['share.print'],
     },
     {
       group: 'Export data',
-      big: [{ split: 'share-data', label: 'Export data', icon: 'download', hint: 'The selected layer as a file in a common GIS format', items: ['share.data.geojson', 'share.data.shp', 'share.data.csv', 'share.data.gpkg', 'share.data.kml', 'share.data.parquet'], default: 'share.data.geojson' }],
-      small: ['edit.export'],
+      big: [{ split: 'share-data', label: 'Export data', icon: 'download', hint: 'The selected layer as a file in a common GIS format', items: ['share.data.geojson', 'share.data.shp', 'share.data.csv', 'share.data.gpkg', 'share.data.kml', 'share.data.parquet', 'share.data.pmtiles'], default: 'share.data.geojson' }],
     },
     { group: 'Layout', big: ['home.finish', 'share.layout'] },
     { group: 'Publish', big: ['share.publish'], small: ['share.package', 'home.copyLink', 'home.review'] },

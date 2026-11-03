@@ -74,7 +74,7 @@ const famExpect = (id) => {
   if (/^design\./.test(id)) return 'dialog|chooser|file|status';
   if (/^analyze\.tool\.|^analyze\.(zonal|servicearea|closest|route)$|^imagery\.(ndi|index|hillshade|slope|aspect|tri|twi|viewshed|profile|change|clip|mosaic|reproject|resample)$/.test(id)) return 'pane';
   // recipes: a run starts (body data-recipe-run) and a status reports the outcome
-  if (/^imagery\.(ndvi|terrain|landforms|lidar)$|^analyze\.(hotspots|kriging)$|^modelling\./.test(id)) return 'dialog|pane|status|run';
+  if (/^imagery\.(ndvi|idx\.\w+|terrain|landforms|lidar)$|^analyze\.(hotspots|kriging)$|^modelling\./.test(id)) return 'dialog|pane|status|run';
   if (/^imagery\.(embeddings|similar|groups|classifyEmb|embChange|detect|models)$/.test(id)) return 'dialog';
   if (/^(analyze|imagery|data|automate)\./.test(id)) return 'pane|dialog';
   if (/^layer\./.test(id)) return 'pane|dialog|view|state|status|file';

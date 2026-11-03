@@ -1,0 +1,27 @@
+# Any spectral index from the newest Sentinel-2 pass that is clear over the area.
+recipe: satellite-index
+version: 1
+kit: Imagery
+title: Satellite index (Sentinel-2)
+description: >-
+  The newest Sentinel-2 pass that is clear over the area (clouds, shadows and cirrus masked) as one
+  spectral index at 10 m: NDVI (vegetation), NDWI (water), NBR (burn), NDMI (moisture), SAVI
+  (vegetation on bare soil) or EVI (dense vegetation), on a true-colour image.
+inputs:
+  index: { type: text, default: ndvi, description: "ndvi, ndwi, nbr, ndmi, savi or evi" }
+  area: { type: layer, default: auto, description: "the area (auto = the map view)" }
+  days: { type: number, default: 90, description: how far back to look }
+steps:
+  - id: search
+    use: rs.search
+    with: { aoi: "${inputs.area}", days: "${inputs.days}", max_cloud: 60 }
+  - id: index
+    use: rs.index
+    with: { index: "${inputs.index}", min_clear: 0.6, name: "${inputs.index}" }
+  - id: photo
+    use: rs.fetch
+    with: { asset: visual }
+  - id: map
+    use: export.map
+    with: { name: satellite-index, layers: ["${photo.raster}", "${index.raster}"], title: "Sentinel-2 index" }
+outputs: [index, map]

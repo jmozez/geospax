@@ -127,14 +127,14 @@ export const RASTER_TOOLS: Tool[] = [
   {
     id: 'spectral-index',
     name: 'Spectral index and extent (Otsu)',
-    summary: 'NDVI, NDWI, NDBI, NBR or any band pair from a multiband image, with an automatic Otsu threshold and the area above it.',
+    summary: 'NDVI, NDWI, MNDWI, NDBI, NBR, NDMI, GNDVI, NDRE, NDSI or any band pair from a multiband image you have, with an automatic Otsu threshold and the area above it.',
     group: SPECTRAL,
     icon: 'satellite',
     params: [
       rasterParam('image', 'Image', 'A multiband raster (Sentinel-2, Landsat, drone …).'),
-      { name: 'index', label: 'Index', kind: 'choice', default: 'NDVI', choices: ['NDVI', 'NDWI', 'NDBI', 'NBR', 'CUSTOM'], description: 'Formula (A − B) / (A + B); the bands below say which band is A and which is B.' },
-      { name: 'band_a', label: 'Band A', kind: 'number', default: 4, description: 'NDVI/NDWI/NBR: near infrared; NDBI: SWIR. 1 = first band.' },
-      { name: 'band_b', label: 'Band B', kind: 'number', default: 3, description: 'NDVI: red; NDWI/NDBI: NIR or SWIR; NBR: SWIR2.' },
+      { name: 'index', label: 'Index', kind: 'choice', default: 'NDVI', choices: ['NDVI', 'NDWI', 'MNDWI', 'NDBI', 'NBR', 'NDMI', 'GNDVI', 'NDRE', 'NDSI', 'CUSTOM'], description: 'Formula (A − B) / (A + B); the bands below say which band is A and which is B.' },
+      { name: 'band_a', label: 'Band A', kind: 'number', default: 4, description: 'The first band in the formula (NDVI, NBR, NDMI, GNDVI, NDRE: near infrared; NDBI: SWIR; MNDWI, NDSI: green). 1 = first band.' },
+      { name: 'band_b', label: 'Band B', kind: 'number', default: 3, description: 'The second band (NDVI: red; NBR: SWIR2; NDMI, MNDWI, NDSI: SWIR1; GNDVI: green; NDRE: red edge).' },
       { name: 'threshold', label: 'Threshold (blank = Otsu)', kind: 'number', description: 'Cells at or above it count as the extent (vegetation, water, built-up, burnt …).' },
     ],
     run(ctx) {
@@ -158,14 +158,14 @@ export const RASTER_TOOLS: Tool[] = [
       }
       const cell = cellSize(g);
       const p = A.INDEX_PRESETS[preset];
-      const kind = ['NDVI', 'NDWI', 'NBR'].includes(preset) ? preset.toLowerCase() : 'raster';
+      const kind = ['NDVI', 'NDWI', 'NBR', 'NDMI'].includes(preset) ? preset.toLowerCase() : 'raster';
       return {
         message: `${preset} of ${g.title}: ${ha(above * cell.area)} at or above ${t.toFixed(3)} (${((100 * above) / nd.validCells).toFixed(1)} % of the image)`,
         rasters: [
           { name: `${preset} ${g.title}`, like: g, data: nd.nd, kind, units: 'index', description: `${p.formula}; band ${ia} as A, band ${ib} as B` },
           {
             name: `${preset} extent ${g.title}`, like: g, data: classes, kind: 'classes',
-            classes: [{ value: 0, label: `below ${t.toFixed(2)}`, color: '#d9d9d9' }, { value: 1, label: `${preset} ≥ ${t.toFixed(2)}`, color: preset === 'NDWI' ? '#2c7fb8' : preset === 'NDBI' ? '#d95f0e' : preset === 'NBR' ? '#7a0177' : '#1a9850' }],
+            classes: [{ value: 0, label: `below ${t.toFixed(2)}`, color: '#d9d9d9' }, { value: 1, label: `${preset} ≥ ${t.toFixed(2)}`, color: preset === 'NDWI' || preset === 'MNDWI' ? '#2c7fb8' : preset === 'NDSI' ? '#9ecae1' : preset === 'NDMI' ? '#41b6c4' : preset === 'NDBI' ? '#d95f0e' : preset === 'NBR' ? '#7a0177' : '#1a9850' }],
           },
         ],
         table: [

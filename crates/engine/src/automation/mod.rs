@@ -35,6 +35,7 @@ pub mod triggers;
 pub mod zonal_steps;
 pub mod combine_steps;
 pub mod journal_steps;
+pub mod climate_steps;
 
 use crate::jobs::{Job, Status};
 use crate::Engine;
@@ -59,6 +60,8 @@ pub const GALLERY: &[(&str, &str)] = &[
     ("values-at-points", include_str!("../../../../recipes/values-at-points.yaml")),
     ("png-data-pack", include_str!("../../../../recipes/png-data-pack.yaml")),
     ("flood-extent", include_str!("../../../../recipes/flood-extent.yaml")),
+    ("climate-trends", include_str!("../../../../recipes/climate-trends.yaml")),
+    ("satellite-index", include_str!("../../../../recipes/satellite-index.yaml")),
     ("geographical-detector", include_str!("../../../../recipes/geographical-detector.yaml")),
     ("area-of-applicability", include_str!("../../../../recipes/area-of-applicability.yaml")),
     ("knndm-folds", include_str!("../../../../recipes/knndm-folds.yaml")),
