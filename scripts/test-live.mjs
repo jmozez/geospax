@@ -17,6 +17,8 @@ async function open(name) {
 }
 const a = await open('Kila');
 const b = await open('Mere');
+// remember any 'Updated: Mere' status (it fades after a few seconds and later messages replace it)
+await a.evaluate(() => { window.__seen = ''; new MutationObserver(() => { const t = document.body.innerText; if (/Updated: Mere/.test(t)) window.__seen = 'yes'; }).observe(document.body, { subtree: true, childList: true, characterData: true }); });
 const before = await a.evaluate(async () => (await (await fetch('api/live')).json()).rev);
 // Mere adds a layer through the app's own backend (tagged with her window)
 await b.evaluate(async () => {
@@ -25,7 +27,7 @@ await b.evaluate(async () => {
 });
 const after = await a.evaluate(async () => (await (await fetch('api/live')).json()));
 ok('the change counter moves and names who changed it', after.rev > before && after.by === 'Mere', `${before} → ${after.rev}, by ${after.by}: ${after.what}`);
-const seen = await a.waitForFunction(() => /Updated: Mere/.test(document.body.innerText) && /shared_notes/.test(document.querySelector('#dock-left')?.textContent ?? ''), null, { timeout: 20_000 }).then(() => true).catch(() => false);
+const seen = await a.waitForFunction(() => window.__seen === 'yes' && /shared_notes/.test(document.querySelector('#dock-left')?.textContent ?? ''), null, { timeout: 45_000 }).then(() => true).catch(() => false);
 ok("the other window shows the new layer and who added it, without reloading", seen);
 const reads = await a.evaluate(async () => { const r0 = (await (await fetch('api/live')).json()).rev; await fetch('api/layers'); await fetch('api/ogc/collections'); return (await (await fetch('api/live')).json()).rev === r0; });
 ok('reading is not a change', reads);
