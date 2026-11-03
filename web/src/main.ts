@@ -66,6 +66,18 @@ const backend = createBackend();
 // the chart look (ggplot2 theme and palette) chosen in Settings, for the charts drawn in the app
 void ggchartMod.loadChartStyle(backend);
 
+// Accessibility: every icon-only button and link gets an accessible name from its tooltip, including
+// the ones panes and dialogs add later, so screen readers never announce a bare "button".
+{
+  const name = (root: ParentNode) => {
+    for (const el of root.querySelectorAll<HTMLElement>('button:not([aria-label]), a[href]:not([aria-label]), [role="button"]:not([aria-label])')) {
+      if (!el.textContent?.trim() && el.title) el.setAttribute('aria-label', el.title);
+    }
+  };
+  name(document);
+  new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n instanceof HTMLElement) name(n.parentElement ?? n); }).observe(document.body, { childList: true, subtree: true });
+}
+
 // Forward client errors/warnings to the engine log: release webviews (Tauri)
 // have no devtools, and headless smoke tests read the engine's stderr.
 {

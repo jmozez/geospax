@@ -6,6 +6,7 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 ## [Unreleased]
 
 ### Added
+- Accessibility: a "Skip to the map" link on the first Tab, an accessible name on every icon-only button (from its tooltip, also for buttons added later by panes and dialogs), a clear keyboard focus ring everywhere, and far fewer animations when the system asks for reduced motion. A test checks every ribbon tab for unnamed controls.
 - Live teamwork: everyone working on the same GeoSpaX (web edition or a shared desktop) sees the others' changes within about three seconds: added or removed layers, feature edits, field changes and project saves refresh every other open map, with a note saying who changed what (Settings › Your name). Reading, selecting and downloading are not changes.
 - Ask writes workflows: when no recipe fits a request, the assistant (Ask pane or any MCP client) builds one from the step catalogue (`list_steps`), saves it with `create_recipe` after the validator passes it, fixes what the validator reports, and offers to run it. Recipes that run Python or R are never written by the assistant.
 - GeoParquet by URL (Home › Layer, API `POST /api/geoparquet`, recipe step `data.parquet`): any GeoParquet file over https, s3, gs or az, read for the map view or the recipe's area only; the footer and the row groups whose bounding-box statistics meet the area are all that is downloaded, so multi-gigabyte files open in seconds.
