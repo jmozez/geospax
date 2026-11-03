@@ -236,7 +236,7 @@ pub(super) fn raster_zonal(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Strin
         while fs.field(&n).is_some() {
             n.push('_');
         }
-        fs.fields.push((n, if *s == "count" || *s == "area" { "real" } else if *s == "majority" { "real" } else { "real" }));
+        fs.fields.push((n, "real"));
     }
     let mut empty = 0usize;
     let mut means = Vec::new();

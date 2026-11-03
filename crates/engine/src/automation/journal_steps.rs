@@ -74,7 +74,7 @@ pub fn best_strata(y: &[f64], x: &[f64], kmin: usize, kmax: usize) -> Option<(f6
             for &h in &st {
                 counts[h] += 1;
             }
-            if counts.iter().any(|&c| c == 1) {
+            if counts.contains(&1) {
                 continue;
             }
             let q = q_stat(y, &st);

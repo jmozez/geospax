@@ -3,6 +3,15 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [3.2.1] - 2026-11-03
+
+### Changed
+- The satellite-embeddings step no longer credits the Clay and Prithvi foundation models: they are not shipped, since their downloads are too large.
+- Engine tidy-ups found by the linter (simpler code in zonal statistics, sync, LiDAR, 3D tiles and plugin repositories); no change in results.
+
+### Fixed
+- The live-teamwork browser test no longer misses the short "Updated" message on slow machines.
+
 ## [3.2.0] - 2026-11-03
 
 ### Added
