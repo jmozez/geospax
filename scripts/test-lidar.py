@@ -25,6 +25,7 @@ import importlib.util
 import json
 import math
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -304,6 +305,8 @@ def synthetic(a, tmp, results, M):
         check(has("terrain.png") and has("canopy.png") and has("canopy.pdf") and has("report.html"), f"{variant}: terrain and canopy maps (PNG, SVG, PDF) and the report")
         rep = next((x for x in arts if x.endswith("report.html")), None)
         text = open(rep, encoding="utf-8").read() if rep and os.path.exists(rep) else ""
+        # words only: embedded images (base64) can spell anything, "SMRF" included
+        text = re.sub(r"data:[a-z/+]+;base64,[A-Za-z0-9+/=]+", "", text)
         check("Canopy cover" in text and "Trees" in text and ("SMRF" in text) == (variant == "unclassified"), f"{variant}: report explains the canopy, trees and how ground was found")
         r["scene"] = scene_checks(a, run, variant, lo.get("building_count"), lo.get("tree_count"), "their classes" if variant == "classified" else "elevation")
         if variant == "unclassified" and a.out:

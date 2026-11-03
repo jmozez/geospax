@@ -463,7 +463,7 @@ pub const CATALOGUE: &[StepSpec] = &[
     StepSpec {
         name: "rs.index",
         family: "Remote sensing",
-        summary: "Spectral index (NDVI, NDWI, NBR, NDMI, SAVI, EVI) from the newest scene that is clear over the area; clouds and shadows are masked.",
+        summary: "Spectral index (NDVI, NDWI, NBR, NDMI, SAVI, EVI, GNDVI, NDRE, NDBI, MNDWI, NBR2, MSAVI, BSI) from the newest scene that is clear over the area; clouds and shadows are masked.",
         running: "Computing the index",
         params: &[
             ("index", false, "ndvi (default), ndwi, nbr, ndmi, savi, evi"), ("min_clear", false, "share of the area that must be cloud-free (default 0.7)"), ("max_tries", false, "dates to try (default 5)"),
@@ -495,6 +495,14 @@ pub const CATALOGUE: &[StepSpec] = &[
             ("drop", false, "least darkening in dB to count as flooded (default 3)"), ("resolution", false, "metres (default 20)"), ("name", false, ""),
         ],
         borrowed: "UN-SPIDER Sentinel-1 flood mapping practice, Copernicus EMS rapid mapping, GEE flood scripts",
+    },
+    StepSpec {
+        name: "climate.series",
+        family: "Climate",
+        summary: "Monthly rainfall and temperature for a place since 1991 (ERA5 via Open-Meteo, no key): anomalies against the 1991–2020 normal, the last 12 months' rain as % of normal, and trends (Mann-Kendall, Sen's slope), with charts and a CSV.",
+        running: "Reading the climate record",
+        params: &[("aoi", false, "box, layer id or auto (its centre is used)"), ("start", false, "first year (default 1991)"), ("base", false, "normal period (default 1991-2020)"), ("name", false, "CSV name"), ("base_url", false, "Open-Meteo archive mirror")],
+        borrowed: "Copernicus Climate Change Service, KNMI Climate Explorer, R trend/Kendall packages",
     },
     StepSpec {
         name: "grass",
@@ -863,6 +871,7 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "rs.index" => raster_steps::rs_index(sc, p),
         "rs.fetch" => raster_steps::rs_fetch(sc, p),
         "rs.flood" => raster_steps::rs_flood(sc, p),
+        "climate.series" => super::climate_steps::climate_series(sc, p),
         "grass" => providers::grass(sc, p),
         "saga" => providers::saga(sc, p),
         "export.report" => export_report(sc, p),

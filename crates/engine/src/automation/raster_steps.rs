@@ -758,7 +758,15 @@ pub(super) fn rs_index(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
         "nbr" => &["nir", "swir22"],
         "ndmi" => &["nir", "swir16"],
         "evi" => &["blue", "red", "nir"],
-        other => return Err(format!("unknown index '{other}' (ndvi, ndwi, nbr, ndmi, savi, evi)")),
+        // more normalized differences (first band − second) / (first + second), and two soil indices
+        "gndvi" => &["nir", "green"],
+        "ndre" => &["nir", "rededge1"],
+        "ndbi" => &["swir16", "nir"],
+        "mndwi" => &["green", "swir16"],
+        "nbr2" => &["swir16", "swir22"],
+        "msavi" => &["red", "nir"],
+        "bsi" => &["blue", "red", "nir", "swir16"],
+        other => return Err(format!("unknown index '{other}' (ndvi, ndwi, nbr, ndmi, savi, evi, gndvi, ndre, ndbi, mndwi, nbr2, msavi, bsi)")),
     };
     let mut why = Vec::new();
     if sc.scenes.is_empty() {
@@ -811,7 +819,14 @@ pub(super) fn rs_index(sc: &mut StepCtx, p: &Value) -> Result<StepOut, String> {
                 let v = match index.as_str() {
                     // bands are [red, nir] for NDVI/SAVI and [first, second] = (a - b) / (a + b) for NDWI, NBR, NDMI
                     "ndvi" => (g(1) - g(0)) / (g(1) + g(0)),
-                    "ndwi" | "nbr" | "ndmi" => (g(0) - g(1)) / (g(0) + g(1)),
+                    "ndwi" | "nbr" | "ndmi" | "gndvi" | "ndre" | "ndbi" | "mndwi" | "nbr2" => (g(0) - g(1)) / (g(0) + g(1)),
+                    // MSAVI2 (Qi et al. 1994): no soil factor to choose
+                    "msavi" => {
+                        let (r, n) = (g(0), g(1));
+                        (2.0 * n + 1.0 - ((2.0 * n + 1.0).powi(2) - 8.0 * (n - r)).max(0.0).sqrt()) / 2.0
+                    }
+                    // bare soil index: ((SWIR + red) − (NIR + blue)) / ((SWIR + red) + (NIR + blue))
+                    "bsi" => ((g(3) + g(1)) - (g(2) + g(0))) / ((g(3) + g(1)) + (g(2) + g(0))),
                     "savi" => 1.5 * (g(1) - g(0)) / (g(1) + g(0) + 0.5),
                     "evi" => 2.5 * (g(2) - g(1)) / (g(2) + 6.0 * g(1) - 7.5 * g(0) + 1.0),
                     _ => f32::NAN,

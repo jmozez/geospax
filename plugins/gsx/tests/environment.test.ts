@@ -307,11 +307,12 @@ describe("geospax-environment: histogram + Otsu + stats", () => {
     assert.equal(rasterResolutionWarning(20, 20, 256, 256), null);
   });
 
-  it("INDEX_PRESETS has 5 entries and BAND caveat is verbatim", () => {
-    assert.equal(Object.keys(INDEX_PRESETS).length, 5);
+  it("INDEX_PRESETS has 10 entries and BAND caveat is verbatim", () => {
+    assert.equal(Object.keys(INDEX_PRESETS).length, 10);
     assert.ok(INDEX_PRESETS.NDVI);
     assert.ok(INDEX_PRESETS.NDWI);
     assert.ok(INDEX_PRESETS.NDBI);
+    for (const k of ["GNDVI", "NDRE", "MNDWI", "NDMI", "NDSI"] as const) assert.ok(INDEX_PRESETS[k].formula.includes("/"));
     assert.ok(INDEX_PRESETS.NBR);
     assert.ok(INDEX_PRESETS.CUSTOM);
     assert.ok(BAND_ASSIGNMENT_CAVEAT.includes("Band-assignment caveat"));

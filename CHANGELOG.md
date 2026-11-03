@@ -10,9 +10,12 @@ All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelo
 - 13 more basemaps, in the spirit of the QGIS HCMGIS plugin: Esri Street, National Geographic, Light and Dark Gray, Ocean, Shaded Relief and Physical; Humanitarian OSM; CyclOSM; CARTO Voyager; NASA Blue Marble and yesterday's VIIRS and MODIS true colour. Each shows its licence; Google and Bing are left out because their terms forbid use in other apps.
 - Step `rs.flood` and recipe `flood-extent`: flood extent from Sentinel-1 radar, which sees through cloud. The newest scene is compared with one from before the event (same orbit direction when possible); water is set by Otsu's threshold for each scene; flooded pixels are water after, land before and at least 3 dB darker. Flooded and permanent water in hectares, a map and a report. Imagery: terrain-corrected gamma0 from Microsoft Planetary Computer, no account needed.
 - Recipes: any step can loop with `for_each:` (a list, an expression or comma-separated text); `${item}` is the current item and the outputs are `{ each, count }`. The PNG data pack uses it for districts and LLGs.
+- Step `climate.series` and recipe `climate-trends`: monthly rainfall and temperature since 1991 for the area (ERA5 via Open-Meteo, no key), anomalies against the 1991–2020 normal, the last 12 months' rain as % of normal, Mann-Kendall trends with Sen's slope, two charts and a CSV.
+- Imagery › Indices drop-down: NDVI, NDWI, NBR, NDMI, SAVI and EVI from the newest clear Sentinel-2 pass over the map view (recipe `satellite-index`).
 - Recipe `png-data-pack`: Papua New Guinea's provinces, districts and local-level governments (GADM 4.1), WorldClim temperature and rainfall, and Copernicus 90 m terrain for the area in view, with citations. Any country code works.
 
 ### Changed
+- Share tab without duplicates: the view snapshot is in the Export map menu, PMTiles in the Export data menu, Export features moved to Edit › Manage edits; Imagery's embedding Change is now "Embedding change".
 - Help (user guide, FAQ, credits and every other guide) opens in a panel inside the app instead of a new browser tab or window.
 - Flat Office / ArcGIS Pro look: text tabs with an accent underline on the open tab; ribbon buttons tinted on hover, deeper on press, tinted with an accent border while on; flat fields with an accent focus line; Excel-like attribute table grid with an accent selection bar; dialogs with a title bar and a right-aligned footer.
 

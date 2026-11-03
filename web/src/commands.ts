@@ -499,8 +499,26 @@ const EXTRA_COMMANDS: Command[] = [
   { id: 'design.copyFeatures', tab: 'design', group: 'CAD exchange', title: 'Copy features', icon: 'copy', hint: 'Copy the selected features between a GIS layer and the drawing', run: editCmd('copy') },
   { id: 'design.pasteFeatures', tab: 'design', group: 'CAD exchange', title: 'Paste features', icon: 'paste', hint: 'Paste them into the selected layer', run: editCmd('paste') },
   // ---- Imagery
-  tool('imagery.index', 'imagery', 'Indices', 'Spectral index', 'leaf', ['p:gsx/spectral-index', 'p:geospax-climate/spectral-index'], 'NDVI, NDWI, NDBI, NBR … with the extent (Otsu)', true),
-  tool('imagery.ndi', 'imagery', 'Indices', 'Normalized difference', 'leaf', [geo('normalized_difference_index')], 'Any (A − B) / (A + B) of two bands'),
+  tool('imagery.index', 'imagery', 'Indices', 'Index from my image', 'leaf', ['p:gsx/spectral-index', 'p:geospax-climate/spectral-index'], 'An image you have (drone, Landsat, Sentinel-2): NDVI, NDWI, MNDWI, NDBI, NBR, NDMI, GNDVI, NDRE, NDSI or your own band pair, with the area above an automatic (Otsu) threshold', true),
+  ...([
+    ['ndwi', 'NDWI (water)', 'Open water and flooding: (green − NIR) / (green + NIR)'],
+    ['mndwi', 'MNDWI (water near towns)', 'Open water, kept apart from roofs and bare soil: (green − SWIR1) / (green + SWIR1)'],
+    ['nbr', 'NBR (burn)', 'Burnt areas and fire severity: (NIR − SWIR2) / (NIR + SWIR2)'],
+    ['nbr2', 'NBR2 (burn, post-fire)', 'Recovery and smouldering after fire: (SWIR1 − SWIR2) / (SWIR1 + SWIR2)'],
+    ['ndmi', 'NDMI (moisture)', 'Plant water stress and drought: (NIR − SWIR1) / (NIR + SWIR1)'],
+    ['savi', 'SAVI (sparse vegetation)', 'Vegetation where bare soil shows through (L = 0.5)'],
+    ['msavi', 'MSAVI (very sparse vegetation)', 'Like SAVI with no soil factor to choose: new gardens, regrowth, dry grassland'],
+    ['evi', 'EVI (dense vegetation)', 'Forest and dense crops, less saturated than NDVI'],
+    ['gndvi', 'GNDVI (chlorophyll)', 'Crop chlorophyll and nitrogen: (NIR − green) / (NIR + green)'],
+    ['ndre', 'NDRE (red edge, crop health)', 'Nitrogen and stress in mid- to late-season crops: (NIR − red edge) / (NIR + red edge)'],
+    ['ndbi', 'NDBI (built-up)', 'Towns, roofs and roads: (SWIR1 − NIR) / (SWIR1 + NIR)'],
+    ['bsi', 'BSI (bare soil)', 'Bare ground, mining and clearing: ((SWIR1 + red) − (NIR + blue)) / ((SWIR1 + red) + (NIR + blue))'],
+  ] as [string, string, string][]).map(([k, t, hint]): Command => ({
+    id: `imagery.idx.${k}`, tab: 'imagery', group: 'Indices', title: t, icon: 'leaf',
+    hint: `${hint}. From the newest clear Sentinel-2 pass over the map view`,
+    run: () => { document.dispatchEvent(new CustomEvent('geospax:run-recipe-in', { detail: { id: 'satellite-index', inputs: { index: k } } })); },
+  })),
+  tool('imagery.ndi', 'imagery', 'Indices', 'Any two bands', 'leaf', [geo('normalized_difference_index')], 'A plain normalized difference (A − B) / (A + B) of any two bands of an image you have'),
   tool('imagery.hillshade', 'imagery', 'Terrain', 'Hillshade', 'sun', [geo('multidirectional_hillshade'), geo('hillshade')], 'Shaded relief from a DEM'),
   tool('imagery.slope', 'imagery', 'Terrain', 'Slope', 'slope', [geo('slope')], 'Slope from a DEM'),
   tool('imagery.aspect', 'imagery', 'Terrain', 'Aspect', 'compare', [geo('aspect')], 'Aspect (direction of slope)'),
@@ -563,7 +581,7 @@ export const COMMANDS: Command[] = [
   { id: 'edit.redo', tab: 'edit', group: 'Manage edits', title: 'Redo', icon: 'redo', keys: 'Ctrl+Y', run: editCmd('redo') },
   { id: 'edit.snap', tab: 'edit', group: 'Manage edits', title: 'Snapping', icon: 'magnet', hint: 'Snap new vertices to visible features (on/off)', run: editCmd('snapping') },
   { id: 'edit.new', tab: 'edit', group: 'Manage edits', title: 'New layer', icon: 'layerAdd', hint: 'An empty point, line or polygon layer to draw into', run: editCmd('new-layer') },
-  { id: 'edit.export', tab: 'share', group: 'Export', title: 'Export features', icon: 'export', hint: 'Save the selection (or the layer) as a new layer', run: editCmd('export') },
+  { id: 'edit.export', tab: 'edit', group: 'Manage edits', title: 'Export features', icon: 'export', hint: 'Save the selection (or the layer) as a new layer', run: editCmd('export') },
   { id: 'edit.discard', tab: 'edit', group: 'Manage edits', title: 'Discard edits', icon: 'discard', hint: 'Go back to the layer\'s original file', run: editCmd('discard') },
   // the same selection tools on the Edit tab, where ArcGIS Pro also has them
   ...SELECTION.map((c) => ({ ...c, id: c.id.replace('sel.', 'edit.sel.'), tab: 'edit' as TabId, group: 'Selection' })),
@@ -755,7 +773,7 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:browse')); },
   },
   {
-    id: 'home.exportPng', tab: 'share', group: 'Export', title: 'Export PNG', icon: 'download',
+    id: 'home.exportPng', tab: 'share', group: 'Export map', title: 'Screenshot of the view', icon: 'download',
     hint: 'Save the current view as an image',
     run: (h) => {
       try {
@@ -1360,11 +1378,11 @@ export const COMMANDS: Command[] = [
     run: () => { document.dispatchEvent(new CustomEvent('geospax:embeddings', { detail: 'classify' })); },
   },
   {
-    id: 'imagery.embChange', tab: 'imagery', group: 'Satellite embeddings', title: 'Change', icon: 'compare',
+    id: 'imagery.embChange', tab: 'imagery', group: 'Satellite embeddings', title: 'Embedding change', icon: 'compare',
     hint: 'Change between two years (satellite embeddings)',
     run: () => { document.dispatchEvent(new CustomEvent('geospax:embeddings', { detail: 'change' })); },
   },
-  recipeCmd('imagery.ndvi', 'imagery', 'Satellite', 'Latest NDVI', 'satellite', 'latest-ndvi', 'Newest cloud-free Sentinel-2 pass over the area → NDVI map', true),
+  recipeCmd('imagery.ndvi', 'imagery', 'Indices', 'NDVI (vegetation)', 'leaf', 'latest-ndvi', 'Plant cover and vigour: the newest cloud-free Sentinel-2 pass over the area → NDVI map, vegetation classes and NDVI at your points', true),
   recipeCmd('imagery.terrain', 'imagery', 'Terrain', 'Terrain report', 'terrainReport', 'terrain-report', 'DEM → hillshade, slope, aspect, contours, map and report', true),
   recipeCmd('imagery.landforms', 'imagery', 'Terrain', 'Landforms', 'mountain', 'landforms-grass', 'Geomorphons landforms (GRASS r.geomorphon)'),
   // The SAGA wetness index (recipe wetness-saga) stays in the Automate gallery: the Terrain group's one
