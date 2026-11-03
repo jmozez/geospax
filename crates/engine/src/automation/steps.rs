@@ -265,7 +265,7 @@ pub const CATALOGUE: &[StepSpec] = &[
         summary: "Read AlphaEarth Foundations satellite embeddings (64 numbers per 10 m pixel summarising a year of observations, Google DeepMind, CC-BY 4.0) for the area of interest.",
         running: "Reading satellite embeddings",
         params: &[("aoi", false, "[west, south, east, north], a layer/raster id, or auto"), ("buffer", false, "margin in metres (default 10 %)"), ("year", false, "2017–2025 (default 2024)"), ("resolution", false, "metres (default 10; coarser for large areas)"), ("max_km", false, "largest area side (default 60)"), ("epsg", false, "output CRS (default: the UTM zone)"), ("title", false, ""), ("name", false, "")],
-        borrowed: "Google Earth Engine GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL; geospatial foundation-model embeddings (Clay, Prithvi)",
+        borrowed: "Google Earth Engine GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL",
     },
     StepSpec {
         name: "embeddings.similar",
