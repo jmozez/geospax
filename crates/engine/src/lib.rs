@@ -35,6 +35,7 @@ pub mod sync;
 pub mod jobs;
 pub mod lidar;
 pub mod mvt;
+pub mod ogc;
 pub mod overview;
 pub mod phone;
 pub mod plugins;

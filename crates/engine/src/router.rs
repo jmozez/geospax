@@ -21,6 +21,8 @@ pub struct ApiRequest {
     pub body: Vec<u8>,
     /// Public guest demo: the visitor's workspace (the `geospax_ws` cookie), see guest.rs.
     pub ws: Option<String>,
+    /// scheme://host:port the client used (absolute links in OGC API answers); empty when unknown.
+    pub origin: String,
 }
 
 impl ApiRequest {
@@ -498,6 +500,8 @@ impl Engine {
             } else {
                 json!({ "version": env!("CARGO_PKG_VERSION"), "data": self.data_dirs, "state": self.state_dir })
             }),
+            // OGC API – Features: the layers as a standard feature service for QGIS, ArcGIS Pro and GDAL (ogc.rs)
+            ("GET", ["api", "ogc", rest @ ..]) => crate::ogc::handle(self, rest, q, &format!("{}/api", req.origin)),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();
                 ApiResponse::json(200, &json!({ "layers": layers, "warnings": self.warnings, "reader": self.read_mode.as_str() }))

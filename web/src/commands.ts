@@ -555,6 +555,15 @@ const EXTRA_COMMANDS: Command[] = [
   ] as [string, string, string, string][]).map(([f, t, ic, hint]): Command => (
     { id: `share.map.${f}`, tab: 'share', group: 'Export map', title: t, icon: ic, hint, run: () => { document.dispatchEvent(new CustomEvent('geospax:finish', { detail: f })); } })),
   { id: 'share.publish', tab: 'share', group: 'Publish', title: 'Web map', icon: 'web', big: true, hint: 'An interactive map in one HTML file to open anywhere or put on a website', run: xCmd('publish') },
+  {
+    id: 'share.ogc', tab: 'share', group: 'Publish', title: 'OGC API service', icon: 'web',
+    hint: 'Copy the address of this map\'s layers as an OGC API – Features service, for QGIS (Layer › Add WFS / OGC API), ArcGIS Pro and GDAL',
+    run: (h) => {
+      const url = `${location.origin}/api/ogc`;
+      void navigator.clipboard?.writeText(url).catch(() => undefined);
+      h.setStatus(`OGC API – Features service: ${url} (copied). In QGIS: Layer › Add Layer › Add WFS / OGC API – Features Layer`, 12000);
+    },
+  },
   { id: 'share.package', tab: 'share', group: 'Publish', title: 'Package project', icon: 'package', hint: 'A .gspx file with the layers and styles, to send to a colleague', run: xCmd('package') },
   { id: 'share.print', tab: 'share', group: 'Publish', title: 'Print', icon: 'print', keys: 'Ctrl+P', hint: 'Print the map as it is on screen', run: xCmd('print') },
   // ---- Help

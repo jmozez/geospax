@@ -118,7 +118,7 @@ export const RIBBON: Partial<Record<TabId, GroupSpec[]>> = {
       big: [{ split: 'share-data', label: 'Export data', icon: 'download', hint: 'The selected layer as a file in a common GIS format', items: ['share.data.geojson', 'share.data.shp', 'share.data.csv', 'share.data.gpkg', 'share.data.kml', 'share.data.parquet', 'share.data.pmtiles'], default: 'share.data.geojson' }],
     },
     { group: 'Layout', big: ['home.finish', 'share.layout'] },
-    { group: 'Publish', big: ['share.publish'], small: ['share.package', 'home.copyLink', 'home.review'] },
+    { group: 'Publish', big: ['share.publish'], small: ['share.package', 'share.ogc', 'home.copyLink', 'home.review'] },
   ],
   help: [
     { group: 'Learn', big: ['help.tutorials', 'help.guide'], small: ['help.tour', 'help.sample', 'help.search', 'help.keys', 'help.faq'] },

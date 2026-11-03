@@ -453,7 +453,7 @@ fn route<R: BufRead>(engine: &Arc<Engine>, req: &Request, rd: &mut R) -> Reply {
 
 fn forward(engine: &Arc<Engine>, req: &Request, body: Vec<u8>) -> Reply {
     let query = req.query.split('&').filter(|kv| !kv.starts_with("t=")).collect::<Vec<_>>().join("&");
-    let resp = engine.handle(ApiRequest { method: req.method.clone(), path: req.path.clone(), query, body, ws: None });
+    let resp = engine.handle(ApiRequest { method: req.method.clone(), path: req.path.clone(), query, body, ws: None, origin: String::new() });
     (resp.status, resp.content_type, resp.headers, resp.body)
 }
 

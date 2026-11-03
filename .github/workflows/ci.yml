@@ -72,6 +72,8 @@ jobs:
           kill "$pid"
       - name: Exact zonal statistics, topology check, split / merge / cut / reshape, layer downloads
         run: python3 scripts/test-ribbon-tools.py target/release/geospax-server
+      - name: OGC API - Features service (HTTP and GDAL's OAPIF client)
+        run: python3 scripts/test-ogc.py target/release/geospax-server
       - name: Ribbon tools in a real browser (Playwright Chromium)
         run: |
           npm i --prefix /tmp/pw --no-audit --no-fund playwright@1.64.1
