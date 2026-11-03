@@ -195,7 +195,7 @@ pub fn refresh(plugin_dir: &Path, cfg: &ManagerConfig) -> RepoIndex {
             Err(e) => idx.errors.push(format!("{}: {e}", r.name)),
         }
     }
-    idx.plugins.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    idx.plugins.sort_by_key(|a| a.name.to_lowercase());
     idx.fetched = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     if let Ok(b) = serde_json::to_vec_pretty(&idx) {
         let _ = fs::write(index_path(plugin_dir), b);
