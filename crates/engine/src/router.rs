@@ -373,6 +373,23 @@ impl Engine {
             },
             // Overture Maps: its themes, and one theme downloaded for an area (a job with the gauge)
             ("GET", ["api", "overture"]) => ApiResponse::json(200, &json!({ "themes": crate::geoparquet::OVERTURE.iter().map(|t| json!({ "id": t.0, "title": t.1 })).collect::<Vec<_>>() })),
+            // any GeoParquet file by URL (https, s3, gs, az), read for the map view only: the footer and
+            // the row groups whose bbox statistics meet the area are all that is downloaded
+            ("POST", ["api", "geoparquet"]) => {
+                if self.shared.load(std::sync::atomic::Ordering::Relaxed) && !guest {
+                    return ApiResponse::error(403, "this GeoSpaX was started with --restricted: it does not download");
+                }
+                let url = param(q, "url").unwrap_or_default();
+                if url.trim().is_empty() {
+                    return ApiResponse::error(400, "url= is needed");
+                }
+                let b: Vec<f64> = param(q, "bbox").unwrap_or_default().split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                let area = (b.len() == 4).then(|| [b[0], b[1], b[2], b[3]]);
+                match crate::geoparquet::open_file(self, &crate::geoparquet::gdal_url(&url), area) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
             ("POST", ["api", "overture"]) => {
                 if self.shared.load(std::sync::atomic::Ordering::Relaxed) && !guest {
                     return ApiResponse::error(403, "this GeoSpaX was started with --restricted: it does not download");

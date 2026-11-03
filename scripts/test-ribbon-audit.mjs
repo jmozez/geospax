@@ -53,7 +53,7 @@ const EXPECT = {
   'edit.measure.distance': 'tool:measure:distance', 'edit.measure.area': 'tool:measure:area', 'edit.measure.clear': 'status|state',
   // Share
   'home.finish': 'dialog|overlay', 'share.layout': 'dialog|overlay|popup', 'edit.export': 'dialog|layer|status',
-  'home.exportPng': 'file', 'home.copyLink': 'clipboard|status', 'share.ogc': 'clipboard|status',
+  'home.exportPng': 'file', 'home.copyLink': 'clipboard|status', 'share.ogc': 'clipboard|status', 'home.parquetUrl': 'dialog',
   'share.map.pdf': 'file', 'share.map.svg': 'file', 'share.map.png': 'file', 'share.map.report': 'file',
   'share.data.gpkg': 'file', 'share.data.shp': 'file', 'share.data.kml': 'file', 'share.data.csv': 'file', 'share.data.geojson': 'file', 'share.data.parquet': 'file',
   'share.publish': 'file', 'share.package': 'file', 'share.print': 'print',

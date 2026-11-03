@@ -505,6 +505,14 @@ pub const CATALOGUE: &[StepSpec] = &[
         borrowed: "Copernicus Climate Change Service, KNMI Climate Explorer, R trend/Kendall packages",
     },
     StepSpec {
+        name: "data.parquet",
+        family: "Input",
+        summary: "Features of any GeoParquet file (https, s3, gs, az or a path) for the area only: the footer and the row groups whose bbox statistics meet the area are all that is read, so a file of gigabytes opens in seconds.",
+        running: "Reading GeoParquet for the area",
+        params: &[("url", true, "https://…, s3://…, gs://…, az://… or a path to a .parquet file"), ("aoi", false, "[west, south, east, north], a layer id, or auto (the map view)"), ("buffer", false, "metres"), ("max_km", false, "")],
+        borrowed: "DuckDB spatial + httpfs, GDAL Parquet driver, geopandas.read_parquet(bbox=…)",
+    },
+    StepSpec {
         name: "grass",
         family: "Providers",
         summary: "Run GRASS modules headless in a temporary project; inputs are imported and outputs come back as rasters/layers (with GRASS class labels and colours).",
@@ -872,6 +880,16 @@ pub fn execute(sc: &mut StepCtx, uses: &str, p: &Value) -> Result<StepOut, Strin
         "rs.fetch" => raster_steps::rs_fetch(sc, p),
         "rs.flood" => raster_steps::rs_flood(sc, p),
         "climate.series" => super::climate_steps::climate_series(sc, p),
+        "data.parquet" => {
+            let url = p_str(p, "url").ok_or("url is required (https://, s3://, gs:// or a path to a .parquet file)")?.to_string();
+            let (b, what) = super::raster_steps::aoi(sc, p)?;
+            let t0 = std::time::Instant::now();
+            let v = crate::geoparquet::open_file(sc.engine, &crate::geoparquet::gdal_url(&url), Some(b))?;
+            let ids: Vec<String> = v["layers"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(str::to_string)).collect();
+            sc.touched.extend(ids.iter().cloned());
+            sc.methods.push(format!("Features from the GeoParquet file {url} were read for the area ({what}) only: the row groups whose bounding-box statistics miss it were skipped."));
+            Ok(StepOut { outputs: json!({ "layer": ids.first(), "layers": ids, "features": v["features"], "seconds": t0.elapsed().as_secs_f64() }), why: vec![format!("{} features of {url} in the area ({what})", v["features"])] })
+        }
         "grass" => providers::grass(sc, p),
         "saga" => providers::saga(sc, p),
         "export.report" => export_report(sc, p),
