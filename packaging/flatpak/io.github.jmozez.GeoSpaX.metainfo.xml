@@ -77,6 +77,9 @@
     <display_length compare="ge">900</display_length>
   </requires>
   <releases>
+    <release version="3.2.0" date="2026-11-03">
+      <description><p>OGC API service, GeoParquet by URL, live teamwork, radar flood mapping, climate trends, 13 satellite indices, the PNG data pack, Ask writes workflows, recipe loops, in-app Help, more basemaps, a flat Office-style look, languages (Tok Pisin, French, Spanish, Indonesian) and accessibility.</p></description>
+    </release>
     <release version="3.1.0" date="2026-11-02">
       <description><p>Phone and tablet layout for the web app; Lazy mode combines layers (count, length, overlap, nearest, zonal statistics, values at points); geographical detector with OPGD, area of applicability and kNNDM cross-validation.</p></description>
     </release>

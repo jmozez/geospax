@@ -3,7 +3,7 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.2.0] - 2026-11-03
 
 ### Added
 - Accessibility: a "Skip to the map" link on the first Tab, an accessible name on every icon-only button (from its tooltip, also for buttons added later by panes and dialogs), a clear keyboard focus ring everywhere, and far fewer animations when the system asks for reduced motion. A test checks every ribbon tab for unnamed controls.
