@@ -256,7 +256,7 @@ pub(super) fn lidar_3dtiles(sc: &mut StepCtx, p: &Value) -> Result<StepOut, Stri
     let (cols, how) = super::scene_steps::point_colors(&sample);
     let pts: Vec<crate::tiles3d::Pt> = sample.iter().zip(cols).map(|(q, c)| crate::tiles3d::Pt { lon: q.x, lat: q.y, h: q.z as f64 + offset, rgb: c }).collect();
     let name = sanitize(p_str(p, "name").unwrap_or("cloud"));
-    let w = crate::tiles3d::write_points(&pts, &sc.dir, &name, per_tile, &format!("GeoSpaX {}", env!("CARGO_PKG_VERSION")))?;
+    let w = crate::tiles3d::write_points(&pts, sc.dir, &name, per_tile, &format!("GeoSpaX {}", env!("CARGO_PKG_VERSION")))?;
     sc.artifacts.extend(w.files.iter().cloned());
     let of = if total > w.points as u64 { format!(" (every {}th of {})", total.div_ceil(w.points as u64), count_text(total)) } else { String::new() };
     Ok(StepOut {

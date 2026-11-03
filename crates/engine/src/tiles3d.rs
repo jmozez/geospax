@@ -76,7 +76,7 @@ pub fn points_glb(xyz: &[[f32; 3]], rgb: &[[u8; 3]], generator: &str) -> Vec<u8>
         ]
     });
     let mut js = serde_json::to_vec(&doc).unwrap_or_default();
-    while js.len() % 4 != 0 {
+    while !js.len().is_multiple_of(4) {
         js.push(b' ');
     }
     let total = 12 + 8 + js.len() + 8 + bin.len();

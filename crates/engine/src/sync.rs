@@ -58,11 +58,10 @@ fn changed(base: &Value, side: &Value) -> BTreeSet<String> {
     }
     if let Some(bp) = base["properties"].as_object() {
         for (k, v) in bp {
-            if let Some(sv) = side["properties"].get(k) {
-                if !same_value(v, sv) {
+            if let Some(sv) = side["properties"].get(k)
+                && !same_value(v, sv) {
                     c.insert(k.clone());
                 }
-            }
         }
     }
     c
@@ -168,13 +167,12 @@ impl Engine {
         let root = self.sync_root();
         for layer in std::fs::read_dir(&root).into_iter().flatten().flatten() {
             for p in std::fs::read_dir(layer.path()).into_iter().flatten().flatten() {
-                if let Ok(m) = std::fs::read(p.path().join("manifest.json")) {
-                    if let Ok(mut m) = serde_json::from_slice::<Value>(&m) {
+                if let Ok(m) = std::fs::read(p.path().join("manifest.json"))
+                    && let Ok(mut m) = serde_json::from_slice::<Value>(&m) {
                         m["package"] = json!(format!("{}/{}", layer.file_name().to_string_lossy(), p.file_name().to_string_lossy()));
                         m["field"] = json!(p.path().join("field.gpkg"));
                         v.push(m);
                     }
-                }
             }
         }
         v.sort_by(|a, b| b["created"].as_str().cmp(&a["created"].as_str()));
