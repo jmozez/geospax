@@ -276,6 +276,10 @@ pub struct Engine {
     /// Restarts the app or server so another profile opens (set by the desktop shell or server).
     pub restart_hook: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
     pub(crate) bench: Mutex<Option<serde_json::Value>>,
+    /// Live teamwork: a counter of changes to layers and the project, who made the last one and
+    /// what it was. Every open GeoSpaX polls it (`GET /api/live`) and refreshes when another client
+    /// changed something (router.rs).
+    pub(crate) live: Mutex<(u64, String, String, String)>,
     pub(crate) bench_log: Option<PathBuf>,
     pub(crate) project_lock: Mutex<()>,
     pub warnings: Vec<String>,
@@ -486,6 +490,7 @@ impl Engine {
             picked: std::sync::atomic::AtomicBool::new(handed),
             restart_hook: Mutex::new(None),
             bench: Mutex::new(None),
+            live: Mutex::new((0, String::new(), String::new(), String::new())),
             bench_log: cfg.bench_log,
             project_lock: Mutex::new(()),
             warnings,

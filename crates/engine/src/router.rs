@@ -106,6 +106,25 @@ fn fid_list(v: &serde_json::Value) -> Option<Vec<u64>> {
     v.as_array().map(|a| a.iter().filter_map(|x| x.as_u64()).collect())
 }
 
+/// What a successful request changed for the other people on the same GeoSpaX (live teamwork), or
+/// None when it changes nothing they see: reading, selecting and downloading are not changes.
+fn live_change(method: &str, path: &str) -> Option<String> {
+    if method == "GET" {
+        return None;
+    }
+    let segs: Vec<&str> = path.trim_matches('/').split('/').collect();
+    match segs.as_slice() {
+        ["api", "layers", _, "select" | "download" | "rows" | "unique" | "classify"] => None,
+        ["api", "layers", layer, "features", ..] => Some(format!("edited features of {}", pct_decode(layer))),
+        ["api", "layers", layer, what] => Some(format!("{what} on {}", pct_decode(layer))),
+        ["api", "layers", layer] if method == "DELETE" => Some(format!("removed {}", pct_decode(layer))),
+        ["api", "layers", "new"] => Some("added a layer".into()),
+        ["api", "upload"] => Some("added data".into()),
+        ["api", "project"] | ["api", "projects", ..] => Some("saved the project".into()),
+        _ => None,
+    }
+}
+
 pub(crate) fn param(query: &str, key: &str) -> Option<String> {
     query_param(query, key).map(pct_decode)
 }
@@ -245,7 +264,16 @@ impl Engine {
         if self.guest.load(std::sync::atomic::Ordering::Relaxed) {
             return crate::guest::handle(self, req);
         }
-        self.handle_inner(req)
+        let change = live_change(&req.method, &req.path);
+        let (client, name) = (param(&req.query, "_c").unwrap_or_default(), param(&req.query, "_n").unwrap_or_default());
+        let r = self.handle_inner(req);
+        if let Some(what) = change
+            && r.status < 300
+        {
+            let mut l = self.live.lock().unwrap();
+            *l = (l.0 + 1, client, if name.is_empty() { "a colleague".into() } else { name }, what);
+        }
+        r
     }
 
     pub(crate) fn handle_inner(self: &Arc<Self>, req: ApiRequest) -> ApiResponse {
@@ -517,6 +545,11 @@ impl Engine {
             } else {
                 json!({ "version": env!("CARGO_PKG_VERSION"), "data": self.data_dirs, "state": self.state_dir })
             }),
+            // live teamwork: the change counter every open GeoSpaX polls (see live_change)
+            ("GET", ["api", "live"]) => {
+                let l = self.live.lock().unwrap().clone();
+                ApiResponse::json(200, &json!({ "rev": l.0, "client": l.1, "by": l.2, "what": l.3 }))
+            }
             // OGC API – Features: the layers as a standard feature service for QGIS, ArcGIS Pro and GDAL (ogc.rs)
             ("GET", ["api", "ogc", rest @ ..]) => crate::ogc::handle(self, rest, q, &format!("{}/api", req.origin)),
             ("GET", ["api", "layers"]) => {

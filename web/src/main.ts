@@ -14,7 +14,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { Deck, MapView } from '@deck.gl/core';
 import { ScatterplotLayer } from '@deck.gl/layers';
 import { tableFromIPC } from 'apache-arrow';
-import { createBackend, clientTileTimings, type EngineStats, type Job, type LayerInfo, type Transport } from './backend';
+import { createBackend, clientId, clientTileTimings, type EngineStats, type Job, type LayerInfo, type Transport } from './backend';
 import { runBenchmark, type BenchReport } from './bench';
 import { SymbologyPanel } from './panel';
 import { AttributesPane } from './attributes';
@@ -1534,6 +1534,7 @@ async function openSettings() {
     <div class="settings">
       <section><h3>Appearance</h3>
         <label>Mode <select name="mode">${opt('lazy', 'Lazy: cards, task bar, plain-language steps', uiMode)}${opt('pro', 'Pro: full ribbon, layer tree, every pane', uiMode)}</select></label>
+        <label>Your name (shown to others when you edit a shared map) <input name="who" type="text" maxlength="40" value="${(() => { try { return (localStorage.getItem('geospax.name') ?? '').replace(/"/g, '&quot;'); } catch { return ''; } })()}"></label>
         <label>Language <select name="lang">${LANGS.map(([k, n]) => opt(k, n, currentLang())).join('')}</select></label>
         <label>Theme <select name="theme">${opt('light', 'Light', theme)}${opt('dark', 'Dark', theme)}${opt('system', 'Follow the system', theme)}</select></label>
       </section>
@@ -1591,6 +1592,7 @@ async function openSettings() {
         scaleControl?.setUnit(prefs.units);
       }
       savePrefs();
+      try { localStorage.setItem('geospax.name', (v.who ?? '').trim().slice(0, 40)); } catch { /* private mode */ }
       if (v.lang && v.lang !== currentLang()) { setLang(v.lang as Lang); location.reload(); return true; }
       if (v.ch_theme !== chartSt.theme || v.ch_palette !== chartSt.palette || Number(v.ch_size) !== chartSt.base_size) {
         void saveChartStyle(backend, { theme: v.ch_theme, palette: v.ch_palette, base_size: Number(v.ch_size) || 11 }).then(() => document.dispatchEvent(new CustomEvent('geospax:reload-views')));
@@ -2223,6 +2225,24 @@ async function main() {
   void toolbox.reload();
   document.addEventListener('geospax:plugins-changed', () => void toolbox.reload());
   document.addEventListener('geospax:recipes-changed', () => void toolbox.reload());
+  // Live teamwork: everyone on this GeoSpaX sees the others' edits within a few seconds (GET api/live)
+  {
+    let liveRev = -1;
+    const poll = async () => {
+      try {
+        const l = await backend.json<{ rev: number; client: string; by: string; what: string }>('api/live');
+        if (liveRev >= 0 && l.rev > liveRev && l.client !== clientId) {
+          await reloadLayers();
+          await rasterPane?.reload();
+          applyStyle();
+          workbench?.setStatus(`Updated: ${l.by} ${l.what}`, 6000);
+        }
+        liveRev = l.rev;
+      } catch { /* offline or restarting: try again */ }
+      setTimeout(() => void poll(), document.hidden ? 15000 : 3000);
+    };
+    void poll();
+  }
   document.addEventListener('geospax:run-recipe-in', (e) => {
     const { id, inputs } = (e as CustomEvent<{ id: string; inputs: Record<string, unknown> }>).detail;
     workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');

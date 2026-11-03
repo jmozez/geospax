@@ -85,6 +85,7 @@ jobs:
           PW=/tmp/pw/node_modules/playwright node scripts/test-web-ribbon.mjs http://127.0.0.1:18120 /tmp/rb/shots || { cat /tmp/rb/server.log; exit 1; }
           PW=/tmp/pw/node_modules/playwright node scripts/test-web-mobile.mjs http://127.0.0.1:18120 /tmp/rb/mobile || { cat /tmp/rb/server.log; exit 1; }
           PW=/tmp/pw/node_modules/playwright node scripts/test-lazy-combine.mjs http://127.0.0.1:18120 /tmp/rb/lazy || { cat /tmp/rb/server.log; exit 1; }
+          PW=/tmp/pw/node_modules/playwright node scripts/test-live.mjs http://127.0.0.1:18120 || { cat /tmp/rb/server.log; exit 1; }
           kill "$pid"
       - name: Ribbon critical behaviour (swipe drag, spyglass, toggle highlighting, Export splits, named projects)
         run: |
