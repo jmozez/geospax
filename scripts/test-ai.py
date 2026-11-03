@@ -218,6 +218,20 @@ r = rpc({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "
 check("a tool error is a result with isError", r["result"]["isError"] and "no layer" in r["result"]["content"][0]["text"])
 r = rpc({"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "zoom_to_layer", "arguments": {"layer": survey["id"]}}})
 check("map-only tools are not callable", "error" in r and r["error"]["code"] == -32602)
+r = rpc({"jsonrpc": "2.0", "id": 61, "method": "tools/call", "params": {"name": "list_steps", "arguments": {"family": "terrain"}}})
+st = r["result"]["structuredContent"]["steps"]
+check("list_steps gives the building blocks", not r["result"]["isError"] and any(s["name"] == "dem.fetch" for s in st), f"{len(st)} terrain steps")
+bad = "recipe: ai-made\nsteps:\n  - id: a\n    use: no.such.step\n"
+r = rpc({"jsonrpc": "2.0", "id": 62, "method": "tools/call", "params": {"name": "create_recipe", "arguments": {"yaml": bad}}})
+sc = r["result"]["structuredContent"]
+check("create_recipe reports problems instead of saving", sc["saved"] is False and sc["problems"], "; ".join(sc.get("problems", []))[:80])
+good = "recipe: ai-made-hexbins\ntitle: Hexbins of the survey\ninputs:\n  layer: { type: layer, default: auto }\nsteps:\n  - id: hex\n    use: aggregate.hexbin\n    with: { layer: \"${inputs.layer}\" }\noutputs: [hex]\n"
+r = rpc({"jsonrpc": "2.0", "id": 63, "method": "tools/call", "params": {"name": "create_recipe", "arguments": {"yaml": good}}})
+sc = r["result"]["structuredContent"]
+check("create_recipe saves a valid recipe", sc.get("saved") is True and sc["recipe"] == "ai-made-hexbins", json.dumps(sc)[:80])
+code = "recipe: ai-code\nsteps:\n  - id: a\n    use: script.python\n    with: { code: \"print(1)\" }\n"
+r = rpc({"jsonrpc": "2.0", "id": 64, "method": "tools/call", "params": {"name": "create_recipe", "arguments": {"yaml": code}}})
+check("create_recipe refuses code steps", r["result"]["isError"])
 r = rpc({"jsonrpc": "2.0", "id": 7, "method": "nope"})
 check("unknown method", r["error"]["code"] == -32601)
 p.stdin.write("not json\n")

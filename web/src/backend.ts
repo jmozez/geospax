@@ -100,9 +100,18 @@ export const clientTileTimings: number[] = [];
 
 const fieldsQuery = (fields?: string[]) => (fields && fields.length ? `?fields=${fields.map(encodeURIComponent).join(',')}` : '');
 
+/** This window, for live teamwork: changes it makes are tagged so the others can say who made them. */
+export const clientId = Math.random().toString(36).slice(2, 10);
+const tagChange = (path: string, init?: RequestInit) => {
+  if (!init?.method || init.method === 'GET') return path;
+  let name = '';
+  try { name = localStorage.getItem('geospax.name') ?? ''; } catch { /* private mode */ }
+  return `${path}${path.includes('?') ? '&' : '?'}_c=${clientId}${name ? `&_n=${encodeURIComponent(name)}` : ''}`;
+};
+
 /** JSON request; engine errors ({"error": ...}) become exceptions with that message. */
 async function jsonFetch<T>(base: string, path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(base + path, init);
+  const r = await fetch(base + tagChange(path, init), init);
   if (!r.ok) {
     let msg = `HTTP ${r.status}`;
     try {

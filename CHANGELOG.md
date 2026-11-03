@@ -3,10 +3,15 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.2.0] - 2026-11-03
 
 ### Added
-- Interface languages: Settings › Appearance › Language offers Tok Pisin (first draft, to be reviewed by fluent speakers), French, Spanish and Bahasa Indonesia. Ribbon tabs and groups are translated, and about 60 common commands in Tok Pisin; untranslated text stays in English.
+- Accessibility: a "Skip to the map" link on the first Tab, an accessible name on every icon-only button (from its tooltip, also for buttons added later by panes and dialogs), a clear keyboard focus ring everywhere, and far fewer animations when the system asks for reduced motion. A test checks every ribbon tab for unnamed controls.
+- Live teamwork: everyone working on the same GeoSpaX (web edition or a shared desktop) sees the others' changes within about three seconds: added or removed layers, feature edits, field changes and project saves refresh every other open map, with a note saying who changed what (Settings › Your name). Reading, selecting and downloading are not changes.
+- Ask writes workflows: when no recipe fits a request, the assistant (Ask pane or any MCP client) builds one from the step catalogue (`list_steps`), saves it with `create_recipe` after the validator passes it, fixes what the validator reports, and offers to run it. Recipes that run Python or R are never written by the assistant.
+- GeoParquet by URL (Home › Layer, API `POST /api/geoparquet`, recipe step `data.parquet`): any GeoParquet file over https, s3, gs or az, read for the map view or the recipe's area only; the footer and the row groups whose bounding-box statistics meet the area are all that is downloaded, so multi-gigabyte files open in seconds.
+- OGC API – Features service: every layer on the map is a collection at `/api/ogc` (landing page, conformance, collections, items with bbox, limit and offset paging, single features, GeoJSON), so QGIS, ArcGIS Pro and GDAL can connect to GeoSpaX as a standard feature service. Share › Publish › OGC API service copies the address.
+- Interface languages: Settings › Appearance › Language offers Tok Pisin (first draft, to be reviewed by fluent speakers), French, Spanish and Bahasa Indonesia. Ribbon tabs, groups and about 70 common commands are translated in each; untranslated text stays in English.
 - 13 more basemaps, in the spirit of the QGIS HCMGIS plugin: Esri Street, National Geographic, Light and Dark Gray, Ocean, Shaded Relief and Physical; Humanitarian OSM; CyclOSM; CARTO Voyager; NASA Blue Marble and yesterday's VIIRS and MODIS true colour. Each shows its licence; Google and Bing are left out because their terms forbid use in other apps.
 - Step `rs.flood` and recipe `flood-extent`: flood extent from Sentinel-1 radar, which sees through cloud. The newest scene is compared with one from before the event (same orbit direction when possible); water is set by Otsu's threshold for each scene; flooded pixels are water after, land before and at least 3 dB darker. Flooded and permanent water in hectares, a map and a report. Imagery: terrain-corrected gamma0 from Microsoft Planetary Computer, no account needed.
 - Recipes: any step can loop with `for_each:` (a list, an expression or comma-separated text); `${item}` is the current item and the outputs are `{ each, count }`. The PNG data pack uses it for districts and LLGs.
