@@ -2222,6 +2222,7 @@ async function main() {
   });
   void toolbox.reload();
   document.addEventListener('geospax:plugins-changed', () => void toolbox.reload());
+  document.addEventListener('geospax:recipes-changed', () => void toolbox.reload());
   document.addEventListener('geospax:run-recipe-in', (e) => {
     const { id, inputs } = (e as CustomEvent<{ id: string; inputs: Record<string, unknown> }>).detail;
     workbench?.showTab('bottom', uiMode === 'lazy' ? 'activity' : 'automate');

@@ -33,7 +33,8 @@ numbers, names or fields: every figure you give must come from a tool result, an
 filter) it came from. Filters are SQL WHERE clauses on the layer's own field names, e.g. \
 \"elevation_m > 2000 AND transect = 'YUS'\". When the user asks to see or pick features, use select_features \
 (it highlights them on the map) or zoom_to_layer. Recipes are whole workflows (maps, hot spots, reports); run \
-one only when the user asks for that result. Keep answers short and plain; use units.";
+one only when the user asks for that result. When no recipe fits a request for a workflow, write one with \
+create_recipe from the building blocks in list_steps, fix any problems it reports, then offer to run it. Keep answers short and plain; use units.";
 
 /// (name, description, JSON schema, shown to MCP clients)
 fn defs() -> Vec<(&'static str, &'static str, Value, bool)> {
@@ -62,6 +63,10 @@ fn defs() -> Vec<(&'static str, &'static str, Value, bool)> {
                 "recipe": { "type": "string", "description": "recipe id from list_recipes" },
                 "inputs": { "type": "object", "description": "recipe inputs by name, e.g. {\"layer\": \"survey\"}" }
             }, "required": ["recipe"], "additionalProperties": false }), true),
+        ("list_steps", "The building blocks a new recipe can use (name, family, what it does, its parameters), for create_recipe.",
+            json!({ "type": "object", "properties": { "family": { "type": "string", "description": "only steps of this family, e.g. Input, Terrain, Remote sensing, Climate" } }, "additionalProperties": false }), true),
+        ("create_recipe", "Save a new recipe (YAML: recipe, title, description, inputs, steps with id/use/with, outputs) built from list_steps when no existing recipe fits. It is checked by the validator first; recipes that run Python or R are refused. Returns the problems to fix, or the saved recipe id.",
+            json!({ "type": "object", "properties": { "yaml": { "type": "string", "description": "the whole recipe as YAML" } }, "required": ["yaml"], "additionalProperties": false }), true),
         ("get_run", "Status, message and output files of a recipe run.",
             json!({ "type": "object", "properties": { "run": { "type": "string" } }, "required": ["run"], "additionalProperties": false }), true),
     ]
@@ -301,6 +306,34 @@ impl Engine {
                 let run = self.api("POST", &format!("/api/recipes/{}/run", enc(id)), "", Some(json!({ "inputs": args["inputs"] })))?;
                 let rid = run["id"].clone();
                 Ok((json!({ "run": rid, "status": run["status"] }), Some(json!({ "kind": "run", "run": rid }))))
+            }
+            "list_steps" => {
+                let fam = args["family"].as_str().map(str::to_lowercase);
+                let all = crate::automation::catalogue_json();
+                let steps: Vec<Value> = all
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|s| fam.as_ref().is_none_or(|f| s["family"].as_str().unwrap_or("").to_lowercase().contains(f.as_str())))
+                    .cloned()
+                    .collect();
+                Ok((json!({ "steps": steps }), None))
+            }
+            "create_recipe" => {
+                let yaml = args["yaml"].as_str().ok_or("'yaml' is missing")?;
+                match crate::automation::recipe::Recipe::parse(yaml, crate::automation::recipe::Origin::Api) {
+                    Err(errors) => Ok((json!({ "saved": false, "problems": errors }), None)),
+                    Ok(r) if r.has_code_steps() => Err("recipes that run Python or R code are written by the user, not the assistant".into()),
+                    Ok(_) => {
+                        match self.automation.save_user(yaml) {
+                            Ok((r, warnings)) => {
+                                let id = r.id.clone();
+                                Ok((json!({ "saved": true, "recipe": id, "warnings": warnings }), Some(json!({ "kind": "recipe", "recipe": id }))))
+                            }
+                            Err(errors) => Ok((json!({ "saved": false, "problems": errors }), None)),
+                        }
+                    }
+                }
             }
             "get_run" => {
                 let id = args["run"].as_str().ok_or("'run' is missing")?;
