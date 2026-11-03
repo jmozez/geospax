@@ -131,6 +131,8 @@ export class AskPane {
         if (a.kind === 'select' && a.layer && a.fids) this.host.select(a.layer, a.fids);
         else if (a.kind === 'zoom' && a.layer) this.host.zoom(a.layer);
         else if (a.kind === 'run' && a.run) this.host.showRun(a.run);
+        // a recipe the assistant wrote: the Automate pane and the Toolbox list it at once
+        else if (a.kind === 'recipe') document.dispatchEvent(new CustomEvent('geospax:recipes-changed'));
       }
     } catch (e) {
       this.turns.push({ role: 'assistant', text: e instanceof Error ? e.message : String(e), error: true });

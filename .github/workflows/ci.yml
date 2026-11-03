@@ -72,6 +72,8 @@ jobs:
           kill "$pid"
       - name: Exact zonal statistics, topology check, split / merge / cut / reshape, layer downloads
         run: python3 scripts/test-ribbon-tools.py target/release/geospax-server
+      - name: OGC API - Features service (HTTP and GDAL's OAPIF client)
+        run: python3 scripts/test-ogc.py target/release/geospax-server
       - name: Ribbon tools in a real browser (Playwright Chromium)
         run: |
           npm i --prefix /tmp/pw --no-audit --no-fund playwright@1.64.1
@@ -83,6 +85,8 @@ jobs:
           PW=/tmp/pw/node_modules/playwright node scripts/test-web-ribbon.mjs http://127.0.0.1:18120 /tmp/rb/shots || { cat /tmp/rb/server.log; exit 1; }
           PW=/tmp/pw/node_modules/playwright node scripts/test-web-mobile.mjs http://127.0.0.1:18120 /tmp/rb/mobile || { cat /tmp/rb/server.log; exit 1; }
           PW=/tmp/pw/node_modules/playwright node scripts/test-lazy-combine.mjs http://127.0.0.1:18120 /tmp/rb/lazy || { cat /tmp/rb/server.log; exit 1; }
+          PW=/tmp/pw/node_modules/playwright node scripts/test-live.mjs http://127.0.0.1:18120 || { cat /tmp/rb/server.log; exit 1; }
+          PW=/tmp/pw/node_modules/playwright node scripts/test-a11y.mjs http://127.0.0.1:18120 || { cat /tmp/rb/server.log; exit 1; }
           kill "$pid"
       - name: Ribbon critical behaviour (swipe drag, spyglass, toggle highlighting, Export splits, named projects)
         run: |

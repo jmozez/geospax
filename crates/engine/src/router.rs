@@ -21,6 +21,8 @@ pub struct ApiRequest {
     pub body: Vec<u8>,
     /// Public guest demo: the visitor's workspace (the `geospax_ws` cookie), see guest.rs.
     pub ws: Option<String>,
+    /// scheme://host:port the client used (absolute links in OGC API answers); empty when unknown.
+    pub origin: String,
 }
 
 impl ApiRequest {
@@ -102,6 +104,25 @@ fn body_json(body: &[u8]) -> serde_json::Value {
 /// `[1, 2, 3]` (or absent/null → None).
 fn fid_list(v: &serde_json::Value) -> Option<Vec<u64>> {
     v.as_array().map(|a| a.iter().filter_map(|x| x.as_u64()).collect())
+}
+
+/// What a successful request changed for the other people on the same GeoSpaX (live teamwork), or
+/// None when it changes nothing they see: reading, selecting and downloading are not changes.
+fn live_change(method: &str, path: &str) -> Option<String> {
+    if method == "GET" {
+        return None;
+    }
+    let segs: Vec<&str> = path.trim_matches('/').split('/').collect();
+    match segs.as_slice() {
+        ["api", "layers", _, "select" | "download" | "rows" | "unique" | "classify"] => None,
+        ["api", "layers", layer, "features", ..] => Some(format!("edited features of {}", pct_decode(layer))),
+        ["api", "layers", layer, what] => Some(format!("{what} on {}", pct_decode(layer))),
+        ["api", "layers", layer] if method == "DELETE" => Some(format!("removed {}", pct_decode(layer))),
+        ["api", "layers", "new"] => Some("added a layer".into()),
+        ["api", "upload"] => Some("added data".into()),
+        ["api", "project"] | ["api", "projects", ..] => Some("saved the project".into()),
+        _ => None,
+    }
 }
 
 pub(crate) fn param(query: &str, key: &str) -> Option<String> {
@@ -243,7 +264,16 @@ impl Engine {
         if self.guest.load(std::sync::atomic::Ordering::Relaxed) {
             return crate::guest::handle(self, req);
         }
-        self.handle_inner(req)
+        let change = live_change(&req.method, &req.path);
+        let (client, name) = (param(&req.query, "_c").unwrap_or_default(), param(&req.query, "_n").unwrap_or_default());
+        let r = self.handle_inner(req);
+        if let Some(what) = change
+            && r.status < 300
+        {
+            let mut l = self.live.lock().unwrap();
+            *l = (l.0 + 1, client, if name.is_empty() { "a colleague".into() } else { name }, what);
+        }
+        r
     }
 
     pub(crate) fn handle_inner(self: &Arc<Self>, req: ApiRequest) -> ApiResponse {
@@ -371,6 +401,23 @@ impl Engine {
             },
             // Overture Maps: its themes, and one theme downloaded for an area (a job with the gauge)
             ("GET", ["api", "overture"]) => ApiResponse::json(200, &json!({ "themes": crate::geoparquet::OVERTURE.iter().map(|t| json!({ "id": t.0, "title": t.1 })).collect::<Vec<_>>() })),
+            // any GeoParquet file by URL (https, s3, gs, az), read for the map view only: the footer and
+            // the row groups whose bbox statistics meet the area are all that is downloaded
+            ("POST", ["api", "geoparquet"]) => {
+                if self.shared.load(std::sync::atomic::Ordering::Relaxed) && !guest {
+                    return ApiResponse::error(403, "this GeoSpaX was started with --restricted: it does not download");
+                }
+                let url = param(q, "url").unwrap_or_default();
+                if url.trim().is_empty() {
+                    return ApiResponse::error(400, "url= is needed");
+                }
+                let b: Vec<f64> = param(q, "bbox").unwrap_or_default().split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                let area = (b.len() == 4).then(|| [b[0], b[1], b[2], b[3]]);
+                match crate::geoparquet::open_file(self, &crate::geoparquet::gdal_url(&url), area) {
+                    Ok(v) => ApiResponse::json(200, &v),
+                    Err(e) => ApiResponse::error(400, e),
+                }
+            }
             ("POST", ["api", "overture"]) => {
                 if self.shared.load(std::sync::atomic::Ordering::Relaxed) && !guest {
                     return ApiResponse::error(403, "this GeoSpaX was started with --restricted: it does not download");
@@ -498,6 +545,13 @@ impl Engine {
             } else {
                 json!({ "version": env!("CARGO_PKG_VERSION"), "data": self.data_dirs, "state": self.state_dir })
             }),
+            // live teamwork: the change counter every open GeoSpaX polls (see live_change)
+            ("GET", ["api", "live"]) => {
+                let l = self.live.lock().unwrap().clone();
+                ApiResponse::json(200, &json!({ "rev": l.0, "client": l.1, "by": l.2, "what": l.3 }))
+            }
+            // OGC API – Features: the layers as a standard feature service for QGIS, ArcGIS Pro and GDAL (ogc.rs)
+            ("GET", ["api", "ogc", rest @ ..]) => crate::ogc::handle(self, rest, q, &format!("{}/api", req.origin)),
             ("GET", ["api", "layers"]) => {
                 let layers: Vec<_> = self.layers().iter().map(|l| self.layer_json(l)).collect();
                 ApiResponse::json(200, &json!({ "layers": layers, "warnings": self.warnings, "reader": self.read_mode.as_str() }))

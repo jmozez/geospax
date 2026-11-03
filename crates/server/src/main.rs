@@ -119,6 +119,11 @@ fn parse_args_from(argv: Vec<String>) -> Args {
 async fn api(State(engine): State<Arc<Engine>>, req: Request) -> Response {
     let method = req.method().to_string();
     let uri = req.uri().clone();
+    // the address the client used, for absolute links (OGC API); behind a proxy, X-Forwarded-Proto says https
+    let origin = req.headers().get(header::HOST).and_then(|h| h.to_str().ok()).map(|h| {
+        let proto = req.headers().get("x-forwarded-proto").and_then(|v| v.to_str().ok()).unwrap_or("http");
+        format!("{proto}://{h}")
+    }).unwrap_or_default();
     let ws = req
         .headers()
         .get_all(header::COOKIE)
@@ -147,6 +152,7 @@ async fn api(State(engine): State<Arc<Engine>>, req: Request) -> Response {
         query: uri.query().unwrap_or("").to_string(),
         body: body.to_vec(),
         ws,
+        origin,
     };
     let (tx, rx) = tokio::sync::oneshot::channel::<ApiResponse>();
     engine.dispatch(api_req, move |r| {

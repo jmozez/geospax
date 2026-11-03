@@ -472,6 +472,23 @@ pub fn overture(engine: &Arc<Engine>, theme: &str, area: [f64; 4]) -> Result<Val
     Ok(json!({ "job": job.id }))
 }
 
+/// A URL as GDAL reads it in place: https:// through /vsicurl/, s3:// gs:// az:// through their
+/// virtual file systems; paths and /vsi… are kept as they are.
+pub fn gdal_url(url: &str) -> String {
+    let u = url.trim();
+    if let Some(r) = u.strip_prefix("s3://") {
+        format!("/vsis3/{r}")
+    } else if let Some(r) = u.strip_prefix("gs://") {
+        format!("/vsigs/{r}")
+    } else if let Some(r) = u.strip_prefix("az://") {
+        format!("/vsiaz/{r}")
+    } else if u.starts_with("http://") || u.starts_with("https://") {
+        format!("/vsicurl/{u}")
+    } else {
+        u.to_string()
+    }
+}
+
 /// A GeoParquet file (local or remote GDAL path) for an optional area, as a layer on the map.
 pub fn open_file(engine: &Arc<Engine>, path: &str, area: Option<[f64; 4]>) -> Result<Value, String> {
     let p = plan(path, area)?;
@@ -625,6 +642,13 @@ pub fn write_file(src: &Path, layer: Option<&str>, out: &Path) -> Result<u64, St
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn urls_for_gdal() {
+        assert_eq!(super::gdal_url("s3://b/k.parquet"), "/vsis3/b/k.parquet");
+        assert_eq!(super::gdal_url("https://x.org/a.parquet"), "/vsicurl/https://x.org/a.parquet");
+        assert_eq!(super::gdal_url("/data/a.parquet"), "/data/a.parquet");
+    }
+
     use super::*;
     use arrow_array::{BinaryArray, Float32Array, Int64Array, StringArray};
     use arrow_schema::{Field, Fields, Schema};
