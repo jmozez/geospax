@@ -285,6 +285,12 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v4
+      # Updating the image's preinstalled GNOME SDK in place fails on the container's overlay filesystem
+      # ("Invalid cross-device link") and flatpak-builder then crashes: remove it so the build installs a fresh copy
+      - name: Drop the image's GNOME SDK when it cannot be updated in place
+        run: |
+          flatpak update -y --noninteractive org.gnome.Sdk//50 && exit 0
+          flatpak uninstall -y --noninteractive org.gnome.Sdk//50 org.gnome.Sdk.Locale//50 || true
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: GeoSpaX.flatpak
