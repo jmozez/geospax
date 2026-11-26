@@ -15,6 +15,8 @@
 # test pre-registers WebView2 to keep the installer from fetching it. The CI "windows" job starts the
 # desktop app on a real Windows runner instead.
 set -euo pipefail
+# a setup step that fails under set -e would otherwise end the test with no word: name it
+trap 'echo "FAIL  setup stopped at line $LINENO: $BASH_COMMAND (exit $?)"' ERR
 HERE=$(cd "$(dirname "$0")" && pwd)
 SETUP=$(realpath "$1")
 SHOTS=${2:-}
@@ -58,7 +60,7 @@ Xvfb :97 -screen 0 1280x800x24 >/dev/null 2>&1 &
 XVFB_PID=$!
 export DISPLAY=:97
 t0=$(date +%s)
-wineboot --init >/dev/null 2>&1
+wineboot --init >/dev/null 2>&1 || { echo "FAIL  wineboot --init (exit $?): $(wine --version 2>&1)"; exit 1; }
 wineserver -w
 echo "Wine $(wine --version) prefix ready in $(( $(date +%s) - t0 )) s"
 
