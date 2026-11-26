@@ -113,7 +113,7 @@ let chooser = 0;
 page.on('filechooser', () => { chooser++; });
 
 await page.goto(`${base}/?fresh`);
-await page.waitForFunction(() => window.map && window.workbench && window.map.loaded(), null, { timeout: 120000 });
+await page.waitForFunction(() => window.workbench && typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 120000 });
 // a line layer to draw lines into (the sample data has points and polygons only)
 const made = await page.evaluate(async () => {
   const have = await fetch('api/layers').then((r) => r.json()).catch(() => []);
@@ -124,7 +124,7 @@ const made = await page.evaluate(async () => {
 });
 console.log('line layer:', made);
 await page.reload();
-await page.waitForFunction(() => window.map && window.workbench && window.map.loaded(), null, { timeout: 120000 });
+await page.waitForFunction(() => window.workbench && typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 120000 });
 await page.waitForTimeout(1500);
 const LINE = await page.evaluate(() => document.querySelector('#contents [data-id*="tracks"]')?.dataset.id ?? '');
 

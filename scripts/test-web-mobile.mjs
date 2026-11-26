@@ -27,7 +27,7 @@ async function open(dev) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(e.message));
   await page.goto(`${base}/?fresh`);
-  await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000 });
+  await page.waitForFunction(() => typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 120_000 });
   await page.waitForTimeout(1200);
   // a first-start tour or welcome card would cover the screen: close it as a user would
   for (const sel of ['[data-tour-skip]', '.tour [data-skip]', '.tut-card [data-x]', '#start [data-close]']) {

@@ -27,7 +27,7 @@ const page = await ctx.newPage();
 const problems = [];
 page.on('pageerror', (e) => problems.push(e.message));
 await page.goto(`${base}/?fresh`);
-await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000 });
+await page.waitForFunction(() => typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 120_000 });
 await page.waitForTimeout(1500);
 const cmd = (id) => page.evaluate((id) => window.workbench.command(id), id);
 const dialogBtn = async (label) => { await page.click(`.gx-dialog button:has-text("${label}")`); await page.waitForTimeout(300); };

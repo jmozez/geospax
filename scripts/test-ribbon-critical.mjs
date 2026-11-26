@@ -28,7 +28,7 @@ await page.addInitScript(() => { try { localStorage.setItem('geospax.mode', 'pro
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 const ready = async () => {
-  await page.waitForFunction(() => window.map && window.workbench && window.map.loaded(), null, { timeout: 120000 });
+  await page.waitForFunction(() => window.workbench && typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 120000 });
   await page.waitForTimeout(1200);
 };
 await page.goto(`${base}/?fresh`);
