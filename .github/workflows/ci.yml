@@ -412,7 +412,10 @@ jobs:
   windows:
     name: Windows installer (cross-built on Debian 13, tested under Wine)
     runs-on: ubuntu-latest
-    container: debian:trixie
+    container:
+      image: debian:trixie
+      # Wine 10's server needs socket calls that Docker's default seccomp filter refuses ("socket: Function not implemented")
+      options: --security-opt seccomp=unconfined
     env:
       CARGO_TERM_COLOR: always
       # optional: a base64-encoded .pfx code-signing certificate; without it the installer is unsigned
