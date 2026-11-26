@@ -11,7 +11,7 @@ async function open(name) {
   await ctx.addInitScript((n) => { try { localStorage.setItem('geospax.name', n); } catch { /* */ } }, name);
   const p = await ctx.newPage();
   await p.goto(`${base}/?fresh`);
-  await p.waitForFunction(() => window.workbench && window.map && window.map.loaded && window.map.loaded(), null, { timeout: 120_000 });
+  await p.waitForFunction(() => window.workbench && typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 120_000 });
   await p.waitForTimeout(4000);
   return p;
 }

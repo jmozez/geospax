@@ -8,7 +8,7 @@ const ok = (n, c, x = '') => { if (c) { pass++; console.log(`  ok   ${n}${x ? ` 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 await page.goto(`${base}/?fresh`);
-await page.waitForFunction(() => window.workbench && window.map && window.map.loaded && window.map.loaded(), null, { timeout: 120_000 });
+await page.waitForFunction(() => window.workbench && typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 120_000 });
 await page.waitForTimeout(1500);
 for (const s of ['[data-tour-skip]', '.tut-card [data-x]', '#start [data-close]']) { const e = await page.$(s); if (e && await e.isVisible()) await e.click().catch(() => {}); }
 const unnamed = () => page.evaluate(() => [...document.querySelectorAll('button, a[href], [role="button"], input:not([type="hidden"]), select')]
