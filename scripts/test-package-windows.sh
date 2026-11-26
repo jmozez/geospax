@@ -60,9 +60,9 @@ Xvfb :97 -screen 0 1280x800x24 >/dev/null 2>&1 &
 XVFB_PID=$!
 export DISPLAY=:97
 t0=$(date +%s)
-if ! wineboot --init >"$W/wineboot.log" 2>&1; then
+if ! WINEDEBUG=err+all wineboot --init >"$W/wineboot.log" 2>&1; then
   echo "FAIL  wineboot --init: $(wine --version 2>&1); WINEARCH=$WINEARCH; its output:"
-  WINEDEBUG=err+all tail -n 40 "$W/wineboot.log"; ls -la "$WINEPREFIX" 2>&1 | head; exit 1
+  tail -n 40 "$W/wineboot.log"; ls -la "$WINEPREFIX" 2>&1 | head; exit 1
 fi
 wineserver -w
 echo "Wine $(wine --version) prefix ready in $(( $(date +%s) - t0 )) s"
