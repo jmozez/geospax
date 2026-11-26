@@ -17,7 +17,7 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 const ctx = await browser.newContext({ viewport: { width: 1600, height: 950 }, deviceScaleFactor: 1.5 });
 const page = await ctx.newPage();
 await page.goto(`${base}/?fresh`);
-await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000 });
+await page.waitForFunction(() => typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 120_000 });
 await page.waitForTimeout(1500);
 const cmd = (id) => page.evaluate((id) => window.workbench.command(id), id);
 

@@ -29,7 +29,7 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - name: Tools for checkout
-        run: apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
+        run: sed -i 's/security.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
       - uses: actions/checkout@v4
       - name: System packages, Rust, Node (scripts/setup-linux.sh)
         run: bash scripts/setup-linux.sh
@@ -203,7 +203,7 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Tools for checkout
-        run: apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
+        run: sed -i 's/security.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
       - uses: actions/checkout@v4
       - name: GDAL 3.8 from the UbuntuGIS PPA (Ubuntu 22.04 ships 3.4; GeoSpaX needs 3.6 or newer)
         run: |
@@ -248,9 +248,9 @@ jobs:
         # AppImage brings GDAL, PROJ, WebKitGTK and the rest itself
         include:
           - distro: ubuntu:22.04
-            desktop: apt-get update -q && apt-get install -y -q --no-install-recommends libegl1 libgl1 libgbm1 libdrm2 libfontconfig1 libharfbuzz0b libfribidi0 libx11-6 libx11-xcb1 libxcb1 libwayland-client0 libgpg-error0 libcom-err2
+            desktop: sed -i 's/security.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; apt-get update -q && apt-get install -y -q --no-install-recommends libegl1 libgl1 libgbm1 libdrm2 libfontconfig1 libharfbuzz0b libfribidi0 libx11-6 libx11-xcb1 libxcb1 libwayland-client0 libgpg-error0 libcom-err2
           - distro: debian:12
-            desktop: apt-get update -q && apt-get install -y -q --no-install-recommends libegl1 libgl1 libgbm1 libdrm2 libfontconfig1 libharfbuzz0b libfribidi0 libx11-6 libx11-xcb1 libxcb1 libwayland-client0 libgpg-error0 libcom-err2
+            desktop: sed -i 's/security.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; apt-get update -q && apt-get install -y -q --no-install-recommends libegl1 libgl1 libgbm1 libdrm2 libfontconfig1 libharfbuzz0b libfribidi0 libx11-6 libx11-xcb1 libxcb1 libwayland-client0 libgpg-error0 libcom-err2
           - distro: fedora:44
             desktop: dnf install -y -q mesa-libEGL mesa-libGL mesa-libgbm libdrm fontconfig harfbuzz fribidi libX11 libX11-xcb libxcb libwayland-client
           - distro: archlinux:latest
@@ -258,7 +258,7 @@ jobs:
           - distro: opensuse/tumbleweed:latest
             desktop: for i in 1 2 3; do zypper -n -q --gpg-auto-import-keys refresh && zypper -n -q install Mesa-libEGL1 Mesa-libGL1 libgbm1 libdrm2 fontconfig libharfbuzz0 libfribidi0 libX11-6 libX11-xcb1 libxcb1 libwayland-client0 libcom_err2 libgpg-error0 findutils && break; sleep 30; done
           - distro: debian:13
-            desktop: apt-get update -q && apt-get install -y -q --no-install-recommends libegl1 libgl1 libgbm1 libdrm2 libfontconfig1 libharfbuzz0b libfribidi0 libx11-6 libx11-xcb1 libxcb1 libwayland-client0 libgpg-error0 libcom-err2
+            desktop: sed -i 's/security.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; apt-get update -q && apt-get install -y -q --no-install-recommends libegl1 libgl1 libgbm1 libdrm2 libfontconfig1 libharfbuzz0b libfribidi0 libx11-6 libx11-xcb1 libxcb1 libwayland-client0 libgpg-error0 libcom-err2
     steps:
       - name: Desktop libraries of ${{ matrix.distro }}
         run: ${{ matrix.desktop }}
@@ -285,6 +285,12 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v4
+      # Updating the image's preinstalled GNOME SDK in place fails on the container's overlay filesystem
+      # ("Invalid cross-device link") and flatpak-builder then crashes: remove it so the build installs a fresh copy
+      - name: Drop the image's GNOME SDK when it cannot be updated in place
+        run: |
+          flatpak update -y --noninteractive org.gnome.Sdk//50 && exit 0
+          flatpak uninstall -y --noninteractive org.gnome.Sdk//50 org.gnome.Sdk.Locale//50 || true
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: GeoSpaX.flatpak
@@ -412,7 +418,10 @@ jobs:
   windows:
     name: Windows installer (cross-built on Debian 13, tested under Wine)
     runs-on: ubuntu-latest
-    container: debian:trixie
+    container:
+      image: debian:trixie
+      # Wine 10's server needs socket calls that Docker's default seccomp filter refuses ("socket: Function not implemented")
+      options: --security-opt seccomp=unconfined
     env:
       CARGO_TERM_COLOR: always
       # optional: a base64-encoded .pfx code-signing certificate; without it the installer is unsigned
@@ -423,7 +432,7 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Tools for checkout
-        run: apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
+        run: sed -i 's/security.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; apt-get update -q && apt-get install -y -q --no-install-recommends git ca-certificates
       - uses: actions/checkout@v4
       - name: Rust, Node, MinGW-w64, NSIS, Wine, GDAL for Windows (scripts/setup-linux.sh --windows)
         run: bash scripts/setup-linux.sh --windows && apt-get install -y -q --no-install-recommends xvfb mosquitto openssl python3-numpy

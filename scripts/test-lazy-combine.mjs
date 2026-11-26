@@ -19,7 +19,7 @@ const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(e.message));
 await page.goto(`${base}/?fresh`);
-await page.waitForFunction(() => window.map && window.map.loaded(), null, { timeout: 120_000 });
+await page.waitForFunction(() => typeof window.map?.loaded === 'function' && window.map.loaded(), null, { timeout: 120_000 });
 await page.waitForTimeout(1200);
 await page.click('#mode-switch >> text=Lazy');
 await page.waitForTimeout(600);
