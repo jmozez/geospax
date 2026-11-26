@@ -14,7 +14,7 @@ Two parts, hosted separately:
 3. **Settings › Domains:** add your domain (for example `geospax.in4metrix.dev`) and create the DNS record Vercel shows.
 
 Or, without a Git link: create a token (Vercel › Account Settings › Tokens), save it as the repository secret
-`VERCEL_TOKEN`, and the **deploy website** workflow (`.github/workflows/site-deploy.yml`) puts `site/` live
+`VERCEL_TOKEN_GEOSPAX`, and the **deploy website** workflow (`.github/workflows/site-deploy.yml`) puts `site/` live
 whenever it changes on `main` (or by hand: Actions › deploy website › Run workflow). This is how the official site is deployed.
 
 The download buttons read the newest GitHub release by themselves. Once the web edition is online, set

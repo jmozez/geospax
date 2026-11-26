@@ -1,7 +1,7 @@
 name: deploy website
 # Puts site/ on Vercel (project geospax3, geospax.in4metrix.dev) with a token, so no Git link
 # to Vercel is needed. Runs when site/ changes on main, or by hand (Actions > deploy website).
-# Needs the VERCEL_TOKEN secret (Vercel > Account Settings > Tokens); without it, it says so and stops.
+# Needs the VERCEL_TOKEN_GEOSPAX secret (Vercel > Account Settings > Tokens); without it, it says so and stops.
 on:
   push:
     branches: [main]
@@ -21,7 +21,7 @@ jobs:
     env:
       VERCEL_ORG_ID: team_sQKBoVytwZq7ergPfB5Er8ZR
       VERCEL_PROJECT_ID: prj_tgjCHfTQevnCps53zFefZHHt6EFr
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN_GEOSPAX }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,7 +30,7 @@ jobs:
       - name: Deploy site/ to production
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::warning::VERCEL_TOKEN is not set: the website was not updated"
+            echo "::warning::VERCEL_TOKEN_GEOSPAX is not set: the website was not updated"
             exit 0
           fi
           npm i -g vercel@latest >/dev/null
