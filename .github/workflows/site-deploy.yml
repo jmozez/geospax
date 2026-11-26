@@ -1,0 +1,51 @@
+name: deploy website
+# Puts site/ on Vercel (project geospax3, geospax.in4metrix.dev) with a token, so no Git link
+# to Vercel is needed. Runs when site/ changes on main, or by hand (Actions > deploy website).
+# Needs the VERCEL_TOKEN secret (Vercel > Account Settings > Tokens); without it, it says so and stops.
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/site-deploy.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-site
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  vercel:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: team_sQKBoVytwZq7ergPfB5Er8ZR
+      VERCEL_PROJECT_ID: prj_tgjCHfTQevnCps53zFefZHHt6EFr
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Deploy site/ to production
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::warning::VERCEL_TOKEN is not set: the website was not updated"
+            exit 0
+          fi
+          npm i -g vercel@latest >/dev/null
+          out="$RUNNER_TEMP/site"
+          mkdir -p "$out"
+          cd "$out"
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          # the project may build from the repo root or from site/: lay the files out to match
+          root=$(jq -r '.settings.rootDirectory // ""' .vercel/project.json)
+          if [ -n "$root" ] && [ "$root" != "." ]; then
+            mkdir -p "$root" && cp -r "$GITHUB_WORKSPACE"/site/. "$root"/
+          else
+            cp -r "$GITHUB_WORKSPACE"/site/. .
+          fi
+          url=$(vercel deploy --prod --yes --token="$VERCEL_TOKEN")
+          echo "deployed: $url"
+          sleep 10
+          curl -sfI https://geospax.in4metrix.dev/ | head -1
