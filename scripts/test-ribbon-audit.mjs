@@ -332,6 +332,15 @@ for (const tab of TABS) {
     const exp = famExpect(it.cmd);
     const wantFile = /file/.test(exp);
     await page.waitForTimeout(wantFile ? 900 : 700);
+    // a command that answers on the status bar after an engine round trip (Edit › Undo of a real
+    // edit) can take longer than that on a slow runner: give it up to 4 s more
+    if (/status/.test(exp)) {
+      for (let i = 0; i < 20; i++) {
+        const n = await page.evaluate((k) => window.__audit.status.slice(k).filter((t) => t && t !== 'Ready' && !/…$/.test(t)).length, a.status.length);
+        if (n) break;
+        await page.waitForTimeout(200);
+      }
+    }
     // a dialog that asks before writing a file: accept it, then wait for the file
     if (wantFile) {
       for (let i = 0; i < 25 && !downloads.length; i++) {
