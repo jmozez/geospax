@@ -130,6 +130,7 @@ a:hover .arrow { transform: translateX(3px); }
 .downloads { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); }
 .dl { display: flex; flex-direction: column; gap: 14px; background: linear-gradient(180deg, var(--card2), var(--card)); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; }
 .dl p { color: var(--muted); margin: 0; font-size: 14.5px; flex: 1; }
+.dl p.note { flex: 0; font-size: 12.5px; }
 .dl .btn { border-radius: 10px; }
 .dl.mine { border-color: rgba(255,122,69,.6); box-shadow: 0 0 0 1px rgba(255,122,69,.3), 0 20px 50px -20px rgba(255,122,69,.4); }
 .dl.mine h3::after { content: "Your system"; margin-left: 8px; font: 500 11px var(--mono); color: var(--accent2); padding: 2px 8px; border: 1px solid rgba(255,122,69,.4); border-radius: 999px; vertical-align: 3px; }
