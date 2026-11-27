@@ -24,3 +24,5 @@ serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true }
 tauri-plugin-updater = "2"
+# outside links (the update banner's Download, About, the guides) open in the default browser
+tauri-plugin-opener = "2"

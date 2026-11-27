@@ -3,6 +3,11 @@
 All notable changes to GeoSpaX. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Desktop app: the Download link in the "GeoSpaX x.y.z is available" banner did nothing, because the desktop window ignores links that open a new tab. It now opens the release page in the default browser, as do the "download it yourself" and "Open the downloads page" links, About and the links in the guides.
+
 ## [3.2.1] - 2026-11-03
 
 ### Changed

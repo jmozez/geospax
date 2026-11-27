@@ -6,6 +6,10 @@
 import './style.css';
 import { createBackend } from './backend';
 import { FINISH_RECIPE, LAYOUT_CHANNEL, type LayoutMsg, type LayoutSpec } from './finish';
+import { wireExternalLinks } from './links';
+
+// desktop: outside links (GitHub, home pages) open in the default browser
+wireExternalLinks();
 
 const backend = createBackend();
 const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
