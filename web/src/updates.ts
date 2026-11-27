@@ -1,11 +1,13 @@
 // New versions (Help › About and a check when the desktop app starts). The Windows edition installed
 // with the setup program updates itself: Tauri's updater reads latest.json from the newest GitHub
 // release, checks the installer's signature against the key built into the app, installs it and
-// restarts. The .deb, the portable ZIP and the web edition are told a new version is out, with a link.
+// restarts. The .deb, the portable ZIP and the web edition are told a new version is out, with a link
+// (on the desktop it opens in the default browser: links.ts).
 import { newer, renderMarkdown } from './docs';
+import { inDesktop, openExternal } from './links';
 
 const REPO = 'https://github.com/jmozez/geospax';
-const desktop = '__TAURI_INTERNALS__' in window;
+const desktop = inDesktop();
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export interface FoundUpdate {
@@ -56,6 +58,12 @@ export function showUpdate(box: HTMLElement, u: FoundUpdate, onLater?: () => voi
     ${u.notes ? `<details><summary>What's new</summary><div class="doc">${renderMarkdown(u.notes)}</div></details>` : ''}
     <span class="upd-msg" aria-live="polite"></span>`;
   box.querySelector('.upd-later')?.addEventListener('click', () => onLater?.());
+  // the desktop window ignores target="_blank": the release page opens in the default browser instead
+  box.querySelector('.upd-download')?.addEventListener('click', (e) => {
+    if (!desktop) return;
+    e.preventDefault();
+    void openExternal(u.url);
+  });
   const btn = box.querySelector<HTMLButtonElement>('.upd-install');
   const msg = box.querySelector<HTMLElement>('.upd-msg')!;
   btn?.addEventListener('click', async () => {

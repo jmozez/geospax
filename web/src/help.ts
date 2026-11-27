@@ -6,6 +6,10 @@ import './style.css';
 import './help.css';
 import { createBackend } from './backend';
 import { renderMarkdown } from './docs';
+import { wireExternalLinks } from './links';
+
+// desktop: outside links (GitHub, home pages) open in the default browser
+wireExternalLinks();
 
 interface DocInfo { name: string; title: string }
 

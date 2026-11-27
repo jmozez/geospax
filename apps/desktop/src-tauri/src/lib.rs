@@ -212,6 +212,7 @@ pub fn run() {
         .manage(engine)
         .manage(PendingUpdate::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![tile, update_kind, update_check, update_install])
         .setup(move |app| {
             // switching local profile (profiles.rs) opens another folder: restart the app

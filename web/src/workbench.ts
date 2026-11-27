@@ -15,6 +15,7 @@ import { ONLINE_SOURCES } from './online';
 import { bytesText, followJob } from './downloads';
 import { PRESSED, isResolvedSplit, rememberSplit, ribbonFor, setDockTests, splitCurrent, splitSpec, command as commandById, type ResolvedSplit } from './ribbonlayout';
 import { claimMapTool, isMapTool, releaseMapTool, stopMapTool } from './toolstate';
+import { openExternal } from './links';
 
 /** default domain plugins shown in the Industry and planning group of the Plugins tab */
 const INDUSTRY_DOMAINS = new Set(['surveying', 'energy', 'petroleum', 'mining', 'maritime', 'aviation', 'transport', 'urban', 'rural', 'assets']);
@@ -262,7 +263,7 @@ export class Workbench {
       setStatus: (t, ms) => this.setStatus(t, ms),
       log: (line, level) => this.log(line, level),
       // guides open inside the app (a new tab cannot show Markdown, and the desktop window and phones have no tabs)
-      openUrl: (p) => (/\.md(#.*)?$/.test(p) ? void this.docs().open(p) : window.open(p, '_blank', 'noopener')),
+      openUrl: (p) => (/\.md(#.*)?$/.test(p) ? void this.docs().open(p) : void openExternal(p)),
       about: () => void this.docs().about(this.host.edition),
       setRibbonCompact: (compact) => this.setRibbonCompact(compact),
       toggleRibbon: () => this.setRibbonPinned(!this.layout.ribbonPinned),

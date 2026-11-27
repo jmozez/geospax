@@ -4,6 +4,7 @@ import { wireProjects } from './projects';
 import * as editingMod from './editing';
 import * as ggchartMod from './ggchart';
 import { startupCheck } from './updates';
+import { wireExternalLinks } from './links';
 import * as maplibregl from 'maplibre-gl';
 import { AutomatePane, type RunInfo } from './automate';
 import { DevicesPane, type LiveGeoJSON } from './devices';
@@ -63,6 +64,8 @@ import './style.css';
 maplibregl.setWorkerUrl(workerUrl);
 
 const backend = createBackend();
+// desktop: outside links (the update banner's Download, About, the guides) open in the default browser
+wireExternalLinks();
 // the chart look (ggplot2 theme and palette) chosen in Settings, for the charts drawn in the app
 void ggchartMod.loadChartStyle(backend);
 

@@ -55,6 +55,8 @@ jobs:
         run: node --experimental-strip-types --no-warnings scripts/test-prefill.mjs
       - name: Profile chart (distance, min, max, climb, A and B, km ticks)
         run: node --experimental-strip-types --no-warnings scripts/test-profile.mjs
+      - name: Outside links open in the default browser on the desktop (update banner Download, About, guides)
+        run: node --experimental-strip-types --no-warnings scripts/test-external-links.mjs
       - name: Engine unit tests
         run: . /opt/rust-env.sh && cargo test --release -p geospax-engine
       - name: Release build (server + desktop)
